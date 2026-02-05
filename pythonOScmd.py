@@ -3148,31 +3148,243 @@ def feature_traffic_report():
 # --- AI & CALENDAR ADDITIONS ---
 
 def feature_deep_probe_ai():
-    print_header("🤖 AI Heuristics & Deep Probe")
-    cpu_stress = psutil.cpu_percent(interval=0.5)
-    mem_stress = psutil.virtual_memory().percent
-    stress_score = (cpu_stress * 0.4) + (mem_stress * 0.4)
+    def _ai_probe_snapshot():
+        cpu_stress = psutil.cpu_percent(interval=0.5)
+        mem = psutil.virtual_memory()
+        mem_stress = mem.percent
+        disk = psutil.disk_usage('/')
+        net = psutil.net_io_counters()
+        stress_score = (cpu_stress * 0.4) + (mem_stress * 0.4)
 
-    verdict = f"{COLORS['2'][0]}OPTIMAL{RESET}"
-    if stress_score > 80: verdict = f"{COLORS['1'][0]}CRITICAL STRESS{RESET}"
-    elif stress_score > 50: verdict = f"{COLORS['4'][0]}MODERATE LOAD{RESET}"
+        verdict = "OPTIMAL"
+        if stress_score > 80:
+            verdict = "CRITICAL STRESS"
+        elif stress_score > 50:
+            verdict = "MODERATE LOAD"
 
-    print(f" {BOLD}🧠 AI Predictive Verdict:{RESET}")
-    print(f" > Stress Index: {stress_score:.1f}/100")
-    print(f" > Health State:  {verdict}")
+        ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))
+        os_name = platform.system()
+        arch = platform.machine()
+        pyver = platform.python_version()
 
-    print_header("💾 Kernel & Latency Probe")
-    try:
-        ctx = psutil.cpu_stats().ctx_switches
-        zombies = len([p for p in psutil.process_iter() if p.status() == psutil.STATUS_ZOMBIE])
-        print(f" > 🔄 Context Switches: {ctx:,}")
-        print(f" > 🧟 Zombie Count:      {zombies}")
-        proc = psutil.Process()
-        handles = proc.num_handles() if os.name == 'nt' else proc.num_fds()
-        print(f" > 🗝️ Active OS Handles: {handles}")
-    except:
-        print(" > 🚫 Deep Probe: Restricted by OS Kernel")
-    input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
+        ctx_switches = None
+        zombie_count = None
+        handles = None
+        try:
+            ctx_switches = psutil.cpu_stats().ctx_switches
+            zombie_count = len([p for p in psutil.process_iter() if p.status() == psutil.STATUS_ZOMBIE])
+            proc = psutil.Process()
+            handles = proc.num_handles() if os.name == 'nt' else proc.num_fds()
+        except Exception:
+            pass
+
+        lines = []
+        lines.append("AI DEEP PROBE REPORT")
+        lines.append("=" * 60)
+        lines.append(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        lines.append(f"OS: {os_name} {platform.release()} | Arch: {arch}")
+        lines.append(f"Python: {pyver} | Node: {platform.node()}")
+        lines.append("")
+        lines.append("[AI HEALTH]")
+        lines.append(f"CPU Load: {cpu_stress:.1f}%")
+        lines.append(f"Memory Load: {mem_stress:.1f}%")
+        lines.append(f"Disk Used: {disk.percent:.1f}%")
+        lines.append(f"Stress Index: {stress_score:.1f}/100")
+        lines.append(f"Health Verdict: {verdict}")
+        lines.append(f"AI Readiness Score: {ai_readiness}/100")
+        lines.append("")
+        lines.append("[SYSTEM SIGNALS]")
+        if ctx_switches is not None:
+            lines.append(f"Context Switches: {ctx_switches:,}")
+        if zombie_count is not None:
+            lines.append(f"Zombie Count: {zombie_count}")
+        if handles is not None:
+            lines.append(f"Active OS Handles: {handles}")
+        lines.append(f"Uptime: {str(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())).split('.')[0]}")
+        lines.append("")
+        lines.append("[NETWORK]")
+        lines.append(f"Data Sent: {net.bytes_sent / (1024**2):.2f} MB")
+        lines.append(f"Data Received: {net.bytes_recv / (1024**2):.2f} MB")
+        lines.append("=")
+        return {
+            "stress_score": stress_score,
+            "verdict": verdict,
+            "ai_readiness": ai_readiness,
+            "lines": lines
+        }
+
+    def _export_report(lines, tag):
+        content = "\n".join(lines)
+        file_path = save_log_file("ai", f"AI_Probe_{tag}", content, prompt_user=False)
+        try:
+            log_to_database("ai", f"AI_Probe_{tag}", content, file_path=file_path, status="success")
+        except Exception:
+            pass
+        return file_path
+
+    def _ai_language_interpreter():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🗣️ AI Language Interpreter")
+        print("Select mode:")
+        print(" [1] Friendly AI")
+        print(" [2] Rogue AI (simulated)")
+        mode = input("\nChoose mode: ").strip()
+        rogue = mode == '2'
+        print("\nType 'exit' to return.")
+        while True:
+            msg = input("\nYou> ").strip()
+            if msg.lower() in ["exit", "quit", "q"]:
+                break
+            snapshot = _ai_probe_snapshot()
+            if "status" in msg.lower() or "health" in msg.lower():
+                print(f"AI> System health: {snapshot['verdict']} | Readiness {snapshot['ai_readiness']}/100")
+                continue
+            if "help" in msg.lower():
+                print("AI> Try: status, report, analyze logs, readiness, summarize system")
+                continue
+            if "report" in msg.lower():
+                file_path = _export_report(snapshot["lines"], "Interpreter")
+                print(f"AI> Report generated: {file_path}")
+                continue
+
+            tone = "DIRECT" if rogue else "FRIENDLY"
+            response = "Acknowledged."
+            if "analyze" in msg.lower():
+                response = "Analysis queued. Provide a target (file, folder, or log category)."
+            elif "swap" in msg.lower():
+                response = f"Swap cache is located at: {SWAP_CACHE_DIR}"
+            elif "predict" in msg.lower():
+                response = f"Forecast: readiness {snapshot['ai_readiness']}/100, keep CPU under 70% for best results."
+            print(f"AI [{tone}]> {response}")
+
+    def _advanced_ai_probe():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧠 Advanced AI Probing")
+        snapshot = _ai_probe_snapshot()
+
+        print(f"{BOLD}AI Readiness:{RESET} {snapshot['ai_readiness']}/100")
+        print(f"{BOLD}Stress Index:{RESET} {snapshot['stress_score']:.1f}/100")
+
+        print_header("📊 Process Intelligence")
+        try:
+            procs = []
+            for p in psutil.process_iter(['pid', 'name', 'memory_percent', 'cpu_percent']):
+                procs.append(p.info)
+            procs.sort(key=lambda x: x.get('memory_percent') or 0, reverse=True)
+            for p in procs[:8]:
+                print(f" {p.get('pid'):>6} {p.get('name', 'N/A')[:18]:<18} MEM {p.get('memory_percent', 0):>5.1f}% CPU {p.get('cpu_percent', 0):>5.1f}%")
+        except Exception:
+            print(" Process scan unavailable.")
+
+        print_header("🔍 Anomaly Heuristics")
+        alerts = []
+        if snapshot['stress_score'] > 80:
+            alerts.append("High system stress detected")
+        if psutil.virtual_memory().available / (1024**3) < 1:
+            alerts.append("Low available RAM (<1GB)")
+        if psutil.disk_usage('/').free / (1024**3) < 2:
+            alerts.append("Low disk free space (<2GB)")
+        if not alerts:
+            alerts.append("No critical anomalies detected")
+        for a in alerts:
+            print(f" - {a}")
+
+        file_path = _export_report(snapshot["lines"], "Advanced")
+        print(f"\n{COLORS['2'][0]}✅ Advanced probe exported: {file_path}{RESET}")
+        input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
+
+    def _ai_data_fusion():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧬 AI Data Fusion")
+        print(f"Data Root: {DB_DIR}")
+        print(f"Log Root:  {LOG_DIR}")
+        print(f"Swap Cache: {SWAP_CACHE_DIR}")
+
+        log_counts = {}
+        newest = (None, 0)
+        total_bytes = 0
+
+        for root, _, files in os.walk(LOG_DIR):
+            for name in files:
+                path = os.path.join(root, name)
+                try:
+                    stat = os.stat(path)
+                    total_bytes += stat.st_size
+                    cat = os.path.basename(os.path.dirname(path))
+                    log_counts[cat] = log_counts.get(cat, 0) + 1
+                    if stat.st_mtime > newest[1]:
+                        newest = (path, stat.st_mtime)
+                except Exception:
+                    pass
+
+        print_header("📁 Log Intelligence")
+        if log_counts:
+            for cat, count in sorted(log_counts.items()):
+                print(f" {cat:<16} {count} files")
+            print(f" Total Log Size: {total_bytes / (1024**2):.2f} MB")
+            if newest[0]:
+                print(f" Newest Log: {newest[0]}")
+        else:
+            print(" No logs found.")
+
+        print_header("🔄 Swap Cache")
+        try:
+            swap_files = [f for f in os.listdir(SWAP_CACHE_DIR) if os.path.isfile(os.path.join(SWAP_CACHE_DIR, f))]
+            if swap_files:
+                for f in swap_files[:10]:
+                    print(f" {f}")
+                if len(swap_files) > 10:
+                    print(f" ... and {len(swap_files) - 10} more")
+            else:
+                print(" Swap cache is empty.")
+        except Exception:
+            print(" Swap cache not accessible.")
+
+        stage = input("\nStage a file into swap cache? (y/n): ").strip().lower()
+        if stage == 'y':
+            src = input("Enter file path to stage: ").strip()
+            if os.path.exists(src) and os.path.isfile(src):
+                try:
+                    dst = os.path.join(SWAP_CACHE_DIR, os.path.basename(src))
+                    shutil.copy2(src, dst)
+                    print(f"{COLORS['2'][0]}✅ Staged: {dst}{RESET}")
+                except Exception as e:
+                    print(f"{COLORS['1'][0]}❌ Stage failed: {e}{RESET}")
+            else:
+                print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+
+        input(f"\n{BOLD}[ ✅ Data Fusion Finished. Press Enter... ]{RESET}")
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🤖 AI Probe Center")
+        print(" [1] AI Report (screen + export)")
+        print(" [2] AI Language Interpreter")
+        print(" [3] Advanced AI Probing")
+        print(" [4] AI Data Fusion (pythonOS_data)")
+        print(" [0] Return")
+
+        choice = input("\nSelect option: ").strip()
+        if choice == '0':
+            break
+        elif choice == '1':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🤖 AI Heuristics & Deep Probe")
+            snapshot = _ai_probe_snapshot()
+            for line in snapshot["lines"]:
+                print(line)
+            file_path = _export_report(snapshot["lines"], "Report")
+            print(f"\n{COLORS['2'][0]}✅ Report exported: {file_path}{RESET}")
+            input(f"\n{BOLD}[ ✅ Report Finished. Press Enter... ]{RESET}")
+        elif choice == '2':
+            _ai_language_interpreter()
+        elif choice == '3':
+            _advanced_ai_probe()
+        elif choice == '4':
+            _ai_data_fusion()
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
 
 def feature_simple_calendar():
     print_header("📅 System Calendar")
@@ -5489,6 +5701,14 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd24 base pythonOS70
+# version pythonOScmd32 base pythonOS70
 # 2-5-26 Added Download Center 8 AM
 # 2-5-25 Updated Download Center to do updates one at a time
+# Updated AI probing logic
+# 2-5-24 Added AI Probing and Weather Display
+# 2-5-23 Added Calendar and Latency Probe
+# 2-5-22 Added Hardware Serials and Environment Probe
+# 2-5-21 Added Security Audit and Network Toolkit
+# 2-5-20 Added Defence Center and Pentest Toolkit
+# 2-5-19 Added Remote Dashboard and Plugin Center
+# 2-5-18 Added Media Scanner and Display FX Test
