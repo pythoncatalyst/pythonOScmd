@@ -107,6 +107,9 @@ from PIL import Image
 from io import BytesIO
 import GPUtil
 import re # Added for Visual FX Regex
+import shutil # Added for check_pentest_tool
+import sqlite3 # Added for Database/Log system
+import json # Added for JSON logging
 
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
@@ -132,6 +135,1168 @@ def init_audio_device():
     return None
 
 DEFAULT_AUDIO_SINK = init_audio_device()
+
+# ==========================================================
+# DATABASE & LOGGING SYSTEM - V21.2
+# ==========================================================
+
+# Database and Log Directory Setup
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_DIR = os.path.join(SCRIPT_DIR, "pythonOS_data")
+LOG_DIR = os.path.join(DB_DIR, "logs")
+DB_FILE = os.path.join(DB_DIR, "pythonOS.db")
+SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
+
+# Log Categories
+LOG_CATEGORIES = {
+    "system": "System Information",
+    "network": "Network Operations",
+    "security": "Security & Audit",
+    "hardware": "Hardware Probing",
+    "media": "Media Operations",
+    "weather": "Weather Data",
+    "process": "Process Management",
+    "ai": "AI & Analytics",
+    "pentest": "Penetration Testing",
+    "defense": "Defense Operations",
+    "general": "General Logs",
+    "aggressive_scan": "Aggressive Intelligence Scan"
+}
+
+def init_database_system():
+    """Initialize the database and directory structure."""
+    try:
+        # Create directories if they don't exist
+        os.makedirs(DB_DIR, exist_ok=True)
+        os.makedirs(LOG_DIR, exist_ok=True)
+        os.makedirs(SWAP_CACHE_DIR, exist_ok=True)
+
+        # Create category subdirectories
+        for category in LOG_CATEGORIES.keys():
+            os.makedirs(os.path.join(LOG_DIR, category), exist_ok=True)
+
+        # Initialize SQLite database
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # Create tables
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS log_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp TEXT NOT NULL,
+                category TEXT NOT NULL,
+                operation TEXT NOT NULL,
+                data TEXT,
+                file_path TEXT,
+                status TEXT DEFAULT 'success'
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS file_tracking (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT UNIQUE NOT NULL,
+                file_type TEXT,
+                file_size INTEGER,
+                created_date TEXT,
+                last_accessed TEXT,
+                access_count INTEGER DEFAULT 0,
+                metadata TEXT
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS swap_cache (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cache_key TEXT UNIQUE NOT NULL,
+                cache_data TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                expires_at TEXT,
+                access_count INTEGER DEFAULT 0,
+                last_accessed TEXT
+            )
+        ''')
+
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS session_history (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                session_start TEXT NOT NULL,
+                session_end TEXT,
+                operations_count INTEGER DEFAULT 0,
+                features_used TEXT
+            )
+        ''')
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"⚠️ Database initialization error: {e}")
+        return False
+
+def log_to_database(category, operation, data=None, file_path=None, status="success"):
+    """Log an entry to the SQLite database."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute('''
+            INSERT INTO log_entries (timestamp, category, operation, data, file_path, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (timestamp, category, operation, str(data) if data else None, file_path, status))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"⚠️ Database logging error: {e}")
+        return False
+
+def save_log_file(category, operation, content, prompt_user=True):
+    """Save a log file to categorized folder and optionally log to database."""
+    if prompt_user:
+        response = input(f"\n{BOLD}💾 Save this data to log file? (y/n): {RESET}").strip().lower()
+        if response != 'y':
+            return None
+
+    try:
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        category_dir = os.path.join(LOG_DIR, category)
+        filename = f"{operation.replace(' ', '_')}_{timestamp}.log"
+        file_path = os.path.join(category_dir, filename)
+
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(f"=== {operation} ===\n")
+            f.write(f"Timestamp: {timestamp}\n")
+            f.write(f"Category: {category}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(content)
+
+        # Log to database
+        log_to_database(category, operation, content[:500], file_path, "saved")
+
+        print(f"{COLORS['2'][0]}✅ Log saved: {file_path}{RESET}")
+        return file_path
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error saving log: {e}{RESET}")
+        return None
+
+def track_file(file_path, file_type=None, metadata=None):
+    """Track a file in the database for future reference."""
+    try:
+        if not os.path.exists(file_path):
+            return False
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        file_size = os.path.getsize(file_path)
+        created_date = datetime.datetime.fromtimestamp(os.path.getctime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
+        last_accessed = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO file_tracking
+            (file_path, file_type, file_size, created_date, last_accessed, access_count, metadata)
+            VALUES (?, ?, ?, ?, ?,
+                COALESCE((SELECT access_count + 1 FROM file_tracking WHERE file_path = ?), 1),
+                ?)
+        ''', (file_path, file_type, file_size, created_date, last_accessed, file_path, json.dumps(metadata) if metadata else None))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"⚠️ File tracking error: {e}")
+        return False
+
+def cache_data(key, data, expire_minutes=30):
+    """Cache data in SQLite swap system for performance boost."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        created_at = datetime.datetime.now()
+        expires_at = created_at + datetime.timedelta(minutes=expire_minutes)
+
+        cursor.execute('''
+            INSERT OR REPLACE INTO swap_cache (cache_key, cache_data, created_at, expires_at, access_count, last_accessed)
+            VALUES (?, ?, ?, ?,
+                COALESCE((SELECT access_count + 1 FROM swap_cache WHERE cache_key = ?), 1),
+                ?)
+        ''', (key, json.dumps(data), created_at.strftime("%Y-%m-%d %H:%M:%S"),
+              expires_at.strftime("%Y-%m-%d %H:%M:%S"), key, created_at.strftime("%Y-%m-%d %H:%M:%S")))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        return False
+
+def get_cached_data(key):
+    """Retrieve cached data from swap system."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT cache_data, expires_at FROM swap_cache
+            WHERE cache_key = ? AND datetime(expires_at) > datetime('now')
+        ''', (key,))
+
+        result = cursor.fetchone()
+        conn.close()
+
+        if result:
+            return json.loads(result[0])
+        return None
+    except Exception as e:
+        return None
+
+def clean_expired_cache():
+    """Clean up expired cache entries."""
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute("DELETE FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
+        deleted = cursor.rowcount
+
+        conn.commit()
+        conn.close()
+        return deleted
+    except Exception as e:
+        return 0
+
+def feature_database_log_center():
+    """Database & Log Files Management Center."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("💾 Database & Log Files Center")
+
+        # Quick stats
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT COUNT(*) FROM log_entries")
+            log_count = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM file_tracking")
+            tracked_files = cursor.fetchone()[0]
+
+            cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+            cache_count = cursor.fetchone()[0]
+
+            conn.close()
+
+            print(f"{BOLD}📊 System Status:{RESET}")
+            print(f"  📝 Total Log Entries: {log_count}")
+            print(f"  📂 Tracked Files: {tracked_files}")
+            print(f"  🚀 Active Cache Entries: {cache_count}")
+            print(f"  📁 Database Location: {DB_FILE}")
+        except:
+            print(f"{COLORS['1'][0]}⚠️ Database not accessible{RESET}")
+
+        print(f"\n{BOLD}Main Menu:{RESET}")
+        print(f" {BOLD}[1]{RESET} 📋 View Log Files (by Category)")
+        print(f" {BOLD}[2]{RESET} 🔍 Search Logs")
+        print(f" {BOLD}[3]{RESET} 📊 Database Statistics")
+        print(f" {BOLD}[4]{RESET} 📂 File Tracking Browser")
+        print(f" {BOLD}[5]{RESET} 🚀 Swap Cache Management")
+        print(f" {BOLD}[6]{RESET} 💾 Export Database (SQL/JSON)")
+        print(f" {BOLD}[7]{RESET} 📥 Import Data")
+        print(f" {BOLD}[8]{RESET} 🧹 Clean & Optimize")
+        print(f" {BOLD}[9]{RESET} ⚙️ Database Settings")
+        print(f" {BOLD}[10]{RESET} 🔍 Lite Scan (Quick System Snapshot)")
+        print(f" {BOLD}[11]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+        if choice == '0':
+            break
+        elif choice == '1':
+            _view_log_files()
+        elif choice == '2':
+            _search_logs()
+        elif choice == '3':
+            _database_statistics()
+        elif choice == '4':
+            _file_tracking_browser()
+        elif choice == '5':
+            _swap_cache_management()
+        elif choice == '6':
+            _export_database()
+        elif choice == '7':
+            _import_data()
+        elif choice == '8':
+            _clean_optimize()
+        elif choice == '9':
+            _database_settings()
+        elif choice == '10':
+            _lite_scan()
+        elif choice == '11':
+            _aggressive_scan()
+
+def _view_log_files():
+    """View log files by category."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📋 Log Files by Category")
+
+    print(f"\n{BOLD}Select Category:{RESET}")
+    categories = list(LOG_CATEGORIES.keys())
+    for i, (cat_key, cat_name) in enumerate(LOG_CATEGORIES.items(), 1):
+        # Count files in category
+        cat_dir = os.path.join(LOG_DIR, cat_key)
+        file_count = len([f for f in os.listdir(cat_dir) if f.endswith('.log')]) if os.path.exists(cat_dir) else 0
+        print(f" {BOLD}[{i}]{RESET} {cat_name} ({file_count} files)")
+
+    choice = input(f"\n{BOLD}Select category (1-{len(categories)}): {RESET}").strip()
+
+    try:
+        idx = int(choice) - 1
+        if 0 <= idx < len(categories):
+            category = categories[idx]
+            cat_dir = os.path.join(LOG_DIR, category)
+
+            if os.path.exists(cat_dir):
+                log_files = sorted([f for f in os.listdir(cat_dir) if f.endswith('.log')], reverse=True)
+
+                if not log_files:
+                    print(f"\n{COLORS['4'][0]}📭 No log files in this category{RESET}")
+                else:
+                    print(f"\n{BOLD}Log Files in {LOG_CATEGORIES[category]}:{RESET}")
+                    for i, log_file in enumerate(log_files[:20], 1):  # Show last 20
+                        file_path = os.path.join(cat_dir, log_file)
+                        file_size = os.path.getsize(file_path)
+                        print(f" {i}. {log_file} ({file_size} bytes)")
+
+                    view_choice = input(f"\n{BOLD}Enter number to view file (or Enter to skip): {RESET}").strip()
+                    if view_choice.isdigit():
+                        file_idx = int(view_choice) - 1
+                        if 0 <= file_idx < len(log_files):
+                            file_path = os.path.join(cat_dir, log_files[file_idx])
+                            with open(file_path, 'r', encoding='utf-8') as f:
+                                content = f.read()
+                            print(f"\n{BOLD}=== {log_files[file_idx]} ==={RESET}")
+                            print(content[:2000])  # Show first 2000 chars
+                            if len(content) > 2000:
+                                print(f"\n... (truncated, total {len(content)} characters)")
+    except:
+        print(f"{COLORS['1'][0]}❌ Invalid selection{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _search_logs():
+    """Search logs in database."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔍 Search Logs")
+
+    search_term = input(f"\n{BOLD}Enter search term: {RESET}").strip()
+
+    if not search_term:
+        return
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT timestamp, category, operation, data, status
+            FROM log_entries
+            WHERE operation LIKE ? OR data LIKE ? OR category LIKE ?
+            ORDER BY timestamp DESC LIMIT 50
+        ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+
+        results = cursor.fetchall()
+        conn.close()
+
+        if results:
+            print(f"\n{BOLD}Found {len(results)} matching entries:{RESET}\n")
+            for timestamp, category, operation, data, status in results:
+                print(f"{COLORS['2'][0]}[{timestamp}]{RESET} {category.upper()}: {operation}")
+                if data:
+                    print(f"  {data[:100]}..." if len(data) > 100 else f"  {data}")
+                print()
+        else:
+            print(f"\n{COLORS['4'][0]}No matching entries found{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Search error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _database_statistics():
+    """Show detailed database statistics."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 Database Statistics")
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # Log statistics by category
+        print(f"\n{BOLD}Log Entries by Category:{RESET}")
+        cursor.execute('''
+            SELECT category, COUNT(*) as count
+            FROM log_entries
+            GROUP BY category
+            ORDER BY count DESC
+        ''')
+        for category, count in cursor.fetchall():
+            print(f"  {category.capitalize()}: {count}")
+
+        # Recent operations
+        print(f"\n{BOLD}Recent Operations (Last 10):{RESET}")
+        cursor.execute('''
+            SELECT timestamp, category, operation
+            FROM log_entries
+            ORDER BY timestamp DESC LIMIT 10
+        ''')
+        for timestamp, category, operation in cursor.fetchall():
+            print(f"  [{timestamp}] {category}: {operation}")
+
+        # Cache statistics
+        print(f"\n{BOLD}Cache Performance:{RESET}")
+        cursor.execute("SELECT COUNT(*), SUM(access_count) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+        cache_count, total_hits = cursor.fetchone()
+        print(f"  Active Entries: {cache_count}")
+        print(f"  Total Cache Hits: {total_hits or 0}")
+
+        # File tracking
+        print(f"\n{BOLD}File Tracking:{RESET}")
+        cursor.execute("SELECT file_type, COUNT(*) FROM file_tracking GROUP BY file_type")
+        for file_type, count in cursor.fetchall():
+            print(f"  {file_type or 'Unknown'}: {count}")
+
+        # Database size
+        db_size = os.path.getsize(DB_FILE) / 1024  # KB
+        print(f"\n{BOLD}Database Size:{RESET} {db_size:.2f} KB")
+
+        conn.close()
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _file_tracking_browser():
+    """Browse tracked files."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📂 File Tracking Browser")
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT file_path, file_type, file_size, last_accessed, access_count
+            FROM file_tracking
+            ORDER BY last_accessed DESC LIMIT 50
+        ''')
+
+        results = cursor.fetchall()
+        conn.close()
+
+        if results:
+            print(f"\n{BOLD}Tracked Files (Most Recent):{RESET}\n")
+            for file_path, file_type, file_size, last_accessed, access_count in results:
+                size_mb = file_size / (1024 * 1024) if file_size else 0
+                print(f"{COLORS['6'][0]}{os.path.basename(file_path)}{RESET}")
+                print(f"  Path: {file_path}")
+                print(f"  Type: {file_type or 'Unknown'} | Size: {size_mb:.2f} MB")
+                print(f"  Last Accessed: {last_accessed} | Access Count: {access_count}")
+                print()
+        else:
+            print(f"\n{COLORS['4'][0]}No tracked files yet{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _swap_cache_management():
+    """Manage swap cache system."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🚀 Swap Cache Management")
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        # Active cache entries
+        cursor.execute('''
+            SELECT cache_key, created_at, expires_at, access_count
+            FROM swap_cache
+            WHERE datetime(expires_at) > datetime('now')
+            ORDER BY access_count DESC
+        ''')
+
+        results = cursor.fetchall()
+
+        print(f"\n{BOLD}Active Cache Entries:{RESET}\n")
+        if results:
+            for cache_key, created_at, expires_at, access_count in results:
+                print(f"{COLORS['2'][0]}{cache_key}{RESET}")
+                print(f"  Created: {created_at} | Expires: {expires_at}")
+                print(f"  Access Count: {access_count}")
+                print()
+        else:
+            print(f"{COLORS['4'][0]}No active cache entries{RESET}")
+
+        # Expired entries count
+        cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
+        expired_count = cursor.fetchone()[0]
+
+        conn.close()
+
+        if expired_count > 0:
+            print(f"\n{COLORS['4'][0]}⚠️ {expired_count} expired cache entries found{RESET}")
+            clean = input(f"{BOLD}Clean expired entries? (y/n): {RESET}").strip().lower()
+            if clean == 'y':
+                deleted = clean_expired_cache()
+                print(f"{COLORS['2'][0]}✅ Cleaned {deleted} expired entries{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _export_database():
+    """Export database to SQL or JSON."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("💾 Export Database")
+
+    print(f"\n{BOLD}Export Format:{RESET}")
+    print(f" {BOLD}[1]{RESET} SQL Dump")
+    print(f" {BOLD}[2]{RESET} JSON Export (All Tables)")
+    print(f" {BOLD}[3]{RESET} CSV Export (Logs Only)")
+
+    choice = input(f"\n{BOLD}Select format: {RESET}").strip()
+
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    try:
+        if choice == '1':
+            # SQL Dump
+            export_file = os.path.join(DB_DIR, f"pythonOS_export_{timestamp}.sql")
+            conn = sqlite3.connect(DB_FILE)
+            with open(export_file, 'w') as f:
+                for line in conn.iterdump():
+                    f.write(f"{line}\n")
+            conn.close()
+            print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
+
+        elif choice == '2':
+            # JSON Export
+            export_file = os.path.join(DB_DIR, f"pythonOS_export_{timestamp}.json")
+            conn = sqlite3.connect(DB_FILE)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+
+            export_data = {}
+            for table in ['log_entries', 'file_tracking', 'swap_cache', 'session_history']:
+                cursor.execute(f"SELECT * FROM {table}")
+                export_data[table] = [dict(row) for row in cursor.fetchall()]
+
+            with open(export_file, 'w') as f:
+                json.dump(export_data, f, indent=2)
+
+            conn.close()
+            print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
+
+        elif choice == '3':
+            # CSV Export (Logs)
+            export_file = os.path.join(DB_DIR, f"pythonOS_logs_{timestamp}.csv")
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT * FROM log_entries")
+            rows = cursor.fetchall()
+
+            with open(export_file, 'w') as f:
+                f.write("ID,Timestamp,Category,Operation,Data,FilePath,Status\n")
+                for row in rows:
+                    # Escape commas and quotes in data
+                    escaped_row = [str(field).replace('"', '""') if field else '' for field in row]
+                    f.write(','.join(f'"{field}"' for field in escaped_row) + '\n')
+
+            conn.close()
+            print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Export error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _import_data():
+    """Import data from JSON."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📥 Import Data")
+
+    import_file = input(f"\n{BOLD}Enter JSON file path: {RESET}").strip()
+
+    if not os.path.exists(import_file):
+        print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+        return
+
+    try:
+        with open(import_file, 'r') as f:
+            import_data = json.load(f)
+
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        imported_count = 0
+        for table, records in import_data.items():
+            if table in ['log_entries', 'file_tracking', 'swap_cache', 'session_history']:
+                for record in records:
+                    try:
+                        columns = ', '.join(record.keys())
+                        placeholders = ', '.join(['?' for _ in record])
+                        values = tuple(record.values())
+
+                        cursor.execute(f"INSERT OR IGNORE INTO {table} ({columns}) VALUES ({placeholders})", values)
+                        imported_count += 1
+                    except:
+                        pass
+
+        conn.commit()
+        conn.close()
+
+        print(f"\n{COLORS['2'][0]}✅ Imported {imported_count} records{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Import error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _clean_optimize():
+    """Clean and optimize database."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧹 Clean & Optimize")
+
+    print(f"\n{BOLD}Optimization Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} Clean expired cache entries")
+    print(f" {BOLD}[2]{RESET} Delete old logs (>30 days)")
+    print(f" {BOLD}[3]{RESET} Vacuum database (reclaim space)")
+    print(f" {BOLD}[4]{RESET} Full cleanup (all above)")
+
+    choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        if choice in ['1', '4']:
+            cursor.execute("DELETE FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
+            deleted_cache = cursor.rowcount
+            print(f"{COLORS['2'][0]}✅ Deleted {deleted_cache} expired cache entries{RESET}")
+
+        if choice in ['2', '4']:
+            cursor.execute("DELETE FROM log_entries WHERE datetime(timestamp) <= datetime('now', '-30 days')")
+            deleted_logs = cursor.rowcount
+            print(f"{COLORS['2'][0]}✅ Deleted {deleted_logs} old log entries{RESET}")
+
+        if choice in ['3', '4']:
+            cursor.execute("VACUUM")
+            print(f"{COLORS['2'][0]}✅ Database vacuumed and optimized{RESET}")
+
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Optimization error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _database_settings():
+    """Database settings and configuration."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("⚙️ Database Settings")
+
+    print(f"\n{BOLD}Database Information:{RESET}")
+    print(f"  Location: {DB_FILE}")
+    print(f"  Log Directory: {LOG_DIR}")
+    print(f"  Swap Cache: {SWAP_CACHE_DIR}")
+
+    if os.path.exists(DB_FILE):
+        db_size = os.path.getsize(DB_FILE) / 1024
+        print(f"  Size: {db_size:.2f} KB")
+
+    print(f"\n{BOLD}Actions:{RESET}")
+    print(f" {BOLD}[1]{RESET} Reset Database (⚠️ Deletes all data)")
+    print(f" {BOLD}[2]{RESET} Backup Database")
+    print(f" {BOLD}[3]{RESET} Open Database Directory")
+
+    choice = input(f"\n{BOLD}Select action: {RESET}").strip()
+
+    if choice == '1':
+        confirm = input(f"{COLORS['1'][0]}⚠️ This will delete ALL data! Confirm (yes/no): {RESET}").strip().lower()
+        if confirm == 'yes':
+            try:
+                if os.path.exists(DB_FILE):
+                    os.remove(DB_FILE)
+                init_database_system()
+                print(f"{COLORS['2'][0]}✅ Database reset successfully{RESET}")
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Reset error: {e}{RESET}")
+
+    elif choice == '2':
+        try:
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_file = os.path.join(DB_DIR, f"pythonOS_backup_{timestamp}.db")
+            shutil.copy2(DB_FILE, backup_file)
+            print(f"{COLORS['2'][0]}✅ Backup created: {backup_file}{RESET}")
+        except Exception as e:
+            print(f"{COLORS['1'][0]}❌ Backup error: {e}{RESET}")
+
+    elif choice == '3':
+        print(f"\n{COLORS['6'][0]}Opening: {DB_DIR}{RESET}")
+        if os.name == 'posix':
+            os.system(f"xdg-open '{DB_DIR}' 2>/dev/null || nautilus '{DB_DIR}' 2>/dev/null || echo 'Please open manually'")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _lite_scan():
+    """Quick system snapshot - essential data capture."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔍 Lite Scan - Quick System Snapshot")
+
+    print(f"{COLORS['6'][0]}Starting Lite Scan...{RESET}\n")
+
+    scan_data = []
+    scan_data.append("=" * 60)
+    scan_data.append("LITE SYSTEM SCAN REPORT")
+    scan_data.append("=" * 60)
+    scan_data.append(f"Scan Time: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    scan_data.append("\n" + "=" * 60)
+
+    # 1. Basic System Info
+    print(f"{COLORS['2'][0]}[1/5] Collecting System Information...{RESET}")
+    scan_data.append("\n[SYSTEM INFORMATION]")
+    scan_data.append(f"OS: {platform.system()} {platform.release()}")
+    scan_data.append(f"Architecture: {platform.machine()}")
+    scan_data.append(f"Processor: {platform.processor()}")
+    scan_data.append(f"Node: {platform.node()}")
+    scan_data.append(f"Python Version: {platform.python_version()}")
+
+    # 2. CPU & Memory
+    print(f"{COLORS['2'][0]}[2/5] Scanning CPU & Memory...{RESET}")
+    scan_data.append("\n[CPU & MEMORY]")
+    cpu_percent = psutil.cpu_percent(interval=1)
+    mem = psutil.virtual_memory()
+    scan_data.append(f"CPU Usage: {cpu_percent}%")
+    scan_data.append(f"Physical Cores: {psutil.cpu_count(logical=False)}")
+    scan_data.append(f"Total Threads: {psutil.cpu_count(logical=True)}")
+    scan_data.append(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+    scan_data.append(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+    scan_data.append(f"RAM Usage: {mem.percent}%")
+
+    # 3. Disk Info
+    print(f"{COLORS['2'][0]}[3/5] Checking Disk Storage...{RESET}")
+    scan_data.append("\n[DISK STORAGE]")
+    disk = psutil.disk_usage('/')
+    scan_data.append(f"Total Space: {disk.total / (1024**3):.2f} GB")
+    scan_data.append(f"Used Space: {disk.used / (1024**3):.2f} GB ({disk.percent}%)")
+    scan_data.append(f"Free Space: {disk.free / (1024**3):.2f} GB")
+
+    # 4. Network Info
+    print(f"{COLORS['2'][0]}[4/5] Collecting Network Data...{RESET}")
+    scan_data.append("\n[NETWORK INFORMATION]")
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        scan_data.append(f"Hostname: {hostname}")
+        scan_data.append(f"Local IP: {local_ip}")
+    except:
+        scan_data.append("Network info unavailable")
+
+    net_io = psutil.net_io_counters()
+    scan_data.append(f"Bytes Sent: {net_io.bytes_sent / (1024**2):.2f} MB")
+    scan_data.append(f"Bytes Received: {net_io.bytes_recv / (1024**2):.2f} MB")
+
+    # 5. Top Processes
+    print(f"{COLORS['2'][0]}[5/5] Scanning Top Processes...{RESET}")
+    scan_data.append("\n[TOP 10 PROCESSES BY MEMORY]")
+    procs = []
+    for p in psutil.process_iter(['pid', 'name', 'memory_percent']):
+        try:
+            procs.append(p.info)
+        except:
+            continue
+    procs.sort(key=lambda x: x['memory_percent'] or 0, reverse=True)
+    for p in procs[:10]:
+        scan_data.append(f"  {p['name'][:30]:30} - PID: {p['pid']} - MEM: {p['memory_percent']:.2f}%")
+
+    scan_data.append("\n" + "=" * 60)
+    scan_data.append("END OF LITE SCAN")
+    scan_data.append("=" * 60)
+
+    # Save to database and file
+    full_content = "\n".join(scan_data)
+    print(f"\n{COLORS['2'][0]}✅ Lite Scan Complete!{RESET}")
+    print(f"\nCollected {len(scan_data)} data points.")
+
+    # Save to system category
+    file_path = save_log_file("system", "Lite_Scan", full_content, prompt_user=False)
+
+    if file_path:
+        print(f"{COLORS['6'][0]}📁 Report saved to: {file_path}{RESET}")
+        log_to_database("system", "Lite_Scan_Complete", f"Collected {len(scan_data)} data points", file_path)
+
+    # Show preview
+    preview = input(f"\n{BOLD}View scan summary? (y/n): {RESET}").strip().lower()
+    if preview == 'y':
+        print(f"\n{COLORS['6'][0]}" + "\n".join(scan_data[:50]) + f"{RESET}")
+        if len(scan_data) > 50:
+            print(f"\n... (showing first 50 lines, full report saved to file)")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _aggressive_scan():
+    """Deep intelligence gathering - comprehensive system scan."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🚨 Aggressive Scan - Deep Intelligence Gathering")
+
+    print(f"{COLORS['1'][0]}⚠️  WARNING: This scan will collect extensive system data{RESET}")
+    print(f"{COLORS['4'][0]}This may take several minutes...{RESET}\n")
+
+    confirm = input(f"{BOLD}Proceed with aggressive scan? (yes/no): {RESET}").strip().lower()
+    if confirm != 'yes':
+        print(f"{COLORS['4'][0]}Scan cancelled.{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+        return
+
+    print(f"\n{COLORS['6'][0]}🚀 Initiating Deep Scan Protocol...{RESET}\n")
+
+    scan_data = []
+    scan_data.append("=" * 80)
+    scan_data.append("AGGRESSIVE INTELLIGENCE SCAN - COMPREHENSIVE SYSTEM ANALYSIS")
+    scan_data.append("=" * 80)
+    scan_data.append(f"Scan Initiated: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    scan_data.append(f"Scan Profile: AGGRESSIVE (Maximum Data Collection)")
+    scan_data.append("=" * 80)
+
+    # 1. System Intelligence
+    print(f"{COLORS['2'][0]}[1/12] 🖥️  Deep System Analysis...{RESET}")
+    scan_data.append("\n" + "="*80)
+    scan_data.append("[SECTION 1: SYSTEM INTELLIGENCE]")
+    scan_data.append("="*80)
+    scan_data.append(f"Operating System: {platform.system()} {platform.release()} {platform.version()}")
+    scan_data.append(f"Architecture: {platform.machine()} ({platform.architecture()[0]})")
+    scan_data.append(f"Processor: {platform.processor()}")
+    scan_data.append(f"Node Name: {platform.node()}")
+    scan_data.append(f"Python Implementation: {platform.python_implementation()}")
+    scan_data.append(f"Python Version: {platform.python_version()}")
+    scan_data.append(f"Python Compiler: {platform.python_compiler()}")
+
+    try:
+        boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
+        uptime = datetime.datetime.now() - boot_time
+        scan_data.append(f"System Boot Time: {boot_time.strftime('%Y-%m-%d %H:%M:%S')}")
+        scan_data.append(f"Uptime: {str(uptime).split('.')[0]}")
+    except:
+        pass
+
+    # 2. CPU Deep Dive
+    print(f"{COLORS['2'][0]}[2/12] 🧠 CPU Deep Analysis...{RESET}")
+    scan_data.append("\n[SECTION 2: CPU ANALYSIS]")
+    scan_data.append(f"Physical Cores: {psutil.cpu_count(logical=False)}")
+    scan_data.append(f"Total Threads: {psutil.cpu_count(logical=True)}")
+    try:
+        freq = psutil.cpu_freq()
+        if freq:
+            scan_data.append(f"Current Frequency: {freq.current:.2f} MHz")
+            scan_data.append(f"Min Frequency: {freq.min:.2f} MHz")
+            scan_data.append(f"Max Frequency: {freq.max:.2f} MHz")
+    except:
+        pass
+
+    cpu_percent = psutil.cpu_percent(interval=2, percpu=True)
+    scan_data.append(f"CPU Usage (Overall): {sum(cpu_percent)/len(cpu_percent):.2f}%")
+    for i, pct in enumerate(cpu_percent):
+        scan_data.append(f"  Core {i}: {pct}%")
+
+    # 3. Memory Deep Dive
+    print(f"{COLORS['2'][0]}[3/12] 💾 Memory Deep Analysis...{RESET}")
+    scan_data.append("\n[SECTION 3: MEMORY ANALYSIS]")
+    mem = psutil.virtual_memory()
+    swap = psutil.swap_memory()
+    scan_data.append(f"Total RAM: {mem.total / (1024**3):.2f} GB")
+    scan_data.append(f"Available RAM: {mem.available / (1024**3):.2f} GB")
+    scan_data.append(f"Used RAM: {mem.used / (1024**3):.2f} GB ({mem.percent}%)")
+    scan_data.append(f"Free RAM: {mem.free / (1024**3):.2f} GB")
+    scan_data.append(f"Buffers: {mem.buffers / (1024**2):.2f} MB" if hasattr(mem, 'buffers') else "Buffers: N/A")
+    scan_data.append(f"Cached: {mem.cached / (1024**2):.2f} MB" if hasattr(mem, 'cached') else "Cached: N/A")
+    scan_data.append(f"\nSwap Total: {swap.total / (1024**3):.2f} GB")
+    scan_data.append(f"Swap Used: {swap.used / (1024**3):.2f} GB ({swap.percent}%)")
+    scan_data.append(f"Swap Free: {swap.free / (1024**3):.2f} GB")
+
+    # 4. Disk Intelligence
+    print(f"{COLORS['2'][0]}[4/12] 💽 Disk Deep Analysis...{RESET}")
+    scan_data.append("\n[SECTION 4: DISK INTELLIGENCE]")
+    partitions = psutil.disk_partitions()
+    for partition in partitions:
+        scan_data.append(f"\nPartition: {partition.device}")
+        scan_data.append(f"  Mountpoint: {partition.mountpoint}")
+        scan_data.append(f"  File System: {partition.fstype}")
+        try:
+            usage = psutil.disk_usage(partition.mountpoint)
+            scan_data.append(f"  Total: {usage.total / (1024**3):.2f} GB")
+            scan_data.append(f"  Used: {usage.used / (1024**3):.2f} GB ({usage.percent}%)")
+            scan_data.append(f"  Free: {usage.free / (1024**3):.2f} GB")
+        except:
+            scan_data.append("  Access denied or unavailable")
+
+    disk_io = psutil.disk_io_counters()
+    if disk_io:
+        scan_data.append(f"\nDisk I/O Statistics:")
+        scan_data.append(f"  Read: {disk_io.read_bytes / (1024**3):.2f} GB")
+        scan_data.append(f"  Written: {disk_io.write_bytes / (1024**3):.2f} GB")
+        scan_data.append(f"  Read Count: {disk_io.read_count}")
+        scan_data.append(f"  Write Count: {disk_io.write_count}")
+
+    # 5. Network Deep Intelligence
+    print(f"{COLORS['2'][0]}[5/12] 🌐 Network Deep Analysis...{RESET}")
+    scan_data.append("\n[SECTION 5: NETWORK INTELLIGENCE]")
+    try:
+        hostname = socket.gethostname()
+        local_ip = socket.gethostbyname(hostname)
+        scan_data.append(f"Hostname: {hostname}")
+        scan_data.append(f"Local IP: {local_ip}")
+    except:
+        scan_data.append("Basic network info unavailable")
+
+    # MAC Address
+    mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+    scan_data.append(f"MAC Address: {mac}")
+
+    # Network Interfaces
+    net_if_addrs = psutil.net_if_addrs()
+    scan_data.append("\nNetwork Interfaces:")
+    for interface, addrs in net_if_addrs.items():
+        scan_data.append(f"  Interface: {interface}")
+        for addr in addrs:
+            scan_data.append(f"    Family: {addr.family}, Address: {addr.address}")
+
+    # Network I/O
+    net_io = psutil.net_io_counters()
+    scan_data.append(f"\nNetwork I/O:")
+    scan_data.append(f"  Bytes Sent: {net_io.bytes_sent / (1024**2):.2f} MB")
+    scan_data.append(f"  Bytes Received: {net_io.bytes_recv / (1024**2):.2f} MB")
+    scan_data.append(f"  Packets Sent: {net_io.packets_sent}")
+    scan_data.append(f"  Packets Received: {net_io.packets_recv}")
+    scan_data.append(f"  Errors In: {net_io.errin}")
+    scan_data.append(f"  Errors Out: {net_io.errout}")
+
+    # 6. Process Intelligence
+    print(f"{COLORS['2'][0]}[6/12] 📋 Process Deep Analysis...{RESET}")
+    scan_data.append("\n[SECTION 6: PROCESS INTELLIGENCE]")
+    all_procs = []
+    for p in psutil.process_iter(['pid', 'name', 'username', 'memory_percent', 'cpu_percent', 'status', 'create_time']):
+        try:
+            all_procs.append(p.info)
+        except:
+            continue
+
+    scan_data.append(f"Total Running Processes: {len(all_procs)}")
+    scan_data.append(f"\nTop 20 Processes by Memory:")
+    all_procs.sort(key=lambda x: x['memory_percent'] or 0, reverse=True)
+    for i, p in enumerate(all_procs[:20], 1):
+        try:
+            created = datetime.datetime.fromtimestamp(p['create_time']).strftime('%Y-%m-%d %H:%M')
+        except:
+            created = 'Unknown'
+        scan_data.append(f"  {i}. {p['name'][:30]:30} | PID: {p['pid']:6} | MEM: {p['memory_percent']:.2f}% | USER: {p['username']} | Created: {created}")
+
+    # 7. Weather & Geolocation
+    print(f"{COLORS['2'][0]}[7/12] 🌍 Geolocation & Weather...{RESET}")
+    scan_data.append("\n[SECTION 7: GEOLOCATION & WEATHER INTELLIGENCE]")
+    try:
+        geo_data = requests.get("http://ip-api.com/json/", timeout=5).json()
+        scan_data.append(f"Public IP: {geo_data.get('query', 'N/A')}")
+        scan_data.append(f"Country: {geo_data.get('country', 'N/A')}")
+        scan_data.append(f"Region: {geo_data.get('regionName', 'N/A')}")
+        scan_data.append(f"City: {geo_data.get('city', 'N/A')}")
+        scan_data.append(f"Postal Code: {geo_data.get('zip', 'N/A')}")
+        scan_data.append(f"Latitude: {geo_data.get('lat', 'N/A')}")
+        scan_data.append(f"Longitude: {geo_data.get('lon', 'N/A')}")
+        scan_data.append(f"ISP: {geo_data.get('isp', 'N/A')}")
+        scan_data.append(f"Organization: {geo_data.get('org', 'N/A')}")
+        scan_data.append(f"AS: {geo_data.get('as', 'N/A')}")
+        scan_data.append(f"Timezone: {geo_data.get('timezone', 'N/A')}")
+    except:
+        scan_data.append("Geolocation data unavailable")
+
+    weather_data = get_weather_data()
+    if weather_data:
+        scan_data.append(f"\nWeather Data:")
+        scan_data.append(f"  Temperature: {weather_data.get('temp', 'N/A')}")
+        scan_data.append(f"  Feels Like: {weather_data.get('feels', 'N/A')}")
+        scan_data.append(f"  Humidity: {weather_data.get('humidity', 'N/A')}")
+        scan_data.append(f"  Wind: {weather_data.get('wind', 'N/A')}")
+        scan_data.append(f"  Conditions: {weather_data.get('icon', 'N/A')}")
+
+    # 8. Hardware Sensors
+    print(f"{COLORS['2'][0]}[8/12] 🌡️  Hardware Sensors...{RESET}")
+    scan_data.append("\n[SECTION 8: HARDWARE SENSORS]")
+    try:
+        temps = psutil.sensors_temperatures()
+        if temps:
+            scan_data.append("Temperature Sensors:")
+            for name, entries in temps.items():
+                for entry in entries:
+                    label = entry.label or name
+                    scan_data.append(f"  {label}: {entry.current}°C (High: {entry.high}°C, Critical: {entry.critical}°C)")
+        else:
+            scan_data.append("No temperature sensors detected")
+    except:
+        scan_data.append("Temperature sensors not available")
+
+    try:
+        fans = psutil.sensors_fans()
+        if fans:
+            scan_data.append("\nFan Sensors:")
+            for name, entries in fans.items():
+                for entry in entries:
+                    label = entry.label or name
+                    scan_data.append(f"  {label}: {entry.current} RPM")
+        else:
+            scan_data.append("No fan sensors detected")
+    except:
+        scan_data.append("Fan sensors not available")
+
+    try:
+        battery = psutil.sensors_battery()
+        if battery:
+            scan_data.append(f"\nBattery:")
+            scan_data.append(f"  Percent: {battery.percent}%")
+            scan_data.append(f"  Power Plugged: {battery.power_plugged}")
+            scan_data.append(f"  Time Left: {battery.secsleft // 60} minutes" if battery.secsleft != psutil.POWER_TIME_UNLIMITED else "  Time Left: Unlimited")
+    except:
+        scan_data.append("\nBattery info not available")
+
+    # 9. GPU Information
+    print(f"{COLORS['2'][0]}[9/12] 🎮 GPU Analysis...{RESET}")
+    scan_data.append("\n[SECTION 9: GPU INTELLIGENCE]")
+    try:
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            for i, gpu in enumerate(gpus):
+                scan_data.append(f"\nGPU {i}: {gpu.name}")
+                scan_data.append(f"  Load: {gpu.load*100:.1f}%")
+                scan_data.append(f"  Temperature: {gpu.temperature}°C")
+                scan_data.append(f"  Memory Total: {gpu.memoryTotal} MB")
+                scan_data.append(f"  Memory Used: {gpu.memoryUsed} MB ({gpu.memoryUsed/gpu.memoryTotal*100:.1f}%)")
+                scan_data.append(f"  Memory Free: {gpu.memoryFree} MB")
+                scan_data.append(f"  Driver: {gpu.driver}")
+        else:
+            scan_data.append("No discrete GPU detected")
+    except:
+        scan_data.append("GPU information unavailable")
+
+    # 10. Security Audit
+    print(f"{COLORS['2'][0]}[10/12] 🔒 Security Status...{RESET}")
+    scan_data.append("\n[SECTION 10: SECURITY AUDIT]")
+    common_ports = [21, 22, 23, 25, 53, 80, 443, 3306, 3389, 5432, 8080, 8443]
+    open_ports = []
+    for port in common_ports:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.1)
+            if s.connect_ex(('127.0.0.1', port)) == 0:
+                open_ports.append(port)
+
+    scan_data.append(f"Scanned {len(common_ports)} common ports")
+    if open_ports:
+        scan_data.append(f"Open Ports: {', '.join(map(str, open_ports))}")
+    else:
+        scan_data.append("No high-risk ports open")
+
+    try:
+        is_admin = os.getuid() == 0
+    except:
+        try:
+            import ctypes
+            is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
+        except:
+            is_admin = False
+    scan_data.append(f"Running as Admin/Root: {is_admin}")
+
+    # 11. Database Statistics
+    print(f"{COLORS['2'][0]}[11/12] 📊 Database Intelligence...{RESET}")
+    scan_data.append("\n[SECTION 11: DATABASE STATISTICS]")
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+
+        cursor.execute("SELECT COUNT(*) FROM log_entries")
+        log_count = cursor.fetchone()[0]
+        scan_data.append(f"Total Log Entries: {log_count}")
+
+        cursor.execute("SELECT COUNT(*) FROM file_tracking")
+        file_count = cursor.fetchone()[0]
+        scan_data.append(f"Tracked Files: {file_count}")
+
+        cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+        cache_count = cursor.fetchone()[0]
+        scan_data.append(f"Active Cache Entries: {cache_count}")
+
+        cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category")
+        scan_data.append("\nLog Entries by Category:")
+        for cat, count in cursor.fetchall():
+            scan_data.append(f"  {cat}: {count}")
+
+        conn.close()
+    except:
+        scan_data.append("Database statistics unavailable")
+
+    # 12. System Metadata
+    print(f"{COLORS['2'][0]}[12/12] 📝 System Metadata Collection...{RESET}")
+    scan_data.append("\n[SECTION 12: SYSTEM METADATA]")
+    scan_data.append(f"User Environment Variables:")
+    for key, value in list(os.environ.items())[:20]:  # Limit to first 20
+        if 'PASSWORD' not in key.upper() and 'SECRET' not in key.upper() and 'KEY' not in key.upper():
+            scan_data.append(f"  {key}: {value[:100]}" if len(value) < 100 else f"  {key}: {value[:100]}...")
+
+    scan_data.append(f"\nWorking Directory: {os.getcwd()}")
+    scan_data.append(f"Script Directory: {SCRIPT_DIR}")
+    scan_data.append(f"Database Directory: {DB_DIR}")
+    scan_data.append(f"Database Size: {os.path.getsize(DB_FILE) / 1024:.2f} KB" if os.path.exists(DB_FILE) else "Database not found")
+
+    # Completion
+    scan_data.append("\n" + "="*80)
+    scan_data.append(f"AGGRESSIVE SCAN COMPLETED: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    scan_data.append(f"Total Data Points Collected: {len(scan_data)}")
+    scan_data.append("="*80)
+
+    # Save to aggressive_scan category
+    full_content = "\n".join(scan_data)
+    print(f"\n{COLORS['2'][0]}✅ Aggressive Scan Complete!{RESET}")
+    print(f"Collected {len(scan_data)} comprehensive data points.\n")
+
+    file_path = save_log_file("aggressive_scan", "Aggressive_Intelligence_Scan", full_content, prompt_user=False)
+
+    if file_path:
+        print(f"{COLORS['6'][0]}📁 Comprehensive report saved to: {file_path}{RESET}")
+        log_to_database("aggressive_scan", "Aggressive_Scan_Complete", f"Collected {len(scan_data)} data points", file_path)
+
+    # Statistics
+    print(f"\n{BOLD}Scan Statistics:{RESET}")
+    print(f"  Total Sections: 12")
+    print(f"  Data Points: {len(scan_data)}")
+    print(f"  File Size: {len(full_content) / 1024:.2f} KB")
+
+    view = input(f"\n{BOLD}View scan summary? (y/n): {RESET}").strip().lower()
+    if view == 'y':
+        print(f"\n{COLORS['6'][0]}" + "\n".join(scan_data[:80]) + f"{RESET}")
+        if len(scan_data) > 80:
+            print(f"\n... (showing first 80 lines, full report saved to file)")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+# Initialize database on script start
+try:
+    init_database_system()
+except:
+    pass  # Silent fail, will try again later
+
+# --- END DATABASE & LOGGING SYSTEM ---
 
 # --- DETECT SYSTEM CAPABILITY FOR BOX DRAWING ---
 try:
@@ -339,6 +1504,13 @@ def print_header(title, extra_info=""):
 
 def get_weather_data():
     global weather_cache
+
+    # Try to get cached data first (5 minute cache)
+    cached = get_cached_data("weather_data")
+    if cached:
+        weather_cache = cached
+        return weather_cache
+
     try:
         # 1. Get location via IP
         geo = requests.get("http://ip-api.com/json/", timeout=3).json()
@@ -371,12 +1543,17 @@ def get_weather_data():
             "wind": f"{current['wind_speed_10m']} mph",
             "feels": f"{current['apparent_temperature']:.1f}°{temp_unit}"
         }
+
+        # Cache the weather data for 5 minutes
+        cache_data("weather_data", weather_cache, expire_minutes=5)
+
         return weather_cache
     except:
         # Fallback to wttr.in if Open-Meteo fails
         try:
             res = requests.get("https://wttr.in/?format=%C+%t", timeout=5).text.strip()
             weather_cache["temp"] = res.split()[-1]
+            cache_data("weather_data", weather_cache, expire_minutes=5)
             return weather_cache
         except: return None
 
@@ -402,6 +1579,10 @@ def feature_weather_display():
             full_report = requests.get(f"https://wttr.in/{data['city']}?0&m&q", timeout=5).text
             print("\n" + full_report)
         except: pass
+
+        # Logging capability
+        weather_log = f"Location: {data['city']}\nTemperature: {data['temp']}\nFeels Like: {data['feels']}\nHumidity: {data['humidity']}\nWind: {data['wind']}\nConditions: {data['icon']}"
+        save_log_file("weather", "Weather_Query", weather_log, prompt_user=True)
     else:
         print(f" {COLORS['1'][0]}[!] 📡 Could not retrieve weather. Check connection.{RESET}")
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -412,6 +1593,1009 @@ def _traffic_risk_from_weather(icon):
     if icon in ["⛅", "🌤️"]:
         return "MODERATE"
     return "LOW"
+
+# --- PENETRATION TESTING TOOLKIT ---
+
+def check_pentest_tool(tool_name):
+    """Check if a penetration testing tool is installed."""
+    return shutil.which(tool_name) is not None
+
+def feature_nmap_scanner():
+    """Nmap Network Scanner Wrapper"""
+    print_header("🔍 Nmap Network Scanner")
+
+    if not check_pentest_tool('nmap'):
+        print(f"{COLORS['1'][0]}❌ Nmap is not installed.{RESET}")
+        print(f"\n{BOLD}Install with:{RESET}")
+        print("  Ubuntu/Debian: sudo apt-get install nmap")
+        print("  Fedora/RHEL:   sudo dnf install nmap")
+        print("  macOS:         brew install nmap")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    print(f"{COLORS['2'][0]}✅ Nmap is installed{RESET}\n")
+    print(f"{BOLD}Quick Scan Profiles:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🎯 Quick Scan (Target IP/Hostname)")
+    print(f" {BOLD}[2]{RESET} 🌐 Network Range Scan")
+    print(f" {BOLD}[3]{RESET} 🔓 Port Scan (Common Ports)")
+    print(f" {BOLD}[4]{RESET} 🚀 Aggressive Scan (-A)")
+    print(f" {BOLD}[5]{RESET} 👻 Stealth SYN Scan (-sS)")
+    print(f" {BOLD}[6]{RESET} 🔬 OS Detection")
+    print(f" {BOLD}[7]{RESET} 📝 Custom Nmap Command")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select scan type: {RESET}").strip()
+
+    cmd = None
+    if choice == '0':
+        return
+    elif choice == '1':
+        target = input("Enter target IP or hostname: ").strip()
+        if target:
+            cmd = f"nmap {target}"
+    elif choice == '2':
+        target = input("Enter network range (e.g., 192.168.1.0/24): ").strip()
+        if target:
+            cmd = f"nmap {target}"
+    elif choice == '3':
+        target = input("Enter target IP or hostname: ").strip()
+        if target:
+            cmd = f"nmap -p 21,22,23,25,53,80,443,3306,3389,8080 {target}"
+    elif choice == '4':
+        target = input("Enter target IP or hostname: ").strip()
+        if target:
+            cmd = f"nmap -A {target}"
+    elif choice == '5':
+        target = input("Enter target IP or hostname: ").strip()
+        if target:
+            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
+            cmd = f"sudo nmap -sS {target}"
+    elif choice == '6':
+        target = input("Enter target IP or hostname: ").strip()
+        if target:
+            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
+            cmd = f"sudo nmap -O {target}"
+    elif choice == '7':
+        cmd = input("Enter full nmap command: ").strip()
+    else:
+        print(f"{COLORS['1'][0]}Invalid choice{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    if cmd:
+        print(f"\n{COLORS['6'][0]}Executing: {cmd}{RESET}\n")
+        print(f"{COLORS['4'][0]}⚠️  Press Ctrl+C to stop scan{RESET}\n")
+        try:
+            os.system(cmd)
+        except KeyboardInterrupt:
+            print(f"\n{COLORS['4'][0]}Scan interrupted by user{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_metasploit_console():
+    """Metasploit Framework Wrapper"""
+    print_header("💣 Metasploit Framework")
+
+    if not check_pentest_tool('msfconsole'):
+        print(f"{COLORS['1'][0]}❌ Metasploit is not installed.{RESET}")
+        print(f"\n{BOLD}Install with:{RESET}")
+        print("  Visit: https://metasploit.com/")
+        print("  Kali Linux: Pre-installed")
+        print("  Ubuntu:     curl https://raw.githubusercontent.com/rapid7/metasploit-omnibus/master/config/templates/metasploit-framework-wrappers/msfupdate.erb > msfinstall && chmod 755 msfinstall && ./msfinstall")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    print(f"{COLORS['2'][0]}✅ Metasploit is installed{RESET}\n")
+    print(f"{BOLD}Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🖥️  Launch msfconsole (Interactive)")
+    print(f" {BOLD}[2]{RESET} 🔍 Search exploits (keyword)")
+    print(f" {BOLD}[3]{RESET} 📊 Check Metasploit version")
+    print(f" {BOLD}[4]{RESET} 🔄 Update Metasploit")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        print(f"\n{COLORS['6'][0]}Launching Metasploit Console...{RESET}")
+        print(f"{COLORS['4'][0]}Type 'exit' to return to pythonOS{RESET}\n")
+        os.system('msfconsole')
+    elif choice == '2':
+        keyword = input("Enter search keyword (e.g., windows, apache): ").strip()
+        if keyword:
+            os.system(f'msfconsole -q -x "search {keyword}; exit"')
+    elif choice == '3':
+        os.system('msfconsole --version')
+    elif choice == '4':
+        print(f"\n{COLORS['6'][0]}Updating Metasploit...{RESET}\n")
+        os.system('msfupdate')
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_aircrack_toolkit():
+    """Aircrack-ng Wireless Security Toolkit Wrapper"""
+    print_header("📡 Aircrack-ng Wireless Toolkit")
+
+    if not check_pentest_tool('aircrack-ng'):
+        print(f"{COLORS['1'][0]}❌ Aircrack-ng is not installed.{RESET}")
+        print(f"\n{BOLD}Install with:{RESET}")
+        print("  Ubuntu/Debian: sudo apt-get install aircrack-ng")
+        print("  Fedora:        sudo dnf install aircrack-ng")
+        print("  macOS:         brew install aircrack-ng")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    print(f"{COLORS['2'][0]}✅ Aircrack-ng is installed{RESET}\n")
+    print(f"{COLORS['4'][0]}⚠️  WARNING: Only test on networks you own or have permission to test!{RESET}\n")
+    print(f"{BOLD}Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 📶 Check wireless interfaces")
+    print(f" {BOLD}[2]{RESET} 🔍 Put interface in monitor mode (airmon-ng)")
+    print(f" {BOLD}[3]{RESET} 📡 Scan for wireless networks (airodump-ng)")
+    print(f" {BOLD}[4]{RESET} 🔓 Crack WPA/WPA2 handshake")
+    print(f" {BOLD}[5]{RESET} 📝 Custom aircrack-ng command")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        os.system('iwconfig 2>/dev/null || ip link show')
+    elif choice == '2':
+        iface = input("Enter wireless interface (e.g., wlan0): ").strip()
+        if iface:
+            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo{RESET}")
+            os.system(f'sudo airmon-ng start {iface}')
+    elif choice == '3':
+        iface = input("Enter monitor interface (e.g., wlan0mon): ").strip()
+        if iface:
+            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo. Press Ctrl+C to stop{RESET}")
+            os.system(f'sudo airodump-ng {iface}')
+    elif choice == '4':
+        cap_file = input("Enter capture file (.cap): ").strip()
+        wordlist = input("Enter wordlist path: ").strip()
+        if cap_file and wordlist:
+            os.system(f'aircrack-ng -w {wordlist} {cap_file}')
+    elif choice == '5':
+        cmd = input("Enter aircrack-ng command: ").strip()
+        if cmd:
+            os.system(cmd)
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_burpsuite():
+    """Burp Suite Web App Testing Wrapper"""
+    print_header("🌐 Burp Suite Web Application Tester")
+
+    print(f"{BOLD}Burp Suite Information:{RESET}\n")
+    print("Burp Suite is a Java-based application typically launched via GUI.")
+    print(f"\n{BOLD}Common Locations:{RESET}")
+    print("  • Kali Linux: /usr/bin/burpsuite")
+    print("  • Manual Install: java -jar burpsuite.jar")
+    print("  • Download: https://portswigger.net/burp/communitydownload")
+
+    burp_paths = [
+        '/usr/bin/burpsuite',
+        '/usr/local/bin/burpsuite',
+        'burpsuite'
+    ]
+
+    burp_found = None
+    for path in burp_paths:
+        if check_pentest_tool(path.split('/')[-1]):
+            burp_found = path
+            break
+
+    if burp_found:
+        print(f"\n{COLORS['2'][0]}✅ Burp Suite found at: {burp_found}{RESET}")
+        launch = input(f"\n{BOLD}Launch Burp Suite? (y/n): {RESET}").strip().lower()
+        if launch == 'y':
+            print(f"\n{COLORS['6'][0]}Launching Burp Suite...{RESET}")
+            os.system(f'{burp_found} &')
+    else:
+        print(f"\n{COLORS['4'][0]}⚠️  Burp Suite not found in standard locations{RESET}")
+        custom = input(f"\n{BOLD}Enter custom Burp Suite path or command (or Enter to skip): {RESET}").strip()
+        if custom:
+            os.system(f'{custom} &')
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_password_cracking():
+    """John the Ripper and Hashcat Wrapper"""
+    print_header("🔐 Password Cracking Tools")
+
+    john_installed = check_pentest_tool('john')
+    hashcat_installed = check_pentest_tool('hashcat')
+
+    print(f"{BOLD}Tool Status:{RESET}")
+    print(f"  John the Ripper: {COLORS['2'][0] if john_installed else COLORS['1'][0]}{'✅ Installed' if john_installed else '❌ Not Installed'}{RESET}")
+    print(f"  Hashcat:         {COLORS['2'][0] if hashcat_installed else COLORS['1'][0]}{'✅ Installed' if hashcat_installed else '❌ Not Installed'}{RESET}")
+
+    if not john_installed and not hashcat_installed:
+        print(f"\n{BOLD}Install with:{RESET}")
+        print("  John:    sudo apt-get install john")
+        print("  Hashcat: sudo apt-get install hashcat")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    print(f"\n{BOLD}Options:{RESET}")
+    if john_installed:
+        print(f" {BOLD}[1]{RESET} 🔓 John the Ripper - Crack password file")
+        print(f" {BOLD}[2]{RESET} 📊 John - Show cracked passwords")
+        print(f" {BOLD}[3]{RESET} 📝 John - Custom command")
+    if hashcat_installed:
+        print(f" {BOLD}[4]{RESET} ⚡ Hashcat - Crack hash")
+        print(f" {BOLD}[5]{RESET} 📋 Hashcat - List hash modes")
+        print(f" {BOLD}[6]{RESET} 📝 Hashcat - Custom command")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1' and john_installed:
+        passwd_file = input("Enter password file path: ").strip()
+        if passwd_file:
+            os.system(f'john {passwd_file}')
+    elif choice == '2' and john_installed:
+        passwd_file = input("Enter password file path: ").strip()
+        if passwd_file:
+            os.system(f'john --show {passwd_file}')
+    elif choice == '3' and john_installed:
+        cmd = input("Enter john command: ").strip()
+        if cmd:
+            os.system(cmd)
+    elif choice == '4' and hashcat_installed:
+        hash_file = input("Enter hash file path: ").strip()
+        wordlist = input("Enter wordlist path: ").strip()
+        hash_mode = input("Enter hash mode (e.g., 0 for MD5, 1000 for NTLM): ").strip()
+        if hash_file and wordlist and hash_mode:
+            os.system(f'hashcat -m {hash_mode} {hash_file} {wordlist}')
+    elif choice == '5' and hashcat_installed:
+        os.system('hashcat --help | grep -E "^\\s+[0-9]+\\s+\\|" | head -50')
+    elif choice == '6' and hashcat_installed:
+        cmd = input("Enter hashcat command: ").strip()
+        if cmd:
+            os.system(cmd)
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_hydra_bruteforce():
+    """Hydra Brute-forcing Wrapper"""
+    print_header("🌊 Hydra Brute-force Tool")
+
+    if not check_pentest_tool('hydra'):
+        print(f"{COLORS['1'][0]}❌ Hydra is not installed.{RESET}")
+        print(f"\n{BOLD}Install with:{RESET}")
+        print("  Ubuntu/Debian: sudo apt-get install hydra")
+        print("  Fedora:        sudo dnf install hydra")
+        print("  macOS:         brew install hydra")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+
+    print(f"{COLORS['2'][0]}✅ Hydra is installed{RESET}\n")
+    print(f"{COLORS['4'][0]}⚠️  WARNING: Only test on systems you own or have permission to test!{RESET}\n")
+    print(f"{BOLD}Service Brute-force Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🔐 SSH Brute-force")
+    print(f" {BOLD}[2]{RESET} 🌐 HTTP/HTTPS Form Brute-force")
+    print(f" {BOLD}[3]{RESET} 📁 FTP Brute-force")
+    print(f" {BOLD}[4]{RESET} 💾 RDP Brute-force")
+    print(f" {BOLD}[5]{RESET} 📝 Custom Hydra command")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select service: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice in ['1', '2', '3', '4']:
+        target = input("Enter target IP or hostname: ").strip()
+        username = input("Enter username (or -L for username list file): ").strip()
+        password = input("Enter password (or -P for password list file): ").strip()
+
+        if not target:
+            print(f"{COLORS['1'][0]}Target is required{RESET}")
+        else:
+            if choice == '1':  # SSH
+                service = 'ssh'
+                port = input("Enter SSH port (default 22): ").strip() or '22'
+                cmd = f'hydra -l {username} -p {password} {target} {service} -s {port}'
+            elif choice == '2':  # HTTP
+                path = input("Enter login path (e.g., /login.php): ").strip()
+                form_data = input("Enter POST form data (e.g., username=^USER^&password=^PASS^): ").strip()
+                cmd = f'hydra -l {username} -p {password} {target} http-post-form "{path}:{form_data}:F=incorrect"'
+            elif choice == '3':  # FTP
+                service = 'ftp'
+                cmd = f'hydra -l {username} -p {password} {target} {service}'
+            elif choice == '4':  # RDP
+                service = 'rdp'
+                cmd = f'hydra -l {username} -p {password} {target} {service}'
+
+            print(f"\n{COLORS['6'][0]}Executing: {cmd}{RESET}\n")
+            os.system(cmd)
+    elif choice == '5':
+        cmd = input("Enter full hydra command: ").strip()
+        if cmd:
+            os.system(cmd)
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_pentest_toolkit():
+    """Main Penetration Testing Toolkit Menu"""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🛡️ PENETRATION TESTING TOOLKIT")
+
+        # Check tool status
+        tools_status = {
+            "Nmap": check_pentest_tool('nmap'),
+            "Metasploit": check_pentest_tool('msfconsole'),
+            "Aircrack-ng": check_pentest_tool('aircrack-ng'),
+            "John": check_pentest_tool('john'),
+            "Hashcat": check_pentest_tool('hashcat'),
+            "Hydra": check_pentest_tool('hydra')
+        }
+
+        print(f"\n{BOLD}Tool Status Overview:{RESET}")
+        for tool, installed in tools_status.items():
+            status = f"{COLORS['2'][0]}✅{RESET}" if installed else f"{COLORS['1'][0]}❌{RESET}"
+            print(f"  {status} {tool}")
+
+        c = get_current_color()
+        print(f"\n{BOLD}{c}╔{'═'*50}╗{RESET}")
+        print(f"{BOLD}{c}║{RESET}  {BOLD}PENETRATION TESTING MENU{RESET}{'':>26}{BOLD}{c}║{RESET}")
+        print(f"{BOLD}{c}╠{'═'*50}╣{RESET}")
+        print(f" {BOLD}[1]{RESET} 🔍 Nmap - Network Scanner")
+        print(f" {BOLD}[2]{RESET} 💣 Metasploit Framework")
+        print(f" {BOLD}[3]{RESET} 📡 Aircrack-ng - Wireless Security")
+        print(f" {BOLD}[4]{RESET} 🌐 Burp Suite - Web App Testing")
+        print(f" {BOLD}[5]{RESET} 🔐 Password Crackers (John/Hashcat)")
+        print(f" {BOLD}[6]{RESET} 🌊 Hydra - Brute-force Tool")
+        print(f" {BOLD}[7]{RESET} 📚 Install Missing Tools")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        print(f"{BOLD}{c}╚{'═'*50}╝{RESET}")
+
+        print(f"\n{COLORS['4'][0]}⚠️  LEGAL WARNING: Only use these tools on systems you own or have")
+        print(f"   explicit written permission to test. Unauthorized access is illegal!{RESET}")
+
+        choice = input(f"\n{BOLD}🎯 Select tool: {RESET}").strip()
+
+        if choice == '0':
+            break
+        elif choice == '1':
+            feature_nmap_scanner()
+        elif choice == '2':
+            feature_metasploit_console()
+        elif choice == '3':
+            feature_aircrack_toolkit()
+        elif choice == '4':
+            feature_burpsuite()
+        elif choice == '5':
+            feature_password_cracking()
+        elif choice == '6':
+            feature_hydra_bruteforce()
+        elif choice == '7':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📦 Install Penetration Testing Tools")
+            print(f"\n{BOLD}Installation Commands:{RESET}\n")
+            print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
+            print("  sudo apt-get update")
+            print("  sudo apt-get install nmap metasploit-framework aircrack-ng john hashcat hydra")
+            print(f"\n{COLORS['6'][0]}Kali Linux:{RESET}")
+            print("  Most tools pre-installed!")
+            print("  sudo apt-get install kali-linux-default")
+            print(f"\n{COLORS['6'][0]}Fedora/RHEL:{RESET}")
+            print("  sudo dnf install nmap aircrack-ng john hydra")
+            print(f"\n{COLORS['6'][0]}macOS:{RESET}")
+            print("  brew install nmap aircrack-ng john hashcat hydra")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+# --- END PENETRATION TESTING TOOLKIT ---
+
+# --- DEFENCE CENTER: PROACTIVE SECURITY MEASURES ---
+
+def feature_adblocker_setup():
+    """Ad Blocker Setup and Management"""
+    print_header("🚫 Ad Blocker Management")
+
+    print(f"{BOLD}Browser-Based Ad Blocking:{RESET}\n")
+    print(f" {BOLD}[1]{RESET} 📦 Install uBlock Origin (Browser Extension)")
+    print(f" {BOLD}[2]{RESET} 📦 Install AdGuard (Browser Extension)")
+    print(f" {BOLD}[3]{RESET} 🌐 System-Wide DNS Ad Blocking (AdGuard DNS)")
+    print(f" {BOLD}[4]{RESET} 📝 Configure /etc/hosts file for ad blocking")
+    print(f" {BOLD}[5]{RESET} 🔍 Check current ad blocking status")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        print(f"\n{COLORS['2'][0]}uBlock Origin Extension Links:{RESET}")
+        print("  Chrome/Edge: https://chrome.google.com/webstore -> Search 'uBlock Origin'")
+        print("  Firefox: https://addons.mozilla.org -> Search 'uBlock Origin'")
+    elif choice == '2':
+        print(f"\n{COLORS['2'][0]}AdGuard Extension Links:{RESET}")
+        print("  Chrome/Edge: https://chrome.google.com/webstore -> Search 'AdGuard'")
+        print("  Firefox: https://addons.mozilla.org -> Search 'AdGuard'")
+    elif choice == '3':
+        print(f"\n{COLORS['6'][0]}Setting up AdGuard DNS...{RESET}")
+        print("Add these DNS servers to your network settings:")
+        print("  Primary:   94.140.14.14")
+        print("  Secondary: 94.140.15.15")
+        if os.name != 'nt':
+            apply = input("\n🔧 Apply now to /etc/resolv.conf? (requires sudo) [y/n]: ").strip().lower()
+            if apply == 'y':
+                os.system("sudo bash -c 'echo \"nameserver 94.140.14.14\" > /etc/resolv.conf'")
+                os.system("sudo bash -c 'echo \"nameserver 94.140.15.15\" >> /etc/resolv.conf'")
+                print(f"{COLORS['2'][0]}✅ DNS updated!{RESET}")
+    elif choice == '4':
+        print(f"\n{COLORS['6'][0]}Downloading ad-blocking hosts file...{RESET}")
+        try:
+            hosts_url = "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts"
+            print(f"Fetching from: {hosts_url}")
+            print(f"\n{COLORS['4'][0]}Note: Requires sudo to apply to /etc/hosts{RESET}")
+            apply = input("Download and view? [y/n]: ").strip().lower()
+            if apply == 'y':
+                resp = requests.get(hosts_url, timeout=10)
+                print(f"\n{COLORS['2'][0]}✅ Downloaded {len(resp.text)} bytes{RESET}")
+                print("Preview (first 500 chars):")
+                print(resp.text[:500])
+        except Exception as e:
+            print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    elif choice == '5':
+        print(f"\n{COLORS['6'][0]}Checking ad blocking status...{RESET}")
+        try:
+            # Check DNS
+            if os.path.exists('/etc/resolv.conf'):
+                with open('/etc/resolv.conf', 'r') as f:
+                    content = f.read()
+                    if '94.140.14.14' in content:
+                        print(f"{COLORS['2'][0]}✅ AdGuard DNS detected{RESET}")
+                    else:
+                        print(f"{COLORS['4'][0]}⚠️  No custom DNS detected{RESET}")
+        except:
+            pass
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_vpn_management():
+    """VPN Setup: WireGuard and OpenVPN"""
+    print_header("🔐 VPN Management")
+
+    wg_installed = check_pentest_tool('wg')
+    ovpn_installed = check_pentest_tool('openvpn')
+
+    print(f"{BOLD}VPN Tool Status:{RESET}")
+    print(f"  WireGuard:  {COLORS['2'][0] if wg_installed else COLORS['1'][0]}{'✅ Installed' if wg_installed else '❌ Not Installed'}{RESET}")
+    print(f"  OpenVPN:    {COLORS['2'][0] if ovpn_installed else COLORS['1'][0]}{'✅ Installed' if ovpn_installed else '❌ Not Installed'}{RESET}")
+
+    print(f"\n{BOLD}VPN Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🔧 Setup WireGuard Server")
+    print(f" {BOLD}[2]{RESET} 📱 Setup WireGuard Client")
+    print(f" {BOLD}[3]{RESET} 🔍 Check WireGuard Status")
+    print(f" {BOLD}[4]{RESET} 🔧 Setup OpenVPN Server")
+    print(f" {BOLD}[5]{RESET} 📱 Setup OpenVPN Client")
+    print(f" {BOLD}[6]{RESET} 🔍 Check OpenVPN Status")
+    print(f" {BOLD}[7]{RESET} 📦 Install VPN Tools")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        if not wg_installed:
+            print(f"{COLORS['1'][0]}❌ WireGuard not installed!{RESET}")
+        else:
+            print(f"\n{COLORS['6'][0]}WireGuard Server Setup:{RESET}")
+            print("Commands to set up WireGuard server:")
+            print("  sudo wg genkey | tee privatekey | wg pubkey > publickey")
+            print("  sudo nano /etc/wireguard/wg0.conf")
+            print("\nExample config:")
+            print("  [Interface]")
+            print("  PrivateKey = <your-private-key>")
+            print("  Address = 10.0.0.1/24")
+            print("  ListenPort = 51820")
+            run = input("\n🚀 Run setup wizard? [y/n]: ").strip().lower()
+            if run == 'y':
+                os.system("sudo wg")
+    elif choice == '2':
+        if not wg_installed:
+            print(f"{COLORS['1'][0]}❌ WireGuard not installed!{RESET}")
+        else:
+            print(f"\n{COLORS['6'][0]}WireGuard Client Setup:{RESET}")
+            config_path = input("📂 Enter path to .conf file: ").strip()
+            if os.path.exists(config_path):
+                os.system(f"sudo wg-quick up {config_path}")
+            else:
+                print(f"{COLORS['1'][0]}❌ Config file not found{RESET}")
+    elif choice == '3':
+        if wg_installed:
+            os.system("sudo wg show")
+        else:
+            print(f"{COLORS['1'][0]}❌ WireGuard not installed{RESET}")
+    elif choice == '4':
+        if not ovpn_installed:
+            print(f"{COLORS['1'][0]}❌ OpenVPN not installed!{RESET}")
+        else:
+            print(f"\n{COLORS['6'][0]}OpenVPN Server Setup:{RESET}")
+            print("Use the following to set up OpenVPN server:")
+            print("  wget https://git.io/vpn -O openvpn-install.sh")
+            print("  sudo bash openvpn-install.sh")
+    elif choice == '5':
+        if not ovpn_installed:
+            print(f"{COLORS['1'][0]}❌ OpenVPN not installed!{RESET}")
+        else:
+            config_path = input("📂 Enter path to .ovpn file: ").strip()
+            if os.path.exists(config_path):
+                os.system(f"sudo openvpn --config {config_path}")
+            else:
+                print(f"{COLORS['1'][0]}❌ Config file not found{RESET}")
+    elif choice == '6':
+        if ovpn_installed:
+            os.system("sudo systemctl status openvpn")
+        else:
+            print(f"{COLORS['1'][0]}❌ OpenVPN not installed{RESET}")
+    elif choice == '7':
+        print(f"\n{BOLD}Installation Commands:{RESET}\n")
+        print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
+        print("  sudo apt-get update")
+        print("  sudo apt-get install wireguard openvpn")
+        print(f"\n{COLORS['6'][0]}Fedora:{RESET}")
+        print("  sudo dnf install wireguard-tools openvpn")
+        print(f"\n{COLORS['6'][0]}macOS:{RESET}")
+        print("  brew install wireguard-tools openvpn")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_pihole_management():
+    """Pi-hole Network-wide Ad Blocking"""
+    print_header("🕳️ Pi-hole Network Ad Blocker")
+
+    pihole_installed = os.path.exists('/usr/local/bin/pihole') or check_pentest_tool('pihole')
+
+    print(f"{BOLD}Pi-hole Status:{RESET}")
+    print(f"  Installed: {COLORS['2'][0] if pihole_installed else COLORS['1'][0]}{'✅ Yes' if pihole_installed else '❌ No'}{RESET}")
+
+    print(f"\n{BOLD}Pi-hole Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 📦 Install Pi-hole")
+    print(f" {BOLD}[2]{RESET} 🔍 Check Pi-hole Status")
+    print(f" {BOLD}[3]{RESET} 🌐 Open Pi-hole Web Interface")
+    print(f" {BOLD}[4]{RESET} 🔄 Update Pi-hole")
+    print(f" {BOLD}[5]{RESET} 📊 View Pi-hole Statistics")
+    print(f" {BOLD}[6]{RESET} ⚙️ Configure Pi-hole")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        print(f"\n{COLORS['6'][0]}Installing Pi-hole...{RESET}")
+        print("Running automated installer...")
+        install = input("Continue? [y/n]: ").strip().lower()
+        if install == 'y':
+            os.system("curl -sSL https://install.pi-hole.net | bash")
+    elif choice == '2':
+        if pihole_installed:
+            os.system("pihole status")
+        else:
+            print(f"{COLORS['1'][0]}❌ Pi-hole not installed{RESET}")
+    elif choice == '3':
+        print(f"\n{COLORS['6'][0]}Pi-hole Web Interface:{RESET}")
+        print("  URL: http://pi.hole/admin")
+        print("  or:  http://<your-pi-ip>/admin")
+        try:
+            hostname = socket.gethostname()
+            ip = socket.gethostbyname(hostname)
+            print(f"  Your IP: http://{ip}/admin")
+        except:
+            pass
+    elif choice == '4':
+        if pihole_installed:
+            os.system("pihole -up")
+        else:
+            print(f"{COLORS['1'][0]}❌ Pi-hole not installed{RESET}")
+    elif choice == '5':
+        if pihole_installed:
+            os.system("pihole -c -e")
+        else:
+            print(f"{COLORS['1'][0]}❌ Pi-hole not installed{RESET}")
+    elif choice == '6':
+        if pihole_installed:
+            os.system("pihole -r")
+        else:
+            print(f"{COLORS['1'][0]}❌ Pi-hole not installed{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_threat_intelligence():
+    """Threat Intelligence & Analysis Tools"""
+    print_header("🎯 Threat Intelligence & Analysis")
+
+    print(f"{BOLD}Intelligence Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🔍 Analyze Suspicious IP Address")
+    print(f" {BOLD}[2]{RESET} 📊 Check Open Ports on Target")
+    print(f" {BOLD}[3]{RESET} 🦠 VirusTotal Hash Lookup (requires API key)")
+    print(f" {BOLD}[4]{RESET} 🌐 WHOIS Domain Lookup")
+    print(f" {BOLD}[5]{RESET} 📈 DNS Enumeration")
+    print(f" {BOLD}[6]{RESET} 🔐 SSL Certificate Analysis")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        ip = input("🔍 Enter IP address to analyze: ").strip()
+        if ip:
+            print(f"\n{COLORS['6'][0]}Analyzing {ip}...{RESET}")
+            try:
+                # IP geolocation
+                resp = requests.get(f"http://ip-api.com/json/{ip}", timeout=5)
+                data = resp.json()
+                if data.get('status') == 'success':
+                    print(f"\n{BOLD}Geolocation Data:{RESET}")
+                    print(f"  Country: {data.get('country', 'N/A')}")
+                    print(f"  Region: {data.get('regionName', 'N/A')}")
+                    print(f"  City: {data.get('city', 'N/A')}")
+                    print(f"  ISP: {data.get('isp', 'N/A')}")
+                    print(f"  Org: {data.get('org', 'N/A')}")
+                    print(f"  AS: {data.get('as', 'N/A')}")
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    elif choice == '2':
+        target = input("🎯 Enter target IP/hostname: ").strip()
+        if target:
+            if check_pentest_tool('nmap'):
+                os.system(f"nmap -F {target}")
+            else:
+                print(f"{COLORS['1'][0]}❌ nmap not installed{RESET}")
+    elif choice == '3':
+        print(f"\n{COLORS['6'][0]}VirusTotal Hash Lookup{RESET}")
+        print("Get your API key from: https://www.virustotal.com/")
+        api_key = input("🔑 Enter VirusTotal API key (or Enter to skip): ").strip()
+        if api_key:
+            file_hash = input("🔍 Enter file hash (MD5/SHA1/SHA256): ").strip()
+            if file_hash:
+                try:
+                    url = f"https://www.virustotal.com/api/v3/files/{file_hash}"
+                    headers = {"x-apikey": api_key}
+                    resp = requests.get(url, headers=headers, timeout=10)
+                    print(f"\n{BOLD}Response:{RESET}")
+                    print(resp.text[:500])
+                except Exception as e:
+                    print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    elif choice == '4':
+        domain = input("🌐 Enter domain: ").strip()
+        if domain:
+            if check_pentest_tool('whois'):
+                os.system(f"whois {domain}")
+            else:
+                print(f"{COLORS['1'][0]}❌ whois not installed. Install: sudo apt-get install whois{RESET}")
+    elif choice == '5':
+        domain = input("🌐 Enter domain for DNS enum: ").strip()
+        if domain:
+            if check_pentest_tool('dig'):
+                os.system(f"dig {domain} ANY")
+            elif check_pentest_tool('nslookup'):
+                os.system(f"nslookup {domain}")
+            else:
+                print(f"{COLORS['1'][0]}❌ DNS tools not found{RESET}")
+    elif choice == '6':
+        domain = input("🌐 Enter domain: ").strip()
+        if domain:
+            os.system(f"openssl s_client -connect {domain}:443 -showcerts < /dev/null 2>/dev/null | openssl x509 -noout -text")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_log_analysis():
+    """SIEM Log Analysis and Pattern Detection"""
+    print_header("📋 Log Analysis & SIEM")
+
+    print(f"{BOLD}Log Analysis Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🔍 Analyze Authentication Logs (auth.log)")
+    print(f" {BOLD}[2]{RESET} 🌐 Analyze Web Server Logs (Apache/Nginx)")
+    print(f" {BOLD}[3]{RESET} 🔐 Find Failed Login Attempts")
+    print(f" {BOLD}[4]{RESET} 🌍 Detect Geographic Anomalies")
+    print(f" {BOLD}[5]{RESET} ⏰ Find Unusual Login Times")
+    print(f" {BOLD}[6]{RESET} 📊 Generate Log Statistics")
+    print(f" {BOLD}[7]{RESET} 🔎 Custom Log Search (grep)")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        log_paths = ['/var/log/auth.log', '/var/log/secure']
+        found_log = None
+        for log_path in log_paths:
+            if os.path.exists(log_path):
+                found_log = log_path
+                break
+
+        if found_log:
+            print(f"\n{COLORS['6'][0]}Analyzing {found_log}...{RESET}")
+            os.system(f"sudo tail -n 50 {found_log}")
+        else:
+            print(f"{COLORS['1'][0]}❌ Auth logs not found{RESET}")
+    elif choice == '2':
+        log_paths = ['/var/log/apache2/access.log', '/var/log/nginx/access.log']
+        print(f"\n{COLORS['6'][0]}Checking web server logs...{RESET}")
+        for log_path in log_paths:
+            if os.path.exists(log_path):
+                print(f"\nFound: {log_path}")
+                os.system(f"sudo tail -n 20 {log_path}")
+    elif choice == '3':
+        print(f"\n{COLORS['6'][0]}Searching for failed login attempts...{RESET}")
+        if os.path.exists('/var/log/auth.log'):
+            os.system("sudo grep 'Failed password' /var/log/auth.log | tail -n 20")
+        elif os.path.exists('/var/log/secure'):
+            os.system("sudo grep 'Failed password' /var/log/secure | tail -n 20")
+        else:
+            print(f"{COLORS['1'][0]}❌ Auth logs not found{RESET}")
+    elif choice == '4':
+        print(f"\n{COLORS['6'][0]}Analyzing geographic patterns...{RESET}")
+        print("Extracting IP addresses from logs...")
+        if os.path.exists('/var/log/auth.log'):
+            os.system("sudo grep 'sshd' /var/log/auth.log | grep -oE '\\b([0-9]{1,3}\\.){3}[0-9]{1,3}\\b' | sort -u | head -n 10")
+    elif choice == '5':
+        print(f"\n{COLORS['6'][0]}Checking login times...{RESET}")
+        os.system("last | head -n 20")
+    elif choice == '6':
+        print(f"\n{COLORS['6'][0]}Generating log statistics...{RESET}")
+        if os.path.exists('/var/log/auth.log'):
+            print("\n📊 Top 10 Event Types:")
+            os.system("sudo awk '{print $5}' /var/log/auth.log | sort | uniq -c | sort -rn | head -n 10")
+    elif choice == '7':
+        log_file = input("📂 Enter log file path: ").strip()
+        if os.path.exists(log_file):
+            pattern = input("🔍 Enter search pattern: ").strip()
+            if pattern:
+                os.system(f"sudo grep '{pattern}' {log_file} | tail -n 30")
+        else:
+            print(f"{COLORS['1'][0]}❌ Log file not found{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_malware_analysis():
+    """Malware Analysis and Reverse Engineering Tools"""
+    print_header("🦠 Malware Analysis Tools")
+
+    print(f"{BOLD}Analysis Tools:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🔍 File Hash Calculator (MD5/SHA256)")
+    print(f" {BOLD}[2]{RESET} 📝 String Analysis (extract strings)")
+    print(f" {BOLD}[3]{RESET} 🔬 File Type Analysis")
+    print(f" {BOLD}[4]{RESET} 🧬 Hexdump Analysis")
+    print(f" {BOLD}[5]{RESET} 📊 Check File with VirusTotal")
+    print(f" {BOLD}[6]{RESET} 🔓 Disassemble Binary (requires objdump)")
+    print(f" {BOLD}[7]{RESET} 🔍 Scan with ClamAV")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        file_path = input("📂 Enter file path: ").strip()
+        if os.path.exists(file_path):
+            import hashlib
+            print(f"\n{COLORS['6'][0]}Calculating hashes...{RESET}")
+            with open(file_path, 'rb') as f:
+                data = f.read()
+                md5 = hashlib.md5(data).hexdigest()
+                sha256 = hashlib.sha256(data).hexdigest()
+                print(f"\n{BOLD}MD5:{RESET}    {md5}")
+                print(f"{BOLD}SHA256:{RESET} {sha256}")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '2':
+        file_path = input("📂 Enter file path: ").strip()
+        if os.path.exists(file_path):
+            print(f"\n{COLORS['6'][0]}Extracting strings...{RESET}")
+            os.system(f"strings '{file_path}' | head -n 50")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '3':
+        file_path = input("📂 Enter file path: ").strip()
+        if os.path.exists(file_path):
+            print(f"\n{COLORS['6'][0]}Analyzing file type...{RESET}")
+            os.system(f"file '{file_path}'")
+            if check_pentest_tool('exiftool'):
+                print(f"\n{BOLD}Metadata:{RESET}")
+                os.system(f"exiftool '{file_path}'")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '4':
+        file_path = input("📂 Enter file path: ").strip()
+        if os.path.exists(file_path):
+            print(f"\n{COLORS['6'][0]}Hexdump (first 256 bytes):{RESET}")
+            os.system(f"hexdump -C '{file_path}' | head -n 16")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '5':
+        file_path = input("📂 Enter file path: ").strip()
+        if os.path.exists(file_path):
+            import hashlib
+            with open(file_path, 'rb') as f:
+                sha256 = hashlib.sha256(f.read()).hexdigest()
+            print(f"\n{COLORS['6'][0]}File SHA256:{RESET} {sha256}")
+            print(f"Check on VirusTotal: https://www.virustotal.com/gui/file/{sha256}")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '6':
+        file_path = input("📂 Enter binary path: ").strip()
+        if os.path.exists(file_path):
+            if check_pentest_tool('objdump'):
+                print(f"\n{COLORS['6'][0]}Disassembling...{RESET}")
+                os.system(f"objdump -d '{file_path}' | head -n 50")
+            else:
+                print(f"{COLORS['1'][0]}❌ objdump not installed{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+    elif choice == '7':
+        if check_pentest_tool('clamscan'):
+            target = input("📂 Enter path to scan: ").strip()
+            if os.path.exists(target):
+                print(f"\n{COLORS['6'][0]}Scanning with ClamAV...{RESET}")
+                os.system(f"clamscan -r '{target}'")
+            else:
+                print(f"{COLORS['1'][0]}❌ Path not found{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}❌ ClamAV not installed. Install: sudo apt-get install clamav{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_devsecops():
+    """DevSecOps Integration Tools"""
+    print_header("🛡️ DevSecOps Integration")
+
+    print(f"{BOLD}DevSecOps Tools:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🧪 Run pytest Security Tests")
+    print(f" {BOLD}[2]{RESET} 🔍 Security Code Scanner (Bandit)")
+    print(f" {BOLD}[3]{RESET} 📦 Dependency Vulnerability Check (Safety)")
+    print(f" {BOLD}[4]{RESET} 🔐 Git Secret Scanner")
+    print(f" {BOLD}[5]{RESET} 🐳 Docker Security Scan")
+    print(f" {BOLD}[6]{RESET} 📊 Generate Security Report")
+    print(f" {BOLD}[7]{RESET} 📦 Install DevSecOps Tools")
+    print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+    choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        if check_pentest_tool('pytest'):
+            test_path = input("📂 Enter test directory [./tests]: ").strip() or "./tests"
+            print(f"\n{COLORS['6'][0]}Running pytest security tests...{RESET}")
+            os.system(f"pytest {test_path} -v")
+        else:
+            print(f"{COLORS['1'][0]}❌ pytest not installed. Install: pip install pytest{RESET}")
+    elif choice == '2':
+        if check_pentest_tool('bandit'):
+            target = input("📂 Enter path to scan [.]: ").strip() or "."
+            print(f"\n{COLORS['6'][0]}Running Bandit security scanner...{RESET}")
+            os.system(f"bandit -r {target}")
+        else:
+            print(f"{COLORS['1'][0]}❌ Bandit not installed. Install: pip install bandit{RESET}")
+    elif choice == '3':
+        if check_pentest_tool('safety'):
+            print(f"\n{COLORS['6'][0]}Checking dependencies for vulnerabilities...{RESET}")
+            os.system("safety check")
+        else:
+            print(f"{COLORS['1'][0]}❌ Safety not installed. Install: pip install safety{RESET}")
+    elif choice == '4':
+        if check_pentest_tool('trufflehog'):
+            repo = input("📂 Enter repo path [.]: ").strip() or "."
+            print(f"\n{COLORS['6'][0]}Scanning for secrets...{RESET}")
+            os.system(f"trufflehog filesystem {repo}")
+        else:
+            print(f"{COLORS['1'][0]}❌ TruffleHog not installed. Install: pip install trufflehog{RESET}")
+    elif choice == '5':
+        image = input("🐳 Enter Docker image name: ").strip()
+        if image:
+            if check_pentest_tool('docker'):
+                print(f"\n{COLORS['6'][0]}Scanning Docker image...{RESET}")
+                os.system(f"docker scan {image}")
+            else:
+                print(f"{COLORS['1'][0]}❌ Docker not installed{RESET}")
+    elif choice == '6':
+        print(f"\n{COLORS['6'][0]}Generating comprehensive security report...{RESET}")
+        report_file = f"security_report_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        with open(report_file, 'w') as f:
+            f.write("=== SECURITY REPORT ===\n")
+            f.write(f"Generated: {datetime.datetime.now()}\n\n")
+        print(f"{COLORS['2'][0]}✅ Report saved to: {report_file}{RESET}")
+    elif choice == '7':
+        print(f"\n{BOLD}Installation Commands:{RESET}\n")
+        print(f"{COLORS['6'][0]}Python Security Tools:{RESET}")
+        print("  pip install pytest bandit safety trufflehog")
+        print(f"\n{COLORS['6'][0]}System Tools:{RESET}")
+        print("  sudo apt-get install docker.io clamav")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_defence_center():
+    """Main Defence Center - Proactive Security Menu"""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🛡️ DEFENCE CENTER")
+
+        # Check tool status
+        defence_tools = {
+            "WireGuard": check_pentest_tool('wg'),
+            "OpenVPN": check_pentest_tool('openvpn'),
+            "Pi-hole": os.path.exists('/usr/local/bin/pihole'),
+            "ClamAV": check_pentest_tool('clamscan'),
+            "Bandit": check_pentest_tool('bandit'),
+            "pytest": check_pentest_tool('pytest')
+        }
+
+        print(f"\n{BOLD}Defence Tool Status:{RESET}")
+        for tool, installed in defence_tools.items():
+            status = f"{COLORS['2'][0]}✅{RESET}" if installed else f"{COLORS['1'][0]}❌{RESET}"
+            print(f"  {status} {tool}")
+
+        c = get_current_color()
+        print(f"\n{BOLD}{c}╔{'═'*60}╗{RESET}")
+        print(f"{BOLD}{c}║{RESET}  {BOLD}PROACTIVE DEFENCE & SECURITY OPERATIONS{RESET}{'':>20}{BOLD}{c}║{RESET}")
+        print(f"{BOLD}{c}╠{'═'*60}╣{RESET}")
+        print(f" {BOLD}[1]{RESET} 🚫 Ad Blocker Management")
+        print(f" {BOLD}[2]{RESET} 🔐 VPN Setup (WireGuard/OpenVPN)")
+        print(f" {BOLD}[3]{RESET} 🕳️  Pi-hole Network Ad Blocking")
+        print(f" {BOLD}[4]{RESET} 🎯 Threat Intelligence & Analysis")
+        print(f" {BOLD}[5]{RESET} 📋 SIEM Log Analysis")
+        print(f" {BOLD}[6]{RESET} 🦠 Malware Analysis Tools")
+        print(f" {BOLD}[7]{RESET} 🛡️  DevSecOps Integration")
+        print(f" {BOLD}[8]{RESET} 📚 Install All Defence Tools")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        print(f"{BOLD}{c}╚{'═'*60}╝{RESET}")
+
+        print(f"\n{COLORS['2'][0]}ℹ️  Proactive defence focuses on prevention, detection, and response{RESET}")
+
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+        if choice == '0':
+            break
+        elif choice == '1':
+            feature_adblocker_setup()
+        elif choice == '2':
+            feature_vpn_management()
+        elif choice == '3':
+            feature_pihole_management()
+        elif choice == '4':
+            feature_threat_intelligence()
+        elif choice == '5':
+            feature_log_analysis()
+        elif choice == '6':
+            feature_malware_analysis()
+        elif choice == '7':
+            feature_devsecops()
+        elif choice == '8':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📦 Install Defence Tools")
+            print(f"\n{BOLD}Complete Installation Commands:{RESET}\n")
+            print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
+            print("  sudo apt-get update")
+            print("  sudo apt-get install wireguard openvpn clamav clamav-daemon")
+            print("  sudo apt-get install whois dnsutils")
+            print("  pip install pytest bandit safety trufflehog")
+            print(f"\n{COLORS['6'][0]}Pi-hole:{RESET}")
+            print("  curl -sSL https://install.pi-hole.net | bash")
+            print(f"\n{COLORS['6'][0]}macOS:{RESET}")
+            print("  brew install wireguard-tools openvpn clamav")
+            print("  pip install pytest bandit safety trufflehog")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+# --- END DEFENCE CENTER ---
 
 def feature_traffic_report():
     print_header("🚦 Traffic Report")
@@ -700,7 +2884,10 @@ def feature_media_scanner():
             ext = os.path.splitext(file)[1].lower()
             for category, extensions in media_exts.items():
                 if ext in extensions:
-                    results.append({"name": file, "path": os.path.join(root, file), "type": category})
+                    file_path = os.path.join(root, file)
+                    results.append({"name": file, "path": file_path, "type": category})
+                    # Track file in database
+                    track_file(file_path, file_type=category, metadata={"extension": ext})
 
     if not results:
         print(f" {COLORS['4'][0]}[!] No media files found in this sector.{RESET}")
@@ -735,7 +2922,18 @@ def feature_media_scanner():
             else:
                 break
 
-    input(f"\n{BOLD}[ ✅ Sector Scan Complete. Press Enter... ]{RESET}")
+        # Generate log of all found media
+        media_log = f"Media Scan Report\\nDirectory: {target_dir}\\nTotal Files Found: {len(results)}\\n\\n"
+        for category in ["Audio", "Video", "Images", "GIFs"]:
+            category_files = [r for r in results if r["type"] == category]
+            if category_files:
+                media_log += f"\\n{category} ({len(category_files)} files):\\n"
+                for item in category_files:
+                    media_log += f"  - {item['name']}\\n    Path: {item['path']}\\n"
+
+        save_log_file("media", "Media_Scan", media_log, prompt_user=True)
+
+    input(f"\\n{BOLD}[ ✅ Sector Scan Complete. Press Enter... ]{RESET}")
 
 # --- RESUME SACRED CORE FUNCTIONS ---
 
@@ -931,7 +3129,17 @@ def feature_process_search():
                         cpu_val = p['cpu_percent'] or 0
                         print(f"{p['pid']:<7} | {p['name'][:20]:<20} | {mem_val:>6.2f}% | {cpu_val:>6.1f}% | {p['status']:<10} | {p['username']}")
 
-                    input(f"\n{BOLD}[ ⌨️ Press Enter to return to Process Menu... ]{RESET}")
+                    # Logging capability
+                    process_log = f"Filter: {target}\\nSort By: {sort_by}\\nTotal Processes Found: {len(procs)}\\n\\n"
+                    process_log += f"{'PID':<7} | {'Name':<20} | {'MEM %':<7} | {'CPU %':<7} | {'Status':<10} | {'User'}\\n"
+                    process_log += "-" * 85 + "\\n"
+                    for p in procs[:20]:
+                        mem_val = p['memory_percent'] or 0
+                        cpu_val = p['cpu_percent'] or 0
+                        process_log += f"{p['pid']:<7} | {p['name'][:20]:<20} | {mem_val:>6.2f}% | {cpu_val:>6.1f}% | {p['status']:<10} | {p['username']}\\n"
+
+                    save_log_file("process", "Process_Search", process_log, prompt_user=True)
+                    input(f"\\n{BOLD}[ ⌨️ Press Enter to return to Process Menu... ]{RESET}")
             except Exception as e:
                 print(f"❌ Error: {e}")
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -1407,11 +3615,13 @@ def feature_security_audit():
     common_ports = [21, 22, 23, 25, 53, 80, 443, 3306, 3389]
     print(f"📡 Scanning {len(common_ports)} common entry points on localhost...")
     found_any = False
+    open_ports = []
     for port in common_ports:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(0.1)
             if s.connect_ex(('127.0.0.1', port)) == 0:
                 print(f" {COLORS['1'][0]}[!] ⚠️ OPEN:{RESET} Port {port}")
+                open_ports.append(port)
                 found_any = True
     if not found_any: print(f" {COLORS['2'][0]}[+] ✅ No standard high-risk ports open locally.{RESET}")
     print_header("👤 Security Context")
@@ -1419,7 +3629,17 @@ def feature_security_audit():
     try: is_admin = os.getuid() == 0
     except: is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0
     print(f"👑 Admin/Root Privileges: {'YES' if is_admin else 'NO'}")
-    input(f"\n{BOLD}[ ✅ Audit Complete. Press Enter... ]{RESET}")
+
+    # Logging capability
+    audit_log = f"Security Audit Report\\n\\nPorts Scanned: {common_ports}\\n"
+    if open_ports:
+        audit_log += f"Open Ports Found: {open_ports}\\n"
+    else:
+        audit_log += "No high-risk ports open\\n"
+    audit_log += f"\\nAdmin/Root Privileges: {'YES' if is_admin else 'NO'}\\n"
+    save_log_file("security", "Security_Audit", audit_log, prompt_user=True)
+
+    input(f"\\n{BOLD}[ ✅ Audit Complete. Press Enter... ]{RESET}")
 
 def feature_environment_probe():
     print_header("📂 Environment & Path Probe")
@@ -2243,13 +4463,14 @@ while True:
     print(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
     print(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
     print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
-    print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard")
+    print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
     print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
+    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  ")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-M): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-N): {RESET}").strip().upper()
     stop_clock = True
 
     if choice == '1': is_blinking = not is_blinking
@@ -2302,6 +4523,8 @@ while True:
     elif choice == '9': feature_process_search()
     elif choice == '10':feature_plugin_center()
     elif choice == '11':feature_remote_dashboard()
+    elif choice == '12':feature_pentest_toolkit()
+    elif choice == '13':feature_defence_center()
     elif choice == '0': feature_network_toolkit()
     elif choice == 'A': feature_security_audit()
     elif choice == 'B': feature_environment_probe()
@@ -2316,6 +4539,7 @@ while True:
     elif choice == 'K': feature_ai_center()
     elif choice == 'L': feature_bluetooth_toolkit()
     elif choice == 'M': feature_traffic_report()
+    elif choice == 'N': feature_database_log_center()
 
 #version 21
 
@@ -2781,4 +5005,4 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd9 base
+# version pythonOScmd24 base pythonOS70
