@@ -408,6 +408,18 @@ def clean_expired_cache():
     except Exception as e:
         return 0
 
+def clear_cached_data(key):
+    """Remove a cached entry by key."""
+    try:
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM swap_cache WHERE cache_key = ?", (key,))
+            deleted = cursor.rowcount
+            conn.commit()
+        return deleted
+    except Exception:
+        return 0
+
 def feature_database_log_center():
     """Database & Log Files Management Center."""
     while True:
@@ -448,6 +460,8 @@ def feature_database_log_center():
         print(f" {BOLD}[10]{RESET} 🔍 Lite Scan (Quick System Snapshot)")
         print(f" {BOLD}[11]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
         print(f" {BOLD}[12]{RESET} 🧭 Advanced Database Suite")
+        print(f" {BOLD}[13]{RESET} 📡 Start DB API Server")
+        print(f" {BOLD}[14]{RESET} 🌐 Open DB API Stats Endpoint")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
@@ -478,6 +492,13 @@ def feature_database_log_center():
             safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
         elif choice == '12':
             safe_run("general", "Advanced_Database_Suite", _advanced_database_suite)
+        elif choice == '13':
+            _db_api_server_start()
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '14':
+            _db_api_server_start()
+            _open_url(f"http://localhost:{DB_API_PORT}/stats")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def _view_log_files():
     """View log files by category."""
@@ -2141,6 +2162,23 @@ class VisualFXFilter:
 if not isinstance(sys.stdout, VisualFXFilter):
     sys.stdout = VisualFXFilter(sys.stdout)
 
+def _ensure_cursor_visible():
+    try:
+        sys.stdout.write("\033[?25h")
+        sys.stdout.flush()
+    except Exception:
+        pass
+
+try:
+    import builtins as _builtins
+    _orig_input = _builtins.input
+    def input(prompt=""):
+        _ensure_cursor_visible()
+        return _orig_input(prompt)
+    _builtins.input = input
+except Exception:
+    pass
+
 # Global weather cache for live ticker
 weather_cache = {"temp": "N/A", "icon": "☁️", "humidity": "N/A", "wind": "N/A"}
 
@@ -2222,34 +2260,73 @@ def get_weather_data():
         except: return None
 
 def feature_weather_display():
-    print_header("🌍 Global Weather Station")
-    print("🔍 Querying Open-Meteo & National Weather Service...")
-    data = get_weather_data()
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🌍 Global Weather Station")
+        print(f" {BOLD}[1]{RESET} 🌡️ Current Weather")
+        print(f" {BOLD}[2]{RESET} 🔄 Refresh Weather Cache")
+        print(f" {BOLD}[3]{RESET} 🧾 Show Raw Weather Data")
+        print(f" {BOLD}[4]{RESET} 🌐 Open Weather Links")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
 
-    if data:
-        print(f"\n {BOLD}📍 Current Location:{RESET} {data['city']}")
-        print(f" {BOLD}🌡️ Temperature:   {RESET} {data['icon']} {data['temp']} (Feels like {data['feels']})")
-        print(f" {BOLD}💧 Humidity:      {RESET} {data['humidity']}")
-        print(f" {BOLD}💨 Wind Speed:    {RESET} {data['wind']}")
+        if choice == '0':
+            return
+        if choice == '1':
+            print_header("🌡️ Current Weather")
+            print("🔍 Querying Open-Meteo & National Weather Service...")
+            data = get_weather_data()
+            if data:
+                print(f"\n {BOLD}📍 Current Location:{RESET} {data['city']}")
+                print(f" {BOLD}🌡️ Temperature:   {RESET} {data['icon']} {data['temp']} (Feels like {data['feels']})")
+                print(f" {BOLD}💧 Humidity:      {RESET} {data['humidity']}")
+                print(f" {BOLD}💨 Wind Speed:    {RESET} {data['wind']}")
 
-        # External Planning Links
-        print_header("🗺️ Detailed Planning & Radar")
-        print(f" > {BOLD}🌬️ Windy.com:{RESET}     https://www.windy.com")
-        print(f" > {BOLD}🌦️ Weather Under:{RESET}  https://www.wunderground.com")
-        print(f" > {BOLD}📺 The Weather Ch:{RESET} https://weather.com")
+                print_header("🗺️ Detailed Planning & Radar")
+                print(f" > {BOLD}🌬️ Windy.com:{RESET}     https://www.windy.com")
+                print(f" > {BOLD}🌦️ Weather Under:{RESET}  https://www.wunderground.com")
+                print(f" > {BOLD}📺 The Weather Ch:{RESET} https://weather.com")
 
-        try:
-            # Quick ASCII graph from wttr.in for visual flair
-            full_report = requests.get(f"https://wttr.in/{data['city']}?0&m&q", timeout=5).text
-            print("\n" + full_report)
-        except: pass
+                try:
+                    full_report = requests.get(f"https://wttr.in/{data['city']}?0&m&q", timeout=5).text
+                    print("\n" + full_report)
+                except Exception:
+                    pass
 
-        # Logging capability
-        weather_log = f"Location: {data['city']}\nTemperature: {data['temp']}\nFeels Like: {data['feels']}\nHumidity: {data['humidity']}\nWind: {data['wind']}\nConditions: {data['icon']}"
-        save_log_file("weather", "Weather_Query", weather_log, prompt_user=True)
-    else:
-        print(f" {COLORS['1'][0]}[!] 📡 Could not retrieve weather. Check connection.{RESET}")
-    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+                weather_log = (
+                    f"Location: {data['city']}\nTemperature: {data['temp']}\nFeels Like: {data['feels']}"
+                    f"\nHumidity: {data['humidity']}\nWind: {data['wind']}\nConditions: {data['icon']}"
+                )
+                save_log_file("weather", "Weather_Query", weather_log, prompt_user=True)
+            else:
+                print(f" {COLORS['1'][0]}[!] 📡 Could not retrieve weather. Check connection.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            cleared = clear_cached_data("weather_data")
+            print(f"✅ Cleared {cleared} cached entry(ies). Refreshing...")
+            data = get_weather_data()
+            if data:
+                print(f"Updated: {data.get('icon','')} {data.get('temp','N/A')}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("🧾 Raw Weather Data")
+            data = get_weather_data()
+            print(json.dumps(data, indent=2) if data else "No data")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("🛰️ Weather Services")
+            print("1) https://www.windy.com")
+            print("2) https://www.wunderground.com")
+            print("3) https://weather.com")
+            sel = input("Open link (1-3, Enter to skip): ").strip()
+            links = {
+                "1": "https://www.windy.com",
+                "2": "https://www.wunderground.com",
+                "3": "https://weather.com",
+            }
+            if sel in links:
+                _open_url(links[sel])
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def _traffic_risk_from_weather(icon):
     if icon in ["🌧️", "⛈️", "❄️", "🌫️"]:
@@ -2429,35 +2506,92 @@ def feature_aircrack_toolkit():
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_burpsuite():
-    """Burp Suite Web App Testing Wrapper"""
-    print_header("🌐 Burp Suite Web Application Tester")
+    def _scan_ports(ports):
+        open_ports = []
+        for port in ports:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.1)
+                if s.connect_ex(('127.0.0.1', port)) == 0:
+                    open_ports.append(port)
+        return open_ports
 
-    print(f"{BOLD}Burp Suite Information:{RESET}\n")
-    print("Burp Suite is a Java-based application typically launched via GUI.")
-    print(f"\n{BOLD}Common Locations:{RESET}")
-    print("  • Kali Linux: /usr/bin/burpsuite")
-    print("  • Manual Install: java -jar burpsuite.jar")
-    print("  • Download: https://portswigger.net/burp/communitydownload")
+    def _admin_status():
+        try:
+            return os.getuid() == 0
+        except Exception:
+            try:
+                return ctypes.windll.shell32.IsUserAnAdmin() != 0
+            except Exception:
+                return False
 
-    burp_paths = [
-        '/usr/bin/burpsuite',
-        '/usr/local/bin/burpsuite',
-        'burpsuite'
-    ]
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🛡️ Security & Port Audit")
+        print(f" {BOLD}[1]{RESET} ⚠️  Quick Port Scan (Common)")
+        print(f" {BOLD}[2]{RESET} 🧭 Extended Port Scan (Common + Services)")
+        print(f" {BOLD}[3]{RESET} 📡 List Listening Ports")
+        print(f" {BOLD}[4]{RESET} 👑 Show Admin/Root Status")
+        print(f" {BOLD}[5]{RESET} 💾 Save Audit Report")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
 
-    burp_found = None
-    for path in burp_paths:
-        if check_pentest_tool(path.split('/')[-1]):
-            burp_found = path
-            break
-
-    if burp_found:
-        print(f"\n{COLORS['2'][0]}✅ Burp Suite found at: {burp_found}{RESET}")
-        launch = input(f"\n{BOLD}Launch Burp Suite? (y/n): {RESET}").strip().lower()
-        if launch == 'y':
-            print(f"\n{COLORS['6'][0]}Launching Burp Suite...{RESET}")
-            os.system(f'{burp_found} &')
-    else:
+        if choice == '0':
+            return
+        if choice == '1':
+            common_ports = [21, 22, 23, 25, 53, 80, 443, 3306, 3389]
+            print_header("⚠️ Quick Port Scan")
+            open_ports = _scan_ports(common_ports)
+            if open_ports:
+                for port in open_ports:
+                    print(f" {COLORS['1'][0]}[!] OPEN:{RESET} Port {port}")
+            else:
+                print(f" {COLORS['2'][0]}[+] ✅ No standard high-risk ports open locally.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            ports = [21, 22, 23, 25, 53, 80, 110, 143, 389, 443, 445, 587, 993, 995, 3306, 3389, 5432, 6379, 8080, 8443, 9200]
+            print_header("🧭 Extended Port Scan")
+            open_ports = _scan_ports(ports)
+            if open_ports:
+                print(f"Open Ports: {', '.join(str(p) for p in open_ports)}")
+            else:
+                print(f" {COLORS['2'][0]}[+] ✅ No common service ports open locally.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("📡 Listening Ports")
+            try:
+                conns = psutil.net_connections(kind='inet')
+                listen = sorted({c.laddr.port for c in conns if c.status == psutil.CONN_LISTEN})
+                if listen:
+                    print("Listening Ports:", ", ".join(str(p) for p in listen[:30]))
+                    if len(listen) > 30:
+                        print(f"... and {len(listen) - 30} more")
+                else:
+                    print("No listening ports found.")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("👑 Security Context")
+            is_admin = _admin_status()
+            print(f"Admin/Root Privileges: {'YES' if is_admin else 'NO'}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '5':
+            common_ports = [21, 22, 23, 25, 53, 80, 443, 3306, 3389]
+            open_ports = _scan_ports(common_ports)
+            is_admin = _admin_status()
+            audit_log = [
+                "Security Audit Report",
+                f"Ports Scanned: {common_ports}",
+                f"Open Ports: {open_ports if open_ports else 'None'}",
+                f"Admin/Root Privileges: {'YES' if is_admin else 'NO'}",
+            ]
+            payload = "\n".join(audit_log)
+            save_log_file("security", "Security_Audit", payload, prompt_user=True)
+            try:
+                log_to_database("security", "Security_Audit", payload, status="success")
+            except Exception:
+                pass
+            input(f"\n{BOLD}[ ✅ Audit Complete. Press Enter... ]{RESET}")
         print(f"\n{COLORS['4'][0]}⚠️  Burp Suite not found in standard locations{RESET}")
         custom = input(f"\n{BOLD}Enter custom Burp Suite path or command (or Enter to skip): {RESET}").strip()
         if custom:
@@ -2616,6 +2750,7 @@ def feature_pentest_toolkit():
         print(f" {BOLD}[5]{RESET} 🔐 Password Crackers (John/Hashcat)")
         print(f" {BOLD}[6]{RESET} 🌊 Hydra - Brute-force Tool")
         print(f" {BOLD}[7]{RESET} 📚 Install Missing Tools")
+        print(f" {BOLD}[8]{RESET} 📦 Open Download Center (Pen Test Tools)")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*50}╝{RESET}")
 
@@ -2653,6 +2788,8 @@ def feature_pentest_toolkit():
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install nmap aircrack-ng john hashcat hydra")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '8':
+            feature_download_center()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -2809,6 +2946,7 @@ def feature_pwn_tools():
         print(f" {BOLD}[4]{RESET} ROPgadget Finder")
         print(f" {BOLD}[5]{RESET} one_gadget (libc gadgets)")
         print(f" {BOLD}[6]{RESET} 📦 Install PWN Tools Bundle")
+        print(f" {BOLD}[7]{RESET} 🧰 Open Download Center (PWN Tools)")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
@@ -2826,6 +2964,8 @@ def feature_pwn_tools():
             _pwn_run_one_gadget()
         elif choice == '6':
             _pwn_install_bundle()
+        elif choice == '7':
+            feature_download_center()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -2954,6 +3094,7 @@ def feature_python_power():
         print(" [4] Audio & Signal Processing")
         print(" [5] Hardware Control & Robotics")
         print(" [6] Scientific Simulation & Modeling")
+        print(" [7] Open Download Center (Python Libraries)")
         print(" [0] Return")
 
         choice = input("\nSelect option: ").strip()
@@ -2971,6 +3112,8 @@ def feature_python_power():
             _python_power_hardware_robotics()
         elif choice == '6':
             _python_power_scientific()
+        elif choice == '7':
+            feature_download_center()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -3535,6 +3678,7 @@ def feature_defence_center():
         print(f" {BOLD}[6]{RESET} 🦠 Malware Analysis Tools")
         print(f" {BOLD}[7]{RESET} 🛡️  DevSecOps Integration")
         print(f" {BOLD}[8]{RESET} 📚 Install All Defence Tools")
+        print(f" {BOLD}[9]{RESET} 📦 Open Download Center (Defence Tools)")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*60}╝{RESET}")
 
@@ -3573,6 +3717,8 @@ def feature_defence_center():
             print("  brew install wireguard-tools openvpn clamav")
             print("  pip install pytest bandit safety trufflehog")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '9':
+            feature_download_center()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -4137,69 +4283,95 @@ def feature_download_center():
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 def feature_traffic_report():
-    print_header("🚦 Traffic Report")
-    print("🔍 Using IP geolocation and weather to estimate traffic risk...")
-    data = get_weather_data() or {}
-    try:
-        geo = requests.get("http://ip-api.com/json/", timeout=3).json()
-    except Exception:
-        geo = {}
+    def _traffic_snapshot():
+        data = get_weather_data() or {}
+        try:
+            geo = requests.get("http://ip-api.com/json/", timeout=3).json()
+        except Exception:
+            geo = {}
 
-    city = geo.get("city", data.get("city", "Unknown"))
-    lat = geo.get("lat")
-    lon = geo.get("lon")
+        city = geo.get("city", data.get("city", "Unknown"))
+        lat = geo.get("lat")
+        lon = geo.get("lon")
 
-    icon = data.get("icon", "☁️")
-    risk = _traffic_risk_from_weather(icon)
-
-    print(f"\n {BOLD}📍 Location:{RESET} {city}")
-    print(f" {BOLD}🌦️ Weather Impact:{RESET} {icon}  Traffic Risk: {risk}")
-    if data.get("temp"):
-        print(f" {BOLD}🌡️ Temp:{RESET} {data.get('temp')} (Feels {data.get('feels', 'N/A')})")
-    if data.get("wind"):
-        print(f" {BOLD}💨 Wind:{RESET} {data.get('wind')}")
-
-    print_header("🗺️ Live Traffic Links")
-    print(" > https://www.bing.com/maps")
-    print(" > https://www.google.com/maps")
-    print(" > https://www.tomtom.com/traffic-index/")
-    print(" > Microsoft.Maps.Traffic.TrafficManager(map)")
-
-    if lat is not None and lon is not None:
-        print_header("🗺️ ASCII Map Preview")
-        report_lines = [
+        icon = data.get("icon", "☁️")
+        risk = _traffic_risk_from_weather(icon)
+        lines = [
             "Traffic Report",
             f"Location: {city}",
             f"Weather: {icon}",
             f"Risk: {risk}",
         ]
         if data.get("temp"):
-            report_lines.append(f"Temp: {data.get('temp')}")
+            lines.append(f"Temp: {data.get('temp')}")
         if data.get("feels"):
-            report_lines.append(f"Feels: {data.get('feels')}")
+            lines.append(f"Feels: {data.get('feels')}")
         if data.get("wind"):
-            report_lines.append(f"Wind: {data.get('wind')}")
-        report_lines.extend([
-            "",
-            "Links:",
-            "bing.com/maps",
-            "google.com/maps",
-            "tomtom.com/traffic-index",
-            "Microsoft.Maps.Traffic",
-        ])
-        map_url = (
-            "https://staticmap.openstreetmap.de/staticmap.php"
-            f"?center={lat},{lon}&zoom=12&size=600x400&maptype=mapnik"
-        )
-        ascii_map = convert_to_ascii(map_url, width=70)
-        map_width = 72
-        for i, line in enumerate(ascii_map):
-            right = report_lines[i] if i < len(report_lines) else ""
-            print(line.ljust(map_width) + right)
-    else:
-        print(f" {COLORS['4'][0]}[!] Map unavailable: location not found.{RESET}")
+            lines.append(f"Wind: {data.get('wind')}")
+        return city, lat, lon, icon, risk, lines
 
-    input(f"\n{BOLD}[ ⌨️ Press Enter to exit... ]{RESET}")
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🚦 Traffic Report")
+        print(f" {BOLD}[1]{RESET} 🚦 Run Traffic Report")
+        print(f" {BOLD}[2]{RESET} 🗺️ Open Traffic Links")
+        print(f" {BOLD}[3]{RESET} 💾 Save Traffic Report")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+        if choice == '1':
+            print_header("🚦 Traffic Report")
+            print("🔍 Using IP geolocation and weather to estimate traffic risk...")
+            city, lat, lon, icon, risk, report_lines = _traffic_snapshot()
+            print(f"\n {BOLD}📍 Location:{RESET} {city}")
+            print(f" {BOLD}🌦️ Weather Impact:{RESET} {icon}  Traffic Risk: {risk}")
+
+            print_header("🗺️ Live Traffic Links")
+            print(" > https://www.bing.com/maps")
+            print(" > https://www.google.com/maps")
+            print(" > https://www.tomtom.com/traffic-index/")
+            print(" > Microsoft.Maps.Traffic.TrafficManager(map)")
+
+            if lat is not None and lon is not None:
+                print_header("🗺️ ASCII Map Preview")
+                map_url = (
+                    "https://staticmap.openstreetmap.de/staticmap.php"
+                    f"?center={lat},{lon}&zoom=12&size=600x400&maptype=mapnik"
+                )
+                ascii_map = convert_to_ascii(map_url, width=70)
+                map_width = 72
+                for i, line in enumerate(ascii_map):
+                    right = report_lines[i] if i < len(report_lines) else ""
+                    print(line.ljust(map_width) + right)
+            else:
+                print(f" {COLORS['4'][0]}[!] Map unavailable: location not found.{RESET}")
+
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            print_header("🗺️ Live Traffic Links")
+            links = {
+                "1": "https://www.bing.com/maps",
+                "2": "https://www.google.com/maps",
+                "3": "https://www.tomtom.com/traffic-index/",
+            }
+            print("1) https://www.bing.com/maps")
+            print("2) https://www.google.com/maps")
+            print("3) https://www.tomtom.com/traffic-index/")
+            sel = input("Open link (1-3, Enter to skip): ").strip()
+            if sel in links:
+                _open_url(links[sel])
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            _, _, _, _, _, report_lines = _traffic_snapshot()
+            payload = "\n".join(report_lines)
+            save_log_file("network", "Traffic_Report", payload, prompt_user=True)
+            try:
+                log_to_database("network", "Traffic_Report", payload, status="success")
+            except Exception:
+                pass
+            input(f"\n{BOLD}[ ✅ Report Saved. Press Enter... ]{RESET}")
 
 # --- AI & CALENDAR ADDITIONS ---
 
@@ -4789,6 +4961,93 @@ def convert_to_ascii(url, width=50):
     except:
         return [f"{COLORS['1'][0]}[ ❌ Image Load Failed ]{RESET}"]
 
+def _open_url(url):
+    if not url:
+        return
+    if os.name == 'nt':
+        os.system(f"start {url}")
+    else:
+        os.system(f"$BROWSER '{url}' 2>/dev/null &")
+
+def feature_web_browser_center():
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🌐 Web Browser Center")
+        print(" [1] Render Page Text/Images")
+        print(" [2] Fetch Page Headers")
+        print(" [3] Save Page to Log")
+        print(" [4] Open in System Browser")
+        print(" [0] Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+
+        url = input("🌐 Enter URL [https://www.google.com]: ").strip() or "https://www.google.com"
+        if not url.startswith('http'):
+            url = 'https://' + url
+
+        if choice == '1':
+            show_img = input("🖼️ Load images as Color ASCII? (y/n): ").strip().lower() == 'y'
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                for s in soup(["script", "style"]):
+                    s.extract()
+                elements = soup.find_all(True)
+                content_list = []
+                seen_text = set()
+                for el in elements:
+                    if el.name == 'img' and show_img:
+                        src = el.get('src')
+                        if src:
+                            from urllib.parse import urljoin
+                            src = urljoin(url, src)
+                            content_list.append(("IMG", convert_to_ascii(src)))
+                    elif el.string and el.string.strip():
+                        txt = el.string.strip()
+                        if txt not in seen_text:
+                            content_list.append(("TXT", txt))
+                            seen_text.add(txt)
+                if not content_list:
+                    lines = [line.strip() for line in soup.get_text().splitlines() if line.strip()]
+                    for l in lines:
+                        content_list.append(("TXT", l))
+                for i in range(0, len(content_list), 15):
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_header("🌐 Browser", extra_info=url)
+                    for typ, val in content_list[i:i+15]:
+                        if typ == "TXT":
+                            print(val)
+                        else:
+                            for line in val:
+                                print(line)
+                    input("\n[ 📑 Next Page... ]")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+                time.sleep(2)
+        elif choice == '2':
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                print_header("📄 Headers")
+                print(f"Status: {res.status_code}")
+                for k, v in res.headers.items():
+                    print(f"{k}: {v}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                payload = f"URL: {url}\nStatus: {res.status_code}\n\n{res.text[:5000]}"
+                save_log_file("general", "Web_Page_Snapshot", payload, prompt_user=True)
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            _open_url(url)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
 def feature_process_search():
     sort_by = 'memory_percent'
     target = ""
@@ -4798,11 +5057,54 @@ def feature_process_search():
         print_header("📑 Process Manager Sub-Menu")
         print(f"📊 Sorting by: {BOLD}{sort_by.replace('_', ' ').upper()}{RESET}")
         print(f"[1] 🔍 Search/List Once | [2] ⏱️ Live Monitor (2s Refresh) | [3] 🧠 Sort by Memory | [4] ⚙️ Sort by CPU | [5] ↩️ Return")
+        print(f"[6] 🧾 Process Details by PID | [7] 🛑 Terminate Process by PID")
 
         proc_choice = input("\n🎯 Select: ").strip()
 
         if proc_choice == '5':
             break
+        elif proc_choice == '6':
+            pid_str = input("Enter PID: ").strip()
+            if pid_str.isdigit():
+                try:
+                    p = psutil.Process(int(pid_str))
+                    print_header("🧾 Process Details")
+                    print(f"PID: {p.pid}")
+                    print(f"Name: {p.name()}")
+                    print(f"Status: {p.status()}")
+                    print(f"CPU%: {p.cpu_percent(interval=0.1)}")
+                    print(f"MEM%: {p.memory_percent():.2f}")
+                    print(f"User: {p.username()}")
+                    print(f"CWD: {p.cwd()}")
+                    try:
+                        print("Cmdline:", " ".join(p.cmdline()))
+                    except Exception:
+                        pass
+                    try:
+                        files = p.open_files()[:10]
+                        if files:
+                            print("Open Files:")
+                            for f in files:
+                                print(f"  {f.path}")
+                    except Exception:
+                        pass
+                except Exception as e:
+                    print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            continue
+        elif proc_choice == '7':
+            pid_str = input("Enter PID to terminate: ").strip()
+            if pid_str.isdigit():
+                try:
+                    p = psutil.Process(int(pid_str))
+                    confirm = input(f"Terminate {p.name()} (PID {p.pid})? (y/n): ").strip().lower()
+                    if confirm == 'y':
+                        p.terminate()
+                        print("✅ Termination signal sent.")
+                except Exception as e:
+                    print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            continue
         elif proc_choice == '3':
             sort_by = 'memory_percent'
             proc_choice = '1'
@@ -4896,17 +5198,67 @@ def feature_process_search():
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_disk_io_report():
-    print_header("💽 Disk I/O Real-Time Report")
-    last_io = psutil.disk_io_counters()
-    time.sleep(1)
-    now_io = psutil.disk_io_counters()
-    read_speed = (now_io.read_bytes - last_io.read_bytes) / (1024 * 1024)
-    write_speed = (now_io.write_bytes - last_io.write_bytes) / (1024 * 1024)
-    print(f"📖 Read Speed:  {read_speed:.2f} MB/s")
-    print(f"✍️ Write Speed: {write_speed:.2f} MB/s")
-    print(f"📚 Total Read:  {now_io.read_bytes / (1024**3):.2f} GB")
-    print(f"📝 Total Write: {now_io.write_bytes / (1024**3):.2f} GB")
-    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+    def _disk_io_snapshot():
+        last_io = psutil.disk_io_counters()
+        time.sleep(1)
+        now_io = psutil.disk_io_counters()
+        read_speed = (now_io.read_bytes - last_io.read_bytes) / (1024 * 1024)
+        write_speed = (now_io.write_bytes - last_io.write_bytes) / (1024 * 1024)
+        lines = [
+            "Disk I/O Snapshot",
+            f"Read Speed:  {read_speed:.2f} MB/s",
+            f"Write Speed: {write_speed:.2f} MB/s",
+            f"Total Read:  {now_io.read_bytes / (1024**3):.2f} GB",
+            f"Total Write: {now_io.write_bytes / (1024**3):.2f} GB",
+        ]
+        return lines
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("💽 Disk I/O Center")
+        print(f" {BOLD}[1]{RESET} ⚡ Quick I/O Snapshot")
+        print(f" {BOLD}[2]{RESET} 📊 Per-Disk Counters")
+        print(f" {BOLD}[3]{RESET} ⏱️  Live Monitor (10s)")
+        print(f" {BOLD}[4]{RESET} 💾 Save Snapshot to Logs")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+        if choice == '1':
+            print_header("💽 Disk I/O Snapshot")
+            for line in _disk_io_snapshot():
+                print(line)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            print_header("📊 Per-Disk Counters")
+            try:
+                per_disk = psutil.disk_io_counters(perdisk=True)
+                for disk, stats in per_disk.items():
+                    print(f"{disk}: R {stats.read_bytes / (1024**3):.2f} GB | W {stats.write_bytes / (1024**3):.2f} GB")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("⏱️ Live Disk I/O (10s)")
+            try:
+                last_io = psutil.disk_io_counters()
+                for i in range(10):
+                    time.sleep(1)
+                    now_io = psutil.disk_io_counters()
+                    read_speed = (now_io.read_bytes - last_io.read_bytes) / (1024 * 1024)
+                    write_speed = (now_io.write_bytes - last_io.write_bytes) / (1024 * 1024)
+                    print(f"{i+1:02d}s  R {read_speed:.2f} MB/s | W {write_speed:.2f} MB/s")
+                    last_io = now_io
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            lines = _disk_io_snapshot()
+            file_path = save_log_file("hardware", "Disk_IO_Snapshot", "\n".join(lines), prompt_user=True)
+            if file_path:
+                log_to_database("hardware", "Disk_IO_Snapshot", "\n".join(lines), file_path=file_path, status="success")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_network_sparkline():
     print_header("📈 Live Network Pulse (60s)")
@@ -4936,8 +5288,10 @@ def feature_network_toolkit():
         print(f"[2] 🔑 SSH into Remote IP")
         print(f"[3] 📡 Local Network Scanner (Quick)")
         print(f"[4] 🔝 Top 10 Network-Using Processes")
-        print(f"[5] ↩️ Return to Main Menu")
-        net_choice = input("\n🎯 Select a tool (1-5): ").strip()
+        print(f"[5] 🧩 Network Interface Summary")
+        print(f"[6] 📦 Open Download Center (Network Tools)")
+        print(f"[7] ↩️ Return to Main Menu")
+        net_choice = input("\n🎯 Select a tool (1-7): ").strip()
         if net_choice == '1': feature_network_sparkline()
         elif net_choice == '2':
             ip = input("🖥️ Enter remote IP: ").strip()
@@ -4978,7 +5332,20 @@ def feature_network_toolkit():
             except:
                 print("🚫 Permission Denied: Run as admin/sudo to view process connections.")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif net_choice == '5': break
+        elif net_choice == '5':
+            print_header("🧩 Network Interface Summary")
+            try:
+                for iface, addrs in psutil.net_if_addrs().items():
+                    print(f"\n{iface}:")
+                    for addr in addrs:
+                        if hasattr(addr, "address"):
+                            print(f"  {addr.address}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif net_choice == '6':
+            feature_download_center()
+        elif net_choice == '7': break
 
 def feature_wifi_toolkit():
     """WiFi Card Detection, Scanning, and Testing (Kali-style)"""
@@ -4991,8 +5358,9 @@ def feature_wifi_toolkit():
         print(f" {BOLD}[4]{RESET} 🌐 Test Network Connectivity")
         print(f" {BOLD}[5]{RESET} 🔑 Display WiFi MAC Address")
         print(f" {BOLD}[6]{RESET} 📡 Signal Strength Monitor")
-        print(f" {BOLD}[7]{RESET} ↩️ Return to Main Menu")
-        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-7): {RESET}").strip()
+        print(f" {BOLD}[7]{RESET} 📦 Open Download Center (Network Tools)")
+        print(f" {BOLD}[8]{RESET} ↩️ Return to Main Menu")
+        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-8): {RESET}").strip()
 
         if wifi_choice == '1':
             print_header("🔍 WiFi Interface Detection")
@@ -5143,6 +5511,8 @@ def feature_wifi_toolkit():
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif wifi_choice == '7':
+            feature_download_center()
+        elif wifi_choice == '8':
             break
 
 def _bluetoothctl_run(commands, timeout=8):
@@ -5185,10 +5555,11 @@ def feature_bluetooth_toolkit():
         print(f" {BOLD}[3]{RESET} Scan Nearby Devices (Short)")
         print(f" {BOLD}[4]{RESET} Connect to Device")
         print(f" {BOLD}[5]{RESET} Disconnect Device")
-        print(f" {BOLD}[6]{RESET} Return to Main Menu")
-        bt_choice = input(f"\n{BOLD}Select Bluetooth Tool (1-6): {RESET}").strip()
+        print(f" {BOLD}[6]{RESET} Remove Device")
+        print(f" {BOLD}[7]{RESET} Return to Main Menu")
+        bt_choice = input(f"\n{BOLD}Select Bluetooth Tool (1-7): {RESET}").strip()
 
-        if bt_choice == '6':
+        if bt_choice == '7':
             break
 
         if os.name != 'posix':
@@ -5222,6 +5593,11 @@ def feature_bluetooth_toolkit():
             if mac:
                 out = _bluetoothctl_run([f"disconnect {mac}", "quit"], timeout=6)
                 print(out if out else "[!] bluetoothctl unavailable")
+        elif bt_choice == '6':
+            mac = input("Enter device MAC to remove: ").strip()
+            if mac:
+                out = _bluetoothctl_run([f"remove {mac}", "quit"], timeout=6)
+                print(out if out else "[!] bluetoothctl unavailable")
 
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
@@ -5235,8 +5611,10 @@ def feature_ai_center():
         print(f" {BOLD}[3]{RESET} 🟣 Microsoft Copilot")
         print(f" {BOLD}[4]{RESET} 🟠 DeepSeek")
         print(f" {BOLD}[5]{RESET} 🟡 Claude (Anthropic)")
-        print(f" {BOLD}[6]{RESET} ↩️ Return to Main Menu")
-        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-6): {RESET}").strip()
+        print(f" {BOLD}[6]{RESET} 🧠 AI Probe Center")
+        print(f" {BOLD}[7]{RESET} 📦 Open Download Center (AI Tools)")
+        print(f" {BOLD}[8]{RESET} ↩️ Return to Main Menu")
+        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-8): {RESET}").strip()
 
         if ai_choice == '1':
             print_header("🤖 ChatGPT (OpenAI)")
@@ -5359,6 +5737,10 @@ def feature_ai_center():
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif ai_choice == '6':
+            feature_deep_probe_ai()
+        elif ai_choice == '7':
+            feature_download_center()
+        elif ai_choice == '8':
             break
 
 def feature_security_audit():
@@ -5393,47 +5775,197 @@ def feature_security_audit():
     input(f"\\n{BOLD}[ ✅ Audit Complete. Press Enter... ]{RESET}")
 
 def feature_environment_probe():
-    print_header("📂 Environment & Path Probe")
-    print(f"📁 Current Working Dir: {os.getcwd()}")
-    print(f"🏠 User Home Dir:       {os.path.expanduser('~')}")
-    print(f"🐍 Python Executable:   {sys.executable}")
-    print_header("📊 System Metadata")
-    print(f"🔤 Default Encoding:    {sys.getdefaultencoding()}")
-    print(f"🗂️ Filesystem Encoding: {sys.getfilesystemencoding()}")
-    input(f"\n{BOLD}[ ✅ Probe Complete. Press Enter... ]{RESET}")
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📂 Environment & Path Probe")
+        print(f" {BOLD}[1]{RESET} 📌 Quick Summary")
+        print(f" {BOLD}[2]{RESET} 🌿 Environment Variables (Top 40)")
+        print(f" {BOLD}[3]{RESET} 🧭 Python Paths & Exec")
+        print(f" {BOLD}[4]{RESET} 🗂️  Data Directories")
+        print(f" {BOLD}[5]{RESET} 💾 Save Report to Logs")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+        if choice == '1':
+            print_header("📌 Quick Summary")
+            print(f"📁 Current Working Dir: {os.getcwd()}")
+            print(f"🏠 User Home Dir:       {os.path.expanduser('~')}")
+            print(f"🐍 Python Executable:   {sys.executable}")
+            print(f"🔤 Default Encoding:    {sys.getdefaultencoding()}")
+            print(f"🗂️ Filesystem Encoding: {sys.getfilesystemencoding()}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            print_header("🌿 Environment Variables")
+            for i, (k, v) in enumerate(os.environ.items()):
+                if i >= 40:
+                    break
+                print(f"{k}={v}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("🧭 Python Paths")
+            print(f"Python Executable: {sys.executable}")
+            print("sys.path:")
+            for p in sys.path:
+                print(f"  - {p}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("🗂️ Data Directories")
+            print(f"Script Dir: {SCRIPT_DIR}")
+            print(f"DB Dir:     {DB_DIR}")
+            print(f"Log Dir:    {LOG_DIR}")
+            print(f"Swap Cache: {SWAP_CACHE_DIR}")
+            print(f"Config:     {CONFIG_FILE}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '5':
+            lines = [
+                "Environment Probe Report",
+                f"CWD: {os.getcwd()}",
+                f"Home: {os.path.expanduser('~')}",
+                f"Python: {sys.executable}",
+                f"Default Encoding: {sys.getdefaultencoding()}",
+                f"Filesystem Encoding: {sys.getfilesystemencoding()}",
+                f"Script Dir: {SCRIPT_DIR}",
+                f"DB Dir: {DB_DIR}",
+                f"Log Dir: {LOG_DIR}",
+                f"Swap Cache: {SWAP_CACHE_DIR}",
+                f"Config: {CONFIG_FILE}",
+            ]
+            payload = "\n".join(lines)
+            save_log_file("system", "Environment_Probe", payload, prompt_user=True)
+            try:
+                log_to_database("system", "Environment_Probe", payload, status="success")
+            except Exception:
+                pass
+            input(f"\n{BOLD}[ ✅ Probe Complete. Press Enter... ]{RESET}")
 
 def feature_hardware_serials():
-    print_header("📟 Low-Level Hardware Identity")
-    if os.name == 'nt':
-        try:
-            bios = subprocess.check_output("wmic bios get serialnumber").decode().split('\n')[1].strip()
-            print(f"🔢 BIOS Serial:         {bios}")
-        except: print("🔢 BIOS Serial:         Access Denied")
-    print_header("🗄️ All Mounted Partitions")
-    for part in psutil.disk_partitions():
-        print(f"💾 Device: {part.device:<10} | 📍 Mount: {part.mountpoint:<10} | 📂 Type: {part.fstype}")
-    input(f"\n{BOLD}[ ✅ Hardware Probe Finished. Press Enter... ]{RESET}")
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📟 Hardware Identity Center")
+        print(f" {BOLD}[1]{RESET} 🧾 BIOS/Board Serial (if available)")
+        print(f" {BOLD}[2]{RESET} 🧠 CPU/GPU Summary")
+        print(f" {BOLD}[3]{RESET} 🔌 Network MAC Addresses")
+        print(f" {BOLD}[4]{RESET} 💾 Mounted Partitions")
+        print(f" {BOLD}[5]{RESET} 💾 Save Hardware Report")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+        if choice == '1':
+            print_header("🧾 BIOS/Board Serial")
+            if os.name == 'nt':
+                try:
+                    bios = subprocess.check_output("wmic bios get serialnumber").decode().split('\n')[1].strip()
+                    print(f"🔢 BIOS Serial:         {bios}")
+                except Exception:
+                    print("🔢 BIOS Serial:         Access Denied")
+            else:
+                print("BIOS serial lookup is OS-specific. Use dmidecode if available.")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '2':
+            print_header("🧠 CPU/GPU Summary")
+            print(f"CPU: {platform.processor()}")
+            gpu, fan = get_advanced_hardware_stats()
+            print(f"GPU: {gpu}")
+            print(f"Fan: {fan}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("🔌 Network MAC Addresses")
+            try:
+                if_addrs = psutil.net_if_addrs()
+                for iface, addrs in if_addrs.items():
+                    for addr in addrs:
+                        if getattr(addr, "family", None) == psutil.AF_LINK:
+                            print(f"{iface}: {addr.address}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("💾 Mounted Partitions")
+            for part in psutil.disk_partitions():
+                print(f"💾 Device: {part.device:<10} | 📍 Mount: {part.mountpoint:<10} | 📂 Type: {part.fstype}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '5':
+            lines = [
+                "Hardware Identity Report",
+                f"CPU: {platform.processor()}",
+                f"Platform: {platform.system()} {platform.release()} {platform.machine()}",
+            ]
+            gpu, fan = get_advanced_hardware_stats()
+            lines.append(f"GPU: {gpu}")
+            lines.append(f"Fan: {fan}")
+            payload = "\n".join(lines)
+            save_log_file("hardware", "Hardware_Identity", payload, prompt_user=True)
+            try:
+                log_to_database("hardware", "Hardware_Identity", payload, status="success")
+            except Exception:
+                pass
+            input(f"\n{BOLD}[ ✅ Hardware Probe Finished. Press Enter... ]{RESET}")
 
 def feature_latency_probe():
-    print_header("⏱️ Latency & Geo Probe")
-    target = input("⌨️ Enter IP or Domain to probe (e.g. 8.8.8.8): ").strip()
-    if not target: return
-
-    print(f"📡 Probing {target}...")
-    try:
-        # 1. Geo Check via Public API
-        geo_res = requests.get(f"http://ip-api.com/json/{target}", timeout=5).json()
-        if geo_res.get('status') == 'success':
-            print(f" {BOLD}📍 Location:{RESET} {geo_res.get('city')}, {geo_res.get('country')} ({geo_res.get('isp')})")
-
-        # 2. Latency Test
+    def _ping_target(host):
         param = '-n' if os.name == 'nt' else '-c'
-        print(f"📡 Running Ping...")
-        output = subprocess.check_output(['ping', param, '4', target]).decode()
+        output = subprocess.check_output(['ping', param, '4', host]).decode()
         print(output)
-    except Exception as e:
-        print(f"❌ Error: {e}")
-    input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("⏱️ Latency & Geo Probe")
+        print(f" {BOLD}[1]{RESET} 🌍 Geo + Ping")
+        print(f" {BOLD}[2]{RESET} 🧭 Traceroute")
+        print(f" {BOLD}[3]{RESET} 🧪 DNS Lookup")
+        print(f" {BOLD}[4]{RESET} 🔌 TCP Connect Timing")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            return
+        target = input("⌨️ Enter IP or Domain: ").strip()
+        if not target:
+            continue
+
+        if choice == '1':
+            print_header("🌍 Geo + Ping")
+            try:
+                geo_res = requests.get(f"http://ip-api.com/json/{target}", timeout=5).json()
+                if geo_res.get('status') == 'success':
+                    print(f" {BOLD}📍 Location:{RESET} {geo_res.get('city')}, {geo_res.get('country')} ({geo_res.get('isp')})")
+                print(f"📡 Running Ping...")
+                _ping_target(target)
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
+        elif choice == '2':
+            print_header("🧭 Traceroute")
+            cmd = "tracert" if os.name == 'nt' else "traceroute"
+            if shutil.which(cmd):
+                os.system(f"{cmd} {target}")
+            else:
+                print(f"❌ {cmd} not available.")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("🧪 DNS Lookup")
+            try:
+                ip = socket.gethostbyname(target)
+                print(f"Resolved {target} -> {ip}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("🔌 TCP Connect Timing")
+            port = input("Port [80]: ").strip() or "80"
+            try:
+                port_num = int(port)
+                start = time.time()
+                with socket.create_connection((target, port_num), timeout=3):
+                    elapsed_ms = (time.time() - start) * 1000
+                print(f"Connected in {elapsed_ms:.1f} ms")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 # -------------------------------
 # PLUGIN SYSTEM (DROP-IN SCRIPTS)
@@ -5993,26 +6525,57 @@ def start_dashboard():
 
 def feature_remote_dashboard():
     """Launch remote dashboard feature"""
-    print_header("🖥️ Remote System Dashboard")
-    start_dashboard()
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🖥️ Remote System Dashboard")
+        print(f" {BOLD}[1]{RESET} 🚀 Start Dashboard")
+        print(f" {BOLD}[2]{RESET} 🌐 Open Dashboard in Browser")
+        print(f" {BOLD}[3]{RESET} 🧾 Show JSON Endpoint")
+        print(f" {BOLD}[4]{RESET} 🧪 WebSSH Status")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        choice = input("\nSelect option: ").strip()
 
-    hostname = socket.gethostname()
-    try:
-        ip = socket.gethostbyname(hostname)
-    except:
-        ip = "localhost"
+        hostname = socket.gethostname()
+        try:
+            ip = socket.gethostbyname(hostname)
+        except Exception:
+            ip = "localhost"
+        dash_url = f"http://{ip}:{DASHBOARD_PORT}"
 
-    print(f"📡 Dashboard running at: {COLORS['4'][0]}http://{ip}:{DASHBOARD_PORT}{RESET}")
-    print(f"🌐 Open this in your browser on this network.")
-    webssh_status = _webssh_status(ip)
-    if not webssh_status["installed"]:
-        print(f"⚠️  WebSSH not installed. {webssh_status['error']}")
-    elif not webssh_status["running"]:
-        print(f"⚠️  WebSSH not running. {webssh_status['error']}")
-        print(f"    Expected at {webssh_status['host']}:{webssh_status['port']}")
-    else:
-        print(f"✅ WebSSH detected at {webssh_status['host']}:{webssh_status['port']}")
-    input("\n[ ⌨️ Press Enter to return... ]")
+        if choice == '0':
+            return
+        if choice == '1':
+            start_dashboard()
+            print(f"📡 Dashboard running at: {COLORS['4'][0]}{dash_url}{RESET}")
+            print(f"🌐 Open this in your browser on this network.")
+            webssh_status = _webssh_status(ip)
+            if not webssh_status["installed"]:
+                print(f"⚠️  WebSSH not installed. {webssh_status['error']}")
+            elif not webssh_status["running"]:
+                print(f"⚠️  WebSSH not running. {webssh_status['error']}")
+                print(f"    Expected at {webssh_status['host']}:{webssh_status['port']}")
+            else:
+                print(f"✅ WebSSH detected at {webssh_status['host']}:{webssh_status['port']}")
+            input("\n[ ⌨️ Press Enter to return... ]")
+        elif choice == '2':
+            start_dashboard()
+            _open_url(dash_url)
+            input("\n[ ⌨️ Press Enter to return... ]")
+        elif choice == '3':
+            start_dashboard()
+            print(f"JSON stats endpoint: {dash_url}/api/stats")
+            input("\n[ ⌨️ Press Enter to return... ]")
+        elif choice == '4':
+            webssh_status = _webssh_status(ip)
+            print_header("🧪 WebSSH Status")
+            print(f"Installed: {webssh_status['installed']}")
+            print(f"Running:   {webssh_status['running']}")
+            print(f"Host:      {webssh_status['host']}:{webssh_status['port']}")
+            if webssh_status["error"]:
+                print(f"Error:     {webssh_status['error']}")
+            print(f"URL:       {webssh_status['client_url']}")
+            print(f"Connect:   {webssh_status['connect_url']}")
+            input("\n[ ⌨️ Press Enter to return... ]")
 
 
 def feature_media_menu():
@@ -6025,7 +6588,8 @@ def feature_media_menu():
         print(" [2] Integrated Media Scanner (Explorer)")
         print(" [3] Launch asciiplayer (plugins/asciiplayer18.py)")
         print(" [4] Launch External MP3 Engine (Linked Module)")
-        print(" [5] Return to Main Menu")
+        print(" [5] Open Download Center (Media Tools)")
+        print(" [6] Return to Main Menu")
 
         sel = input("\n🎯 Select: ").strip()
         if sel == '1':
@@ -6051,6 +6615,8 @@ def feature_media_menu():
             except NameError:
                 print("[!] MP3 player not available.")
                 input("\n[ ⌨️ Press Enter to return... ]")
+        elif sel == '5':
+            feature_download_center()
         else:
             break
 
@@ -6396,6 +6962,11 @@ try:
                     audio_proc.terminate()
             except Exception:
                 pass
+            try:
+                _asciip_sys.stdout.write("\033[?25h")
+                _asciip_sys.stdout.flush()
+            except Exception:
+                pass
             _asciip_reset_terminal()
 
 except Exception:
@@ -6608,41 +7179,7 @@ while True:
         elif color_choice == 'R':
             user_has_chosen = False
             _update_user_config(user_has_chosen=user_has_chosen)
-    elif choice == '7':
-        url = input("🌐 Enter URL [google.com]: ").strip() or "https://www.google.com"
-        if not url.startswith('http'): url = 'https://' + url
-        show_img = input("🖼️ Load images as Color ASCII? (y/n): ").strip().lower() == 'y'
-        try:
-            res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-            soup = BeautifulSoup(res.text, 'html.parser')
-            for s in soup(["script", "style"]): s.extract()
-            elements = soup.find_all(True)
-            content_list = []
-            seen_text = set()
-            for el in elements:
-                if el.name == 'img' and show_img:
-                    src = el.get('src')
-                    if src:
-                        from urllib.parse import urljoin
-                        src = urljoin(url, src)
-                        content_list.append(("IMG", convert_to_ascii(src)))
-                elif el.string and el.string.strip():
-                    txt = el.string.strip()
-                    if txt not in seen_text:
-                        content_list.append(("TXT", txt))
-                        seen_text.add(txt)
-            if not content_list:
-                lines = [line.strip() for line in soup.get_text().splitlines() if line.strip()]
-                for l in lines: content_list.append(("TXT", l))
-            for i in range(0, len(content_list), 15):
-                os.system('cls' if os.name == 'nt' else 'clear')
-                print_header("🌐 Browser", extra_info=url)
-                for type, val in content_list[i:i+15]:
-                    if type == "TXT": print(val)
-                    else:
-                        for line in val: print(line)
-                input("\n[ 📑 Next Page... ]")
-        except Exception as e: print(f"❌ Error: {e}"); time.sleep(2)
+    elif choice == '7': safe_run("general", "Web_Browser", feature_web_browser_center)
     elif choice == '8': safe_run("general", "Disk_IO_Report", feature_disk_io_report)
     elif choice == '9': safe_run("process", "Process_Search", feature_process_search)
     elif choice == '10': safe_run("general", "Plugin_Center", feature_plugin_center)
@@ -7131,7 +7668,7 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-# version pythonOScmd44 base pythonOS70
+# version pythonOScmd34 base pythonOS70
 # Added WebSSH health checks and auto-connect URL building for the dashboard, plus a JSON 
 # stats endpoint so the backend can serve data in JSON or HTML. The Remote Dashboard now 
 # reports WebSSH install/running status, avoids a broken iframe when it is down, and builds 
