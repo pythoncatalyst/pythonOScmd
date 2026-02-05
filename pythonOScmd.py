@@ -2343,9 +2343,8 @@ HAVE_REQUESTS = "requests" in globals()
 ORBITAL_DB_FILE = Path(DB_DIR) / "orbital_memory.json"
 AU_KM = 149597870.7
 C_KMS = 299792.458
-MAP_WIDTH = 80
-MAP_HEIGHT = 24
 TRAIL_LENGTH = 30
+SAT_MAX_TARGETS = 5
 
 SAT_COL = {
     "reset": "\033[0m",
@@ -2358,34 +2357,34 @@ SAT_COL = {
 }
 
 NORTH_HEMISPHERE = [
-    r"                . _--_                      .__________________________ ",
-    r"               /      \         _          /                           |",
-    r"              |        |__     / \_       |          EURASIA           |",
-    r"     NORTH    |_          \_  /    \_      \___________________________|",
-    r"    AMERICA     \           \/       \                /                ",
-    r"                 \           \        |        _     /      ASIA       ",
-    r"                  \           |      /        / \___/                  ",
-    r"        ___________|          |     |        /        \                ",
-    r"       /           /         /      |       |          |               ",
-    r"      |           /         |_      |__      \________/       _        ",
-    r"      |          |            \        \                     / \       ",
-    r"      |__________|             \        \                   |   |      "
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⣄⣠⣀⡀⣀⣠⣤⣤⣤⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣄⢠⣠⣼⣿⣿⣿⣟⣿⣿⣿⣿⣿⣿⣿⣿⡿⠋⠀⠀⠀⢠⣤⣦⡄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠰⢦⣄⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⣼⣿⣟⣾⣿⣽⣿⣿⣅⠈⠉⠻⣿⣿⣿⣿⣿⡿⠇⠀⠀⠀⠀⠀⠉⠀⠀⠀⠀⠀⢀⡶⠒⢉⡀⢠⣤⣶⣶⣿⣷⣆⣀⡀⠀⢲⣖⠒⠀⠀⠀⠀⠀⠀⠀",
+    "⢀⣤⣾⣶⣦⣤⣤⣶⣿⣿⣿⣿⣿⣿⣽⡿⠻⣷⣀⠀⢻⣿⣿⣿⡿⠟⠀⠀⠀⠀⠀⠀⣤⣶⣶⣤⣀⣀⣬⣷⣦⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣦⣤⣦⣼⣀⠀",
+    "⠈⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠛⠓⣿⣿⠟⠁⠘⣿⡟⠁⠀⠘⠛⠁⠀⠀⢠⣾⣿⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠏⠙⠁",
+    "⠀⠸⠟⠋⠀⠈⠙⣿⣿⣿⣿⣿⣿⣷⣦⡄⣿⣿⣿⣆⠀⠀⠀⠀⠀⠀⠀⠀⣼⣆⢘⣿⣯⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡉⠉⢱⡿⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣟⡿⠦⠀⠀⠀⠀⠀⠀⠀⠙⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⡗⠀⠈⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⣿⣿⣿⣿⣿⣿⣿⠋⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⢿⣿⣉⣿⡿⢿⢷⣾⣾⣿⣞⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⠋⣠⠟⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠹⣿⣿⣿⠿⠿⣿⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣀⣾⣿⣿⣷⣦⣶⣦⣼⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣷⠈⠛⠁⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 ]
 
 SOUTH_HEMISPHERE = [
-    r"      |          |              \ AFRICA \                   \_/       ",
-    r"      |  SOUTH   |               \________\                            ",
-    r"      | AMERICA  |                                                     ",
-    r"       \        /                                       _              ",
-    r"        \______/                                       / \             ",
-    r"                                           AUSTRALIA  |   |            ",
-    r"                                                       \_/             ",
-    r"                                                                       ",
-    r"                                                                       ",
-    r"              ________________________________________________         ",
-    r"             /                   ANTARCTICA                   \        ",
-    r"             \________________________________________________/        ",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠉⠻⣿⣤⡖⠛⠶⠤⡀⠀⠀⠀⠀⠀⠀⠀⢰⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡿⠁⠙⣿⣿⠿⢻⣿⣿⡿⠋⢩⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⠙⠧⣤⣦⣤⣄⡀⠀⠀⠀⠀⠀⠘⢿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⡇⠀⠀⠀⠘⣧⠀⠈⣹⡻⠇⢀⣿⡆⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢠⣿⣿⣿⣿⣿⣤⣀⡀⠀⠀⠀⠀⠀⠀⠈⢽⣿⣿⣿⣿⣿⠋⠀⠀⠀⠀⠀⠀⠀⠀⠹⣷⣴⣿⣷⢲⣦⣤⡀⢀⡀⠀⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢿⣿⣿⣿⣿⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⢸⣿⣿⣿⣿⣷⢀⡄⠀⠀⠀⠀⠀⠀⠀⠀⠈⠉⠂⠛⣆⣤⡜⣟⠋⠙⠂⠀⠀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⣿⣿⣿⠟⠀⠀⠀⠀⠀⠀⠀⠀⠘⣿⣿⣿⣿⠉⣿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣤⣾⣿⣿⣿⣿⣆⠀⠰⠄⠀⠉⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣸⣿⣿⡿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢹⣿⡿⠃⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢻⣿⠿⠿⣿⣿⣿⠇⠀⠀⢀⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣿⡿⠛⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠈⢻⡇⠀⠀⢀⣼⠗⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢸⣿⠃⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠁⠀⠀⠀",
+    "⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠙⠒⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀",
 ]
+
+SAT_MAP_FRAME = NORTH_HEMISPHERE + SOUTH_HEMISPHERE
+MAP_WIDTH = max(len(line) for line in SAT_MAP_FRAME) if SAT_MAP_FRAME else 80
+MAP_HEIGHT = len(SAT_MAP_FRAME) if SAT_MAP_FRAME else 24
+
+SAT_MARKERS = ["1", "2", "3", "4", "5"]
 
 class TLEStore:
     def __init__(self, db_file=ORBITAL_DB_FILE):
@@ -2396,7 +2395,7 @@ class TLEStore:
     def load(self):
         if self.db_file.exists():
             try:
-                with open(self.db_file, "r") as f:
+                with open(self.db_file, "r", encoding="utf-8") as f:
                     self.data = json.load(f)
             except Exception as e:
                 print(f"{SAT_COL['err']}[TLE] Failed to load DB: {e}{SAT_COL['reset']}")
@@ -2410,8 +2409,8 @@ class TLEStore:
     def save(self):
         try:
             os.makedirs(self.db_file.parent, exist_ok=True)
-            with open(self.db_file, "w") as f:
-                json.dump(self.data, f)
+            with open(self.db_file, "w", encoding="utf-8") as f:
+                json.dump(self.data, f, indent=2)
         except Exception as e:
             print(f"{SAT_COL['err']}[TLE] Failed to save DB: {e}{SAT_COL['reset']}")
 
@@ -2455,9 +2454,9 @@ class TLEStore:
             return False
 
 class MapRenderer:
-    def __init__(self, width=MAP_WIDTH, height=MAP_HEIGHT):
-        self.width = width
-        self.height = height
+    def __init__(self, width=None, height=None):
+        self.width = MAP_WIDTH if width is None else width
+        self.height = MAP_HEIGHT if height is None else height
 
     def latlon_to_xy(self, lat, lon):
         x = int((lon % 360) * (self.width / 360))
@@ -2467,38 +2466,52 @@ class MapRenderer:
         return x, y
 
     def render(self, trail, sat_pos):
+        trails = {"PRIMARY": trail}
+        positions = {"PRIMARY": sat_pos}
+        return self.render_multi(trails, positions, marker_map={"PRIMARY": "V"}, primary_name="PRIMARY")
+
+    def render_multi(self, trails, positions, marker_map=None, primary_name=None):
         lines = []
+        marker_map = marker_map or {}
+        north_count = len(NORTH_HEMISPHERE)
+        south_count = len(SOUTH_HEMISPHERE)
         for r in range(self.height):
-            if r < 12:
-                base = list(NORTH_HEMISPHERE[r].ljust(self.width))
+            if r < north_count:
+                north = NORTH_HEMISPHERE[r][:self.width]
+                base = list(north.ljust(self.width))
                 prefix = " N |"
             else:
-                idx = r - 12
-                south = SOUTH_HEMISPHERE[idx] if idx < len(SOUTH_HEMISPHERE) else ""
+                idx = r - north_count
+                south = SOUTH_HEMISPHERE[idx][:self.width] if idx < south_count else ""
                 base = list(south.ljust(self.width))
                 prefix = " S |"
-            if r == 12:
+            if r == north_count:
                 prefix = "EQ-|"
 
-            for t_lat, t_lon in trail:
-                tx, ty = self.latlon_to_xy(t_lat, t_lon)
-                if ty == r:
-                    base[tx] = f"{SAT_COL['trail']}.{SAT_COL['reset']}"
+            for trail in trails.values():
+                for t_lat, t_lon in trail:
+                    tx, ty = self.latlon_to_xy(t_lat, t_lon)
+                    if ty == r:
+                        base[tx] = f"{SAT_COL['trail']}.{SAT_COL['reset']}"
 
-            sx, sy = self.latlon_to_xy(*sat_pos)
-            if sy == r:
-                base[sx] = f"{SAT_COL['sat']}V{SAT_COL['reset']}"
+            for name, (lat, lon) in positions.items():
+                sx, sy = self.latlon_to_xy(lat, lon)
+                if sy == r:
+                    marker = marker_map.get(name, "*")
+                    color = SAT_COL['sat'] if name == primary_name else SAT_COL['hud']
+                    base[sx] = f"{color}{marker}{SAT_COL['reset']}"
 
             lines.append(f"{prefix}{''.join(base)}|")
         return "\n".join(lines)
 
 class MarsBridge:
-    def __init__(self, qth, primary_target="0 LEMUR 1"):
+    def __init__(self, qth, targets=None, primary_target="0 LEMUR 1"):
         self.qth = qth
         self.store = TLEStore()
         self.map = MapRenderer()
-        self.trail = deque(maxlen=TRAIL_LENGTH)
-        self.primary_target = primary_target
+        self.trails = {}
+        self.targets = targets or [primary_target]
+        self.primary_target = primary_target if primary_target in self.targets else self.targets[0]
         self.running = True
         self.command = None
         self.health = self._initial_health()
@@ -2562,10 +2575,36 @@ class MarsBridge:
         elif cmd.startswith("s "):
             name = cmd[2:].strip()
             if self.store.get(name):
+                if name not in self.targets:
+                    if len(self.targets) < SAT_MAX_TARGETS:
+                        self.targets.append(name)
+                    else:
+                        print(f"{SAT_COL['warn']}[BRIDGE] Max targets reached ({SAT_MAX_TARGETS}).{SAT_COL['reset']}")
+                        time.sleep(1)
+                        return
                 self.primary_target = name
             else:
                 print(f"{SAT_COL['warn']}[BRIDGE] Unknown target: {name}{SAT_COL['reset']}")
                 time.sleep(1)
+        elif cmd.startswith("a "):
+            name = cmd[2:].strip()
+            if not self.store.get(name):
+                print(f"{SAT_COL['warn']}[BRIDGE] Unknown target: {name}{SAT_COL['reset']}")
+                time.sleep(1)
+                return
+            if name in self.targets:
+                return
+            if len(self.targets) >= SAT_MAX_TARGETS:
+                print(f"{SAT_COL['warn']}[BRIDGE] Max targets reached ({SAT_MAX_TARGETS}).{SAT_COL['reset']}")
+                time.sleep(1)
+                return
+            self.targets.append(name)
+        elif cmd.startswith("r "):
+            name = cmd[2:].strip()
+            if name in self.targets:
+                self.targets.remove(name)
+                if self.primary_target == name:
+                    self.primary_target = self.targets[0] if self.targets else "0 LEMUR 1"
 
     def run(self):
         input_thread = threading.Thread(target=self._input_thread, daemon=True)
@@ -2573,14 +2612,24 @@ class MarsBridge:
 
         while self.running:
             now = time.time()
-            tle = self.store.get(self.primary_target)
-            if not tle:
-                print(f"{SAT_COL['warn']}[BRIDGE] Target {self.primary_target} not found, resetting to default.{SAT_COL['reset']}")
+            targets = [t for t in self.targets if self.store.get(t)]
+            if not targets:
+                print(f"{SAT_COL['warn']}[BRIDGE] No valid targets; resetting to default.{SAT_COL['reset']}")
+                targets = ["0 LEMUR 1"]
                 self.primary_target = "0 LEMUR 1"
-                tle = self.store.get(self.primary_target)
 
-            lat, lon = self.get_pos(tle, now)
-            self.trail.append((lat, lon))
+            positions = {}
+            for name in targets[:SAT_MAX_TARGETS]:
+                tle = self.store.get(name)
+                if not tle:
+                    continue
+                lat, lon = self.get_pos(tle, now)
+                positions[name] = (lat, lon)
+                trail = self.trails.setdefault(name, deque(maxlen=TRAIL_LENGTH))
+                trail.append((lat, lon))
+
+            if self.primary_target not in targets:
+                self.primary_target = targets[0]
 
             os.system("cls" if os.name == "nt" else "clear")
 
@@ -2590,12 +2639,17 @@ class MarsBridge:
             latency_min = (earth_dist / C_KMS) / 60
             print(f"EARTH DISTANCE: {earth_dist:,.0f} KM | LATENCY: {latency_min:.1f}m")
             print(f"SATELLITES IN MEMORY: {self.store.count()}")
+            marker_map = {name: SAT_MARKERS[i] for i, name in enumerate(targets[:SAT_MAX_TARGETS])}
+            tracking_line = ", ".join([f"{marker_map.get(name, '?')}:{name}" for name in targets[:SAT_MAX_TARGETS]])
+            print(f"TRACKING (max {SAT_MAX_TARGETS}): {tracking_line}")
             print("-" * (MAP_WIDTH + 6))
 
-            print(self.map.render(self.trail, (lat, lon)))
+            print(self.map.render_multi(self.trails, positions, marker_map=marker_map, primary_name=self.primary_target))
 
-            print(f"\nTELEMETRY: {lat:>6.2f}N {lon:>7.2f}E")
-            print("[U] Update TLEs | [S <name>] Switch Target | [Q] Quit")
+            if self.primary_target in positions:
+                lat, lon = positions[self.primary_target]
+                print(f"\nTELEMETRY: {lat:>6.2f}N {lon:>7.2f}E")
+            print("[U] Update TLEs | [S <name>] Set Primary | [A <name>] Add | [R <name>] Remove | [Q] Quit")
             print("(Type command and press Enter)")
 
             for _ in range(10):
@@ -2628,31 +2682,143 @@ def _satellite_set_qth():
     _update_user_config(station_lat=lat_f, station_lon=lon_f, station_alt=alt_f)
     return (lat_f, lon_f, alt_f)
 
+def _format_epoch(ts):
+    try:
+        if not ts:
+            return "N/A"
+        return datetime.datetime.utcfromtimestamp(float(ts)).strftime("%Y-%m-%d %H:%M:%S UTC")
+    except Exception:
+        return "N/A"
+
+def _satellite_report_lines(store):
+    store.load()
+    lines = []
+    lines.append("ORBITAL MEMORY REPORT")
+    lines.append(f"Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}")
+    lines.append(f"DB File: {store.db_file}")
+    lines.append(f"Last Update: {_format_epoch(store.data.get('last_update', 0))}")
+    lines.append(f"Satellite Count: {store.count()}")
+    lines.append("-" * 60)
+    for name, tle in sorted(store.data.get("satellites", {}).items()):
+        lines.append(f"Name: {name}")
+        parts = [line.strip() for line in tle.splitlines() if line.strip()]
+        if len(parts) >= 3:
+            lines.append(f"TLE0: {parts[0]}")
+            lines.append(f"TLE1: {parts[1]}")
+            lines.append(f"TLE2: {parts[2]}")
+        else:
+            for idx, line in enumerate(parts):
+                lines.append(f"TLE{idx}: {line}")
+        lines.append("")
+    return lines
+
+def _satellite_log_selection(name):
+    try:
+        log_to_database("general", "Satellite_Select", name)
+    except Exception:
+        pass
+
+def _satellite_recent_selections(limit=10):
+    recent = []
+    try:
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT data FROM log_entries WHERE operation=? AND data IS NOT NULL ORDER BY id DESC LIMIT 100",
+                ("Satellite_Select",)
+            )
+            rows = cursor.fetchall()
+        for (data,) in rows:
+            if data and data not in recent:
+                recent.append(data)
+            if len(recent) >= limit:
+                break
+    except Exception:
+        pass
+    return recent
+
+def _satellite_choose_targets(store, max_targets=SAT_MAX_TARGETS):
+    names = store.list_names()
+    if not names:
+        print(f"{COLORS['1'][0]}No satellites found in orbital memory.{RESET}")
+        return []
+    query = input("Search term (Enter for all): ").strip().lower()
+    matches = [n for n in names if query in n.lower()] if query else names
+    if not matches:
+        print(f"{COLORS['1'][0]}No matches found.{RESET}")
+        return []
+
+    print_header("🛰️ Satellite List")
+    display = matches[:50]
+    for i, name in enumerate(display, 1):
+        print(f" [{i}] {name}")
+    if len(matches) > 50:
+        print(f"... showing 50 of {len(matches)} matches")
+
+    raw = input("Select up to 5 (numbers or names, comma-separated): ").strip()
+    if not raw:
+        return []
+    picks = []
+    for token in [t.strip() for t in raw.split(",") if t.strip()]:
+        if token.isdigit():
+            idx = int(token)
+            if 1 <= idx <= len(display):
+                name = display[idx - 1]
+                if name not in picks:
+                    picks.append(name)
+        else:
+            for name in names:
+                if name.lower() == token.lower():
+                    if name not in picks:
+                        picks.append(name)
+                    break
+    return picks[:max_targets]
+
+def _satellite_targets_from_config(store):
+    targets = []
+    if isinstance(_user_config, dict):
+        cfg_targets = _user_config.get("sat_targets")
+        if isinstance(cfg_targets, list):
+            targets = [t for t in cfg_targets if store.get(t)]
+        primary = _user_config.get("sat_target")
+        if primary and store.get(primary) and primary not in targets:
+            targets.insert(0, primary)
+    if not targets:
+        targets = ["0 LEMUR 1"]
+    return targets[:SAT_MAX_TARGETS]
+
 def feature_satellite_tracker():
     store = TLEStore()
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🛰️ Satellite Tracker")
         qth = _satellite_default_qth()
-        target = _user_config.get("sat_target", "0 LEMUR 1") if isinstance(_user_config, dict) else "0 LEMUR 1"
+        targets = _satellite_targets_from_config(store)
+        target = targets[0]
         health = "OPTIMAL" if (HAVE_PREDICT and HAVE_REQUESTS) else "DEGRADED" if (HAVE_PREDICT or HAVE_REQUESTS) else "OFFLINE"
         print(f"Status: {health} | Predict: {'YES' if HAVE_PREDICT else 'NO'} | Requests: {'YES' if HAVE_REQUESTS else 'NO'}")
         print(f"Station QTH: lat {qth[0]:.3f}, lon {qth[1]:.3f}, alt {qth[2]:.1f}m")
-        print(f"Target: {target} | Satellites: {store.count()}")
+        print(f"Tracking (max {SAT_MAX_TARGETS}): {', '.join(targets)}")
+        print(f"Primary Target: {target} | Satellites: {store.count()}")
         print(" [1] 🚀 Start Live Tracker")
         print(" [2] 🔄 Update TLEs from Celestrak")
         print(" [3] 🔍 Search Satellites")
         print(" [4] 🎯 Set Primary Target")
-        print(" [5] 📍 Set Station Location (QTH)")
-        print(" [6] 🧾 Show Status Details")
-        print(" [7] 📦 Install PyPredict (hint)")
+        print(" [5] 🎛️ Set Tracking Targets (up to 5)")
+        print(" [6] 📍 Set Station Location (QTH)")
+        print(" [7] 🧾 Show Status Details")
+        print(" [8] 📄 Orbital Memory Report")
+        print(" [9] 🗂️ Quick Pick (DB Recent)")
+        print(" [M] 🗺️ Launch MapSCII")
+        print(" [D] 📦 Install MapSCII (Download Center)")
+        print(" [P] 📦 Install PyPredict (hint)")
         print(" [0] ↩️  Return")
         choice = input("\nSelect option: ").strip()
 
         if choice == '0':
             return
         if choice == '1':
-            bridge = MarsBridge(qth, primary_target=target)
+            bridge = MarsBridge(qth, targets=targets, primary_target=target)
             bridge.run()
         elif choice == '2':
             store.update_from_celestrak()
@@ -2671,23 +2837,75 @@ def feature_satellite_tracker():
             name = input("Enter satellite name: ").strip()
             if store.get(name):
                 _update_user_config(sat_target=name)
+                if isinstance(_user_config, dict):
+                    cur_targets = _user_config.get("sat_targets")
+                    if not isinstance(cur_targets, list):
+                        cur_targets = []
+                    if name not in cur_targets:
+                        cur_targets.insert(0, name)
+                    _update_user_config(sat_targets=cur_targets[:SAT_MAX_TARGETS])
+                _satellite_log_selection(name)
                 print(f"✅ Target set to {name}")
             else:
                 print(f"{COLORS['1'][0]}Unknown satellite name{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '5':
+            selected = _satellite_choose_targets(store)
+            if selected:
+                _update_user_config(sat_targets=selected, sat_target=selected[0])
+                for name in selected:
+                    _satellite_log_selection(name)
+                print(f"✅ Tracking {len(selected)} satellite(s)")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '6':
             new_qth = _satellite_set_qth()
             if new_qth:
                 print("✅ Station location updated")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '6':
+        elif choice == '7':
             print_header("🧾 Status Details")
             print(f"Predict installed: {'YES' if HAVE_PREDICT else 'NO'}")
             print(f"Requests available: {'YES' if HAVE_REQUESTS else 'NO'}")
             print(f"Orbital DB: {ORBITAL_DB_FILE}")
-            print(f"Last TLE Update: {store.data.get('last_update', 0)}")
+            print(f"Last TLE Update: {_format_epoch(store.data.get('last_update', 0))}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '7':
+        elif choice == '8':
+            print_header("📄 Orbital Memory Report")
+            report_lines = _satellite_report_lines(store)
+            print("\n".join(report_lines))
+            save_log_file("general", "Satellite_Report", "\n".join(report_lines), prompt_user=True)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '9':
+            recent = _satellite_recent_selections(limit=10)
+            if not recent:
+                print(f"{COLORS['1'][0]}No recent selections in DB yet.{RESET}")
+                input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+                continue
+            print_header("🗂️ Quick Pick (Recent)")
+            for i, name in enumerate(recent, 1):
+                print(f" [{i}] {name}")
+            raw = input("Select up to 5 (numbers, comma-separated): ").strip()
+            picks = []
+            for token in [t.strip() for t in raw.split(",") if t.strip()]:
+                if token.isdigit():
+                    idx = int(token)
+                    if 1 <= idx <= len(recent):
+                        name = recent[idx - 1]
+                        if name not in picks:
+                            picks.append(name)
+            if picks:
+                _update_user_config(sat_targets=picks[:SAT_MAX_TARGETS], sat_target=picks[0])
+                print(f"✅ Tracking {len(picks)} satellite(s)")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'M':
+            if shutil.which("mapscii") is None:
+                print(f"{COLORS['1'][0]}MapSCII not installed. Use the Download Center to install.{RESET}")
+                input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            else:
+                subprocess.call(["mapscii"])
+        elif choice.upper() == 'D':
+            feature_download_center()
+        elif choice.upper() == 'P':
             print_header("📦 PyPredict Install")
             print("Python package (C extension):")
             print("  pip install pypredict")
@@ -4281,6 +4499,51 @@ def _download_center_catalog():
                 "https://github.com/david942j/one_gadget"
             ]
         },
+        "mapscii": {
+            "title": "MapSCII (Satellite Tracker)",
+            "commands": {
+                "debian": [
+                    "sudo npm install -g mapscii"
+                ],
+                "kali": [
+                    "sudo npm install -g mapscii"
+                ],
+                "fedora": [
+                    "sudo npm install -g mapscii"
+                ],
+                "arch": [
+                    "sudo npm install -g mapscii"
+                ],
+                "alpine": [
+                    "sudo npm install -g mapscii"
+                ],
+                "linux": [
+                    "sudo npm install -g mapscii"
+                ],
+                "macos": [
+                    "npm install -g mapscii"
+                ],
+                "windows": [
+                    "npm install -g mapscii"
+                ],
+                "android": [
+                    "npm install -g mapscii"
+                ],
+                "ios": [
+                    "# iOS does not support native MapSCII installs.",
+                    "# Use a remote Linux host or iSH (Alpine) where available."
+                ],
+                "esp32": [
+                    "# Use a host computer for MapSCII."
+                ],
+                "generic": [
+                    "npm install -g mapscii"
+                ]
+            },
+            "links": [
+                "https://github.com/rastapasta/mapscii"
+            ]
+        },
         "defence": {
             "title": "Defence Tools (Command Center 13)",
             "commands": {
@@ -4610,6 +4873,7 @@ def feature_download_center():
         print(" [8] Data Science / Analysis Stack")
         print(" [9] Web Development Stack")
         print(" [10] PWN Tools (P)")
+        print(" [11] MapSCII (Satellite Tracker)")
         print(" [S] Select OS Target")
         print(" [0] Return")
 
@@ -4630,7 +4894,8 @@ def feature_download_center():
             "7": "general_python",
             "8": "data_science",
             "9": "web_dev",
-            "10": "pwn_tools"
+            "10": "pwn_tools",
+            "11": "mapscii"
         }
         key = mapping.get(choice)
         if not key:
@@ -8036,7 +8301,15 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-# version pythonOScmd34 base pythonOS70
+# version pythonOScmd65 base pythonOS70
+# Version 21 - Command Center Expansion & Satellite Tracker
+# This update focuses on expanding the Command Center with more features and adding a new Satellite Tracker module.
+# The Satellite Tracker includes a live map powered by PyPredict, TLE updates, target selection, 
+# station location settings, and status/health info. Track up to 5 satellites simultaneously with real-time position data and visualizations.
+# I also restructured the Command Center to make more of the script's capabilities accessible 
+# directly from the menu, and converted several single-shot tools into full menus for better 
+# integration and user experience.
+# The Remote Dashboard now includes a WebSSH terminal panel, health checks, and a JSON stats endpoint for better backend integration. The new Autonomous System Optimizer runs in the background to adjust settings based on system load and conditions.
 # Added Command Center option R with the new Satellite Tracker, including the PyPredict-powered 
 # live map, TLE update, target selection, station location (QTH) settings, and status/health info. 
 # The tracker implementation is in
