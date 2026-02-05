@@ -172,6 +172,14 @@ _db_api_server = None
 _db_scheduler_running = False
 _db_scheduled_tasks = []
 
+def _db_connect():
+    conn = sqlite3.connect(DB_FILE, timeout=10)
+    try:
+        conn.execute("PRAGMA busy_timeout = 5000")
+    except Exception:
+        pass
+    return conn
+
 def safe_run(category, operation, func, *args, **kwargs):
     try:
         return func(*args, **kwargs)
@@ -216,59 +224,58 @@ def init_database_system():
             os.makedirs(os.path.join(LOG_DIR, category), exist_ok=True)
 
         # Initialize SQLite database
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
         # Create tables
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS log_entries (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                timestamp TEXT NOT NULL,
-                category TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                data TEXT,
-                file_path TEXT,
-                status TEXT DEFAULT 'success'
-            )
-        ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS log_entries (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    timestamp TEXT NOT NULL,
+                    category TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    data TEXT,
+                    file_path TEXT,
+                    status TEXT DEFAULT 'success'
+                )
+            ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS file_tracking (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                file_path TEXT UNIQUE NOT NULL,
-                file_type TEXT,
-                file_size INTEGER,
-                created_date TEXT,
-                last_accessed TEXT,
-                access_count INTEGER DEFAULT 0,
-                metadata TEXT
-            )
-        ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS file_tracking (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    file_path TEXT UNIQUE NOT NULL,
+                    file_type TEXT,
+                    file_size INTEGER,
+                    created_date TEXT,
+                    last_accessed TEXT,
+                    access_count INTEGER DEFAULT 0,
+                    metadata TEXT
+                )
+            ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS swap_cache (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cache_key TEXT UNIQUE NOT NULL,
-                cache_data TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                expires_at TEXT,
-                access_count INTEGER DEFAULT 0,
-                last_accessed TEXT
-            )
-        ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS swap_cache (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    cache_key TEXT UNIQUE NOT NULL,
+                    cache_data TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    expires_at TEXT,
+                    access_count INTEGER DEFAULT 0,
+                    last_accessed TEXT
+                )
+            ''')
 
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS session_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                session_start TEXT NOT NULL,
-                session_end TEXT,
-                operations_count INTEGER DEFAULT 0,
-                features_used TEXT
-            )
-        ''')
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS session_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    session_start TEXT NOT NULL,
+                    session_end TEXT,
+                    operations_count INTEGER DEFAULT 0,
+                    features_used TEXT
+                )
+            ''')
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         return True
     except Exception as e:
         print(f"⚠️ Database initialization error: {e}")
@@ -277,17 +284,16 @@ def init_database_system():
 def log_to_database(category, operation, data=None, file_path=None, status="success"):
     """Log an entry to the SQLite database."""
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        cursor.execute('''
-            INSERT INTO log_entries (timestamp, category, operation, data, file_path, status)
-            VALUES (?, ?, ?, ?, ?, ?)
-        ''', (timestamp, category, operation, str(data) if data else None, file_path, status))
+            cursor.execute('''
+                INSERT INTO log_entries (timestamp, category, operation, data, file_path, status)
+                VALUES (?, ?, ?, ?, ?, ?)
+            ''', (timestamp, category, operation, str(data) if data else None, file_path, status))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         return True
     except Exception as e:
         print(f"⚠️ Database logging error: {e}")
@@ -328,23 +334,21 @@ def track_file(file_path, file_type=None, metadata=None):
         if not os.path.exists(file_path):
             return False
 
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
         file_size = os.path.getsize(file_path)
         created_date = datetime.datetime.fromtimestamp(os.path.getctime(file_path)).strftime("%Y-%m-%d %H:%M:%S")
         last_accessed = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        cursor.execute('''
-            INSERT OR REPLACE INTO file_tracking
-            (file_path, file_type, file_size, created_date, last_accessed, access_count, metadata)
-            VALUES (?, ?, ?, ?, ?,
-                COALESCE((SELECT access_count + 1 FROM file_tracking WHERE file_path = ?), 1),
-                ?)
-        ''', (file_path, file_type, file_size, created_date, last_accessed, file_path, json.dumps(metadata) if metadata else None))
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO file_tracking
+                (file_path, file_type, file_size, created_date, last_accessed, access_count, metadata)
+                VALUES (?, ?, ?, ?, ?,
+                    COALESCE((SELECT access_count + 1 FROM file_tracking WHERE file_path = ?), 1),
+                    ?)
+            ''', (file_path, file_type, file_size, created_date, last_accessed, file_path, json.dumps(metadata) if metadata else None))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         return True
     except Exception as e:
         print(f"⚠️ File tracking error: {e}")
@@ -353,22 +357,20 @@ def track_file(file_path, file_type=None, metadata=None):
 def cache_data(key, data, expire_minutes=30):
     """Cache data in SQLite swap system for performance boost."""
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
         created_at = datetime.datetime.now()
         expires_at = created_at + datetime.timedelta(minutes=expire_minutes)
 
-        cursor.execute('''
-            INSERT OR REPLACE INTO swap_cache (cache_key, cache_data, created_at, expires_at, access_count, last_accessed)
-            VALUES (?, ?, ?, ?,
-                COALESCE((SELECT access_count + 1 FROM swap_cache WHERE cache_key = ?), 1),
-                ?)
-        ''', (key, json.dumps(data), created_at.strftime("%Y-%m-%d %H:%M:%S"),
-              expires_at.strftime("%Y-%m-%d %H:%M:%S"), key, created_at.strftime("%Y-%m-%d %H:%M:%S")))
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                INSERT OR REPLACE INTO swap_cache (cache_key, cache_data, created_at, expires_at, access_count, last_accessed)
+                VALUES (?, ?, ?, ?,
+                    COALESCE((SELECT access_count + 1 FROM swap_cache WHERE cache_key = ?), 1),
+                    ?)
+            ''', (key, json.dumps(data), created_at.strftime("%Y-%m-%d %H:%M:%S"),
+                  expires_at.strftime("%Y-%m-%d %H:%M:%S"), key, created_at.strftime("%Y-%m-%d %H:%M:%S")))
 
-        conn.commit()
-        conn.close()
+            conn.commit()
         return True
     except Exception as e:
         return False
@@ -376,16 +378,14 @@ def cache_data(key, data, expire_minutes=30):
 def get_cached_data(key):
     """Retrieve cached data from swap system."""
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT cache_data, expires_at FROM swap_cache
+                WHERE cache_key = ? AND datetime(expires_at) > datetime('now')
+            ''', (key,))
 
-        cursor.execute('''
-            SELECT cache_data, expires_at FROM swap_cache
-            WHERE cache_key = ? AND datetime(expires_at) > datetime('now')
-        ''', (key,))
-
-        result = cursor.fetchone()
-        conn.close()
+            result = cursor.fetchone()
 
         if result:
             return json.loads(result[0])
@@ -396,14 +396,12 @@ def get_cached_data(key):
 def clean_expired_cache():
     """Clean up expired cache entries."""
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
+            deleted = cursor.rowcount
 
-        cursor.execute("DELETE FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
-        deleted = cursor.rowcount
-
-        conn.commit()
-        conn.close()
+            conn.commit()
         return deleted
     except Exception as e:
         return 0
@@ -416,19 +414,16 @@ def feature_database_log_center():
 
         # Quick stats
         try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
+            with _db_connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM log_entries")
+                log_count = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM log_entries")
-            log_count = cursor.fetchone()[0]
+                cursor.execute("SELECT COUNT(*) FROM file_tracking")
+                tracked_files = cursor.fetchone()[0]
 
-            cursor.execute("SELECT COUNT(*) FROM file_tracking")
-            tracked_files = cursor.fetchone()[0]
-
-            cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
-            cache_count = cursor.fetchone()[0]
-
-            conn.close()
+                cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+                cache_count = cursor.fetchone()[0]
 
             print(f"{BOLD}📊 System Status:{RESET}")
             print(f"  📝 Total Log Entries: {log_count}")
@@ -565,18 +560,15 @@ def _search_logs():
         return
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            SELECT timestamp, category, operation, data, status
-            FROM log_entries
-            WHERE operation LIKE ? OR data LIKE ? OR category LIKE ?
-            ORDER BY timestamp DESC LIMIT 50
-        ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
-
-        results = cursor.fetchall()
-        conn.close()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT timestamp, category, operation, data, status
+                FROM log_entries
+                WHERE operation LIKE ? OR data LIKE ? OR category LIKE ?
+                ORDER BY timestamp DESC LIMIT 50
+            ''', (f'%{search_term}%', f'%{search_term}%', f'%{search_term}%'))
+            results = cursor.fetchall()
 
         if results:
             print(f"\n{BOLD}Found {len(results)} matching entries:{RESET}\n")
@@ -598,48 +590,47 @@ def _database_statistics():
     print_header("📊 Database Statistics")
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
-        # Log statistics by category
-        print(f"\n{BOLD}Log Entries by Category:{RESET}")
-        cursor.execute('''
-            SELECT category, COUNT(*) as count
-            FROM log_entries
-            GROUP BY category
-            ORDER BY count DESC
-        ''')
-        for category, count in cursor.fetchall():
-            print(f"  {category.capitalize()}: {count}")
+            # Log statistics by category
+            print(f"\n{BOLD}Log Entries by Category:{RESET}")
+            cursor.execute('''
+                SELECT category, COUNT(*) as count
+                FROM log_entries
+                GROUP BY category
+                ORDER BY count DESC
+            ''')
+            for category, count in cursor.fetchall():
+                print(f"  {category.capitalize()}: {count}")
 
-        # Recent operations
-        print(f"\n{BOLD}Recent Operations (Last 10):{RESET}")
-        cursor.execute('''
-            SELECT timestamp, category, operation
-            FROM log_entries
-            ORDER BY timestamp DESC LIMIT 10
-        ''')
-        for timestamp, category, operation in cursor.fetchall():
-            print(f"  [{timestamp}] {category}: {operation}")
+            # Recent operations
+            print(f"\n{BOLD}Recent Operations (Last 10):{RESET}")
+            cursor.execute('''
+                SELECT timestamp, category, operation
+                FROM log_entries
+                ORDER BY timestamp DESC LIMIT 10
+            ''')
+            for timestamp, category, operation in cursor.fetchall():
+                print(f"  [{timestamp}] {category}: {operation}")
 
-        # Cache statistics
-        print(f"\n{BOLD}Cache Performance:{RESET}")
-        cursor.execute("SELECT COUNT(*), SUM(access_count) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
-        cache_count, total_hits = cursor.fetchone()
-        print(f"  Active Entries: {cache_count}")
-        print(f"  Total Cache Hits: {total_hits or 0}")
+            # Cache statistics
+            print(f"\n{BOLD}Cache Performance:{RESET}")
+            cursor.execute("SELECT COUNT(*), SUM(access_count) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+            cache_count, total_hits = cursor.fetchone()
+            print(f"  Active Entries: {cache_count}")
+            print(f"  Total Cache Hits: {total_hits or 0}")
 
-        # File tracking
-        print(f"\n{BOLD}File Tracking:{RESET}")
-        cursor.execute("SELECT file_type, COUNT(*) FROM file_tracking GROUP BY file_type")
-        for file_type, count in cursor.fetchall():
-            print(f"  {file_type or 'Unknown'}: {count}")
+            # File tracking
+            print(f"\n{BOLD}File Tracking:{RESET}")
+            cursor.execute("SELECT file_type, COUNT(*) FROM file_tracking GROUP BY file_type")
+            for file_type, count in cursor.fetchall():
+                print(f"  {file_type or 'Unknown'}: {count}")
 
-        # Database size
-        db_size = os.path.getsize(DB_FILE) / 1024  # KB
-        print(f"\n{BOLD}Database Size:{RESET} {db_size:.2f} KB")
+            # Database size
+            db_size = os.path.getsize(DB_FILE) / 1024  # KB
+            print(f"\n{BOLD}Database Size:{RESET} {db_size:.2f} KB")
 
-        conn.close()
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
 
@@ -651,17 +642,14 @@ def _file_tracking_browser():
     print_header("📂 File Tracking Browser")
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-
-        cursor.execute('''
-            SELECT file_path, file_type, file_size, last_accessed, access_count
-            FROM file_tracking
-            ORDER BY last_accessed DESC
-        ''')
-
-        results = cursor.fetchall()
-        conn.close()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT file_path, file_type, file_size, last_accessed, access_count
+                FROM file_tracking
+                ORDER BY last_accessed DESC
+            ''')
+            results = cursor.fetchall()
 
         if results:
             page_size = 8
@@ -702,18 +690,18 @@ def _swap_cache_management():
     print_header("🚀 Swap Cache Management")
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
-        # Active cache entries
-        cursor.execute('''
-            SELECT cache_key, created_at, expires_at, access_count
-            FROM swap_cache
-            WHERE datetime(expires_at) > datetime('now')
-            ORDER BY access_count DESC
-        ''')
+            # Active cache entries
+            cursor.execute('''
+                SELECT cache_key, created_at, expires_at, access_count
+                FROM swap_cache
+                WHERE datetime(expires_at) > datetime('now')
+                ORDER BY access_count DESC
+            ''')
 
-        results = cursor.fetchall()
+            results = cursor.fetchall()
 
         print(f"\n{BOLD}Active Cache Entries:{RESET}\n")
         if results:
@@ -725,11 +713,9 @@ def _swap_cache_management():
         else:
             print(f"{COLORS['4'][0]}No active cache entries{RESET}")
 
-        # Expired entries count
-        cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
-        expired_count = cursor.fetchone()[0]
-
-        conn.close()
+            # Expired entries count
+            cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
+            expired_count = cursor.fetchone()[0]
 
         if expired_count > 0:
             print(f"\n{COLORS['4'][0]}⚠️ {expired_count} expired cache entries found{RESET}")
@@ -760,19 +746,18 @@ def _export_database():
         if choice == '1':
             # SQL Dump
             export_file = os.path.join(DB_DIR, f"pythonOS_export_{timestamp}.sql")
-            conn = sqlite3.connect(DB_FILE)
-            with open(export_file, 'w') as f:
-                for line in conn.iterdump():
-                    f.write(f"{line}\n")
-            conn.close()
+            with _db_connect() as conn:
+                with open(export_file, 'w') as f:
+                    for line in conn.iterdump():
+                        f.write(f"{line}\n")
             print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
 
         elif choice == '2':
             # JSON Export
             export_file = os.path.join(DB_DIR, f"pythonOS_export_{timestamp}.json")
-            conn = sqlite3.connect(DB_FILE)
-            conn.row_factory = sqlite3.Row
-            cursor = conn.cursor()
+            with _db_connect() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.cursor()
 
             export_data = {}
             for table in ['log_entries', 'file_tracking', 'swap_cache', 'session_history']:
@@ -781,15 +766,13 @@ def _export_database():
 
             with open(export_file, 'w') as f:
                 json.dump(export_data, f, indent=2)
-
-            conn.close()
             print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
 
         elif choice == '3':
             # CSV Export (Logs)
             export_file = os.path.join(DB_DIR, f"pythonOS_logs_{timestamp}.csv")
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
+            with _db_connect() as conn:
+                cursor = conn.cursor()
 
             cursor.execute("SELECT * FROM log_entries")
             rows = cursor.fetchall()
@@ -801,7 +784,6 @@ def _export_database():
                     escaped_row = [str(field).replace('"', '""') if field else '' for field in row]
                     f.write(','.join(f'"{field}"' for field in escaped_row) + '\n')
 
-            conn.close()
             print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Export error: {e}{RESET}")
@@ -824,8 +806,8 @@ def _import_data():
         with open(import_file, 'r') as f:
             import_data = json.load(f)
 
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
         imported_count = 0
         for table, records in import_data.items():
@@ -841,8 +823,7 @@ def _import_data():
                     except:
                         pass
 
-        conn.commit()
-        conn.close()
+            conn.commit()
 
         print(f"\n{COLORS['2'][0]}✅ Imported {imported_count} records{RESET}")
     except Exception as e:
@@ -864,8 +845,8 @@ def _clean_optimize():
     choice = input(f"\n{BOLD}Select option: {RESET}").strip()
 
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
         if choice in ['1', '4']:
             cursor.execute("DELETE FROM swap_cache WHERE datetime(expires_at) <= datetime('now')")
@@ -881,8 +862,7 @@ def _clean_optimize():
             cursor.execute("VACUUM")
             print(f"{COLORS['2'][0]}✅ Database vacuumed and optimized{RESET}")
 
-        conn.commit()
-        conn.close()
+            conn.commit()
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Optimization error: {e}{RESET}")
 
@@ -956,33 +936,31 @@ def _db_interactive_sql_console():
     print("Type 'exit' to return.")
 
     buffer = []
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    while True:
-        line = input("SQL> ").strip()
-        if line.lower() == 'exit':
-            break
-        if line.lower() == 'run':
-            sql = "\n".join(buffer)
-            buffer = []
-            try:
-                cols, result = _db_execute_sql(cursor, sql)
-                if cols is not None:
-                    print(" | ".join(cols))
-                    print("-" * max(20, len(" | ".join(cols))))
-                    for row in result[:50]:
-                        print(" | ".join(str(x) for x in row))
-                    if len(result) > 50:
-                        print(f"... ({len(result)} rows total)")
-                else:
-                    conn.commit()
-                    print(f"✅ Rows affected: {result}")
-            except Exception as e:
-                print(f"❌ SQL error: {e}")
-            continue
-        buffer.append(line)
-
-    conn.close()
+    with _db_connect() as conn:
+        cursor = conn.cursor()
+        while True:
+            line = input("SQL> ").strip()
+            if line.lower() == 'exit':
+                break
+            if line.lower() == 'run':
+                sql = "\n".join(buffer)
+                buffer = []
+                try:
+                    cols, result = _db_execute_sql(cursor, sql)
+                    if cols is not None:
+                        print(" | ".join(cols))
+                        print("-" * max(20, len(" | ".join(cols))))
+                        for row in result[:50]:
+                            print(" | ".join(str(x) for x in row))
+                        if len(result) > 50:
+                            print(f"... ({len(result)} rows total)")
+                    else:
+                        conn.commit()
+                        print(f"✅ Rows affected: {result}")
+                except Exception as e:
+                    print(f"❌ SQL error: {e}")
+                continue
+            buffer.append(line)
 
 def _db_table_manager():
     while True:
@@ -997,42 +975,40 @@ def _db_table_manager():
 
         if choice == '0':
             break
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
         try:
-            if choice == '1':
-                name = input("Table name: ").strip()
-                cols = input("Columns (e.g., id INTEGER PRIMARY KEY, name TEXT): ").strip()
-                if name and cols:
-                    cursor.execute(f"CREATE TABLE IF NOT EXISTS {name} ({cols})")
-                    conn.commit()
-                    print("✅ Table created/verified.")
-            elif choice == '2':
-                name = input("Table name: ").strip()
-                col = input("New column (e.g., status TEXT): ").strip()
-                if name and col:
-                    cursor.execute(f"ALTER TABLE {name} ADD COLUMN {col}")
-                    conn.commit()
-                    print("✅ Column added.")
-            elif choice == '3':
-                name = input("Table name to drop: ").strip()
-                confirm = input("Type DELETE to confirm: ").strip()
-                if confirm == "DELETE" and name:
-                    cursor.execute(f"DROP TABLE IF EXISTS {name}")
-                    conn.commit()
-                    print("✅ Table dropped.")
-            elif choice == '4':
-                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
-                tables = [r[0] for r in cursor.fetchall()]
-                print("\nTables:")
-                for t in tables:
-                    print(f" - {t}")
-            else:
-                print("Invalid option")
+            with _db_connect() as conn:
+                cursor = conn.cursor()
+                if choice == '1':
+                    name = input("Table name: ").strip()
+                    cols = input("Columns (e.g., id INTEGER PRIMARY KEY, name TEXT): ").strip()
+                    if name and cols:
+                        cursor.execute(f"CREATE TABLE IF NOT EXISTS {name} ({cols})")
+                        conn.commit()
+                        print("✅ Table created/verified.")
+                elif choice == '2':
+                    name = input("Table name: ").strip()
+                    col = input("New column (e.g., status TEXT): ").strip()
+                    if name and col:
+                        cursor.execute(f"ALTER TABLE {name} ADD COLUMN {col}")
+                        conn.commit()
+                        print("✅ Column added.")
+                elif choice == '3':
+                    name = input("Table name to drop: ").strip()
+                    confirm = input("Type DELETE to confirm: ").strip()
+                    if confirm == "DELETE" and name:
+                        cursor.execute(f"DROP TABLE IF EXISTS {name}")
+                        conn.commit()
+                        print("✅ Table dropped.")
+                elif choice == '4':
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                    tables = [r[0] for r in cursor.fetchall()]
+                    print("\nTables:")
+                    for t in tables:
+                        print(f" - {t}")
+                else:
+                    print("Invalid option")
         except Exception as e:
             print(f"❌ Error: {e}")
-        finally:
-            conn.close()
         input("\nPress Enter to continue...")
 
 def _db_transaction_console():
@@ -1041,33 +1017,32 @@ def _db_transaction_console():
     print("Enter SQL statements. Type 'commit' or 'rollback' to finish.")
     print("Type 'exit' to return without changes.")
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    conn.execute("BEGIN")
-    while True:
-        line = input("TX> ").strip()
-        if line.lower() == 'exit':
-            conn.rollback()
-            break
-        if line.lower() == 'commit':
-            conn.commit()
-            print("✅ Transaction committed.")
-            break
-        if line.lower() == 'rollback':
-            conn.rollback()
-            print("✅ Transaction rolled back.")
-            break
-        try:
-            cols, result = _db_execute_sql(cursor, line)
-            if cols is not None:
-                print(" | ".join(cols))
-                for row in result[:20]:
-                    print(" | ".join(str(x) for x in row))
-            else:
-                print(f"✅ Rows affected: {result}")
-        except Exception as e:
-            print(f"❌ SQL error: {e}")
-    conn.close()
+    with _db_connect() as conn:
+        cursor = conn.cursor()
+        conn.execute("BEGIN")
+        while True:
+            line = input("TX> ").strip()
+            if line.lower() == 'exit':
+                conn.rollback()
+                break
+            if line.lower() == 'commit':
+                conn.commit()
+                print("✅ Transaction committed.")
+                break
+            if line.lower() == 'rollback':
+                conn.rollback()
+                print("✅ Transaction rolled back.")
+                break
+            try:
+                cols, result = _db_execute_sql(cursor, line)
+                if cols is not None:
+                    print(" | ".join(cols))
+                    for row in result[:20]:
+                        print(" | ".join(str(x) for x in row))
+                else:
+                    print(f"✅ Rows affected: {result}")
+            except Exception as e:
+                print(f"❌ SQL error: {e}")
 
 def _db_quick_crud():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -1083,37 +1058,35 @@ def _db_quick_crud():
     table = input("Table: ").strip()
     if not table:
         return
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-        if choice == '1':
-            cols = input("Columns (comma separated): ").strip()
-            vals = input("Values (comma separated, use quotes for text): ").strip()
-            if cols and vals:
-                cursor.execute(f"INSERT INTO {table} ({cols}) VALUES ({vals})")
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            if choice == '1':
+                cols = input("Columns (comma separated): ").strip()
+                vals = input("Values (comma separated, use quotes for text): ").strip()
+                if cols and vals:
+                    cursor.execute(f"INSERT INTO {table} ({cols}) VALUES ({vals})")
+                    conn.commit()
+                    print("✅ Inserted.")
+            elif choice == '2':
+                set_clause = input("SET clause (e.g., name='x'): ").strip()
+                where = input("WHERE clause (optional): ").strip()
+                sql = f"UPDATE {table} SET {set_clause}"
+                if where:
+                    sql += f" WHERE {where}"
+                cursor.execute(sql)
                 conn.commit()
-                print("✅ Inserted.")
-        elif choice == '2':
-            set_clause = input("SET clause (e.g., name='x'): ").strip()
-            where = input("WHERE clause (optional): ").strip()
-            sql = f"UPDATE {table} SET {set_clause}"
-            if where:
-                sql += f" WHERE {where}"
-            cursor.execute(sql)
-            conn.commit()
-            print(f"✅ Updated {cursor.rowcount} rows.")
-        elif choice == '3':
-            where = input("WHERE clause (optional): ").strip()
-            sql = f"DELETE FROM {table}"
-            if where:
-                sql += f" WHERE {where}"
-            cursor.execute(sql)
-            conn.commit()
-            print(f"✅ Deleted {cursor.rowcount} rows.")
+                print(f"✅ Updated {cursor.rowcount} rows.")
+            elif choice == '3':
+                where = input("WHERE clause (optional): ").strip()
+                sql = f"DELETE FROM {table}"
+                if where:
+                    sql += f" WHERE {where}"
+                cursor.execute(sql)
+                conn.commit()
+                print(f"✅ Deleted {cursor.rowcount} rows.")
     except Exception as e:
         print(f"❌ CRUD error: {e}")
-    finally:
-        conn.close()
     input("\nPress Enter to continue...")
 
 def _db_export_table_csv():
@@ -1121,12 +1094,12 @@ def _db_export_table_csv():
     if not table:
         return
     export_file = os.path.join(DB_DIR, f"{table}_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-        cursor.execute(f"SELECT * FROM {table}")
-        rows = cursor.fetchall()
-        cols = [d[0] for d in cursor.description]
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"SELECT * FROM {table}")
+            rows = cursor.fetchall()
+            cols = [d[0] for d in cursor.description]
         with open(export_file, 'w') as f:
             f.write(','.join(cols) + '\n')
             for row in rows:
@@ -1135,8 +1108,6 @@ def _db_export_table_csv():
         print(f"✅ Exported: {export_file}")
     except Exception as e:
         print(f"❌ Export error: {e}")
-    finally:
-        conn.close()
 
 def _db_import_csv():
     csv_path = input("CSV file path: ").strip()
@@ -1146,23 +1117,21 @@ def _db_import_csv():
     if not os.path.exists(csv_path):
         print("❌ File not found")
         return
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-        with open(csv_path, 'r') as f:
-            header = f.readline().strip().split(',')
-            header = [h.strip().strip('"') for h in header]
-            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} ({', '.join(h + ' TEXT' for h in header)})")
-            for line in f:
-                parts = [p.strip().strip('"') for p in line.split(',')]
-                placeholders = ','.join(['?' for _ in parts])
-                cursor.execute(f"INSERT INTO {table} ({', '.join(header)}) VALUES ({placeholders})", parts)
-        conn.commit()
-        print("✅ CSV imported.")
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            with open(csv_path, 'r') as f:
+                header = f.readline().strip().split(',')
+                header = [h.strip().strip('"') for h in header]
+                cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} ({', '.join(h + ' TEXT' for h in header)})")
+                for line in f:
+                    parts = [p.strip().strip('"') for p in line.split(',')]
+                    placeholders = ','.join(['?' for _ in parts])
+                    cursor.execute(f"INSERT INTO {table} ({', '.join(header)}) VALUES ({placeholders})", parts)
+            conn.commit()
+            print("✅ CSV imported.")
     except Exception as e:
         print(f"❌ Import error: {e}")
-    finally:
-        conn.close()
 
 def _db_generate_report():
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -1176,11 +1145,11 @@ def _db_generate_report():
         return
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-        cursor.execute("SELECT timestamp, category, operation, data, status FROM log_entries ORDER BY timestamp DESC")
-        rows = cursor.fetchall()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT timestamp, category, operation, data, status FROM log_entries ORDER BY timestamp DESC")
+            rows = cursor.fetchall()
         if choice == '1':
             out = os.path.join(DB_DIR, f"ai_report_{timestamp}.csv")
             with open(out, 'w') as f:
@@ -1231,8 +1200,6 @@ def _db_generate_report():
             print("Invalid option")
     except Exception as e:
         print(f"❌ Report error: {e}")
-    finally:
-        conn.close()
     input("\nPress Enter to continue...")
 
 def _db_clean_transform():
@@ -1245,24 +1212,22 @@ def _db_clean_transform():
     choice = input("\nSelect option: ").strip()
     if choice == '0':
         return
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
     try:
-        if choice == '1':
-            cursor.execute("UPDATE log_entries SET data = TRIM(data) WHERE data IS NOT NULL")
-        elif choice == '2':
-            cursor.execute("UPDATE log_entries SET category = LOWER(category) WHERE category IS NOT NULL")
-        elif choice == '3':
-            cursor.execute("DELETE FROM log_entries WHERE data IS NULL OR TRIM(data) = ''")
-        else:
-            print("Invalid option")
-            return
-        conn.commit()
-        print(f"✅ Rows affected: {cursor.rowcount}")
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            if choice == '1':
+                cursor.execute("UPDATE log_entries SET data = TRIM(data) WHERE data IS NOT NULL")
+            elif choice == '2':
+                cursor.execute("UPDATE log_entries SET category = LOWER(category) WHERE category IS NOT NULL")
+            elif choice == '3':
+                cursor.execute("DELETE FROM log_entries WHERE data IS NULL OR TRIM(data) = ''")
+            else:
+                print("Invalid option")
+                return
+            conn.commit()
+            print(f"✅ Rows affected: {cursor.rowcount}")
     except Exception as e:
         print(f"❌ Cleaning error: {e}")
-    finally:
-        conn.close()
     input("\nPress Enter to continue...")
 
 def _db_run_scheduled_tasks():
@@ -1305,11 +1270,10 @@ def _db_schedule_tasks_menu():
 
     def _vacuum_action():
         try:
-            conn = sqlite3.connect(DB_FILE)
-            cursor = conn.cursor()
-            cursor.execute("VACUUM")
-            conn.commit()
-            conn.close()
+            with _db_connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("VACUUM")
+                conn.commit()
         except Exception:
             pass
 
@@ -1333,11 +1297,10 @@ def _db_schedule_tasks_menu():
 def _db_analysis_dashboard():
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📈 Analysis & Visualization")
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category ORDER BY COUNT(*) DESC")
-    rows = cursor.fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category ORDER BY COUNT(*) DESC")
+        rows = cursor.fetchall()
     if not rows:
         print("No log data to analyze.")
         input("\nPress Enter to continue...")
@@ -1360,11 +1323,10 @@ def _db_ml_probe():
         input("\nPress Enter to continue...")
         return
 
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT operation, data FROM log_entries WHERE data IS NOT NULL ORDER BY timestamp DESC LIMIT 200")
-    rows = cursor.fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT operation, data FROM log_entries WHERE data IS NOT NULL ORDER BY timestamp DESC LIMIT 200")
+        rows = cursor.fetchall()
     texts = [f"{r[0]} {r[1]}" for r in rows if r[1]]
     if len(texts) < 10:
         print("Not enough data for ML clustering.")
@@ -1390,13 +1352,12 @@ class _DBApiHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
             if self.path.startswith("/stats"):
-                conn = sqlite3.connect(DB_FILE)
-                cursor = conn.cursor()
-                cursor.execute("SELECT COUNT(*) FROM log_entries")
-                log_count = cursor.fetchone()[0]
-                cursor.execute("SELECT COUNT(*) FROM file_tracking")
-                file_count = cursor.fetchone()[0]
-                conn.close()
+                with _db_connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT COUNT(*) FROM log_entries")
+                    log_count = cursor.fetchone()[0]
+                    cursor.execute("SELECT COUNT(*) FROM file_tracking")
+                    file_count = cursor.fetchone()[0]
                 payload = {
                     "log_entries": log_count,
                     "file_tracking": file_count,
@@ -1429,12 +1390,11 @@ def _db_api_server_start():
 def _db_orm_view():
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🧬 ORM View (Lightweight)")
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM log_entries ORDER BY timestamp DESC LIMIT 5")
-    rows = cursor.fetchall()
-    conn.close()
+    with _db_connect() as conn:
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM log_entries ORDER BY timestamp DESC LIMIT 5")
+        rows = cursor.fetchall()
     for row in rows:
         print(dict(row))
     input("\nPress Enter to continue...")
@@ -1911,27 +1871,25 @@ def _aggressive_scan():
     print(f"{COLORS['2'][0]}[11/12] 📊 Database Intelligence...{RESET}")
     scan_data.append("\n[SECTION 11: DATABASE STATISTICS]")
     try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
+        with _db_connect() as conn:
+            cursor = conn.cursor()
 
-        cursor.execute("SELECT COUNT(*) FROM log_entries")
-        log_count = cursor.fetchone()[0]
-        scan_data.append(f"Total Log Entries: {log_count}")
+            cursor.execute("SELECT COUNT(*) FROM log_entries")
+            log_count = cursor.fetchone()[0]
+            scan_data.append(f"Total Log Entries: {log_count}")
 
-        cursor.execute("SELECT COUNT(*) FROM file_tracking")
-        file_count = cursor.fetchone()[0]
-        scan_data.append(f"Tracked Files: {file_count}")
+            cursor.execute("SELECT COUNT(*) FROM file_tracking")
+            file_count = cursor.fetchone()[0]
+            scan_data.append(f"Tracked Files: {file_count}")
 
-        cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
-        cache_count = cursor.fetchone()[0]
-        scan_data.append(f"Active Cache Entries: {cache_count}")
+            cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+            cache_count = cursor.fetchone()[0]
+            scan_data.append(f"Active Cache Entries: {cache_count}")
 
-        cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category")
-        scan_data.append("\nLog Entries by Category:")
-        for cat, count in cursor.fetchall():
-            scan_data.append(f"  {cat}: {count}")
-
-        conn.close()
+            cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category")
+            scan_data.append("\nLog Entries by Category:")
+            for cat, count in cursor.fetchall():
+                scan_data.append(f"  {cat}: {count}")
     except:
         scan_data.append("Database statistics unavailable")
 
@@ -5112,6 +5070,29 @@ def load_plugins():
                 PLUGINS[name] = module
         except Exception as e:
             print(f"[🔌 Plugin Error] {name}: {e}")
+            try:
+                log_to_database("general", f"Plugin_Load_{name}", str(e), status="error")
+            except Exception:
+                pass
+
+def _build_plugin_context(sandboxed):
+    context = {
+        "psutil": psutil,
+        "socket": socket,
+        "print_header": print_header,
+        "COLORS": COLORS,
+        "BOLD": BOLD,
+        "RESET": RESET,
+        "time": time,
+        "datetime": datetime,
+    }
+    if not sandboxed:
+        context.update({
+            "os": os,
+            "requests": requests,
+            "subprocess": subprocess,
+        })
+    return context
 
 def feature_plugin_center():
     load_plugins()
@@ -5139,21 +5120,35 @@ def feature_plugin_center():
 
     print_header(f"🚀 Running Plugin: {plugin_name}")
 
-    context = {
-        "psutil": psutil,
-        "os": os,
-        "socket": socket,
-        "requests": requests,
-        "print_header": print_header,
-        "COLORS": COLORS,
-        "BOLD": BOLD,
-        "RESET": RESET,
-    }
+    sandbox_choice = input("\nRun in sandbox mode? (Y/n): ").strip().lower()
+    sandboxed = sandbox_choice != 'n'
+    if sandboxed:
+        print("🧪 Sandbox: limited context only (not full isolation).")
+
+    context = _build_plugin_context(sandboxed)
+
+    start_time = time.perf_counter()
+    status = "success"
+    error_text = None
 
     try:
         plugin.run(context)
     except Exception as e:
+        status = "error"
+        error_text = traceback.format_exc()
         print(f"[💥 Plugin Runtime Error] {e}")
+
+    runtime_s = time.perf_counter() - start_time
+    try:
+        log_data = f"sandboxed={sandboxed} runtime_s={runtime_s:.3f}"
+        if error_text:
+            error_payload = f"{log_data}\n{error_text}"
+            file_path = save_log_file("general", f"Plugin_{plugin_name}_Error", error_payload, prompt_user=False)
+            log_to_database("general", f"Plugin_{plugin_name}", error_payload, file_path=file_path, status="error")
+        else:
+            log_to_database("general", f"Plugin_{plugin_name}", log_data, status="success")
+    except Exception:
+        pass
 
     input("\n[ ⌨️ Press Enter to return... ]")
 
@@ -6426,7 +6421,7 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd32 base pythonOS70
+# version pythonOScmd38 base pythonOS70
 # 2-5-26 Added Download Center 8 AM
 # 2-5-25 Updated Download Center to do updates one at a time
 # Updated AI probing logic
@@ -6437,7 +6432,8 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
-# Added pagination for log lists and file tracking,
-# persisted user prefs to a JSON config under pythonOS_data,
-# and introduced a centralized safe_run() wrapper that
-# auto-logs exceptions to the database.
+# Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
+# context-managed blocks so operations commit safely and reduce lock contention.
+# I also added plugin sandboxing (restricted context toggle) and runtime/error
+# logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
+# now saves your display config
