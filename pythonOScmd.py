@@ -98,6 +98,7 @@ boot_loader()
 import platform
 import psutil
 import socket
+import getpass
 import uuid
 import datetime
 import threading
@@ -111,6 +112,7 @@ import re # Added for Visual FX Regex
 import shutil # Added for check_pentest_tool
 import sqlite3 # Added for Database/Log system
 import json # Added for JSON logging
+from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
 
@@ -5555,6 +5557,90 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 DASHBOARD_PORT = 8088
 dashboard_server = None
 dashboard_display_cache = ""
+WEBSSH_URL = os.environ.get("WEBSSH_URL", "http://localhost:8888")
+WEBSSH_TARGET_HOST = os.environ.get("WEBSSH_TARGET_HOST", "")
+WEBSSH_TARGET_PORT = os.environ.get("WEBSSH_TARGET_PORT", "")
+WEBSSH_TARGET_USER = os.environ.get("WEBSSH_TARGET_USER", "")
+
+def _webssh_is_installed():
+    return shutil.which("wssh") is not None or shutil.which("webssh") is not None
+
+def _webssh_parse_url(url):
+    try:
+        return urlparse(url)
+    except Exception:
+        return None
+
+def _webssh_host_port(parsed):
+    if not parsed:
+        return "localhost", 80
+    host = parsed.hostname or "localhost"
+    if parsed.port:
+        port = parsed.port
+    elif parsed.scheme == "https":
+        port = 443
+    else:
+        port = 80
+    return host, port
+
+def _webssh_is_running(host, port, timeout=0.6):
+    try:
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
+
+def _webssh_url_for_client(url, ip_addr):
+    parsed = _webssh_parse_url(url)
+    if not parsed:
+        return url
+    host, port = _webssh_host_port(parsed)
+    if host in ("localhost", "127.0.0.1") and ip_addr not in ("", "Unknown", None):
+        netloc = f"{ip_addr}:{port}" if port else ip_addr
+        return parsed._replace(netloc=netloc).geturl()
+    return url
+
+def _webssh_build_connect_url(base_url, ssh_host, ssh_port, ssh_user):
+    parsed = _webssh_parse_url(base_url)
+    if not parsed:
+        return base_url
+    query = parse_qs(parsed.query)
+    if ssh_host:
+        query["hostname"] = [ssh_host]
+    if ssh_port:
+        query["port"] = [str(ssh_port)]
+    if ssh_user:
+        query["username"] = [ssh_user]
+    new_query = urlencode({k: v[-1] for k, v in query.items()}, doseq=True)
+    return parsed._replace(query=new_query).geturl()
+
+def _webssh_status(ip_addr):
+    parsed = _webssh_parse_url(WEBSSH_URL)
+    host, port = _webssh_host_port(parsed)
+    installed = _webssh_is_installed()
+    running = _webssh_is_running(host, port)
+    error = ""
+    if not installed:
+        error = "WebSSH not installed (pip install webssh)."
+    elif not running:
+        error = f"WebSSH not running on {host}:{port}."
+    client_url = _webssh_url_for_client(WEBSSH_URL, ip_addr)
+    ssh_host = WEBSSH_TARGET_HOST or (ip_addr if ip_addr not in ("", "Unknown", None) else "")
+    ssh_port = WEBSSH_TARGET_PORT or "22"
+    try:
+        ssh_user = WEBSSH_TARGET_USER or getpass.getuser()
+    except Exception:
+        ssh_user = WEBSSH_TARGET_USER
+    connect_url = _webssh_build_connect_url(client_url, ssh_host, ssh_port, ssh_user)
+    return {
+        "installed": installed,
+        "running": running,
+        "error": error,
+        "client_url": client_url,
+        "connect_url": connect_url,
+        "host": host,
+        "port": port,
+    }
 
 def get_dashboard_stats():
     """Collect system statistics"""
@@ -5596,6 +5682,8 @@ def get_dashboard_stats():
     except Exception:
         db_stats = {}
 
+    webssh_status = _webssh_status(ip_addr)
+
     return {
         "cpu": cpu,
         "cpu_cores": psutil.cpu_count(logical=False) or 0,
@@ -5629,6 +5717,13 @@ def get_dashboard_stats():
         "avg_temp": avg_temp,
         "processes": proc_count,
         "db_stats": db_stats,
+        "webssh_url": webssh_status["client_url"],
+        "webssh_connect_url": webssh_status["connect_url"],
+        "webssh_running": webssh_status["running"],
+        "webssh_installed": webssh_status["installed"],
+        "webssh_error": webssh_status["error"],
+        "webssh_host": webssh_status["host"],
+        "webssh_port": webssh_status["port"],
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -5640,6 +5735,28 @@ class DashboardHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         """Serve dashboard with current stats"""
         stats = get_dashboard_stats()
+        if self.path.startswith("/api/stats"):
+            payload = json.dumps(stats).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        webssh_status_class = "status-ok" if stats["webssh_running"] else "status-bad"
+        if not stats["webssh_installed"]:
+            webssh_status_class = "status-warn"
+        webssh_status_text = "RUNNING" if stats["webssh_running"] else "NOT RUNNING"
+        if not stats["webssh_installed"]:
+            webssh_status_text = "NOT INSTALLED"
+        webssh_error = stats["webssh_error"]
+        if webssh_error:
+            webssh_error = f"<div class=\"mono status-bad\">{webssh_error}</div>"
+        webssh_iframe = ""
+        if stats["webssh_running"]:
+            webssh_iframe = f"<iframe class=\"terminal-frame\" src=\"{stats['webssh_connect_url']}\"></iframe>"
+        else:
+            webssh_iframe = "<div class=\"mono\">WebSSH is not running. Start it and refresh.</div>"
         html = f"""
         <!DOCTYPE html>
         <html>
@@ -5660,6 +5777,10 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 .bar {{ background:#333; height:10px; margin:10px 0; border-radius:2px; overflow:hidden; }}
                 .bar-fill {{ background:#0f0; height:10px; transition:width 0.3s; }}
                 .timestamp {{ color:#888; font-size:12px; margin-top:20px; }}
+                .terminal-frame {{ width:100%; height:220px; border:1px solid #0f0; background:#000; }}
+                .status-ok {{ color:#0f0; }}
+                .status-bad {{ color:#f55; }}
+                .status-warn {{ color:#ff0; }}
             </style>
         </head>
         <body>
@@ -5757,6 +5878,14 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     <div class="stat-label">Active Cache</div>
                     <div class="stat-value">{stats['db_stats'].get('cache', 0)}</div>
                 </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Web Terminal (WebSSH)</div>
+                    <div class="mono">Service: <span class="{webssh_status_class}">{webssh_status_text}</span></div>
+                    <div class="mono">URL: {stats['webssh_url']}</div>
+                    {webssh_error}
+                    {webssh_iframe}
+                </div>
             </div>
 
             <div style="border-top:1px solid #0f0; padding-top:15px;">
@@ -5767,7 +5896,74 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 <p>🌀 Fan: {stats['fan']}</p>
             </div>
 
+            <div style="border-top:1px solid #0f0; padding-top:15px;">
+                <h3>Command Execution (Local)</h3>
+                <p class="mono">Note: commands run on the host where pythonOS is running.</p>
+                <form method="POST" action="/cmd">
+                    <input type="text" name="cmd" style="width:80%; padding:6px;" placeholder="e.g. ls -la" />
+                    <button type="submit" style="padding:6px 12px;">Run</button>
+                </form>
+            </div>
+
+            <div style="border-top:1px solid #0f0; padding-top:15px;">
+                <h3>WebSSH (Browser Terminal)</h3>
+                <p class="mono">For a full interactive terminal, consider WebSSH:</p>
+                <p class="mono">https://github.com/huashengdun/webssh</p>
+                <p class="mono">Run it separately, then connect to this host over SSH.</p>
+                <p class="mono">JSON stats endpoint: /api/stats</p>
+            </div>
+
             <div class="timestamp">Last update: {stats['timestamp']}</div>
+        </body>
+        </html>
+        """
+
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.end_headers()
+        self.wfile.write(html.encode("utf-8"))
+
+    def do_POST(self):
+        if self.path != "/cmd":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        length = int(self.headers.get("Content-Length", "0"))
+        body = self.rfile.read(length).decode("utf-8", errors="ignore")
+        params = {}
+        for pair in body.split("&"):
+            if "=" in pair:
+                k, v = pair.split("=", 1)
+                params[k] = v.replace("+", " ")
+        cmd = params.get("cmd", "").strip()
+
+        output = "No command provided."
+        if cmd:
+            try:
+                import shlex
+                args = shlex.split(cmd)
+                result = subprocess.run(args, capture_output=True, text=True, timeout=10)
+                output = (result.stdout + "\n" + result.stderr).strip() or "(no output)"
+            except Exception as e:
+                output = f"Error: {e}"
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Command Output</title>
+            <style>
+                body {{ background:#111; color:#0f0; font-family:monospace; padding:20px; }}
+                pre {{ white-space:pre-wrap; word-wrap:break-word; background:#1a1a1a; padding:12px; border:1px solid #0f0; }}
+                a {{ color:#9ad; }}
+            </style>
+        </head>
+        <body>
+            <h2>Command Output</h2>
+            <pre>{output}</pre>
+            <p><a href="/">Back to Dashboard</a></p>
         </body>
         </html>
         """
@@ -5808,6 +6004,14 @@ def feature_remote_dashboard():
 
     print(f"📡 Dashboard running at: {COLORS['4'][0]}http://{ip}:{DASHBOARD_PORT}{RESET}")
     print(f"🌐 Open this in your browser on this network.")
+    webssh_status = _webssh_status(ip)
+    if not webssh_status["installed"]:
+        print(f"⚠️  WebSSH not installed. {webssh_status['error']}")
+    elif not webssh_status["running"]:
+        print(f"⚠️  WebSSH not running. {webssh_status['error']}")
+        print(f"    Expected at {webssh_status['host']}:{webssh_status['port']}")
+    else:
+        print(f"✅ WebSSH detected at {webssh_status['host']}:{webssh_status['port']}")
     input("\n[ ⌨️ Press Enter to return... ]")
 
 
@@ -6928,12 +7132,28 @@ ctx = {
     "BOLD": BOLD
 }
 # version pythonOScmd44 base pythonOS70
-#Expanded the Remote Dashboard to include much more of the script’s data: host/IP, OS/arch,
-# uptime, CPU cores/threads, RAM totals, swap, disk totals, load average, average temp, process
+# Added WebSSH health checks and auto-connect URL building for the dashboard, plus a JSON 
+# stats endpoint so the backend can serve data in JSON or HTML. The Remote Dashboard now 
+# reports WebSSH install/running status, avoids a broken iframe when it is down, and builds 
+# a connection URL using the current host and user to help the terminal auto-connect. 
+# See the new WebSSH helpers and status fields in 
+# Version 21.1 - Autonomous System Optimizer & WebSSH Terminal
+# Added the new Autonomous System Optimizer that runs in the background and uses 
+# heuristics to adjust settings like mini view, thermal display, and blinking based 
+# on system load and conditions. It also tries to refresh weather data if it's unavailable. 
+# See pythonOScmd.py:3000-3060 for the new optimizer thread and logic.
+# Added an embedded WebSSH terminal panel next to the Active Cache card, while 
+# keeping the existing dashboard layout. The terminal iframe uses a configurable 
+# WEBSSH_URL (defaults to http://localhost:8888) so you can point it at your WebSSH instance.
+# Added a simple command execution form to the Remote Dashboard and a /cmd POST handler that 
+# runs the command and returns output in the browser. I also included a WebSSH info block with 
+# a link to the project. This all lives in the dashboard handler at 
+# Expanded the Remote Dashboard to include much more of the script’s data: host/IP, OS/arch, 
+# uptime, CPU cores/threads, RAM totals, swap, disk totals, load average, average temp, process 
 # count, Python version, network packet counts, and DB log/cache stats. See the updated stats builder and HTML in
-#Added the new “Python Power” wrapper with 6 submenus, lightweight demos, and optional install
-# prompts for required libs. It’s wired into Command Center option Q and uses minimal new helpers
-# in the same section as the PWN tools wrapper. See pythonOScmd.py:2800-3018 for the new wrapper
+# Added the new “Python Power” wrapper with 6 submenus, lightweight demos, and optional install 
+# prompts for required libs. It’s wired into Command Center option Q and uses minimal new helpers 
+# in the same section as the PWN tools wrapper. See pythonOScmd.py:2800-3018 for the new wrapper 
 # and pythonOScmd.py:6206-6214 for the Command Center hook
 # # Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
 # context-managed blocks so operations commit safely and reduce lock contention.
