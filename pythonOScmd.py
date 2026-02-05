@@ -2637,10 +2637,12 @@ def _detect_os_key():
         return "linux"
     return "unknown"
 
-def _pip_install_cmd(packages):
+def _pip_install_cmd(package):
     exe = sys.executable.replace("\\", "/")
-    pkg_str = " ".join(packages)
-    return f"{exe} -m pip install --upgrade {pkg_str}"
+    return f"{exe} -m pip install --upgrade {package}"
+
+def _pip_install_cmds(packages):
+    return [_pip_install_cmd(pkg) for pkg in packages]
 
 def _download_center_catalog():
     return {
@@ -2649,24 +2651,44 @@ def _download_center_catalog():
             "commands": {
                 "debian": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y nmap metasploit-framework aircrack-ng john hashcat hydra"
+                    "sudo apt-get install -y nmap",
+                    "sudo apt-get install -y metasploit-framework",
+                    "sudo apt-get install -y aircrack-ng",
+                    "sudo apt-get install -y john",
+                    "sudo apt-get install -y hashcat",
+                    "sudo apt-get install -y hydra"
                 ],
                 "kali": [
                     "sudo apt-get update",
                     "sudo apt-get install -y kali-linux-default"
                 ],
                 "fedora": [
-                    "sudo dnf install -y nmap aircrack-ng john hydra"
+                    "sudo dnf install -y nmap",
+                    "sudo dnf install -y aircrack-ng",
+                    "sudo dnf install -y john",
+                    "sudo dnf install -y hydra"
                 ],
                 "arch": [
-                    "sudo pacman -Syu --noconfirm nmap aircrack-ng john hashcat hydra"
+                    "sudo pacman -Syu --noconfirm nmap",
+                    "sudo pacman -Syu --noconfirm aircrack-ng",
+                    "sudo pacman -Syu --noconfirm john",
+                    "sudo pacman -Syu --noconfirm hashcat",
+                    "sudo pacman -Syu --noconfirm hydra"
                 ],
                 "alpine": [
                     "sudo apk update",
-                    "sudo apk add nmap aircrack-ng john hashcat hydra"
+                    "sudo apk add nmap",
+                    "sudo apk add aircrack-ng",
+                    "sudo apk add john",
+                    "sudo apk add hashcat",
+                    "sudo apk add hydra"
                 ],
                 "macos": [
-                    "brew install nmap aircrack-ng john hashcat hydra"
+                    "brew install nmap",
+                    "brew install aircrack-ng",
+                    "brew install john",
+                    "brew install hashcat",
+                    "brew install hydra"
                 ],
                 "windows": [
                     "wsl --install -d Ubuntu",
@@ -2675,7 +2697,8 @@ def _download_center_catalog():
                 ],
                 "android": [
                     "pkg update -y",
-                    "pkg install -y nmap hydra"
+                    "pkg install -y nmap",
+                    "pkg install -y hydra"
                 ],
                 "ios": [
                     "# iOS does not support native install for these tools.",
@@ -2697,31 +2720,48 @@ def _download_center_catalog():
             "commands": {
                 "debian": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y wireguard openvpn clamav clamav-daemon whois dnsutils",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "sudo apt-get install -y wireguard",
+                    "sudo apt-get install -y openvpn",
+                    "sudo apt-get install -y clamav",
+                    "sudo apt-get install -y clamav-daemon",
+                    "sudo apt-get install -y whois",
+                    "sudo apt-get install -y dnsutils",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "kali": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y wireguard openvpn clamav whois dnsutils",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "sudo apt-get install -y wireguard",
+                    "sudo apt-get install -y openvpn",
+                    "sudo apt-get install -y clamav",
+                    "sudo apt-get install -y whois",
+                    "sudo apt-get install -y dnsutils",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "fedora": [
-                    "sudo dnf install -y wireguard-tools openvpn clamav whois bind-utils",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "sudo dnf install -y wireguard-tools",
+                    "sudo dnf install -y openvpn",
+                    "sudo dnf install -y clamav",
+                    "sudo dnf install -y whois",
+                    "sudo dnf install -y bind-utils",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "arch": [
-                    "sudo pacman -Syu --noconfirm wireguard-tools openvpn clamav whois bind",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "sudo pacman -Syu --noconfirm wireguard-tools",
+                    "sudo pacman -Syu --noconfirm openvpn",
+                    "sudo pacman -Syu --noconfirm clamav",
+                    "sudo pacman -Syu --noconfirm whois",
+                    "sudo pacman -Syu --noconfirm bind",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "alpine": [
                     "sudo apk update",
-                    "sudo apk add wireguard-tools openvpn clamav whois bind-tools",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "sudo apk add wireguard-tools",
+                    "sudo apk add openvpn",
+                    "sudo apk add clamav",
+                    "sudo apk add whois",
+                    "sudo apk add bind-tools",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "macos": [
-                    "brew install wireguard-tools openvpn clamav",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                    "brew install wireguard-tools",
+                    "brew install openvpn",
+                    "brew install clamav",
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "windows": [
                     "# Use WSL2 for best compatibility.",
                     "wsl --install -d Ubuntu",
@@ -2730,8 +2770,7 @@ def _download_center_catalog():
                 "android": [
                     "pkg update -y",
                     "pkg install -y openvpn",
-                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
-                ],
+                ] + _pip_install_cmds(["pytest", "bandit", "safety", "trufflehog"]),
                 "ios": [
                     "# iOS does not support native install for these tools.",
                     "# Use a remote Linux host or iSH (Alpine) where available."
@@ -2752,21 +2791,41 @@ def _download_center_catalog():
             "commands": {
                 "debian": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y net-tools wireless-tools iw iproute2 bluez"
+                    "sudo apt-get install -y net-tools",
+                    "sudo apt-get install -y wireless-tools",
+                    "sudo apt-get install -y iw",
+                    "sudo apt-get install -y iproute2",
+                    "sudo apt-get install -y bluez"
                 ],
                 "kali": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y net-tools wireless-tools iw iproute2 bluez"
+                    "sudo apt-get install -y net-tools",
+                    "sudo apt-get install -y wireless-tools",
+                    "sudo apt-get install -y iw",
+                    "sudo apt-get install -y iproute2",
+                    "sudo apt-get install -y bluez"
                 ],
                 "fedora": [
-                    "sudo dnf install -y net-tools wireless-tools iw iproute bluez"
+                    "sudo dnf install -y net-tools",
+                    "sudo dnf install -y wireless-tools",
+                    "sudo dnf install -y iw",
+                    "sudo dnf install -y iproute",
+                    "sudo dnf install -y bluez"
                 ],
                 "arch": [
-                    "sudo pacman -Syu --noconfirm net-tools wireless_tools iw iproute2 bluez"
+                    "sudo pacman -Syu --noconfirm net-tools",
+                    "sudo pacman -Syu --noconfirm wireless_tools",
+                    "sudo pacman -Syu --noconfirm iw",
+                    "sudo pacman -Syu --noconfirm iproute2",
+                    "sudo pacman -Syu --noconfirm bluez"
                 ],
                 "alpine": [
                     "sudo apk update",
-                    "sudo apk add net-tools wireless-tools iw iproute2 bluez"
+                    "sudo apk add net-tools",
+                    "sudo apk add wireless-tools",
+                    "sudo apk add iw",
+                    "sudo apk add iproute2",
+                    "sudo apk add bluez"
                 ],
                 "macos": [
                     "# WiFi/Bluetooth tools are built-in on macOS.",
@@ -2778,7 +2837,8 @@ def _download_center_catalog():
                 ],
                 "android": [
                     "pkg update -y",
-                    "pkg install -y net-tools iproute2"
+                    "pkg install -y net-tools",
+                    "pkg install -y iproute2"
                 ],
                 "ios": [
                     "# iOS does not support these CLI tools natively."
@@ -2797,24 +2857,36 @@ def _download_center_catalog():
             "commands": {
                 "debian": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y ffmpeg mpv imagemagick"
+                    "sudo apt-get install -y ffmpeg",
+                    "sudo apt-get install -y mpv",
+                    "sudo apt-get install -y imagemagick"
                 ],
                 "kali": [
                     "sudo apt-get update",
-                    "sudo apt-get install -y ffmpeg mpv imagemagick"
+                    "sudo apt-get install -y ffmpeg",
+                    "sudo apt-get install -y mpv",
+                    "sudo apt-get install -y imagemagick"
                 ],
                 "fedora": [
-                    "sudo dnf install -y ffmpeg mpv ImageMagick"
+                    "sudo dnf install -y ffmpeg",
+                    "sudo dnf install -y mpv",
+                    "sudo dnf install -y ImageMagick"
                 ],
                 "arch": [
-                    "sudo pacman -Syu --noconfirm ffmpeg mpv imagemagick"
+                    "sudo pacman -Syu --noconfirm ffmpeg",
+                    "sudo pacman -Syu --noconfirm mpv",
+                    "sudo pacman -Syu --noconfirm imagemagick"
                 ],
                 "alpine": [
                     "sudo apk update",
-                    "sudo apk add ffmpeg mpv imagemagick"
+                    "sudo apk add ffmpeg",
+                    "sudo apk add mpv",
+                    "sudo apk add imagemagick"
                 ],
                 "macos": [
-                    "brew install ffmpeg mpv imagemagick"
+                    "brew install ffmpeg",
+                    "brew install mpv",
+                    "brew install imagemagick"
                 ],
                 "windows": [
                     "winget install -e --id Gyan.FFmpeg",
@@ -2836,18 +2908,23 @@ def _download_center_catalog():
                 "https://mpv.io/"
             ]
         },
-        "ai": {
+                "ai": {
             "title": "AI Center Tools (Command Center K)",
             "commands": {
-                "debian": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "kali": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "fedora": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "arch": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "alpine": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "macos": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "windows": ["py -m pip install --upgrade openai anthropic google-generativeai requests"],
-                "android": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
-                "ios": ["# Use a remote host or iSH where available."] ,
+                "debian": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "kali": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "fedora": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "arch": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "alpine": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "macos": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "windows": [
+                    "py -m pip install --upgrade openai",
+                    "py -m pip install --upgrade anthropic",
+                    "py -m pip install --upgrade google-generativeai",
+                    "py -m pip install --upgrade requests"
+                ],
+                "android": _pip_install_cmds(["openai", "anthropic", "google-generativeai", "requests"]),
+                "ios": ["# Use a remote host or iSH where available."],
                 "esp32": ["# Use a host computer for these tools."]
             },
             "links": [
@@ -2859,7 +2936,7 @@ def _download_center_catalog():
         "core_python": {
             "title": "Core PythonOS Libraries",
             "commands": {
-                "generic": [_pip_install_cmd(["psutil", "requests", "beautifulsoup4", "Pillow", "gputil"])]
+                "generic": _pip_install_cmds(["psutil", "requests", "beautifulsoup4", "Pillow", "gputil"])
             },
             "links": [
                 "https://pypi.org/project/psutil/",
@@ -2872,10 +2949,10 @@ def _download_center_catalog():
         "general_python": {
             "title": "General Purpose Python Libraries",
             "commands": {
-                "generic": [_pip_install_cmd([
+                "generic": _pip_install_cmds([
                     "requests", "beautifulsoup4", "pytest", "ipython", "jupyter", "rich",
                     "pendulum", "python-dateutil"
-                ])]
+                ])
             },
             "links": [
                 "https://pypi.org/project/ipython/",
@@ -2886,9 +2963,9 @@ def _download_center_catalog():
         "data_science": {
             "title": "Data Science / Analysis Stack",
             "commands": {
-                "generic": [_pip_install_cmd([
+                "generic": _pip_install_cmds([
                     "numpy", "pandas", "matplotlib", "seaborn", "scikit-learn"
-                ])]
+                ])
             },
             "links": [
                 "https://numpy.org/",
@@ -2899,7 +2976,7 @@ def _download_center_catalog():
         "web_dev": {
             "title": "Web Development Stack",
             "commands": {
-                "generic": [_pip_install_cmd(["flask", "django"])]
+                "generic": _pip_install_cmds(["flask", "django"])
             },
             "links": [
                 "https://flask.palletsprojects.com/",
@@ -5412,5 +5489,6 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd25 base pythonOS70
-# 2-5-26 Added Download Center
+# version pythonOScmd24 base pythonOS70
+# 2-5-26 Added Download Center 8 AM
+# 2-5-25 Updated Download Center to do updates one at a time
