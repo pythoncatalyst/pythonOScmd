@@ -1,4 +1,5 @@
 #pythonOS By Ahmed Dragonclaw Suche Orangatang Washington Sayyed
+#Indentation is just important a you Incantation
 #ATerminal Operating System that gives you an easy way to control you computer with a easy interface.
 #Iincluded a lot of basic computer data to display right of the bat and some power tools.
 #It will even runs video in terminal with full color support in ascii!
