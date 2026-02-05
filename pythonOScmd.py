@@ -112,6 +112,7 @@ import shutil # Added for check_pentest_tool
 import sqlite3 # Added for Database/Log system
 import json # Added for JSON logging
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import traceback
 
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
@@ -148,6 +149,7 @@ DB_DIR = os.path.join(SCRIPT_DIR, "pythonOS_data")
 LOG_DIR = os.path.join(DB_DIR, "logs")
 DB_FILE = os.path.join(DB_DIR, "pythonOS.db")
 SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
+CONFIG_FILE = os.path.join(DB_DIR, "config.json")
 
 # Log Categories
 LOG_CATEGORIES = {
@@ -169,6 +171,37 @@ DB_API_PORT = 8092
 _db_api_server = None
 _db_scheduler_running = False
 _db_scheduled_tasks = []
+
+def safe_run(category, operation, func, *args, **kwargs):
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"{COLORS['1'][0]}❌ Error in {operation}: {e}{RESET}")
+        try:
+            file_path = save_log_file(category, f"{operation}_Error", tb, prompt_user=False)
+            log_to_database(category, operation, tb, file_path=file_path, status="error")
+        except Exception:
+            pass
+        return None
+
+def _load_user_config():
+    os.makedirs(DB_DIR, exist_ok=True)
+    if not os.path.exists(CONFIG_FILE):
+        return {}
+    try:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+def _save_user_config(config):
+    os.makedirs(DB_DIR, exist_ok=True)
+    try:
+        with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+            json.dump(config, f, indent=2)
+    except Exception:
+        pass
 
 def init_database_system():
     """Initialize the database and directory structure."""
@@ -425,29 +458,29 @@ def feature_database_log_center():
         if choice == '0':
             break
         elif choice == '1':
-            _view_log_files()
+            safe_run("general", "View_Log_Files", _view_log_files)
         elif choice == '2':
-            _search_logs()
+            safe_run("general", "Search_Logs", _search_logs)
         elif choice == '3':
-            _database_statistics()
+            safe_run("general", "Database_Statistics", _database_statistics)
         elif choice == '4':
-            _file_tracking_browser()
+            safe_run("general", "File_Tracking_Browser", _file_tracking_browser)
         elif choice == '5':
-            _swap_cache_management()
+            safe_run("general", "Swap_Cache_Management", _swap_cache_management)
         elif choice == '6':
-            _export_database()
+            safe_run("general", "Export_Database", _export_database)
         elif choice == '7':
-            _import_data()
+            safe_run("general", "Import_Data", _import_data)
         elif choice == '8':
-            _clean_optimize()
+            safe_run("general", "Clean_Optimize", _clean_optimize)
         elif choice == '9':
-            _database_settings()
+            safe_run("general", "Database_Settings", _database_settings)
         elif choice == '10':
-            _lite_scan()
+            safe_run("system", "Lite_Scan", _lite_scan)
         elif choice == '11':
-            _aggressive_scan()
+            safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
         elif choice == '12':
-            _advanced_database_suite()
+            safe_run("general", "Advanced_Database_Suite", _advanced_database_suite)
 
 def _view_log_files():
     """View log files by category."""
@@ -476,24 +509,47 @@ def _view_log_files():
                 if not log_files:
                     print(f"\n{COLORS['4'][0]}📭 No log files in this category{RESET}")
                 else:
-                    print(f"\n{BOLD}Log Files in {LOG_CATEGORIES[category]}:{RESET}")
-                    for i, log_file in enumerate(log_files[:20], 1):  # Show last 20
-                        file_path = os.path.join(cat_dir, log_file)
-                        file_size = os.path.getsize(file_path)
-                        print(f" {i}. {log_file} ({file_size} bytes)")
+                    page_size = 10
+                    page = 0
+                    while True:
+                        os.system('cls' if os.name == 'nt' else 'clear')
+                        print_header(f"📋 Logs: {LOG_CATEGORIES[category]}")
+                        start = page * page_size
+                        end = start + page_size
+                        page_items = log_files[start:end]
+                        print(f"\n{BOLD}Page {page + 1}/{(len(log_files) - 1) // page_size + 1}:{RESET}")
+                        for i, log_file in enumerate(page_items, 1):
+                            file_path = os.path.join(cat_dir, log_file)
+                            file_size = os.path.getsize(file_path)
+                            print(f" {i}. {log_file} ({file_size} bytes)")
 
-                    view_choice = input(f"\n{BOLD}Enter number to view file (or Enter to skip): {RESET}").strip()
-                    if view_choice.isdigit():
-                        file_idx = int(view_choice) - 1
-                        if 0 <= file_idx < len(log_files):
-                            file_path = os.path.join(cat_dir, log_files[file_idx])
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                content = f.read()
-                            print(f"\n{BOLD}=== {log_files[file_idx]} ==={RESET}")
-                            print(content[:2000])  # Show first 2000 chars
-                            if len(content) > 2000:
-                                print(f"\n... (truncated, total {len(content)} characters)")
-    except:
+                        print("\n[N]ext  [P]rev  [V]iew <num>  [B]ack")
+                        cmd = input("Select: ").strip().lower()
+                        if cmd == 'b':
+                            break
+                        if cmd == 'n' and end < len(log_files):
+                            page += 1
+                            continue
+                        if cmd == 'p' and page > 0:
+                            page -= 1
+                            continue
+                        if cmd.startswith('v'):
+                            num = cmd[1:].strip()
+                            if not num.isdigit():
+                                num = input("Enter number to view: ").strip()
+                            if num.isdigit():
+                                file_idx = int(num) - 1
+                                if 0 <= file_idx < len(page_items):
+                                    file_path = os.path.join(cat_dir, page_items[file_idx])
+                                    with open(file_path, 'r', encoding='utf-8') as f:
+                                        content = f.read()
+                                    os.system('cls' if os.name == 'nt' else 'clear')
+                                    print_header(f"📄 {page_items[file_idx]}")
+                                    print(content[:2000])
+                                    if len(content) > 2000:
+                                        print(f"\n... (truncated, total {len(content)} characters)")
+                                    input("\nPress Enter to return...")
+    except Exception:
         print(f"{COLORS['1'][0]}❌ Invalid selection{RESET}")
 
     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
@@ -601,21 +657,38 @@ def _file_tracking_browser():
         cursor.execute('''
             SELECT file_path, file_type, file_size, last_accessed, access_count
             FROM file_tracking
-            ORDER BY last_accessed DESC LIMIT 50
+            ORDER BY last_accessed DESC
         ''')
 
         results = cursor.fetchall()
         conn.close()
 
         if results:
-            print(f"\n{BOLD}Tracked Files (Most Recent):{RESET}\n")
-            for file_path, file_type, file_size, last_accessed, access_count in results:
-                size_mb = file_size / (1024 * 1024) if file_size else 0
-                print(f"{COLORS['6'][0]}{os.path.basename(file_path)}{RESET}")
-                print(f"  Path: {file_path}")
-                print(f"  Type: {file_type or 'Unknown'} | Size: {size_mb:.2f} MB")
-                print(f"  Last Accessed: {last_accessed} | Access Count: {access_count}")
-                print()
+            page_size = 8
+            page = 0
+            while True:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("📂 File Tracking Browser")
+                start = page * page_size
+                end = start + page_size
+                page_items = results[start:end]
+                print(f"\n{BOLD}Page {page + 1}/{(len(results) - 1) // page_size + 1}:{RESET}\n")
+                for file_path, file_type, file_size, last_accessed, access_count in page_items:
+                    size_mb = file_size / (1024 * 1024) if file_size else 0
+                    print(f"{COLORS['6'][0]}{os.path.basename(file_path)}{RESET}")
+                    print(f"  Path: {file_path}")
+                    print(f"  Type: {file_type or 'Unknown'} | Size: {size_mb:.2f} MB")
+                    print(f"  Last Accessed: {last_accessed} | Access Count: {access_count}")
+                    print()
+
+                print("[N]ext  [P]rev  [B]ack")
+                cmd = input("Select: ").strip().lower()
+                if cmd == 'b':
+                    break
+                if cmd == 'n' and end < len(results):
+                    page += 1
+                elif cmd == 'p' and page > 0:
+                    page -= 1
         else:
             print(f"\n{COLORS['4'][0]}No tracked files yet{RESET}")
     except Exception as e:
@@ -1944,6 +2017,21 @@ stop_clock = False
 temp_unit = "C"
 truncated_thermal = False
 mini_view = False
+
+_user_config = _load_user_config()
+if isinstance(_user_config, dict):
+    active_color_key = _user_config.get("active_color_key", active_color_key)
+    user_has_chosen = _user_config.get("user_has_chosen", user_has_chosen)
+    is_blinking = _user_config.get("is_blinking", is_blinking)
+    temp_unit = _user_config.get("temp_unit", temp_unit)
+    truncated_thermal = _user_config.get("truncated_thermal", truncated_thermal)
+    mini_view = _user_config.get("mini_view", mini_view)
+
+def _update_user_config(**updates):
+    if not isinstance(_user_config, dict):
+        return
+    _user_config.update(updates)
+    _save_user_config(_user_config)
 
 # --- NEW: VISUAL FX STREAM FILTER ---
 class VisualFXFilter:
@@ -5781,19 +5869,41 @@ while True:
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
     choice = input(f"{BOLD}🎯 Select an option (0-O): {RESET}").strip().upper()
+    _update_user_config(last_choice=choice)
     stop_clock = True
 
-    if choice == '1': is_blinking = not is_blinking
-    elif choice == '2': temp_unit = "F" if temp_unit == "C" else "C"
-    elif choice == '3': truncated_thermal = not truncated_thermal
-    elif choice == '4': mini_view = not mini_view
-    elif choice == '5': break
+    if choice == '1':
+        is_blinking = not is_blinking
+        _update_user_config(is_blinking=is_blinking)
+    elif choice == '2':
+        temp_unit = "F" if temp_unit == "C" else "C"
+        _update_user_config(temp_unit=temp_unit)
+    elif choice == '3':
+        truncated_thermal = not truncated_thermal
+        _update_user_config(truncated_thermal=truncated_thermal)
+    elif choice == '4':
+        mini_view = not mini_view
+        _update_user_config(mini_view=mini_view)
+    elif choice == '5':
+        _update_user_config(
+            active_color_key=active_color_key,
+            user_has_chosen=user_has_chosen,
+            is_blinking=is_blinking,
+            temp_unit=temp_unit,
+            truncated_thermal=truncated_thermal,
+            mini_view=mini_view
+        )
+        break
     elif choice == '6':
         print("\n--- 🎨 SELECT COLOR ---")
         for k, v in COLORS.items(): print(f"[{k}] {v[0]}{v[2]}{RESET}")
         color_choice = input("🎯 Select color number or [R]: ").strip().upper()
-        if color_choice in COLORS: active_color_key, user_has_chosen = color_choice, True
-        elif color_choice == 'R': user_has_chosen = False
+        if color_choice in COLORS:
+            active_color_key, user_has_chosen = color_choice, True
+            _update_user_config(active_color_key=active_color_key, user_has_chosen=user_has_chosen)
+        elif color_choice == 'R':
+            user_has_chosen = False
+            _update_user_config(user_has_chosen=user_has_chosen)
     elif choice == '7':
         url = input("🌐 Enter URL [google.com]: ").strip() or "https://www.google.com"
         if not url.startswith('http'): url = 'https://' + url
@@ -5829,28 +5939,28 @@ while True:
                         for line in val: print(line)
                 input("\n[ 📑 Next Page... ]")
         except Exception as e: print(f"❌ Error: {e}"); time.sleep(2)
-    elif choice == '8': feature_disk_io_report()
-    elif choice == '9': feature_process_search()
-    elif choice == '10':feature_plugin_center()
-    elif choice == '11':feature_remote_dashboard()
-    elif choice == '12':feature_pentest_toolkit()
-    elif choice == '13':feature_defence_center()
-    elif choice == '0': feature_network_toolkit()
-    elif choice == 'A': feature_security_audit()
-    elif choice == 'B': feature_environment_probe()
-    elif choice == 'C': feature_hardware_serials()
-    elif choice == 'D': feature_deep_probe_ai()
-    elif choice == 'E': feature_simple_calendar()
-    elif choice == 'F': feature_latency_probe()
-    elif choice == 'G': feature_weather_display()
-    elif choice == 'H': feature_test_font_size()
-    elif choice == 'I': feature_media_menu()
-    elif choice == 'J': feature_wifi_toolkit()
-    elif choice == 'K': feature_ai_center()
-    elif choice == 'L': feature_bluetooth_toolkit()
-    elif choice == 'M': feature_traffic_report()
-    elif choice == 'N': feature_database_log_center()
-    elif choice == 'O': feature_download_center()
+    elif choice == '8': safe_run("general", "Disk_IO_Report", feature_disk_io_report)
+    elif choice == '9': safe_run("process", "Process_Search", feature_process_search)
+    elif choice == '10': safe_run("general", "Plugin_Center", feature_plugin_center)
+    elif choice == '11': safe_run("general", "Remote_Dashboard", feature_remote_dashboard)
+    elif choice == '12': safe_run("pentest", "Pen_Test_Toolkit", feature_pentest_toolkit)
+    elif choice == '13': safe_run("defense", "Defence_Center", feature_defence_center)
+    elif choice == '0': safe_run("network", "Network_Toolkit", feature_network_toolkit)
+    elif choice == 'A': safe_run("security", "Security_Audit", feature_security_audit)
+    elif choice == 'B': safe_run("system", "Environment_Probe", feature_environment_probe)
+    elif choice == 'C': safe_run("hardware", "Hardware_Serials", feature_hardware_serials)
+    elif choice == 'D': safe_run("ai", "AI_Probe", feature_deep_probe_ai)
+    elif choice == 'E': safe_run("general", "Calendar", feature_simple_calendar)
+    elif choice == 'F': safe_run("network", "Latency_Probe", feature_latency_probe)
+    elif choice == 'G': safe_run("weather", "Weather_Display", feature_weather_display)
+    elif choice == 'H': safe_run("general", "Display_FX", feature_test_font_size)
+    elif choice == 'I': safe_run("media", "Media_Menu", feature_media_menu)
+    elif choice == 'J': safe_run("network", "WiFi_Toolkit", feature_wifi_toolkit)
+    elif choice == 'K': safe_run("ai", "AI_Center", feature_ai_center)
+    elif choice == 'L': safe_run("network", "Bluetooth_Toolkit", feature_bluetooth_toolkit)
+    elif choice == 'M': safe_run("network", "Traffic_Report", feature_traffic_report)
+    elif choice == 'N': safe_run("general", "Database_Log_Center", feature_database_log_center)
+    elif choice == 'O': safe_run("general", "Download_Center", feature_download_center)
 
 #version 21
 
@@ -6327,4 +6437,7 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
-# added database funtions
+# Added pagination for log lists and file tracking,
+# persisted user prefs to a JSON config under pythonOS_data,
+# and introduced a centralized safe_run() wrapper that
+# auto-logs exceptions to the database.
