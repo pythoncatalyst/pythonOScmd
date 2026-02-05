@@ -2830,6 +2830,151 @@ def feature_pwn_tools():
 
 # --- END PWN TOOLS WRAPPER ---
 
+# --- PYTHON POWER WRAPPER ---
+
+def _python_power_require(package, import_name, link):
+    try:
+        __import__(import_name)
+        return True
+    except Exception:
+        print(f"{COLORS['1'][0]}❌ {package} is not installed.{RESET}")
+        print(f"Link: {link}")
+        install = input("Install now? (y/n): ").strip().lower()
+        if install == 'y':
+            os.system(_pip_install_cmd(package))
+        return False
+
+def _python_power_translator():
+    if not _python_power_require("googletrans==4.0.0rc1", "googletrans", "https://pypi.org/project/googletrans/"):
+        return
+    try:
+        from googletrans import Translator
+    except Exception as e:
+        print(f"❌ Translator import error: {e}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    text = input("Text to translate: ").strip()
+    if not text:
+        return
+    dest = input("Target language (e.g., es, fr, de) [en]: ").strip() or "en"
+    src = input("Source language (Enter for auto): ").strip() or None
+    try:
+        translator = Translator()
+        result = translator.translate(text, dest=dest, src=src) if src else translator.translate(text, dest=dest)
+        print(f"\nTranslated ({result.src} -> {result.dest}):\n{result.text}")
+    except Exception as e:
+        print(f"❌ Translation error: {e}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _python_power_metaprogramming():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧬 Metaprogramming")
+    print("Python can inspect and modify code at runtime using modules like inspect, ast, and types.")
+    print("Use cases: self-repair, dynamic patching, runtime feature flags, and code analysis.")
+    demo = input("\nRun a small inspection demo? (y/n): ").strip().lower()
+    if demo == 'y':
+        import inspect
+        def _demo(x):
+            return x * 2
+        print("\nFunction name:", _demo.__name__)
+        print("Source:\n", inspect.getsource(_demo))
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _python_power_functional():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔁 Functional Programming")
+    print("Core tools: lambda, map, filter, reduce, itertools.")
+    demo = input("\nRun a small functional demo? (y/n): ").strip().lower()
+    if demo == 'y':
+        from functools import reduce
+        import itertools
+        data = [1, 2, 3, 4, 5]
+        mapped = list(map(lambda x: x * 2, data))
+        filtered = list(filter(lambda x: x % 2 == 0, data))
+        reduced = reduce(lambda a, b: a + b, data)
+        combos = list(itertools.combinations(data, 2))[:5]
+        print("\nmap:", mapped)
+        print("filter:", filtered)
+        print("reduce:", reduced)
+        print("itertools.combinations (first 5):", combos)
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _python_power_audio_signal():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🎵 Audio & Signal Processing")
+    print("Common libs: numpy, scipy, librosa, pydub (FFmpeg recommended).")
+    ok = _python_power_require("numpy", "numpy", "https://pypi.org/project/numpy/")
+    if ok:
+        try:
+            import numpy as np
+            freq = 440
+            sample_rate = 8000
+            t = np.linspace(0, 0.01, int(sample_rate * 0.01), endpoint=False)
+            wave = np.sin(2 * np.pi * freq * t)
+            print("\nGenerated a short 440Hz sine wave buffer (first 10 samples):")
+            print([round(x, 4) for x in wave[:10]])
+        except Exception as e:
+            print(f"❌ Demo error: {e}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _python_power_hardware_robotics():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🤖 Hardware Control & Robotics")
+    print("Common libs: gpiozero, RPi.GPIO, pyserial, smbus2, asyncio for IoT.")
+    _python_power_require("pyserial", "serial", "https://pypi.org/project/pyserial/")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _python_power_scientific():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔬 Scientific Simulation & Modeling")
+    print("Core libs: numpy, scipy, numba (JIT), matplotlib for plotting.")
+    ok = _python_power_require("numpy", "numpy", "https://pypi.org/project/numpy/")
+    _python_power_require("scipy", "scipy", "https://pypi.org/project/scipy/")
+    _python_power_require("numba", "numba", "https://pypi.org/project/numba/")
+    if ok:
+        try:
+            import numpy as np
+            a = np.arange(5)
+            b = np.arange(5, 10)
+            print("\nVector add demo:", a + b)
+        except Exception as e:
+            print(f"❌ Demo error: {e}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def feature_python_power():
+    """Python Power - advanced capabilities showcase."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🐍 Python Power")
+        print(" [1] Language Translator (CLI)")
+        print(" [2] Metaprogramming & Self-Inspection")
+        print(" [3] Functional Programming Toolkit")
+        print(" [4] Audio & Signal Processing")
+        print(" [5] Hardware Control & Robotics")
+        print(" [6] Scientific Simulation & Modeling")
+        print(" [0] Return")
+
+        choice = input("\nSelect option: ").strip()
+        if choice == '0':
+            return
+        if choice == '1':
+            _python_power_translator()
+        elif choice == '2':
+            _python_power_metaprogramming()
+        elif choice == '3':
+            _python_power_functional()
+        elif choice == '4':
+            _python_power_audio_signal()
+        elif choice == '5':
+            _python_power_hardware_robotics()
+        elif choice == '6':
+            _python_power_scientific()
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+# --- END PYTHON POWER WRAPPER ---
+
 # --- DEFENCE CENTER: PROACTIVE SECURITY MEASURES ---
 
 def feature_adblocker_setup():
@@ -5419,18 +5564,71 @@ def get_dashboard_stats():
     net = psutil.net_io_counters()
     gpu, fan = get_advanced_hardware_stats()
     battery = psutil.sensors_battery()
+    hostname = socket.gethostname()
+    try:
+        ip_addr = socket.gethostbyname(hostname)
+    except Exception:
+        ip_addr = "Unknown"
+    try:
+        load_avg = os.getloadavg()
+    except Exception:
+        load_avg = None
+    try:
+        temps = psutil.sensors_temperatures()
+        temp_values = [e.current for entries in temps.values() for e in entries if e.current is not None]
+        avg_temp = sum(temp_values) / len(temp_values) if temp_values else None
+    except Exception:
+        avg_temp = None
+    try:
+        proc_count = len(psutil.pids())
+    except Exception:
+        proc_count = 0
+    db_stats = {}
+    try:
+        with _db_connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM log_entries")
+            db_stats["logs"] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM file_tracking")
+            db_stats["files"] = cursor.fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM swap_cache WHERE datetime(expires_at) > datetime('now')")
+            db_stats["cache"] = cursor.fetchone()[0]
+    except Exception:
+        db_stats = {}
 
     return {
         "cpu": cpu,
+        "cpu_cores": psutil.cpu_count(logical=False) or 0,
+        "cpu_threads": psutil.cpu_count(logical=True) or 0,
         "ram": mem.percent,
+        "ram_total": mem.total / (1024**3),
+        "ram_used": mem.used / (1024**3),
+        "ram_avail": mem.available / (1024**3),
+        "swap_percent": psutil.swap_memory().percent,
+        "swap_total": psutil.swap_memory().total / (1024**3),
         "disk": disk.percent,
+        "disk_total": disk.total / (1024**3),
+        "disk_used": disk.used / (1024**3),
         "disk_free": disk.free / (1024**3),
         "net_sent": net.bytes_sent / (1024**2),
         "net_recv": net.bytes_recv / (1024**2),
+        "net_packets_sent": net.packets_sent,
+        "net_packets_recv": net.packets_recv,
         "gpu": gpu,
         "fan": fan,
         "weather": weather_cache,
         "battery": battery.percent if battery else 0,
+        "battery_plugged": battery.power_plugged if battery else False,
+        "hostname": hostname,
+        "ip": ip_addr,
+        "os": f"{platform.system()} {platform.release()}",
+        "arch": platform.machine(),
+        "python": platform.python_version(),
+        "uptime": str(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())).split('.')[0],
+        "load_avg": load_avg,
+        "avg_temp": avg_temp,
+        "processes": proc_count,
+        "db_stats": db_stats,
         "timestamp": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
@@ -5453,7 +5651,9 @@ class DashboardHandler(BaseHTTPRequestHandler):
                 body {{ background:#111; color:#0f0; font-family:monospace; padding:20px; }}
                 .header {{ border-bottom:2px solid #0f0; padding:10px 0; margin-bottom:20px; }}
                 h1 {{ color:#0f0; margin:0; }}
-                .stats {{ display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; margin-bottom:30px; }}
+                .stats {{ display:grid; grid-template-columns:repeat(4, 1fr); gap:20px; margin-bottom:30px; }}
+                .wide {{ grid-column: span 2; }}
+                .mono {{ font-family:monospace; font-size:12px; color:#9ad; }}
                 .stat-card {{ background:#1a1a1a; border:1px solid #0f0; padding:15px; }}
                 .stat-label {{ color:#888; font-size:12px; margin-bottom:5px; }}
                 .stat-value {{ color:#0f0; font-size:24px; font-weight:bold; }}
@@ -5468,22 +5668,36 @@ class DashboardHandler(BaseHTTPRequestHandler):
             </div>
 
             <div class="stats">
+                <div class="stat-card wide">
+                    <div class="stat-label">Host</div>
+                    <div class="stat-value">{stats['hostname']} / {stats['ip']}</div>
+                    <div class="mono">{stats['os']} | {stats['arch']}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value">{stats['uptime']}</div>
+                </div>
+
                 <div class="stat-card">
                     <div class="stat-label">CPU Usage</div>
                     <div class="stat-value">{stats['cpu']:.1f}%</div>
                     <div class="bar"><div class="bar-fill" style="width:{stats['cpu']}%"></div></div>
+                    <div class="mono">Cores: {stats['cpu_cores']} | Threads: {stats['cpu_threads']}</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-label">RAM Usage</div>
                     <div class="stat-value">{stats['ram']:.1f}%</div>
                     <div class="bar"><div class="bar-fill" style="width:{stats['ram']}%"></div></div>
+                    <div class="mono">{stats['ram_used']:.2f} / {stats['ram_total']:.2f} GB</div>
                 </div>
 
                 <div class="stat-card">
                     <div class="stat-label">Disk Usage</div>
                     <div class="stat-value">{stats['disk']:.1f}%</div>
                     <div class="bar"><div class="bar-fill" style="width:{stats['disk']}%"></div></div>
+                    <div class="mono">{stats['disk_used']:.2f} / {stats['disk_total']:.2f} GB</div>
                 </div>
 
                 <div class="stat-card">
@@ -5493,7 +5707,7 @@ class DashboardHandler(BaseHTTPRequestHandler):
 
                 <div class="stat-card">
                     <div class="stat-label">Battery</div>
-                    <div class="stat-value">{stats['battery']:.1f}%</div>
+                    <div class="stat-value">{stats['battery']:.1f}% {'🔌' if stats['battery_plugged'] else '🔋'}</div>
                     <div class="bar"><div class="bar-fill" style="width:{stats['battery']}%"></div></div>
                 </div>
 
@@ -5501,11 +5715,54 @@ class DashboardHandler(BaseHTTPRequestHandler):
                     <div class="stat-label">GPU</div>
                     <div class="stat-value">{stats['gpu']}</div>
                 </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Swap</div>
+                    <div class="stat-value">{stats['swap_percent']:.1f}%</div>
+                    <div class="bar"><div class="bar-fill" style="width:{stats['swap_percent']}%"></div></div>
+                    <div class="mono">{stats['swap_total']:.2f} GB</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Processes</div>
+                    <div class="stat-value">{stats['processes']}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Python</div>
+                    <div class="stat-value">{stats['python']}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Load Avg</div>
+                    <div class="stat-value">{'' if stats['load_avg'] is None else f"{stats['load_avg'][0]:.2f} {stats['load_avg'][1]:.2f} {stats['load_avg'][2]:.2f}"}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Avg Temp</div>
+                    <div class="stat-value">{'' if stats['avg_temp'] is None else f"{stats['avg_temp']:.1f}C"}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">DB Logs</div>
+                    <div class="stat-value">{stats['db_stats'].get('logs', 0)}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">DB Tracked Files</div>
+                    <div class="stat-value">{stats['db_stats'].get('files', 0)}</div>
+                </div>
+
+                <div class="stat-card">
+                    <div class="stat-label">Active Cache</div>
+                    <div class="stat-value">{stats['db_stats'].get('cache', 0)}</div>
+                </div>
             </div>
 
             <div style="border-top:1px solid #0f0; padding-top:15px;">
                 <p>📡 Net Sent: {stats['net_sent']:.2f} MB</p>
                 <p>⬇️ Net Recv: {stats['net_recv']:.2f} MB</p>
+                <p>📦 Packets: {stats['net_packets_sent']} sent / {stats['net_packets_recv']} recv</p>
                 <p>🌡️ Weather: {stats['weather'].get('icon','')} {stats['weather'].get('temp','N/A')}</p>
                 <p>🌀 Fan: {stats['fan']}</p>
             </div>
@@ -6108,10 +6365,10 @@ while True:
     print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
-    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools")
+    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-P): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-Q): {RESET}").strip().upper()
     _update_user_config(last_choice=choice)
     stop_clock = True
 
@@ -6205,6 +6462,7 @@ while True:
     elif choice == 'N': safe_run("general", "Database_Log_Center", feature_database_log_center)
     elif choice == 'O': safe_run("general", "Download_Center", feature_download_center)
     elif choice == 'P': safe_run("general", "PWN_Tools", feature_pwn_tools)
+    elif choice == 'Q': safe_run("general", "Python_Power", feature_python_power)
 
 #version 21
 
@@ -6669,17 +6927,21 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-
-# version pythonOScmd41 base pythonOS70
-# Added the new PWN Tools wrapper (5 tools) with per-tool install checks, a bundle installer, and submenus for Pwntools/GDB/checksec/ROPgadget/one_gadget. This is implemented in pythonOScmd.py:2646-2776 and wired into the Command Center as option P with the updated prompt and handler in pythonOScmd.py:6106-6214. The Download Center now includes a PWN Tools bundle with OS-specific commands and reference links, plus a menu entry for it in
-# Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
+# version pythonOScmd44 base pythonOS70
+#Expanded the Remote Dashboard to include much more of the script’s data: host/IP, OS/arch,
+# uptime, CPU cores/threads, RAM totals, swap, disk totals, load average, average temp, process
+# count, Python version, network packet counts, and DB log/cache stats. See the updated stats builder and HTML in
+#Added the new “Python Power” wrapper with 6 submenus, lightweight demos, and optional install
+# prompts for required libs. It’s wired into Command Center option Q and uses minimal new helpers
+# in the same section as the PWN tools wrapper. See pythonOScmd.py:2800-3018 for the new wrapper
+# and pythonOScmd.py:6206-6214 for the Command Center hook
+# # Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
 # context-managed blocks so operations commit safely and reduce lock contention.
 # I also added plugin sandboxing (restricted context toggle) and runtime/error
 # logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
 # now saves your display config
-# version pythonOScmd39 base pythonOS70
 # 2-5-26 Added Download Center 8 AM
-# 2-5-25 Updated Download Center to do updates one at a timeQA
+# 2-5-25 Updated Download Center to do updates one at a time
 # Updated AI probing logic
 # 2-5-24 Added AI Probing and Weather Display
 # 2-5-23 Added Calendar and Latency Probe
@@ -6688,4 +6950,3 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
-
