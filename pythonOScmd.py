@@ -1,5 +1,5 @@
 #pythonOS By Ahmed Dragonclaw Suche Orangatang Washington Sayyed
-#Indentation is just important a you Incantation
+#Indentation is just important a your Incantation.
 #ATerminal Operating System that gives you an easy way to control you computer with a easy interface.
 #Iincluded a lot of basic computer data to display right of the bat and some power tools.
 #It will even runs video in terminal with full color support in ascii!
@@ -2598,6 +2598,411 @@ def feature_defence_center():
 
 # --- END DEFENCE CENTER ---
 
+# --- DOWNLOAD CENTER: OS-AWARE INSTALL MENUS ---
+
+def _read_os_release():
+    data = {}
+    try:
+        with open("/etc/os-release", "r") as f:
+            for line in f:
+                if "=" in line:
+                    k, v = line.strip().split("=", 1)
+                    data[k] = v.strip().strip('"')
+    except Exception:
+        pass
+    return data
+
+def _detect_os_key():
+    sysname = platform.system()
+    if sysname == "Windows":
+        return "windows"
+    if sysname == "Darwin":
+        return "macos"
+    if sysname == "Linux":
+        if os.environ.get("TERMUX_VERSION") or os.environ.get("ANDROID_ROOT"):
+            return "android"
+        osr = _read_os_release()
+        os_id = (osr.get("ID") or "").lower()
+        like = (osr.get("ID_LIKE") or "").lower()
+        if "kali" in os_id or "kali" in like:
+            return "kali"
+        if os_id in ["ubuntu", "debian", "linuxmint", "pop"] or "debian" in like:
+            return "debian"
+        if os_id in ["fedora", "rhel", "centos", "rocky", "almalinux"] or "rhel" in like or "fedora" in like:
+            return "fedora"
+        if os_id in ["arch", "manjaro"] or "arch" in like:
+            return "arch"
+        if os_id in ["alpine"]:
+            return "alpine"
+        return "linux"
+    return "unknown"
+
+def _pip_install_cmd(packages):
+    exe = sys.executable.replace("\\", "/")
+    pkg_str = " ".join(packages)
+    return f"{exe} -m pip install --upgrade {pkg_str}"
+
+def _download_center_catalog():
+    return {
+        "pentest": {
+            "title": "Pen Test Tools (Command Center 12)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y nmap metasploit-framework aircrack-ng john hashcat hydra"
+                ],
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y kali-linux-default"
+                ],
+                "fedora": [
+                    "sudo dnf install -y nmap aircrack-ng john hydra"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm nmap aircrack-ng john hashcat hydra"
+                ],
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add nmap aircrack-ng john hashcat hydra"
+                ],
+                "macos": [
+                    "brew install nmap aircrack-ng john hashcat hydra"
+                ],
+                "windows": [
+                    "wsl --install -d Ubuntu",
+                    "# After reboot, in WSL: sudo apt-get update",
+                    "# sudo apt-get install -y nmap metasploit-framework aircrack-ng john hashcat hydra"
+                ],
+                "android": [
+                    "pkg update -y",
+                    "pkg install -y nmap hydra"
+                ],
+                "ios": [
+                    "# iOS does not support native install for these tools.",
+                    "# Use a remote Linux host or iSH (Alpine) where available."
+                ],
+                "esp32": [
+                    "# Use a host computer. Install: pip install esptool platformio"
+                ]
+            },
+            "links": [
+                "https://www.kali.org/",
+                "https://www.metasploit.com/",
+                "https://nmap.org/",
+                "https://www.aircrack-ng.org/"
+            ]
+        },
+        "defence": {
+            "title": "Defence Tools (Command Center 13)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y wireguard openvpn clamav clamav-daemon whois dnsutils",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y wireguard openvpn clamav whois dnsutils",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "fedora": [
+                    "sudo dnf install -y wireguard-tools openvpn clamav whois bind-utils",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm wireguard-tools openvpn clamav whois bind",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add wireguard-tools openvpn clamav whois bind-tools",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "macos": [
+                    "brew install wireguard-tools openvpn clamav",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "windows": [
+                    "# Use WSL2 for best compatibility.",
+                    "wsl --install -d Ubuntu",
+                    "# Then run the Ubuntu/Debian commands in WSL."
+                ],
+                "android": [
+                    "pkg update -y",
+                    "pkg install -y openvpn",
+                    _pip_install_cmd(["pytest", "bandit", "safety", "trufflehog"])
+                ],
+                "ios": [
+                    "# iOS does not support native install for these tools.",
+                    "# Use a remote Linux host or iSH (Alpine) where available."
+                ],
+                "esp32": [
+                    "# Use a host computer for these tools."
+                ]
+            },
+            "links": [
+                "https://www.wireguard.com/",
+                "https://openvpn.net/",
+                "https://www.clamav.net/",
+                "https://install.pi-hole.net"
+            ]
+        },
+        "network": {
+            "title": "Network/WiFi/Bluetooth Tools (Command Center 0/J/L)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y net-tools wireless-tools iw iproute2 bluez"
+                ],
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y net-tools wireless-tools iw iproute2 bluez"
+                ],
+                "fedora": [
+                    "sudo dnf install -y net-tools wireless-tools iw iproute bluez"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm net-tools wireless_tools iw iproute2 bluez"
+                ],
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add net-tools wireless-tools iw iproute2 bluez"
+                ],
+                "macos": [
+                    "# WiFi/Bluetooth tools are built-in on macOS.",
+                    "brew install blueutil"
+                ],
+                "windows": [
+                    "# Use built-in Windows networking tools or WSL2 for Linux tooling.",
+                    "wsl --install -d Ubuntu"
+                ],
+                "android": [
+                    "pkg update -y",
+                    "pkg install -y net-tools iproute2"
+                ],
+                "ios": [
+                    "# iOS does not support these CLI tools natively."
+                ],
+                "esp32": [
+                    "# Use a host computer for these tools."
+                ]
+            },
+            "links": [
+                "https://www.kernel.org/doc/Documentation/networking/",
+                "https://git.kernel.org/pub/scm/network/wireless/wireless-regdb.git/"
+            ]
+        },
+        "media": {
+            "title": "Media Tools (Command Center I)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y ffmpeg mpv imagemagick"
+                ],
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y ffmpeg mpv imagemagick"
+                ],
+                "fedora": [
+                    "sudo dnf install -y ffmpeg mpv ImageMagick"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm ffmpeg mpv imagemagick"
+                ],
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add ffmpeg mpv imagemagick"
+                ],
+                "macos": [
+                    "brew install ffmpeg mpv imagemagick"
+                ],
+                "windows": [
+                    "winget install -e --id Gyan.FFmpeg",
+                    "winget install -e --id mpv.net"
+                ],
+                "android": [
+                    "pkg update -y",
+                    "pkg install -y ffmpeg"
+                ],
+                "ios": [
+                    "# iOS does not support these CLI tools natively."
+                ],
+                "esp32": [
+                    "# Use a host computer for these tools."
+                ]
+            },
+            "links": [
+                "https://ffmpeg.org/",
+                "https://mpv.io/"
+            ]
+        },
+        "ai": {
+            "title": "AI Center Tools (Command Center K)",
+            "commands": {
+                "debian": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "kali": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "fedora": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "arch": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "alpine": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "macos": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "windows": ["py -m pip install --upgrade openai anthropic google-generativeai requests"],
+                "android": [_pip_install_cmd(["openai", "anthropic", "google-generativeai", "requests"] )],
+                "ios": ["# Use a remote host or iSH where available."] ,
+                "esp32": ["# Use a host computer for these tools."]
+            },
+            "links": [
+                "https://platform.openai.com/",
+                "https://www.anthropic.com/",
+                "https://ai.google.dev/"
+            ]
+        },
+        "core_python": {
+            "title": "Core PythonOS Libraries",
+            "commands": {
+                "generic": [_pip_install_cmd(["psutil", "requests", "beautifulsoup4", "Pillow", "gputil"])]
+            },
+            "links": [
+                "https://pypi.org/project/psutil/",
+                "https://pypi.org/project/requests/",
+                "https://pypi.org/project/beautifulsoup4/",
+                "https://pypi.org/project/Pillow/",
+                "https://pypi.org/project/GPUtil/"
+            ]
+        },
+        "general_python": {
+            "title": "General Purpose Python Libraries",
+            "commands": {
+                "generic": [_pip_install_cmd([
+                    "requests", "beautifulsoup4", "pytest", "ipython", "jupyter", "rich",
+                    "pendulum", "python-dateutil"
+                ])]
+            },
+            "links": [
+                "https://pypi.org/project/ipython/",
+                "https://jupyter.org/",
+                "https://pypi.org/project/rich/"
+            ]
+        },
+        "data_science": {
+            "title": "Data Science / Analysis Stack",
+            "commands": {
+                "generic": [_pip_install_cmd([
+                    "numpy", "pandas", "matplotlib", "seaborn", "scikit-learn"
+                ])]
+            },
+            "links": [
+                "https://numpy.org/",
+                "https://pandas.pydata.org/",
+                "https://scikit-learn.org/"
+            ]
+        },
+        "web_dev": {
+            "title": "Web Development Stack",
+            "commands": {
+                "generic": [_pip_install_cmd(["flask", "django"])]
+            },
+            "links": [
+                "https://flask.palletsprojects.com/",
+                "https://www.djangoproject.com/"
+            ]
+        }
+    }
+
+def _download_center_print_commands(os_key, entry):
+    commands = entry.get("commands", {})
+    if os_key in commands:
+        cmd_list = commands[os_key]
+    else:
+        cmd_list = commands.get("generic", [])
+    if not cmd_list:
+        print(f"{COLORS['4'][0]}No install commands available for this OS.{RESET}")
+        return []
+    print(f"\n{BOLD}Install Commands ({os_key}):{RESET}")
+    for cmd in cmd_list:
+        print(f"  {cmd}")
+    links = entry.get("links", [])
+    if links:
+        print(f"\n{BOLD}Links:{RESET}")
+        for link in links:
+            print(f"  {link}")
+    return cmd_list
+
+def _download_center_run_commands(cmd_list):
+    for cmd in cmd_list:
+        if cmd.strip().startswith("#") or not cmd.strip():
+            continue
+        os.system(cmd)
+
+def feature_download_center():
+    """Download Center: OS-aware update/install scripts."""
+    os_key = _detect_os_key()
+    catalog = _download_center_catalog()
+
+    def select_os(current_key):
+        options = [
+            "debian", "kali", "fedora", "arch", "alpine", "linux",
+            "macos", "windows", "android", "ios", "esp32"
+        ]
+        print(f"\n{BOLD}Detected OS:{RESET} {current_key}")
+        print("Select OS target:")
+        for i, k in enumerate(options, 1):
+            print(f"  [{i}] {k}")
+        choice = input("\nSelect OS number (or Enter to keep): ").strip()
+        if choice.isdigit() and 1 <= int(choice) <= len(options):
+            return options[int(choice) - 1]
+        return current_key
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("Download Center")
+        print(f"{BOLD}OS Target:{RESET} {os_key}")
+        print(f"{BOLD}Select a package group:{RESET}")
+        print(" [1] Pen Test Tools (Command Center 12)")
+        print(" [2] Defence Tools (Command Center 13)")
+        print(" [3] Network/WiFi/Bluetooth Tools (0/J/L)")
+        print(" [4] Media Tools (I)")
+        print(" [5] AI Center Tools (K)")
+        print(" [6] Core PythonOS Libraries")
+        print(" [7] General Purpose Python Libraries")
+        print(" [8] Data Science / Analysis Stack")
+        print(" [9] Web Development Stack")
+        print(" [S] Select OS Target")
+        print(" [0] Return")
+
+        choice = input("\nSelect option: ").strip().upper()
+        if choice == '0':
+            break
+        if choice == 'S':
+            os_key = select_os(os_key)
+            continue
+
+        mapping = {
+            "1": "pentest",
+            "2": "defence",
+            "3": "network",
+            "4": "media",
+            "5": "ai",
+            "6": "core_python",
+            "7": "general_python",
+            "8": "data_science",
+            "9": "web_dev"
+        }
+        key = mapping.get(choice)
+        if not key:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+            continue
+
+        entry = catalog.get(key, {})
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(entry.get("title", "Download Center"))
+        cmd_list = _download_center_print_commands(os_key, entry)
+        if cmd_list:
+            run = input("\nRun install commands now? (y/n): ").strip().lower()
+            if run == 'y':
+                _download_center_run_commands(cmd_list)
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
 def feature_traffic_report():
     print_header("🚦 Traffic Report")
     print("🔍 Using IP geolocation and weather to estimate traffic risk...")
@@ -4468,10 +4873,10 @@ while True:
     print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
-    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  ")
+    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-N): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-O): {RESET}").strip().upper()
     stop_clock = True
 
     if choice == '1': is_blinking = not is_blinking
@@ -4541,6 +4946,7 @@ while True:
     elif choice == 'L': feature_bluetooth_toolkit()
     elif choice == 'M': feature_traffic_report()
     elif choice == 'N': feature_database_log_center()
+    elif choice == 'O': feature_download_center()
 
 #version 21
 
@@ -5006,4 +5412,5 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd24 base pythonOS70
+# version pythonOScmd25 base pythonOS70
+# 2-5-26 Added Download Center
