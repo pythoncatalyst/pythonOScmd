@@ -108,6 +108,31 @@ from io import BytesIO
 import GPUtil
 import re # Added for Visual FX Regex
 
+def init_audio_device():
+    """Detect default audio output (PulseAudio/PipeWire) and set env override."""
+    if os.name != 'posix':
+        return None
+    try:
+        res = subprocess.run(
+            ["pactl", "info"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True
+        )
+    except FileNotFoundError:
+        return None
+    if res.returncode != 0:
+        return None
+    for line in res.stdout.splitlines():
+        if line.lower().startswith("default sink:"):
+            sink = line.split(":", 1)[1].strip()
+            if sink:
+                os.environ.setdefault("PULSE_SINK", sink)
+                return sink
+    return None
+
+DEFAULT_AUDIO_SINK = init_audio_device()
+
 # --- DETECT SYSTEM CAPABILITY FOR BOX DRAWING ---
 try:
     "╔═╗".encode(sys.stdout.encoding)
@@ -381,6 +406,78 @@ def feature_weather_display():
         print(f" {COLORS['1'][0]}[!] 📡 Could not retrieve weather. Check connection.{RESET}")
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
+def _traffic_risk_from_weather(icon):
+    if icon in ["🌧️", "⛈️", "❄️", "🌫️"]:
+        return "HIGH"
+    if icon in ["⛅", "🌤️"]:
+        return "MODERATE"
+    return "LOW"
+
+def feature_traffic_report():
+    print_header("🚦 Traffic Report")
+    print("🔍 Using IP geolocation and weather to estimate traffic risk...")
+    data = get_weather_data() or {}
+    try:
+        geo = requests.get("http://ip-api.com/json/", timeout=3).json()
+    except Exception:
+        geo = {}
+
+    city = geo.get("city", data.get("city", "Unknown"))
+    lat = geo.get("lat")
+    lon = geo.get("lon")
+
+    icon = data.get("icon", "☁️")
+    risk = _traffic_risk_from_weather(icon)
+
+    print(f"\n {BOLD}📍 Location:{RESET} {city}")
+    print(f" {BOLD}🌦️ Weather Impact:{RESET} {icon}  Traffic Risk: {risk}")
+    if data.get("temp"):
+        print(f" {BOLD}🌡️ Temp:{RESET} {data.get('temp')} (Feels {data.get('feels', 'N/A')})")
+    if data.get("wind"):
+        print(f" {BOLD}💨 Wind:{RESET} {data.get('wind')}")
+
+    print_header("🗺️ Live Traffic Links")
+    print(" > https://www.bing.com/maps")
+    print(" > https://www.google.com/maps")
+    print(" > https://www.tomtom.com/traffic-index/")
+    print(" > Microsoft.Maps.Traffic.TrafficManager(map)")
+
+    if lat is not None and lon is not None:
+        print_header("🗺️ ASCII Map Preview")
+        report_lines = [
+            "Traffic Report",
+            f"Location: {city}",
+            f"Weather: {icon}",
+            f"Risk: {risk}",
+        ]
+        if data.get("temp"):
+            report_lines.append(f"Temp: {data.get('temp')}")
+        if data.get("feels"):
+            report_lines.append(f"Feels: {data.get('feels')}")
+        if data.get("wind"):
+            report_lines.append(f"Wind: {data.get('wind')}")
+        report_lines.extend([
+            "",
+            "Links:",
+            "bing.com/maps",
+            "google.com/maps",
+            "tomtom.com/traffic-index",
+            "Microsoft.Maps.Traffic",
+        ])
+        map_url = (
+            "https://staticmap.openstreetmap.de/staticmap.php"
+            f"?center={lat},{lon}&zoom=12&size=600x400&maptype=mapnik"
+        )
+        ascii_map = convert_to_ascii(map_url, width=70)
+        map_width = 72
+        for i, line in enumerate(ascii_map):
+            right = report_lines[i] if i < len(report_lines) else ""
+            print(line.ljust(map_width) + right)
+    else:
+        print(f" {COLORS['4'][0]}[!] Map unavailable: location not found.{RESET}")
+
+    input(f"\n{BOLD}[ ⌨️ Press Enter to exit... ]{RESET}")
+
 # --- AI & CALENDAR ADDITIONS ---
 
 def feature_deep_probe_ai():
@@ -413,8 +510,107 @@ def feature_deep_probe_ai():
 def feature_simple_calendar():
     print_header("📅 System Calendar")
     now = datetime.datetime.now()
-    # Displaying month with current system color
-    print(f"{get_current_color()}{calendar.month(now.year, now.month)}{RESET}")
+    # Display current month plus next two months side-by-side
+    def _add_months(year, month, offset):
+        total = (month - 1) + offset
+        return year + (total // 12), (total % 12) + 1
+
+    def _nth_weekday(year, month, weekday, n):
+        # weekday: 0=Mon .. 6=Sun
+        count = 0
+        for day in range(1, 32):
+            try:
+                d = datetime.date(year, month, day)
+            except ValueError:
+                break
+            if d.weekday() == weekday:
+                count += 1
+                if count == n:
+                    return d
+        return None
+
+    def _last_weekday(year, month, weekday):
+        last = None
+        for day in range(1, 32):
+            try:
+                d = datetime.date(year, month, day)
+            except ValueError:
+                break
+            if d.weekday() == weekday:
+                last = d
+        return last
+
+    def _month_holidays(year, month):
+        holidays = []
+        # Fixed-date holidays
+        fixed = {
+            (1, 1): "New Year",
+            (6, 19): "Juneteenth",
+            (7, 4): "Independence Day",
+            (11, 11): "Veterans Day",
+            (12, 25): "Christmas",
+        }
+        for (m, d), name in fixed.items():
+            if m == month:
+                holidays.append((datetime.date(year, m, d), name))
+
+        # Observed weekday rules
+        if month == 1:
+            d = _nth_weekday(year, 1, 0, 3)
+            if d: holidays.append((d, "MLK Day"))
+        if month == 2:
+            d = _nth_weekday(year, 2, 0, 3)
+            if d: holidays.append((d, "Presidents Day"))
+        if month == 5:
+            d = _last_weekday(year, 5, 0)
+            if d: holidays.append((d, "Memorial Day"))
+        if month == 9:
+            d = _nth_weekday(year, 9, 0, 1)
+            if d: holidays.append((d, "Labor Day"))
+        if month == 10:
+            d = _nth_weekday(year, 10, 0, 2)
+            if d: holidays.append((d, "Columbus Day"))
+        if month == 11:
+            d = _nth_weekday(year, 11, 3, 4)
+            if d: holidays.append((d, "Thanksgiving"))
+
+        holidays.sort(key=lambda x: x[0])
+        return holidays
+
+    months = []
+    for i in range(3):
+        y, m = _add_months(now.year, now.month, i)
+        months.append(calendar.month(y, m).splitlines())
+
+    max_lines = max(len(m) for m in months)
+    for m in months:
+        while len(m) < max_lines:
+            m.append("")
+
+    col_width = max(max(len(line) for line in m) for m in months)
+    lines = []
+    for i in range(max_lines):
+        line = "  ".join(m[i].ljust(col_width) for m in months)
+        lines.append(line.rstrip())
+
+    # Build holiday side panel for the three displayed months
+    holiday_colors = [COLORS["2"][0], COLORS["4"][0], COLORS["6"][0]]
+    holiday_lines = ["Upcoming Holidays"]
+    for i in range(3):
+        y, m = _add_months(now.year, now.month, i)
+        month_name = datetime.date(y, m, 1).strftime("%B")
+        holiday_lines.append(f"{holiday_colors[i]}{month_name}:{RESET}")
+        for d, name in _month_holidays(y, m):
+            holiday_lines.append(f"{holiday_colors[i]}{d.strftime('%b %d')}: {name}{RESET}")
+
+    panel_width = max(20, max(len(line) for line in holiday_lines))
+    full_lines = []
+    for i in range(max(len(lines), len(holiday_lines))):
+        left = lines[i] if i < len(lines) else ""
+        right = holiday_lines[i] if i < len(holiday_lines) else ""
+        full_lines.append(left.ljust(col_width * 3 + 4) + right.ljust(panel_width))
+
+    print(f"{get_current_color()}" + "\n".join(full_lines) + f"{RESET}")
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 # --- NEW FEATURE: FONT & SIZE TESTER & FX MENU ---
@@ -1573,6 +1769,12 @@ try:
     except Exception:
         _ASCIIP_AUDIO_SUPPORT = False
 
+    _ASCIIP_EXTERNAL_AUDIO = bool(
+        _asciip_shutil.which('ffplay') or
+        _asciip_shutil.which('mpv') or
+        _asciip_shutil.which('mplayer')
+    )
+
     _ASCIIP_PLAY_SFX = True
     _ASCIIP_SOUND_DIR = _asciip_Path("sounds")
 
@@ -1615,6 +1817,21 @@ try:
                 return
 
         _asciip_threading.Thread(target=_do_play, args=(_asciip_Path('/dev/null'),), daemon=True).start()
+
+    def _asciip_start_audio_process(video_path: str):
+        cmd = None
+        if _asciip_shutil.which('ffplay'):
+            cmd = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', video_path]
+        elif _asciip_shutil.which('mpv'):
+            cmd = ['mpv', '--no-video', '--really-quiet', video_path]
+        elif _asciip_shutil.which('mplayer'):
+            cmd = ['mplayer', '-novideo', '-really-quiet', video_path]
+        if not cmd:
+            return None
+        try:
+            return _asciip_subprocess.Popen(cmd, stdout=_asciip_subprocess.DEVNULL, stderr=_asciip_subprocess.DEVNULL)
+        except Exception:
+            return None
 
     ASCII_STYLES = {
         "1": ("classic",  r" .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$"),
@@ -1706,7 +1923,8 @@ try:
             _asciip_reset_terminal()
 
             style_name = ASCII_STYLES[CURRENT_STYLE_KEY][0]
-            print(f"║ STYLE: {style_name.upper()} ({CURRENT_STYLE_KEY}/20) ║ AUDIO: {'OK' if _ASCIIP_AUDIO_SUPPORT else 'OFF'} ║")
+            audio_status = 'OK' if _ASCIIP_AUDIO_SUPPORT else ('EXT' if _ASCIIP_EXTERNAL_AUDIO else 'OFF')
+            print(f"║ STYLE: {style_name.upper()} ({CURRENT_STYLE_KEY}/20) ║ AUDIO: {audio_status} ║")
             print(f"║ PATH: {current_path}")
             print("═" * 70)
 
@@ -1760,6 +1978,9 @@ try:
         pb = _ASCIIP_PlaybackState()
         cap = cv2.VideoCapture(video_path)
         player = _asciip_MediaPlayer(video_path) if _ASCIIP_AUDIO_SUPPORT else None
+        audio_proc = None
+        if not player:
+            audio_proc = _asciip_start_audio_process(video_path)
 
         raw_style = ASCII_STYLES[CURRENT_STYLE_KEY][1]
         if raw_style == "RANDOM_GLOBAL":
@@ -1846,6 +2067,11 @@ try:
             cap.release()
             try:
                 if player: player.close_player()
+            except Exception:
+                pass
+            try:
+                if audio_proc:
+                    audio_proc.terminate()
             except Exception:
                 pass
             _asciip_reset_terminal()
@@ -2020,10 +2246,10 @@ while True:
     print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard")
     print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
-    print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth")
+    print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-L): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-M): {RESET}").strip().upper()
     stop_clock = True
 
     if choice == '1': is_blinking = not is_blinking
@@ -2089,6 +2315,7 @@ while True:
     elif choice == 'J': feature_wifi_toolkit()
     elif choice == 'K': feature_ai_center()
     elif choice == 'L': feature_bluetooth_toolkit()
+    elif choice == 'M': feature_traffic_report()
 
 #version 21
 
@@ -2554,4 +2781,4 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version 74 base
+# version pythonOScmd9 base
