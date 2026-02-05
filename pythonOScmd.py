@@ -7669,6 +7669,11 @@ ctx = {
     "BOLD": BOLD
 }
 # version pythonOScmd34 base pythonOS70
+# Expanded the Command Center submenus so more of the script’s capabilities are accessible 
+# from each menu, and added cross-links to the Download Center/AI Probe/DB API where it made sense. 
+# The bigger change is converting several single-shot tools into full menus (browser, disk I/O, 
+# security audit, environment/hardware/latency/weather/traffic, and remote dashboard), 
+# plus a few new actions in existing menus like process details/terminate and download-center shortcuts
 # Added WebSSH health checks and auto-connect URL building for the dashboard, plus a JSON 
 # stats endpoint so the backend can serve data in JSON or HTML. The Remote Dashboard now 
 # reports WebSSH install/running status, avoids a broken iframe when it is down, and builds 
