@@ -7668,7 +7668,7 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-# version pythonOScmd34 base pythonOS70
+# version pythonOScmd60 base pythonOS70
 # Expanded the Command Center submenus so more of the script’s capabilities are accessible 
 # from each menu, and added cross-links to the Download Center/AI Probe/DB API where it made sense. 
 # The bigger change is converting several single-shot tools into full menus (browser, disk I/O, 
