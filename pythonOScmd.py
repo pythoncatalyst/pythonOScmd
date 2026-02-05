@@ -2657,6 +2657,179 @@ def feature_pentest_toolkit():
 
 # --- END PENETRATION TESTING TOOLKIT ---
 
+# --- PWN TOOLS WRAPPER ---
+
+def _pwn_install_bundle():
+    os_key = _detect_os_key()
+    catalog = _download_center_catalog()
+    entry = catalog.get("pwn_tools", {})
+
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📦 PWN Tools Installer")
+    cmd_list = _download_center_print_commands(os_key, entry)
+    if cmd_list:
+        run = input("\nRun install commands now? (y/n): ").strip().lower()
+        if run == 'y':
+            _download_center_run_commands(cmd_list)
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _pwn_has_pwntools():
+    try:
+        import pwn
+        return True
+    except Exception:
+        return False
+
+def _pwn_has_gdb():
+    return shutil.which("gdb") is not None
+
+def _pwn_has_checksec():
+    return shutil.which("checksec") is not None
+
+def _pwn_ropgadget_cmd():
+    return shutil.which("ROPgadget") or shutil.which("ropgadget")
+
+def _pwn_has_one_gadget():
+    return shutil.which("one_gadget") is not None
+
+def _pwn_prompt_install(name):
+    print(f"{COLORS['1'][0]}❌ {name} is not installed.{RESET}")
+    install = input("Install PWN tools bundle now? (y/n): ").strip().lower()
+    if install == 'y':
+        _pwn_install_bundle()
+    return False
+
+def _pwn_pwntools_menu():
+    if not _pwn_has_pwntools():
+        _pwn_prompt_install("Pwntools")
+        return
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧰 Pwntools (Python)")
+        print(" [1] Show Quickstart Snippet")
+        print(" [2] Print Pwntools Version")
+        print(" [0] Return")
+        choice = input("\nSelect option: ").strip()
+        if choice == '0':
+            return
+        if choice == '1':
+            print("\nQuickstart:")
+            print("from pwn import *")
+            print("context.binary = './vuln'")
+            print("p = process(context.binary.path)")
+            print("p.sendline(b'AAAA')")
+            print("print(p.recvline())")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+        elif choice == '2':
+            try:
+                subprocess.call([sys.executable, "-c", "from pwn import *; import pwnlib; print(pwnlib.__version__)"])
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _pwn_run_gdb():
+    if not _pwn_has_gdb():
+        _pwn_prompt_install("GDB")
+        return
+    target = input("Target binary path: ").strip()
+    if not target:
+        return
+    if not os.path.exists(target):
+        print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    subprocess.call(["gdb", "-q", target])
+
+def _pwn_run_checksec():
+    if not _pwn_has_checksec():
+        _pwn_prompt_install("checksec")
+        return
+    target = input("Target binary path: ").strip()
+    if not target:
+        return
+    if not os.path.exists(target):
+        print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    subprocess.call(["checksec", "--file=" + target])
+
+def _pwn_run_ropgadget():
+    cmd = _pwn_ropgadget_cmd()
+    if not cmd:
+        _pwn_prompt_install("ROPgadget")
+        return
+    target = input("Target binary path: ").strip()
+    if not target:
+        return
+    if not os.path.exists(target):
+        print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    subprocess.call([cmd, "--binary", target])
+
+def _pwn_run_one_gadget():
+    if not _pwn_has_one_gadget():
+        _pwn_prompt_install("one_gadget")
+        return
+    target = input("Target libc path: ").strip()
+    if not target:
+        return
+    if not os.path.exists(target):
+        print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    subprocess.call(["one_gadget", target])
+
+def feature_pwn_tools():
+    """PWN tools wrapper (pwntools + core helpers)."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("💥 PWN Tools")
+
+        status = {
+            "Pwntools": _pwn_has_pwntools(),
+            "GDB": _pwn_has_gdb(),
+            "checksec": _pwn_has_checksec(),
+            "ROPgadget": _pwn_ropgadget_cmd() is not None,
+            "one_gadget": _pwn_has_one_gadget()
+        }
+
+        print(f"\n{BOLD}Tool Status:{RESET}")
+        for tool, installed in status.items():
+            flag = f"{COLORS['2'][0]}✅{RESET}" if installed else f"{COLORS['1'][0]}❌{RESET}"
+            print(f"  {flag} {tool}")
+
+        print(f"\n{BOLD}Tools:{RESET}")
+        print(f" {BOLD}[1]{RESET} Pwntools (Python)")
+        print(f" {BOLD}[2]{RESET} GDB Debugger")
+        print(f" {BOLD}[3]{RESET} checksec Binary Audit")
+        print(f" {BOLD}[4]{RESET} ROPgadget Finder")
+        print(f" {BOLD}[5]{RESET} one_gadget (libc gadgets)")
+        print(f" {BOLD}[6]{RESET} 📦 Install PWN Tools Bundle")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        if choice == '0':
+            return
+        if choice == '1':
+            _pwn_pwntools_menu()
+        elif choice == '2':
+            _pwn_run_gdb()
+        elif choice == '3':
+            _pwn_run_checksec()
+        elif choice == '4':
+            _pwn_run_ropgadget()
+        elif choice == '5':
+            _pwn_run_one_gadget()
+        elif choice == '6':
+            _pwn_install_bundle()
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+# --- END PWN TOOLS WRAPPER ---
+
 # --- DEFENCE CENTER: PROACTIVE SECURITY MEASURES ---
 
 def feature_adblocker_setup():
@@ -3376,6 +3549,79 @@ def _download_center_catalog():
                 "https://www.aircrack-ng.org/"
             ]
         },
+        "pwn_tools": {
+            "title": "PWN Tools (Command Center P)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y gdb git python3 python3-pip python3-dev ruby",
+                    "sudo apt-get install -y checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y gdb git python3 python3-pip python3-dev ruby",
+                    "sudo apt-get install -y checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "fedora": [
+                    "sudo dnf install -y gdb git python3 python3-pip python3-devel ruby",
+                    "sudo dnf install -y checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm gdb git python python-pip ruby",
+                    "sudo pacman -Syu --noconfirm checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add gdb git python3 py3-pip python3-dev ruby",
+                    "sudo apk add checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "macos": [
+                    "brew install gdb git python ruby",
+                    "brew install checksec",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "windows": [
+                    "# Use WSL2 for best compatibility.",
+                    "wsl --install -d Ubuntu",
+                    "# Then run the Ubuntu/Debian commands in WSL."
+                ],
+                "android": [
+                    "pkg update -y",
+                    "pkg install -y gdb git python ruby",
+                ] + _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "gem install one_gadget"
+                ],
+                "ios": [
+                    "# iOS does not support native installs for these tools.",
+                    "# Use a remote Linux host or iSH (Alpine) where available."
+                ],
+                "esp32": [
+                    "# Use a host computer for these tools."
+                ],
+                "generic": _pip_install_cmds(["pwntools", "ropgadget"]) + [
+                    "# Install gdb, checksec, and ruby with your OS package manager",
+                    "gem install one_gadget"
+                ]
+            },
+            "links": [
+                "https://agrohacksstuff.io/posts/pwntools-tricks-and-examples/",
+                "https://docs.pwntools.com/en/stable/",
+                "https://sourceware.org/gdb/",
+                "https://github.com/JonathanSalwan/ROPgadget",
+                "https://github.com/david942j/one_gadget"
+            ]
+        },
         "defence": {
             "title": "Defence Tools (Command Center 13)",
             "commands": {
@@ -3704,6 +3950,7 @@ def feature_download_center():
         print(" [7] General Purpose Python Libraries")
         print(" [8] Data Science / Analysis Stack")
         print(" [9] Web Development Stack")
+        print(" [10] PWN Tools (P)")
         print(" [S] Select OS Target")
         print(" [0] Return")
 
@@ -3723,7 +3970,8 @@ def feature_download_center():
             "6": "core_python",
             "7": "general_python",
             "8": "data_science",
-            "9": "web_dev"
+            "9": "web_dev",
+            "10": "pwn_tools"
         }
         key = mapping.get(choice)
         if not key:
@@ -5860,10 +6108,10 @@ while True:
     print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
-    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center")
+    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-O): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-P): {RESET}").strip().upper()
     _update_user_config(last_choice=choice)
     stop_clock = True
 
@@ -5956,6 +6204,7 @@ while True:
     elif choice == 'M': safe_run("network", "Traffic_Report", feature_traffic_report)
     elif choice == 'N': safe_run("general", "Database_Log_Center", feature_database_log_center)
     elif choice == 'O': safe_run("general", "Download_Center", feature_download_center)
+    elif choice == 'P': safe_run("general", "PWN_Tools", feature_pwn_tools)
 
 #version 21
 
@@ -6421,9 +6670,16 @@ ctx = {
     "BOLD": BOLD
 }
 
-# version pythonOScmd38 base pythonOS70
+# version pythonOScmd41 base pythonOS70
+# Added the new PWN Tools wrapper (5 tools) with per-tool install checks, a bundle installer, and submenus for Pwntools/GDB/checksec/ROPgadget/one_gadget. This is implemented in pythonOScmd.py:2646-2776 and wired into the Command Center as option P with the updated prompt and handler in pythonOScmd.py:6106-6214. The Download Center now includes a PWN Tools bundle with OS-specific commands and reference links, plus a menu entry for it in
+# Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
+# context-managed blocks so operations commit safely and reduce lock contention.
+# I also added plugin sandboxing (restricted context toggle) and runtime/error
+# logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
+# now saves your display config
+# version pythonOScmd39 base pythonOS70
 # 2-5-26 Added Download Center 8 AM
-# 2-5-25 Updated Download Center to do updates one at a time
+# 2-5-25 Updated Download Center to do updates one at a timeQA
 # Updated AI probing logic
 # 2-5-24 Added AI Probing and Weather Display
 # 2-5-23 Added Calendar and Latency Probe
@@ -6432,8 +6688,4 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
-# Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
-# context-managed blocks so operations commit safely and reduce lock contention.
-# I also added plugin sandboxing (restricted context toggle) and runtime/error
-# logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
-# now saves your display config
+
