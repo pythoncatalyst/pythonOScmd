@@ -111,6 +111,7 @@ import re # Added for Visual FX Regex
 import shutil # Added for check_pentest_tool
 import sqlite3 # Added for Database/Log system
 import json # Added for JSON logging
+from http.server import BaseHTTPRequestHandler, HTTPServer
 
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
@@ -163,6 +164,11 @@ LOG_CATEGORIES = {
     "general": "General Logs",
     "aggressive_scan": "Aggressive Intelligence Scan"
 }
+
+DB_API_PORT = 8092
+_db_api_server = None
+_db_scheduler_running = False
+_db_scheduled_tasks = []
 
 def init_database_system():
     """Initialize the database and directory structure."""
@@ -411,6 +417,7 @@ def feature_database_log_center():
         print(f" {BOLD}[9]{RESET} ⚙️ Database Settings")
         print(f" {BOLD}[10]{RESET} 🔍 Lite Scan (Quick System Snapshot)")
         print(f" {BOLD}[11]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
+        print(f" {BOLD}[12]{RESET} 🧭 Advanced Database Suite")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
@@ -439,6 +446,8 @@ def feature_database_log_center():
             _lite_scan()
         elif choice == '11':
             _aggressive_scan()
+        elif choice == '12':
+            _advanced_database_suite()
 
 def _view_log_files():
     """View log files by category."""
@@ -853,6 +862,612 @@ def _database_settings():
             os.system(f"xdg-open '{DB_DIR}' 2>/dev/null || nautilus '{DB_DIR}' 2>/dev/null || echo 'Please open manually'")
 
     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _db_execute_sql(cursor, sql):
+    cmd = sql.strip().rstrip(';')
+    if not cmd:
+        return None, None
+    lower = cmd.lower()
+    if lower.startswith("select") or lower.startswith("pragma"):
+        cursor.execute(cmd)
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description] if cursor.description else []
+        return cols, rows
+    cursor.execute(cmd)
+    return None, cursor.rowcount
+
+def _db_interactive_sql_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧠 SQL Console")
+    print("Enter SQL statements. Type 'run' on a blank line to execute.")
+    print("Type 'exit' to return.")
+
+    buffer = []
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    while True:
+        line = input("SQL> ").strip()
+        if line.lower() == 'exit':
+            break
+        if line.lower() == 'run':
+            sql = "\n".join(buffer)
+            buffer = []
+            try:
+                cols, result = _db_execute_sql(cursor, sql)
+                if cols is not None:
+                    print(" | ".join(cols))
+                    print("-" * max(20, len(" | ".join(cols))))
+                    for row in result[:50]:
+                        print(" | ".join(str(x) for x in row))
+                    if len(result) > 50:
+                        print(f"... ({len(result)} rows total)")
+                else:
+                    conn.commit()
+                    print(f"✅ Rows affected: {result}")
+            except Exception as e:
+                print(f"❌ SQL error: {e}")
+            continue
+        buffer.append(line)
+
+    conn.close()
+
+def _db_table_manager():
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧱 Table Manager")
+        print(" [1] Create Table")
+        print(" [2] Alter Table (Add Column)")
+        print(" [3] Drop Table")
+        print(" [4] List Tables")
+        print(" [0] Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            break
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        try:
+            if choice == '1':
+                name = input("Table name: ").strip()
+                cols = input("Columns (e.g., id INTEGER PRIMARY KEY, name TEXT): ").strip()
+                if name and cols:
+                    cursor.execute(f"CREATE TABLE IF NOT EXISTS {name} ({cols})")
+                    conn.commit()
+                    print("✅ Table created/verified.")
+            elif choice == '2':
+                name = input("Table name: ").strip()
+                col = input("New column (e.g., status TEXT): ").strip()
+                if name and col:
+                    cursor.execute(f"ALTER TABLE {name} ADD COLUMN {col}")
+                    conn.commit()
+                    print("✅ Column added.")
+            elif choice == '3':
+                name = input("Table name to drop: ").strip()
+                confirm = input("Type DELETE to confirm: ").strip()
+                if confirm == "DELETE" and name:
+                    cursor.execute(f"DROP TABLE IF EXISTS {name}")
+                    conn.commit()
+                    print("✅ Table dropped.")
+            elif choice == '4':
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name")
+                tables = [r[0] for r in cursor.fetchall()]
+                print("\nTables:")
+                for t in tables:
+                    print(f" - {t}")
+            else:
+                print("Invalid option")
+        except Exception as e:
+            print(f"❌ Error: {e}")
+        finally:
+            conn.close()
+        input("\nPress Enter to continue...")
+
+def _db_transaction_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔐 Transaction Console")
+    print("Enter SQL statements. Type 'commit' or 'rollback' to finish.")
+    print("Type 'exit' to return without changes.")
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    conn.execute("BEGIN")
+    while True:
+        line = input("TX> ").strip()
+        if line.lower() == 'exit':
+            conn.rollback()
+            break
+        if line.lower() == 'commit':
+            conn.commit()
+            print("✅ Transaction committed.")
+            break
+        if line.lower() == 'rollback':
+            conn.rollback()
+            print("✅ Transaction rolled back.")
+            break
+        try:
+            cols, result = _db_execute_sql(cursor, line)
+            if cols is not None:
+                print(" | ".join(cols))
+                for row in result[:20]:
+                    print(" | ".join(str(x) for x in row))
+            else:
+                print(f"✅ Rows affected: {result}")
+        except Exception as e:
+            print(f"❌ SQL error: {e}")
+    conn.close()
+
+def _db_quick_crud():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧩 Quick CRUD")
+    print(" [1] INSERT")
+    print(" [2] UPDATE")
+    print(" [3] DELETE")
+    print(" [0] Return")
+    choice = input("\nSelect option: ").strip()
+    if choice == '0':
+        return
+
+    table = input("Table: ").strip()
+    if not table:
+        return
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        if choice == '1':
+            cols = input("Columns (comma separated): ").strip()
+            vals = input("Values (comma separated, use quotes for text): ").strip()
+            if cols and vals:
+                cursor.execute(f"INSERT INTO {table} ({cols}) VALUES ({vals})")
+                conn.commit()
+                print("✅ Inserted.")
+        elif choice == '2':
+            set_clause = input("SET clause (e.g., name='x'): ").strip()
+            where = input("WHERE clause (optional): ").strip()
+            sql = f"UPDATE {table} SET {set_clause}"
+            if where:
+                sql += f" WHERE {where}"
+            cursor.execute(sql)
+            conn.commit()
+            print(f"✅ Updated {cursor.rowcount} rows.")
+        elif choice == '3':
+            where = input("WHERE clause (optional): ").strip()
+            sql = f"DELETE FROM {table}"
+            if where:
+                sql += f" WHERE {where}"
+            cursor.execute(sql)
+            conn.commit()
+            print(f"✅ Deleted {cursor.rowcount} rows.")
+    except Exception as e:
+        print(f"❌ CRUD error: {e}")
+    finally:
+        conn.close()
+    input("\nPress Enter to continue...")
+
+def _db_export_table_csv():
+    table = input("Table to export: ").strip()
+    if not table:
+        return
+    export_file = os.path.join(DB_DIR, f"{table}_export_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute(f"SELECT * FROM {table}")
+        rows = cursor.fetchall()
+        cols = [d[0] for d in cursor.description]
+        with open(export_file, 'w') as f:
+            f.write(','.join(cols) + '\n')
+            for row in rows:
+                escaped = [str(x).replace('"', '""') if x is not None else '' for x in row]
+                f.write(','.join(f'"{x}"' for x in escaped) + '\n')
+        print(f"✅ Exported: {export_file}")
+    except Exception as e:
+        print(f"❌ Export error: {e}")
+    finally:
+        conn.close()
+
+def _db_import_csv():
+    csv_path = input("CSV file path: ").strip()
+    table = input("Target table name: ").strip()
+    if not csv_path or not table:
+        return
+    if not os.path.exists(csv_path):
+        print("❌ File not found")
+        return
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        with open(csv_path, 'r') as f:
+            header = f.readline().strip().split(',')
+            header = [h.strip().strip('"') for h in header]
+            cursor.execute(f"CREATE TABLE IF NOT EXISTS {table} ({', '.join(h + ' TEXT' for h in header)})")
+            for line in f:
+                parts = [p.strip().strip('"') for p in line.split(',')]
+                placeholders = ','.join(['?' for _ in parts])
+                cursor.execute(f"INSERT INTO {table} ({', '.join(header)}) VALUES ({placeholders})", parts)
+        conn.commit()
+        print("✅ CSV imported.")
+    except Exception as e:
+        print(f"❌ Import error: {e}")
+    finally:
+        conn.close()
+
+def _db_generate_report():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 Report Generator")
+    print(" [1] CSV report (log_entries)")
+    print(" [2] JSON report (log_entries)")
+    print(" [3] PDF report (if reportlab installed)")
+    print(" [0] Return")
+    choice = input("\nSelect option: ").strip()
+    if choice == '0':
+        return
+
+    timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("SELECT timestamp, category, operation, data, status FROM log_entries ORDER BY timestamp DESC")
+        rows = cursor.fetchall()
+        if choice == '1':
+            out = os.path.join(DB_DIR, f"ai_report_{timestamp}.csv")
+            with open(out, 'w') as f:
+                f.write("timestamp,category,operation,data,status\n")
+                for r in rows:
+                    esc = [str(x).replace('"', '""') if x is not None else '' for x in r]
+                    f.write(','.join(f'"{x}"' for x in esc) + '\n')
+            print(f"✅ CSV report: {out}")
+        elif choice == '2':
+            out = os.path.join(DB_DIR, f"ai_report_{timestamp}.json")
+            data = [
+                {
+                    "timestamp": r[0],
+                    "category": r[1],
+                    "operation": r[2],
+                    "data": r[3],
+                    "status": r[4]
+                }
+                for r in rows
+            ]
+            with open(out, 'w') as f:
+                json.dump(data, f, indent=2)
+            print(f"✅ JSON report: {out}")
+        elif choice == '3':
+            try:
+                from reportlab.lib.pagesizes import letter
+                from reportlab.pdfgen import canvas
+                out = os.path.join(DB_DIR, f"ai_report_{timestamp}.pdf")
+                c = canvas.Canvas(out, pagesize=letter)
+                width, height = letter
+                y = height - 40
+                c.setFont("Helvetica", 10)
+                c.drawString(40, y, "pythonOS AI Report")
+                y -= 20
+                for r in rows[:200]:
+                    line = f"{r[0]} | {r[1]} | {r[2]}"
+                    c.drawString(40, y, line[:120])
+                    y -= 12
+                    if y < 40:
+                        c.showPage()
+                        c.setFont("Helvetica", 10)
+                        y = height - 40
+                c.save()
+                print(f"✅ PDF report: {out}")
+            except Exception:
+                print("❌ reportlab not installed. Use CSV/JSON instead.")
+        else:
+            print("Invalid option")
+    except Exception as e:
+        print(f"❌ Report error: {e}")
+    finally:
+        conn.close()
+    input("\nPress Enter to continue...")
+
+def _db_clean_transform():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧽 Data Cleaning & Transformation")
+    print(" [1] Trim whitespace in log_entries.data")
+    print(" [2] Normalize category to lowercase")
+    print(" [3] Remove empty log entries (no data)")
+    print(" [0] Return")
+    choice = input("\nSelect option: ").strip()
+    if choice == '0':
+        return
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    try:
+        if choice == '1':
+            cursor.execute("UPDATE log_entries SET data = TRIM(data) WHERE data IS NOT NULL")
+        elif choice == '2':
+            cursor.execute("UPDATE log_entries SET category = LOWER(category) WHERE category IS NOT NULL")
+        elif choice == '3':
+            cursor.execute("DELETE FROM log_entries WHERE data IS NULL OR TRIM(data) = ''")
+        else:
+            print("Invalid option")
+            return
+        conn.commit()
+        print(f"✅ Rows affected: {cursor.rowcount}")
+    except Exception as e:
+        print(f"❌ Cleaning error: {e}")
+    finally:
+        conn.close()
+    input("\nPress Enter to continue...")
+
+def _db_run_scheduled_tasks():
+    global _db_scheduler_running
+    while _db_scheduler_running:
+        now = time.time()
+        for task in _db_scheduled_tasks:
+            if now >= task["next_run"]:
+                try:
+                    task["action"]()
+                except Exception:
+                    pass
+                task["next_run"] = now + task["interval"]
+        time.sleep(1)
+
+def _db_schedule_tasks_menu():
+    global _db_scheduler_running
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("⏱️ Task Scheduler")
+    print(" [1] Schedule backup (every 30 min)")
+    print(" [2] Schedule clean expired cache (every 15 min)")
+    print(" [3] Schedule vacuum (every 6 hrs)")
+    print(" [4] Stop scheduler")
+    print(" [0] Return")
+    choice = input("\nSelect option: ").strip()
+
+    def _backup_action():
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        backup_file = os.path.join(DB_DIR, f"pythonOS_backup_{timestamp}.db")
+        try:
+            shutil.copy2(DB_FILE, backup_file)
+        except Exception:
+            pass
+
+    def _clean_cache_action():
+        try:
+            clean_expired_cache()
+        except Exception:
+            pass
+
+    def _vacuum_action():
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            cursor.execute("VACUUM")
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+    if choice == '1':
+        _db_scheduled_tasks.append({"interval": 1800, "next_run": time.time() + 5, "action": _backup_action})
+        print("✅ Backup scheduled.")
+    elif choice == '2':
+        _db_scheduled_tasks.append({"interval": 900, "next_run": time.time() + 5, "action": _clean_cache_action})
+        print("✅ Cache cleanup scheduled.")
+    elif choice == '3':
+        _db_scheduled_tasks.append({"interval": 21600, "next_run": time.time() + 5, "action": _vacuum_action})
+        print("✅ Vacuum scheduled.")
+    elif choice == '4':
+        _db_scheduler_running = False
+        print("✅ Scheduler stopped.")
+    if not _db_scheduler_running and _db_scheduled_tasks:
+        _db_scheduler_running = True
+        threading.Thread(target=_db_run_scheduled_tasks, daemon=True).start()
+    input("\nPress Enter to continue...")
+
+def _db_analysis_dashboard():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Analysis & Visualization")
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT category, COUNT(*) FROM log_entries GROUP BY category ORDER BY COUNT(*) DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    if not rows:
+        print("No log data to analyze.")
+        input("\nPress Enter to continue...")
+        return
+    print("\nLog Entries by Category:")
+    max_count = max(r[1] for r in rows)
+    for cat, count in rows:
+        bar = "#" * int((count / max_count) * 40)
+        print(f" {cat:<16} {count:>6} | {bar}")
+    input("\nPress Enter to continue...")
+
+def _db_ml_probe():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧪 ML Integration")
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        from sklearn.cluster import KMeans
+    except Exception:
+        print("scikit-learn not installed. Install via Download Center > Data Science.")
+        input("\nPress Enter to continue...")
+        return
+
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT operation, data FROM log_entries WHERE data IS NOT NULL ORDER BY timestamp DESC LIMIT 200")
+    rows = cursor.fetchall()
+    conn.close()
+    texts = [f"{r[0]} {r[1]}" for r in rows if r[1]]
+    if len(texts) < 10:
+        print("Not enough data for ML clustering.")
+        input("\nPress Enter to continue...")
+        return
+    vectorizer = TfidfVectorizer(max_features=200)
+    X = vectorizer.fit_transform(texts)
+    k = 3
+    model = KMeans(n_clusters=k, n_init=10, random_state=42)
+    labels = model.fit_predict(X)
+    counts = {i: 0 for i in range(k)}
+    for label in labels:
+        counts[label] += 1
+    print("Cluster Distribution:")
+    for i in range(k):
+        print(f" Cluster {i}: {counts[i]} entries")
+    input("\nPress Enter to continue...")
+
+class _DBApiHandler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def do_GET(self):
+        try:
+            if self.path.startswith("/stats"):
+                conn = sqlite3.connect(DB_FILE)
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM log_entries")
+                log_count = cursor.fetchone()[0]
+                cursor.execute("SELECT COUNT(*) FROM file_tracking")
+                file_count = cursor.fetchone()[0]
+                conn.close()
+                payload = {
+                    "log_entries": log_count,
+                    "file_tracking": file_count,
+                    "timestamp": datetime.datetime.now().isoformat()
+                }
+                data = json.dumps(payload).encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+                return
+        except Exception:
+            pass
+        self.send_response(404)
+        self.end_headers()
+
+def _db_api_server_start():
+    global _db_api_server
+    if _db_api_server is not None:
+        print("API server already running.")
+        return
+    def run_server():
+        global _db_api_server
+        _db_api_server = HTTPServer(("0.0.0.0", DB_API_PORT), _DBApiHandler)
+        _db_api_server.serve_forever()
+    threading.Thread(target=run_server, daemon=True).start()
+    print(f"✅ DB API running on port {DB_API_PORT} (path: /stats)")
+
+def _db_orm_view():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧬 ORM View (Lightweight)")
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM log_entries ORDER BY timestamp DESC LIMIT 5")
+    rows = cursor.fetchall()
+    conn.close()
+    for row in rows:
+        print(dict(row))
+    input("\nPress Enter to continue...")
+
+def _advanced_database_suite():
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧭 Advanced Database Suite")
+        print(" [1] Core DB Operations (CRUD + SQL + Tables + Transactions)")
+        print(" [2] Data Management & Automation")
+        print(" [3] Advanced Analysis & App Dev")
+        print(" [0] Return")
+        choice = input("\nSelect option: ").strip()
+
+        if choice == '0':
+            break
+        elif choice == '1':
+            while True:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("⚙️ Core DB Operations")
+                print(" [1] SQL Console")
+                print(" [2] Table Manager")
+                print(" [3] Quick CRUD")
+                print(" [4] Transaction Console")
+                print(" [0] Return")
+                sub = input("\nSelect option: ").strip()
+                if sub == '0':
+                    break
+                if sub == '1':
+                    _db_interactive_sql_console()
+                elif sub == '2':
+                    _db_table_manager()
+                elif sub == '3':
+                    _db_quick_crud()
+                elif sub == '4':
+                    _db_transaction_console()
+        elif choice == '2':
+            while True:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("🧰 Data Management & Automation")
+                print(" [1] Backup Database")
+                print(" [2] Restore Database")
+                print(" [3] Export Table to CSV")
+                print(" [4] Import CSV to Table")
+                print(" [5] Data Cleaning & Transformation")
+                print(" [6] Report Generation")
+                print(" [7] Task Scheduler")
+                print(" [0] Return")
+                sub = input("\nSelect option: ").strip()
+                if sub == '0':
+                    break
+                if sub == '1':
+                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                    backup_file = os.path.join(DB_DIR, f"pythonOS_backup_{timestamp}.db")
+                    try:
+                        shutil.copy2(DB_FILE, backup_file)
+                        print(f"✅ Backup created: {backup_file}")
+                    except Exception as e:
+                        print(f"❌ Backup error: {e}")
+                    input("\nPress Enter to continue...")
+                elif sub == '2':
+                    path = input("Backup file path: ").strip()
+                    if os.path.exists(path):
+                        confirm = input("Type RESTORE to confirm: ").strip()
+                        if confirm == "RESTORE":
+                            try:
+                                shutil.copy2(path, DB_FILE)
+                                print("✅ Database restored.")
+                            except Exception as e:
+                                print(f"❌ Restore error: {e}")
+                    else:
+                        print("❌ File not found")
+                    input("\nPress Enter to continue...")
+                elif sub == '3':
+                    _db_export_table_csv()
+                    input("\nPress Enter to continue...")
+                elif sub == '4':
+                    _db_import_csv()
+                    input("\nPress Enter to continue...")
+                elif sub == '5':
+                    _db_clean_transform()
+                elif sub == '6':
+                    _db_generate_report()
+                elif sub == '7':
+                    _db_schedule_tasks_menu()
+        elif choice == '3':
+            while True:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("🔬 Advanced Analysis & App Dev")
+                print(" [1] ORM View (lightweight)")
+                print(" [2] Data Analysis & Visualization")
+                print(" [3] ML Integration")
+                print(" [4] Start DB API Server")
+                print(" [0] Return")
+                sub = input("\nSelect option: ").strip()
+                if sub == '0':
+                    break
+                if sub == '1':
+                    _db_orm_view()
+                elif sub == '2':
+                    _db_analysis_dashboard()
+                elif sub == '3':
+                    _db_ml_probe()
+                elif sub == '4':
+                    _db_api_server_start()
+                    input("\nPress Enter to continue...")
 
 def _lite_scan():
     """Quick system snapshot - essential data capture."""
@@ -5712,3 +6327,4 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
+# added database funtions
