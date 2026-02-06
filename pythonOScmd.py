@@ -8816,10 +8816,8 @@ def animate_earth_and_moon_exit(stop_event):
                 "      -------      "
             ]
             
-            # Move cursor to top to create animation effect
-            # ANSI escape: move cursor to row 1, then save position
+            # Move cursor to top to create animation effect (only updates top portion)
             sys.__stdout__.write("\033[1;1H")  # Move to top-left
-            sys.__stdout__.write("\033[s")      # Save cursor position
             
             # Render title
             sys.__stdout__.write("\n" + " " * 15 + "🌍 EARTH & MOON ORBIT 🌙\n")
@@ -8851,7 +8849,9 @@ def animate_earth_and_moon_exit(stop_event):
                 sys.__stdout__.write("".join(full_row) + "\n")
             
             sys.__stdout__.write(" " * 10 + "═" * 40 + "\n\n")
-            sys.__stdout__.write("\033[u")  # Restore cursor position
+            
+            # Move cursor to prompt line (line 15) to avoid interfering with input
+            sys.__stdout__.write("\033[15;1H")
             sys.__stdout__.flush()
             
             frame_count += 1
@@ -8876,12 +8876,16 @@ def start_autonomous_monitor():
     # Clear screen and position content below animation
     os.system('cls' if os.name == 'nt' else 'clear')
     
-    # Add spacing for animation (12 lines)
+    # Position cursor and display prompt text (animation will run above)
+    # Print spacing and text, then move cursor to input position
     print("\n" * 12)
-    
     print(f"{COLORS['10'][0]}[🤖 AI] Would you like to enable the Autonomous Optimizer?{RESET}")
     print("   (Automatically adjusts UI, Power, and Thermal settings based on load)")
-    choice = input(f"{BOLD}🎯 Enable AI-Assisted Management? (y/n): {RESET}").strip().lower()
+    
+    # Print prompt on same line and get input
+    sys.__stdout__.write(f"{BOLD}🎯 Enable AI-Assisted Management? (y/n): {RESET}")
+    sys.__stdout__.flush()
+    choice = input().strip().lower()
     
     # Stop animation
     stop_animation.set()
