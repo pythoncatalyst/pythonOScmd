@@ -4,7 +4,7 @@
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
-# Author: Ahmed Dragonclaw Suche Orangatang Washington Sayyed
+# Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
 # Version: pythonOScmd65 (Base: pythonOS70, Version 21.1)
 # Description: Terminal OS with monitoring, security tools, media capabilities
 #
@@ -50,6 +50,10 @@ import os
 import time
 import ctypes # Added for Admin/Root probing
 import calendar # Added for AI/Calendar expansion
+import csv
+import textwrap
+import tempfile
+import importlib
 
 # ================================================================================
 # SECTION 3: CORE SYSTEM UTILITIES
@@ -151,6 +155,7 @@ import GPUtil
 from collections import deque
 from pathlib import Path
 import re # Added for Visual FX Regex
+
 import shutil # Added for check_pentest_tool
 import sqlite3 # Added for Database/Log system
 import json # Added for JSON logging
@@ -161,6 +166,7 @@ import traceback
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
     if os.name != 'posix':
+
         return None
     try:
         res = subprocess.run(
@@ -192,13 +198,16 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_DIR = os.path.join(SCRIPT_DIR, "pythonOS_data")
 LOG_DIR = os.path.join(DB_DIR, "logs")
 DB_FILE = os.path.join(DB_DIR, "pythonOS.db")
+
 SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
 CONFIG_FILE = os.path.join(DB_DIR, "config.json")
+DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
 
 # Log Categories
 LOG_CATEGORIES = {
     "system": "System Information",
     "network": "Network Operations",
+
     "security": "Security & Audit",
     "hardware": "Hardware Probing",
     "media": "Media Operations",
@@ -219,12 +228,14 @@ _db_scheduled_tasks = []
 # ================================================================================
 # SECTION 4: DATABASE & LOGGING SYSTEM (Version 21.2)
 # ================================================================================
+
 # Complete database and logging infrastructure including:
 # - SQLite connection management
 # - Log file categorization and storage  
 # - Swap cache system for performance
 # - File tracking and metadata
 # - Database export/import
+
 # - Advanced query tools
 # ================================================================================
 
@@ -233,6 +244,7 @@ def _db_connect():
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
     except Exception:
+
         pass
     return conn
 
@@ -240,6 +252,7 @@ def safe_run(category, operation, func, *args, **kwargs):
     try:
         return func(*args, **kwargs)
     except Exception as e:
+
         tb = traceback.format_exc()
         print(f"{COLORS['1'][0]}❌ Error in {operation}: {e}{RESET}")
         try:
@@ -264,6 +277,7 @@ def _save_user_config(config):
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
+
     except Exception:
         pass
 
@@ -272,6 +286,7 @@ def init_database_system():
     try:
         # Create directories if they don't exist
         os.makedirs(DB_DIR, exist_ok=True)
+
         os.makedirs(LOG_DIR, exist_ok=True)
         os.makedirs(SWAP_CACHE_DIR, exist_ok=True)
 
@@ -284,6 +299,7 @@ def init_database_system():
             cursor = conn.cursor()
 
         # Create tables
+
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS log_entries (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -306,6 +322,7 @@ def init_database_system():
                     last_accessed TEXT,
                     access_count INTEGER DEFAULT 0,
                     metadata TEXT
+
                 )
             ''')
 
@@ -325,6 +342,7 @@ def init_database_system():
                 CREATE TABLE IF NOT EXISTS session_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     session_start TEXT NOT NULL,
+
                     session_end TEXT,
                     operations_count INTEGER DEFAULT 0,
                     features_used TEXT
@@ -350,6 +368,7 @@ def log_to_database(category, operation, data=None, file_path=None, status="succ
             ''', (timestamp, category, operation, str(data) if data else None, file_path, status))
 
             conn.commit()
+
         return True
     except Exception as e:
         print(f"⚠️ Database logging error: {e}")
@@ -367,6 +386,7 @@ def save_log_file(category, operation, content, prompt_user=True):
         category_dir = os.path.join(LOG_DIR, category)
         filename = f"{operation.replace(' ', '_')}_{timestamp}.log"
         file_path = os.path.join(category_dir, filename)
+
 
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(f"=== {operation} ===\n")
@@ -407,6 +427,7 @@ def track_file(file_path, file_type=None, metadata=None):
             conn.commit()
         return True
     except Exception as e:
+
         print(f"⚠️ File tracking error: {e}")
         return False
 
@@ -438,6 +459,7 @@ def get_cached_data(key):
             cursor = conn.cursor()
             cursor.execute('''
                 SELECT cache_data, expires_at FROM swap_cache
+
                 WHERE cache_key = ? AND datetime(expires_at) > datetime('now')
             ''', (key,))
 
@@ -477,6 +499,7 @@ def clear_cached_data(key):
 def feature_database_log_center():
     """Database & Log Files Management Center."""
     while True:
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("💾 Database & Log Files Center")
 
@@ -501,6 +524,7 @@ def feature_database_log_center():
         except:
             print(f"{COLORS['1'][0]}⚠️ Database not accessible{RESET}")
 
+
         print(f"\n{BOLD}Main Menu:{RESET}")
         print(f" {BOLD}[1]{RESET} 📋 View Log Files (by Category)")
         print(f" {BOLD}[2]{RESET} 🔍 Search Logs")
@@ -512,6 +536,7 @@ def feature_database_log_center():
         print(f" {BOLD}[8]{RESET} 🧹 Clean & Optimize")
         print(f" {BOLD}[9]{RESET} ⚙️ Database Settings")
         print(f" {BOLD}[10]{RESET} 🔍 Lite Scan (Quick System Snapshot)")
+
         print(f" {BOLD}[11]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
         print(f" {BOLD}[12]{RESET} 🧭 Advanced Database Suite")
         print(f" {BOLD}[13]{RESET} 📡 Start DB API Server")
@@ -2052,6 +2077,7 @@ stop_clock = False
 temp_unit = "C"
 truncated_thermal = False
 mini_view = False
+doc_word_render_mode = "pandoc"
 
 _user_config = _load_user_config()
 if isinstance(_user_config, dict):
@@ -2061,6 +2087,7 @@ if isinstance(_user_config, dict):
     temp_unit = _user_config.get("temp_unit", temp_unit)
     truncated_thermal = _user_config.get("truncated_thermal", truncated_thermal)
     mini_view = _user_config.get("mini_view", mini_view)
+    doc_word_render_mode = _user_config.get("doc_word_render_mode", doc_word_render_mode)
 
 def _update_user_config(**updates):
     if not isinstance(_user_config, dict):
@@ -4899,6 +4926,160 @@ def _download_center_catalog():
                 "https://flask.palletsprojects.com/",
                 "https://www.djangoproject.com/"
             ]
+        },
+        "text_doc": {
+            "title": "Text & Doc Tools (Command Center T)",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y poppler-utils",
+                    "sudo apt-get install -y antiword",
+                    "sudo apt-get install -y catdoc",
+                    "sudo apt-get install -y unrtf",
+                    "sudo apt-get install -y pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "kali": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y poppler-utils",
+                    "sudo apt-get install -y antiword",
+                    "sudo apt-get install -y catdoc",
+                    "sudo apt-get install -y unrtf",
+                    "sudo apt-get install -y pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "fedora": [
+                    "sudo dnf install -y poppler-utils",
+                    "sudo dnf install -y antiword",
+                    "sudo dnf install -y catdoc",
+                    "sudo dnf install -y unrtf",
+                    "sudo dnf install -y pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm poppler",
+                    "sudo pacman -Syu --noconfirm antiword",
+                    "sudo pacman -Syu --noconfirm catdoc",
+                    "sudo pacman -Syu --noconfirm unrtf",
+                    "sudo pacman -Syu --noconfirm pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add poppler-utils",
+                    "sudo apk add antiword",
+                    "sudo apk add catdoc",
+                    "sudo apk add unrtf",
+                    "sudo apk add pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "macos": [
+                    "brew install poppler",
+                    "brew install antiword",
+                    "brew install catdoc",
+                    "brew install unrtf",
+                    "brew install pandoc",
+                ] + _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]),
+                "windows": [
+                    "py -m pip install --upgrade pymupdf",
+                    "py -m pip install --upgrade PyPDF2",
+                    "py -m pip install --upgrade python-docx",
+                    "py -m pip install --upgrade ebooklib",
+                    "py -m pip install --upgrade openpyxl",
+                    "py -m pip install --upgrade xlrd",
+                    "py -m pip install --upgrade docx2txt",
+                    "py -m pip install --upgrade textract",
+                    "# Optional: install pandoc from https://pandoc.org/installing.html",
+                ],
+                "android": [
+                    "pkg update -y",
+                ] + _pip_install_cmds([
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                ]),
+                "ios": [
+                    "# iOS does not support these tools natively.",
+                    "# Use a remote Linux host or iSH (Alpine) where available."
+                ],
+                "esp32": [
+                    "# Use a host computer for these tools."
+                ],
+                "generic": _pip_install_cmds([
+                    "pymupdf",
+                    "PyPDF2",
+                    "python-docx",
+                    "ebooklib",
+                    "openpyxl",
+                    "xlrd",
+                    "docx2txt",
+                    "textract",
+                ]) + [
+                    "# Optional: install poppler-utils / pandoc / antiword via your OS package manager",
+                ]
+            },
+            "links": [
+                "https://pypi.org/project/PyMuPDF/",
+                "https://pypi.org/project/PyPDF2/",
+                "https://pypi.org/project/python-docx/",
+                "https://pypi.org/project/ebooklib/",
+                "https://pypi.org/project/openpyxl/",
+                "https://pypi.org/project/xlrd/",
+                "https://pypi.org/project/textract/",
+                "https://pandoc.org/"
+            ]
         }
     }
 
@@ -4962,6 +5143,7 @@ def feature_download_center():
         print(" [9] Web Development Stack")
         print(" [10] PWN Tools (P)")
         print(" [11] MapSCII (Satellite Tracker)")
+        print(" [12] Text & Doc Tools (T)")
         print(" [S] Select OS Target")
         print(" [0] Return")
 
@@ -4983,7 +5165,8 @@ def feature_download_center():
             "8": "data_science",
             "9": "web_dev",
             "10": "pwn_tools",
-            "11": "mapscii"
+            "11": "mapscii",
+            "12": "text_doc"
         }
         key = mapping.get(choice)
         if not key:
@@ -7655,6 +7838,528 @@ def _calc_help():
 # END GRAPHING CALCULATOR SECTION
 # ================================================================================
 
+# ==============================================================================
+# SECTION 14B: TEXT & DOC CENTER
+# ==============================================================================
+
+DOC_EXTENSIONS = {
+    ".txt": "Plain Text",
+    ".log": "Plain Text",
+    ".md": "Plain Text",
+    ".conf": "WireGuard",
+    ".wg": "WireGuard",
+    ".ini": "Plain Text",
+    ".cfg": "Plain Text",
+    ".json": "Plain Text",
+    ".yaml": "Plain Text",
+    ".yml": "Plain Text",
+    ".pdf": "PDF",
+    ".doc": "Word",
+    ".docx": "Word",
+    ".epub": "E-Book",
+    ".mobi": "E-Book",
+    ".csv": "CSV",
+    ".tsv": "CSV",
+    ".xlsx": "Excel",
+    ".xls": "Excel",
+}
+
+def _format_bytes(num):
+    try:
+        size = float(num)
+    except (TypeError, ValueError):
+        return "N/A"
+    for unit in ["B", "KB", "MB", "GB", "TB"]:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+def _ensure_doc_library_dir():
+    os.makedirs(DOC_LIBRARY_DIR, exist_ok=True)
+
+def _doc_type_for_path(path):
+    ext = os.path.splitext(path)[1].lower()
+    return DOC_EXTENSIONS.get(ext)
+
+def _scan_doc_library(base_dir=DB_DIR):
+    docs = []
+    for root, _, files in os.walk(base_dir):
+        for name in files:
+            ext = os.path.splitext(name)[1].lower()
+            doc_type = DOC_EXTENSIONS.get(ext)
+            if not doc_type:
+                continue
+            path = os.path.join(root, name)
+            try:
+                stat = os.stat(path)
+                docs.append({
+                    "path": path,
+                    "name": name,
+                    "ext": ext,
+                    "type": doc_type,
+                    "size": stat.st_size,
+                    "mtime": stat.st_mtime,
+                })
+                track_file(path, file_type=doc_type, metadata={"extension": ext})
+            except Exception:
+                continue
+    docs.sort(key=lambda d: d.get("mtime", 0), reverse=True)
+    return docs
+
+def _get_doc_index(force=False):
+    if not force:
+        cached = get_cached_data("doc_index")
+        if cached:
+            return cached
+    docs = _scan_doc_library(DB_DIR)
+    cache_data("doc_index", docs, expire_minutes=15)
+    return docs
+
+def _print_text_paged(title, text, page_lines=24):
+    lines = text.splitlines() if text else ["(empty)"]
+    page = 0
+    max_pages = max(1, (len(lines) - 1) // page_lines + 1)
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"📄 {title}")
+        start = page * page_lines
+        end = start + page_lines
+        for line in lines[start:end]:
+            print(line[:200])
+        print(f"\nPage {page + 1}/{max_pages}  [N]ext  [P]rev  [B]ack")
+        cmd = input("Select: ").strip().lower()
+        if cmd == 'b':
+            break
+        if cmd == 'n' and page + 1 < max_pages:
+            page += 1
+            continue
+        if cmd == 'p' and page > 0:
+            page -= 1
+
+def _limit_text(text, max_chars=20000):
+    if not text:
+        return ""
+    if len(text) <= max_chars:
+        return text
+    return text[:max_chars] + "\n... [truncated]"
+
+def _read_text_file(path):
+    for enc in ("utf-8", "utf-16", "latin-1"):
+        try:
+            with open(path, "r", encoding=enc, errors="replace") as f:
+                return f.read(), None
+        except Exception:
+            continue
+    return None, "Unsupported text encoding"
+
+def _strip_html(html):
+    try:
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(html, "html.parser")
+        text = soup.get_text("\n")
+        return text if isinstance(text, str) else str(text)
+    except Exception:
+        return re.sub(r"<[^>]+>", " ", html)
+
+def _read_pdf(path):
+    try:
+        fitz = importlib.import_module("fitz")
+        doc = fitz.open(path)
+        parts = []
+        for i, page in enumerate(doc):
+            if i >= 50:
+                parts.append("\n... [page limit reached]\n")
+                break
+            parts.append(page.get_text())
+        return "\n".join(parts), None
+    except Exception:
+        try:
+            PyPDF2 = importlib.import_module("PyPDF2")
+            reader = PyPDF2.PdfReader(path)
+            parts = []
+            for i, page in enumerate(reader.pages):
+                if i >= 50:
+                    parts.append("\n... [page limit reached]\n")
+                    break
+                parts.append(page.extract_text() or "")
+            return "\n".join(parts), None
+        except Exception:
+            return None, "Install 'pymupdf' or 'PyPDF2' to read PDFs"
+
+def _pandoc_to_text(path, output_format="markdown"):
+    if not shutil.which("pandoc"):
+        return None, "Install 'pandoc' for formatted Word rendering"
+    try:
+        result = subprocess.run(
+            ["pandoc", "-t", output_format, path],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=False
+        )
+        if result.returncode != 0:
+            return None, result.stderr.strip() or "Pandoc conversion failed"
+        return result.stdout, None
+    except Exception:
+        return None, "Pandoc conversion failed"
+
+def _read_doc(path):
+    antiword = shutil.which("antiword")
+    if antiword:
+        try:
+            result = subprocess.run(
+                [antiword, path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout, None
+        except Exception:
+            pass
+    catdoc = shutil.which("catdoc")
+    if catdoc:
+        try:
+            result = subprocess.run(
+                [catdoc, path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                check=False
+            )
+            if result.returncode == 0 and result.stdout.strip():
+                return result.stdout, None
+        except Exception:
+            pass
+    if doc_word_render_mode == "plain":
+        return None, "Install 'antiword' or 'catdoc' for .doc (plain mode)"
+    return _pandoc_to_text(path)
+
+def _read_docx(path):
+    if doc_word_render_mode != "plain":
+        text, err = _pandoc_to_text(path)
+        if text:
+            return text, None
+    try:
+        docx = importlib.import_module("docx")
+        doc = docx.Document(path)
+        lines = [p.text for p in doc.paragraphs if p.text.strip()]
+        return "\n".join(lines), None
+    except Exception:
+        if doc_word_render_mode == "plain":
+            return None, "Install 'python-docx' to read .docx (plain mode)"
+        return None, "Install 'pandoc' or 'python-docx' to read .docx"
+
+def _read_epub(path):
+    try:
+        ebooklib = importlib.import_module("ebooklib")
+        epub = importlib.import_module("ebooklib.epub")
+        book = epub.read_epub(path)
+        parts = []
+        for item in book.get_items_of_type(ebooklib.ITEM_DOCUMENT):
+            content = item.get_content().decode("utf-8", errors="ignore")
+            parts.append(_strip_html(content))
+        return "\n".join(parts), None
+    except Exception:
+        return None, "Install 'ebooklib' to read .epub"
+
+def _read_mobi(path):
+    try:
+        textract = importlib.import_module("textract")
+        text = textract.process(path).decode("utf-8", errors="ignore")
+        return text, None
+    except Exception:
+        pass
+    try:
+        mobi = importlib.import_module("mobi")
+        if hasattr(mobi, "extract"):
+            with tempfile.TemporaryDirectory() as tmp:
+                mobi.extract(path, tmp)
+                for root, _, files in os.walk(tmp):
+                    for name in files:
+                        if name.lower().endswith((".html", ".htm", ".txt")):
+                            full_path = os.path.join(root, name)
+                            data, _ = _read_text_file(full_path)
+                            if data:
+                                return data, None
+    except Exception:
+        pass
+    return None, "Install 'textract' or 'mobi' to read .mobi"
+
+def _read_csv(path, delimiter=None):
+    rows = []
+    try:
+        with open(path, "r", encoding="utf-8", errors="replace") as f:
+            if delimiter is None:
+                sample = f.read(2048)
+                f.seek(0)
+                try:
+                    delimiter = csv.Sniffer().sniff(sample).delimiter
+                except Exception:
+                    delimiter = ','
+            reader = csv.reader(f, delimiter=delimiter)
+            for i, row in enumerate(reader):
+                rows.append(row)
+                if i >= 50:
+                    break
+        return rows, None
+    except Exception:
+        return None, "Unable to read CSV file"
+
+def _read_excel(path):
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".xlsx":
+        try:
+            openpyxl = importlib.import_module("openpyxl")
+            wb = openpyxl.load_workbook(path, read_only=True, data_only=True)
+            sheet = wb.active
+            rows = []
+            for i, row in enumerate(sheet.iter_rows(values_only=True)):
+                rows.append(["" if v is None else str(v) for v in row])
+                if i >= 50:
+                    break
+            return rows, None
+        except Exception:
+            return None, "Install 'openpyxl' to read .xlsx"
+    try:
+        xlrd = importlib.import_module("xlrd")
+        wb = xlrd.open_workbook(path)
+        sheet = wb.sheet_by_index(0)
+        rows = []
+        for r in range(min(sheet.nrows, 50)):
+            rows.append([str(cell.value) for cell in sheet.row(r)])
+        return rows, None
+    except Exception:
+        return None, "Install 'xlrd' to read .xls"
+
+def _render_table(rows, max_cols=8, max_width=20):
+    if not rows:
+        return "(empty)"
+    trimmed = [row[:max_cols] for row in rows]
+    widths = [0] * max_cols
+    for row in trimmed:
+        for i, cell in enumerate(row):
+            cell_str = str(cell)
+            widths[i] = min(max(widths[i], len(cell_str)), max_width)
+    lines = []
+    for row in trimmed:
+        padded = []
+        for i in range(max_cols):
+            cell = str(row[i]) if i < len(row) else ""
+            cell = textwrap.shorten(cell, width=max_width, placeholder="...")
+            padded.append(cell.ljust(widths[i]))
+        lines.append(" | ".join(padded).rstrip())
+    return "\n".join(lines)
+
+def _open_document(path):
+    if not os.path.exists(path):
+        print(f"{COLORS['1'][0]}❌ File not found: {path}{RESET}")
+        input("Press Enter to continue...")
+        return
+    doc_type = _doc_type_for_path(path)
+    if not doc_type:
+        print(f"{COLORS['1'][0]}❌ Unsupported file type{RESET}")
+        input("Press Enter to continue...")
+        return
+    ext = os.path.splitext(path)[1].lower()
+    text = None
+    err = None
+    if ext in (".txt", ".log", ".md", ".conf", ".wg", ".ini", ".cfg", ".json", ".yaml", ".yml"):
+        text, err = _read_text_file(path)
+    elif ext == ".pdf":
+        text, err = _read_pdf(path)
+    elif ext == ".doc":
+        text, err = _read_doc(path)
+    elif ext == ".docx":
+        text, err = _read_docx(path)
+    elif ext == ".epub":
+        text, err = _read_epub(path)
+    elif ext == ".mobi":
+        text, err = _read_mobi(path)
+    elif ext in (".csv", ".tsv"):
+        delimiter = '\t' if ext == ".tsv" else None
+        rows, err = _read_csv(path, delimiter=delimiter)
+        if rows is not None:
+            text = _render_table(rows)
+    elif ext in (".xlsx", ".xls"):
+        rows, err = _read_excel(path)
+        if rows is not None:
+            text = _render_table(rows)
+    if err:
+        print(f"{COLORS['4'][0]}⚠️ {err}{RESET}")
+        input("Press Enter to continue...")
+        return
+    text = _limit_text(text)
+    track_file(path, file_type=doc_type, metadata={"extension": ext, "source": "text_doc_center"})
+    _print_text_paged(os.path.basename(path), text)
+
+def _doc_browse_menu():
+    docs = _get_doc_index(force=False)
+    page = 0
+    page_size = 12
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📚 Text & Doc Library")
+        if not docs:
+            print(f"\n{COLORS['4'][0]}No documents found in pythonOS_data.{RESET}")
+            print("\n[R]efresh  [B]ack")
+            cmd = input("Select: ").strip().lower()
+            if cmd == 'r':
+                docs = _get_doc_index(force=True)
+                continue
+            if cmd == 'b':
+                break
+            continue
+        total_pages = max(1, (len(docs) - 1) // page_size + 1)
+        start = page * page_size
+        end = start + page_size
+        page_items = docs[start:end]
+        print(f"\n{BOLD}Page {page + 1}/{total_pages} | Files: {len(docs)}{RESET}")
+        for idx, item in enumerate(page_items, 1):
+            size = _format_bytes(item.get("size"))
+            print(f" {idx}. [{item['type']}] {item['name']} ({size})")
+        print("\n[N]ext  [P]rev  [O]pen <num>  [R]efresh  [B]ack")
+        cmd = input("Select: ").strip().lower()
+        if cmd == 'b':
+            break
+        if cmd == 'n' and end < len(docs):
+            page += 1
+            continue
+        if cmd == 'p' and page > 0:
+            page -= 1
+            continue
+        if cmd == 'r':
+            docs = _get_doc_index(force=True)
+            page = 0
+            continue
+        if cmd.startswith('o'):
+            num = cmd[1:].strip() or input("Open number: ").strip()
+            if num.isdigit():
+                idx = int(num) - 1
+                if 0 <= idx < len(page_items):
+                    _open_document(page_items[idx]["path"])
+
+def _doc_search_menu():
+    query = input("Search filename: ").strip().lower()
+    if not query:
+        return
+    docs = _get_doc_index(force=False)
+    matches = [d for d in docs if query in d["name"].lower()]
+    if not matches:
+        print(f"{COLORS['4'][0]}No matches found.{RESET}")
+        input("Press Enter to continue...")
+        return
+    page = 0
+    page_size = 10
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔎 Search Results")
+        total_pages = max(1, (len(matches) - 1) // page_size + 1)
+        start = page * page_size
+        end = start + page_size
+        page_items = matches[start:end]
+        print(f"\n{BOLD}Page {page + 1}/{total_pages} | Matches: {len(matches)}{RESET}")
+        for idx, item in enumerate(page_items, 1):
+            size = _format_bytes(item.get("size"))
+            print(f" {idx}. [{item['type']}] {item['name']} ({size})")
+        print("\n[N]ext  [P]rev  [O]pen <num>  [B]ack")
+        cmd = input("Select: ").strip().lower()
+        if cmd == 'b':
+            break
+        if cmd == 'n' and end < len(matches):
+            page += 1
+            continue
+        if cmd == 'p' and page > 0:
+            page -= 1
+            continue
+        if cmd.startswith('o'):
+            num = cmd[1:].strip() or input("Open number: ").strip()
+            if num.isdigit():
+                idx = int(num) - 1
+                if 0 <= idx < len(page_items):
+                    _open_document(page_items[idx]["path"])
+
+def _doc_import_menu():
+    _ensure_doc_library_dir()
+    path = input("Enter file path to import: ").strip()
+    if not path:
+        return
+    if not os.path.exists(path):
+        print(f"{COLORS['1'][0]}❌ File not found.{RESET}")
+        input("Press Enter to continue...")
+        return
+    ext = os.path.splitext(path)[1].lower()
+    if ext not in DOC_EXTENSIONS:
+        print(f"{COLORS['4'][0]}⚠️ Unsupported extension. Try txt/pdf/docx/epub/mobi/csv/xlsx.{RESET}")
+        input("Press Enter to continue...")
+        return
+    dest = os.path.join(DOC_LIBRARY_DIR, os.path.basename(path))
+    try:
+        shutil.copy2(path, dest)
+        track_file(dest, file_type=DOC_EXTENSIONS.get(ext), metadata={"extension": ext, "source": "import"})
+        print(f"{COLORS['2'][0]}✅ Imported: {dest}{RESET}")
+        cache_data("doc_index", _scan_doc_library(DB_DIR), expire_minutes=15)
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Import failed: {e}{RESET}")
+    input("Press Enter to continue...")
+
+def _doc_stats_menu():
+    docs = _get_doc_index(force=False)
+    counts = {}
+    for item in docs:
+        counts[item["type"]] = counts.get(item["type"], 0) + 1
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 Document Library Stats")
+    print(f"\n{BOLD}Total Documents: {len(docs)}{RESET}")
+    for key, val in sorted(counts.items()):
+        print(f"  {key}: {val}")
+    print(f"\nLibrary Path: {DOC_LIBRARY_DIR}")
+    input("Press Enter to continue...")
+
+def feature_text_doc_center():
+    """Text & Document viewing center (terminal-based)."""
+    global doc_word_render_mode
+    _ensure_doc_library_dir()
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📝 Text & Doc Center")
+        print(f"\n{BOLD}Library:{RESET} {DOC_LIBRARY_DIR}")
+        print(f"{BOLD}Word Render:{RESET} {doc_word_render_mode}")
+        print(f" {BOLD}[1]{RESET} 📚 Browse Library (pythonOS_data)")
+        print(f" {BOLD}[2]{RESET} 🔎 Search Library")
+        print(f" {BOLD}[3]{RESET} 📂 Open by Path")
+        print(f" {BOLD}[4]{RESET} 📥 Import into Library")
+        print(f" {BOLD}[5]{RESET} 🔄 Refresh Index")
+        print(f" {BOLD}[6]{RESET} 📊 Library Stats")
+        print(f" {BOLD}[7]{RESET} 📝 Word Render Mode (pandoc/plain)")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        if choice == '0':
+            break
+        if choice == '1':
+            _doc_browse_menu()
+        elif choice == '2':
+            _doc_search_menu()
+        elif choice == '3':
+            path = input("Enter full path: ").strip()
+            if path:
+                _open_document(path)
+        elif choice == '4':
+            _doc_import_menu()
+        elif choice == '5':
+            _get_doc_index(force=True)
+            print(f"{COLORS['2'][0]}✅ Index refreshed.{RESET}")
+            input("Press Enter to continue...")
+        elif choice == '6':
+            _doc_stats_menu()
+        elif choice == '7':
+            doc_word_render_mode = "plain" if doc_word_render_mode == "pandoc" else "pandoc"
+            _update_user_config(doc_word_render_mode=doc_word_render_mode)
+            print(f"{COLORS['2'][0]}✅ Word render mode: {doc_word_render_mode}{RESET}")
+            input("Press Enter to continue...")
+
 def feature_latency_probe():
     def _ping_target(host):
         param = '-n' if os.name == 'nt' else '-c'
@@ -8894,10 +9599,10 @@ while True:
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
     print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
     print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker")
-    print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator")
+    print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-S): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-T): {RESET}").strip().upper()
     _update_user_config(last_choice=choice)
     stop_clock = True
 
@@ -8960,6 +9665,7 @@ while True:
     elif choice == 'Q': safe_run("general", "Python_Power", feature_python_power)
     elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
     elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
+    elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
 
 #version 21
 
@@ -9537,6 +10243,7 @@ ctx = {
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
+# Added Text & Document Center with a built-in text editor and document viewer supporting various formats, including .txt, .md, .pdf, and .docx. The editor features syntax highlighting for code files, markdown preview, and basic formatting tools. The document viewer can render PDFs and Word documents directly in the terminal using ASCII art and supports navigation through pages and sections. This module is accessible via Command Center option T and provides a comprehensive solution for managing text and documents within the pythonOS environment.
 # Version 16 - Earth & Moon Animation
 # Version 17 - Graphing Calculator & ASCII Plotting I'll replace the ScienceConsole class with the improved version that includes NumPy integration, variable storage, rolling calculations, and enhanced UI features
 # Added a powerful Graphing Calculator module with support for plotting functions, parametric equations, and
