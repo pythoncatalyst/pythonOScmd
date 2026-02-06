@@ -1,17 +1,49 @@
-#pythonOS By Ahmed Dragonclaw Suche Orangatang Washington Sayyed
-#Indentation is just important a your Incantation.
-#ATerminal Operating System that gives you an easy way to control you computer with a easy interface.
-#Iincluded a lot of basic computer data to display right of the bat and some power tools.
-#It will even runs video in terminal with full color support in ascii!
-#Option 3 and 13 is the most like a T.V. I will be #explanding this and this will be updated.
-#There is a fix in need to make in Command Center in Option 9 and selection 2.
-#When iuse control c the whole OS quits. Need to change to another key.
-#Code Starts Below. .py at end of pythonOS and run if not alredy there
-#pythonOS - simple command line OS that I made so that I use on my PC to
-#monitor the computer, view stats of a remote computer
-#With the option of using SSH to another computer pythonOS.py
-#-*- coding: utf-8 -*-
-#Simple System Monitor By: Ahmed Sayyed
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+################################################################################
+# PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
+################################################################################
+# Author: Ahmed Dragonclaw Suche Orangatang Washington Sayyed
+# Version: pythonOScmd65 (Base: pythonOS70, Version 21.1)
+# Description: Terminal OS with monitoring, security tools, media capabilities
+#
+# TABLE OF CONTENTS:
+# ------------------
+# SECTION 1:  Imports & Core Dependencies
+# SECTION 2:  Configuration & Constants  
+# SECTION 3:  Core System Utilities (Boot Loader, Audio Init)
+# SECTION 4:  Database & Logging System (Complete Suite)
+# SECTION 5:  UI & Display System (Colors, Visual FX, Headers)
+# SECTION 6:  Weather & Environmental Monitoring
+# SECTION 7:  Satellite & Orbital Tracking
+# SECTION 8:  Network & Connectivity (WiFi, Bluetooth, Network Tools)
+# SECTION 9:  Security & Penetration Testing
+# SECTION 10: Defence & Protection Systems
+# SECTION 11: Media & Entertainment (ASCII Player, Media Scanner)
+# SECTION 12: Hardware Monitoring & Diagnostics
+# SECTION 13: AI & Analytics (Deep Probe, Autonomous Optimizer)
+# SECTION 14: System Management Tools
+# SECTION 15: Web & Remote Dashboard
+# SECTION 16: Plugin System & Extensibility
+# SECTION 17: Download Center & Package Management
+# SECTION 18: Developer Tools (PWN Tools, Python Power)
+# SECTION 19: Integration & Bridge Functions
+# SECTION 20: Main Application Logic
+# SECTION 21: Startup & Initialization
+#
+# IMPORTANT NOTES:
+# - Indentation is just as important as your Incantation
+# - Runs video in terminal with full color ASCII support
+# - Option 3 and 13 are most like a T.V.
+# - Fix needed: Command Center Option 9, selection 2 (Ctrl+C handling)
+################################################################################
+"""
+# ================================================================================
+# SECTION 1: IMPORTS & CORE DEPENDENCIES
+# ================================================================================
+
+# Standard Library Imports
 import sys
 import subprocess
 import os
@@ -19,7 +51,10 @@ import time
 import ctypes # Added for Admin/Root probing
 import calendar # Added for AI/Calendar expansion
 
-# --- SELF-HEALING DEPENDENCY CHECK (UPDATED) ---
+# ================================================================================
+# SECTION 3: CORE SYSTEM UTILITIES
+# ================================================================================
+
 def boot_loader():
     # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
     if sys.stdout.encoding != 'utf-8':
@@ -94,7 +129,7 @@ def boot_loader():
 # Run the bootloader before importing the main libraries
 boot_loader()
 
-# --- ORIGINAL CODE STARTS HERE (UNTOUCHED LOGIC) ---
+# Third-Party Library Imports (after boot_loader ensures they exist)
 import platform
 import psutil
 import socket
@@ -144,9 +179,9 @@ def init_audio_device():
 
 DEFAULT_AUDIO_SINK = init_audio_device()
 
-# ==========================================================
-# DATABASE & LOGGING SYSTEM - V21.2
-# ==========================================================
+# ================================================================================
+# SECTION 2: CONFIGURATION & CONSTANTS
+# ================================================================================
 
 # Database and Log Directory Setup
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -176,6 +211,18 @@ DB_API_PORT = 8092
 _db_api_server = None
 _db_scheduler_running = False
 _db_scheduled_tasks = []
+
+# ================================================================================
+# SECTION 4: DATABASE & LOGGING SYSTEM (Version 21.2)
+# ================================================================================
+# Complete database and logging infrastructure including:
+# - SQLite connection management
+# - Log file categorization and storage  
+# - Swap cache system for performance
+# - File tracking and metadata
+# - Database export/import
+# - Advanced query tools
+# ================================================================================
 
 def _db_connect():
     conn = sqlite3.connect(DB_FILE, timeout=10)
@@ -2181,6 +2228,12 @@ try:
     _builtins.input = input
 except Exception:
     pass
+
+# ================================================================================
+# SECTION 6: WEATHER & ENVIRONMENTAL MONITORING  
+# ================================================================================
+# Weather data fetching, display, and live ticker integration
+# ================================================================================
 
 # Global weather cache for live ticker
 weather_cache = {"temp": "N/A", "icon": "☁️", "humidity": "N/A", "wind": "N/A"}
@@ -8302,6 +8355,10 @@ ctx = {
     "BOLD": BOLD
 }
 # version pythonOScmd65 base pythonOS70
+# Version 20 - Command Center & Remote Dashboard
+# This update introduces the Command Center, a centralized hub for accessing all features and tools in the
+# script. The Command Center provides a live system identity clock, quick toggles for display and performance settings, and a menu-driven interface to launch any module. It also saves your display configuration for consistency across sessions.
+# The Remote Dashboard is a new web-based interface that displays real-time system stats, logs,
 # Version 21 - Command Center Expansion & Satellite Tracker
 # This update focuses on expanding the Command Center with more features and adding a new Satellite Tracker module.
 # The Satellite Tracker includes a live map powered by PyPredict, TLE updates, target selection, 
