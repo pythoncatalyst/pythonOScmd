@@ -2248,9 +2248,40 @@ def get_current_color():
 
 def draw_bar(pct):
     width = 15
-    filled = int(width * pct / 100)
+    try:
+        pct_value = float(pct)
+    except (TypeError, ValueError):
+        return "N/A"
+    filled = int(width * pct_value / 100)
+    filled = max(0, min(width, filled))
     bar = BOX_CHARS["BAR"] * filled + "░" * (width - filled)
-    return f"{bar} {pct}%"
+    return f"{bar} {pct_value}%"
+
+def _format_gb(value):
+    try:
+        return f"{float(value) / (1024**3):.2f} GB"
+    except (TypeError, ValueError):
+        return "N/A"
+
+def _format_mb(value):
+    try:
+        return f"{float(value) / (1024**2):.2f} MB"
+    except (TypeError, ValueError):
+        return "N/A"
+
+def _format_boot_info(timestamp):
+    try:
+        boot_time = datetime.datetime.fromtimestamp(float(timestamp))
+        uptime = datetime.datetime.now() - boot_time
+        return boot_time.strftime('%Y-%m-%d %H:%M:%S'), str(uptime).split('.')[0]
+    except (TypeError, ValueError, OSError):
+        return "N/A", "N/A"
+
+def _safe_float(value, default=None):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
 
 def print_header(title, extra_info=""):
     dash = BOX_CHARS["H"] * 20
@@ -5572,6 +5603,8 @@ def get_advanced_hardware_stats():
 
 def live_system_identity_clock():
     last_net = psutil.net_io_counters()
+    last_recv = _safe_float(getattr(last_net, "bytes_recv", None), 0.0)
+    last_sent = _safe_float(getattr(last_net, "bytes_sent", None), 0.0)
     ticker_count = 0
     while not stop_clock:
         # Update weather cache every 300 seconds (5 mins)
@@ -5587,9 +5620,16 @@ def live_system_identity_clock():
         time.sleep(1)
         ticker_count += 1
         now_net = psutil.net_io_counters()
-        down_speed = (now_net.bytes_recv - last_net.bytes_recv) / 1024
-        up_speed = (now_net.bytes_sent - last_net.bytes_sent) / 1024
-        last_net = now_net
+        now_recv = _safe_float(getattr(now_net, "bytes_recv", None))
+        now_sent = _safe_float(getattr(now_net, "bytes_sent", None))
+        if now_recv is None or now_sent is None:
+            down_speed = 0
+            up_speed = 0
+        else:
+            down_speed = (now_recv - last_recv) / 1024
+            up_speed = (now_sent - last_sent) / 1024
+            last_recv = now_recv
+            last_sent = now_sent
 
         avg_temp_display = "N/A"
         try:
@@ -8796,15 +8836,15 @@ while True:
         print_header("🧠 Memory Status")
         mem = psutil.virtual_memory()
         swap = psutil.swap_memory()
-        print(f"📏 Total RAM:       {mem.total / (1024**3):.2f} GB")
-        print(f"🔓 Available RAM:   {mem.available / (1024**3):.2f} GB")
+        print(f"📏 Total RAM:       {_format_gb(mem.total)}")
+        print(f"🔓 Available RAM:   {_format_gb(mem.available)}")
         print(f"📈 RAM Usage:       {draw_bar(mem.percent)}")
-        print(f"🔄 Swap Total:      {swap.total / (1024**3):.2f} GB")
+        print(f"🔄 Swap Total:      {_format_gb(swap.total)}")
         print_header("💽 Storage & Disk")
         disk = psutil.disk_usage('/')
-        print(f"📏 Total Space:     {disk.total / (1024**3):.2f} GB")
-        print(f"📈 Used Space:      {draw_bar(disk.percent)} ({disk.used / (1024**3):.2f} GB)")
-        print(f"🔓 Free Space:      {disk.free / (1024**3):.2f} GB")
+        print(f"📏 Total Space:     {_format_gb(disk.total)}")
+        print(f"📈 Used Space:      {draw_bar(disk.percent)} ({_format_gb(disk.used)})")
+        print(f"🔓 Free Space:      {_format_gb(disk.free)}")
         print_header("🌐 Network & IDs")
         hostname = socket.gethostname()
         print(f"📛 Hostname:         {hostname}")
@@ -8813,19 +8853,21 @@ while True:
         mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
         print(f"🆔 MAC Address:     {mac}")
         net_io = psutil.net_io_counters()
-        print(f"⬆️ Data Sent:       {net_io.bytes_sent / (1024**2):.2f} MB")
-        print(f"⬇️ Data Received:   {net_io.bytes_recv / (1024**2):.2f} MB")
+        print(f"⬆️ Data Sent:       {_format_mb(net_io.bytes_sent)}")
+        print(f"⬇️ Data Received:   {_format_mb(net_io.bytes_recv)}")
         print_header("🐍 Python Context")
         print(f"🐍 Python Version:  {platform.python_version()}")
         print_header("🔮 Miscellaneous")
-        boot_time = datetime.datetime.fromtimestamp(psutil.boot_time())
-        uptime = datetime.datetime.now() - boot_time
-        print(f"🏁 System Boot:     {boot_time.strftime('%Y-%m-%d %H:%M:%S')}")
-        print(f"⏱️ Uptime:          {str(uptime).split('.')[0]}")
+        boot_str, uptime_str = _format_boot_info(psutil.boot_time())
+        print(f"🏁 System Boot:     {boot_str}")
+        print(f"⏱️ Uptime:          {uptime_str}")
         battery = psutil.sensors_battery()
         if battery:
-            status = "🔌 Charging" if battery.power_plugged else "🔋 Discharging"
-            print(f"🔋 Battery:           {battery.percent}% ({status})")
+            try:
+                status = "🔌 Charging" if battery.power_plugged else "🔋 Discharging"
+                print(f"🔋 Battery:           {battery.percent}% ({status})")
+            except Exception:
+                print("🔋 Battery:           N/A")
         print(f"\n{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
 
     stop_clock = False
