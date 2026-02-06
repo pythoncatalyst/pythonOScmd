@@ -139,6 +139,9 @@ import datetime
 import threading
 import random
 import math
+import cmath
+import statistics
+import curses
 import requests
 from bs4 import BeautifulSoup
 from PIL import Image
@@ -6603,6 +6606,225 @@ def feature_hardware_serials():
 # - Programming environment
 # ================================================================================
 
+# --- ADVANCED GRAPHING CALCULATOR (CURSES-BASED SCIENCE CONSOLE) ---
+
+class ScienceConsole:
+    def __init__(self):
+        # Master namespace for math, complex math, and statistics
+        self.namespace = {
+            **{name: getattr(math, name) for name in dir(math) if not name.startswith("__")},
+            **{name: getattr(cmath, name) for name in dir(cmath) if not name.startswith("__")},
+            **{name: getattr(statistics, name) for name in dir(statistics) if not name.startswith("__")},
+            "abs": abs, "round": round, "pow": pow, "sum": sum, "min": min, "max": max, "len": len, "floor": math.floor, "ceil": math.ceil
+        }
+        self.history = ["SYSTEM INITIALIZED", "SAMPLES+ LIBRARY LOADED"]
+        self.input_buffer = ""
+        self.active_func = "sin(x + t)"
+        self.current_logic = "CORE: Standard Harmonic Motion\nEvaluating f(x) = sin(x + t)."
+        self.show_help = False
+        self.frame = 0
+        self.zoom = 1.0
+        self.offset_x = 0.0
+
+        # MASTER SAMPLE LIBRARY (Combined Originals + Expansion)
+        self.samples = [
+            # --- Originals ---
+            ("sin(x + t)", "Wave Motion", "y = sin(x + t)\nPhase shifts by t frames.\nCreates 1Hz oscillation."),
+            ("abs(sin(x+t))*2", "Rectification", "y = |sin(x+t)| * 2\nabs() flips negatives.\n*2 doubles amplitude."),
+            ("x**2 / 10", "Parabola", "y = x² / 10\nQuadratic growth.\n/10 flattens the curve."),
+            ("sin(x*5)/5", "High Freq", "y = sin(5x) / 5\n5x increases frequency.\n/5 reduces height."),
+            ("exp(-abs(x)) * cos(x*t)", "Quantum Decay", "y = e^-|x| * cos(xt)\ne^-|x| dampens the wave.\ncos(xt) creates interference."),
+            # --- Expansion (25) ---
+            ("sin(x*1.1 + t) + sin(x*0.9 + t)", "Beat Frequency", "Wave interference pattern.\nDemonstrates acoustic beats."),
+            ("1 if sin(x + t) > 0 else -1", "Square Wave", "Non-sinusoidal periodic wave.\nRepresents binary states."),
+            ("abs((x + t) % 2 - 1)", "Triangle Wave", "Linear ramp-up and down.\nCommon in synthesis/LFOs."),
+            ("(x + t) % 1", "Sawtooth Wave", "Linear rise with instant reset.\nRich in musical harmonics."),
+            ("exp(-0.5 * (x**2))", "Gaussian Distribution", "The Bell Curve.\nFundamental to statistics."),
+            ("1 / (1 + exp(-x))", "Sigmoid Function", "S-shaped curve.\nUsed in neural net activation."),
+            ("sin(x**2 + t)", "Fresnel Integral", "Frequency increases with distance.\nUsed in optics/diffraction."),
+            ("log(abs(x) + 1) * sin(x + t)", "Logarithmic Growth", "Amplitude grows logarithmically."),
+            ("sin(x * (3 + sin(t*0.5)) + t)", "Freq Modulation", "Frequency changes over time.\nLogic behind FM Radio."),
+            ("(1 + 0.5 * sin(t)) * sin(5 * x)", "Amp Modulation", "Volume modulated by signal.\nLogic behind AM Radio."),
+            ("max(-2, min(2, tan(x + t)))", "Clipped Tangent", "Tangent wave with limiters.\nPrevents infinite spikes."),
+            ("0.1 * x**3 - x", "Cubic Spline", "Two turning points.\nUsed for curve fitting."),
+            ("floor(x + t)", "Step Function", "Discrete integer jumps.\nQuantizes continuous data."),
+            ("sin(x) / (x if x != 0 else 0.01)", "Sinc Function", "Fourier transform of pulse.\nEssential for filtering."),
+            ("sinh(x) / cosh(x)", "Hyperbolic Tangent", "tanh(x). Ranges -1 to 1.\nUsed in AI hidden layers."),
+            ("0.1 * x**4 - x**2", "Polynomial Potential", "Double-well potential.\nPhysics stable state model."),
+            ("sin(x + t) + 0.5 * sin(10 * x)", "Noise Overlay", "Clean signal with static.\nSimulates interference."),
+            ("log(log(abs(x) + 2) + 1)", "Double Logarithm", "Extremely slow growth.\nMeasures complexity."),
+            ("exp(-x**2) * sin(10 * x + t)", "Sine-Gaussian", "Wavelet or 'pulse'.\nLocalized energy packet."),
+            ("abs(x) ** 0.5", "Square Root Curve", "Inverse of x^2.\nGrowth rate decreases."),
+            ("sin(x - t) - sin(x + t)", "Standing Wave", "Waves in opposite directions.\nFixed nodes, vibrating peaks."),
+            ("pow(2, x/4) / 10", "Exponential Growth", "Doubling effect.\nModeling population growth."),
+            ("1 if (x + t) % 2 < 0.2 else 0", "Pulse Train", "Radar/PWM bursts.\nShort signal pulses."),
+            ("cos(x) * sin(t)", "Separable Wave", "Product of x and t.\nOscillates in place."),
+            ("sqrt(abs(1 - (abs(x)-1)**2))", "Heart Curve", "Upper half of a heart shape.\nCoordinate geometry."),
+            ("0.5 * (x + sin(x + t))", "Jittery Line", "Linear growth with noise.\nSimulates sensor drift.")
+        ]
+        self.sample_idx = 0
+
+    def safe_eval(self, expr, x=0, t=0):
+        try:
+            ctx = {**self.namespace, "x": x, "t": t}
+            return eval(expr, {"__builtins__": None}, ctx)
+        except:
+            return None
+
+    def draw_help(self, win):
+        h, w = win.getmaxyx()
+        win.erase()
+        win.attron(curses.color_pair(4) | curses.A_BOLD)
+        win.box()
+        win.addstr(0, 2, " 🧠 NEURAL LINK: COMMANDS ")
+        help_lines = [
+            "[H] Toggle Help  [S] Cycle Samples",
+            "[+] Zoom In     [-] Zoom Out",
+            "[ARROWS] Pan Viewport",
+            "[ENTER] Run Command [ESC] Exit",
+            "",
+            "SYNTAX GUIDE:",
+            "Trig: sin(), cos(), tan(), atan2()",
+            "Calc: abs(), floor(), ceil(), sqrt()",
+            "Stats: mean([..]), stdev([..])",
+            "Complex: phase(1+2j), polar(5j)"
+        ]
+        for i, line in enumerate(help_lines):
+            if i + 2 < h:
+                win.addstr(i + 2, 2, line[:w-4])
+        win.noutrefresh()
+
+    def draw_input(self, win):
+        h, w = win.getmaxyx()
+        win.erase()
+        win.attron(curses.color_pair(1))
+        win.box()
+        win.addstr(0, 2, " ⌨️ COMMAND INPUT ")
+        last_4 = self.history[-4:]
+        for i, entry in enumerate(last_4):
+            color = curses.color_pair(4) if i == len(last_4)-1 else curses.color_pair(5)
+            win.addstr(1 + i, 2, f" • {entry[:w-6]}", color)
+        win.addstr(h-2, 2, f" CMD > {self.input_buffer}", curses.A_BOLD)
+        win.addstr(h-2, w-34, " [ESC] EXIT  [S] SAMPLES+ ", curses.color_pair(2))
+        win.noutrefresh()
+
+    def draw_log(self, win):
+        h, w = win.getmaxyx()
+        win.erase()
+        win.attron(curses.color_pair(2))
+        win.box()
+        mid = w // 2
+        for y in range(1, h-1):
+            try: win.addch(y, mid, curses.ACS_VLINE)
+            except: pass
+        win.addstr(0, 2, " 📊 HISTORY ")
+        for i, entry in enumerate(self.history[-(h-2):]):
+            win.addstr(i + 1, 1, f"{entry[:mid-2]}")
+        win.addstr(0, mid + 2, " 💡 THEORY ENGINE ")
+        logic_lines = self.current_logic.split('\n')
+        for i, line in enumerate(logic_lines):
+            if i + 1 < h - 1:
+                win.addstr(i + 1, mid + 2, line[:w-mid-4], curses.color_pair(4))
+        win.noutrefresh()
+
+    def draw_graph(self, win):
+        h, w = win.getmaxyx()
+        win.erase()
+        win.attron(curses.color_pair(3))
+        win.box()
+        win.addstr(0, 2, f" 📡 ANALYZER: {self.active_func} ", curses.A_BOLD)
+        mid_y, mid_x = h // 2, w // 2
+        for x in range(1, w-1):
+            try: win.addch(mid_y, x, curses.ACS_HLINE, curses.A_DIM)
+            except: pass
+        for y in range(1, h-1):
+            try: win.addch(y, mid_x, curses.ACS_VLINE, curses.A_DIM)
+            except: pass
+
+        for x_pixel in range(1, w - 1):
+            x_val = (x_pixel - mid_x) * (0.15 / self.zoom) + self.offset_x
+            y_val = self.safe_eval(self.active_func, x=x_val, t=self.frame * 0.1)
+            if y_val is not None and isinstance(y_val, (int, float)):
+                y_pixel = int(mid_y - (y_val * (h / 5) * self.zoom))
+                if 1 <= y_pixel < h - 1:
+                    win.addch(y_pixel, x_pixel, "█")
+        win.noutrefresh()
+
+    def run(self, stdscr):
+        curses.start_color()
+        curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+        curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+        curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+        curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        stdscr.nodelay(True)
+        stdscr.keypad(True)
+        curses.curs_set(0)
+
+        while True:
+            h, w = stdscr.getmaxyx()
+            if h < 20 or w < 75:
+                stdscr.erase()
+                stdscr.addstr(0,0, "EXPAND TERMINAL FOR HUD")
+                stdscr.refresh()
+                time.sleep(0.1)
+                continue
+
+            top_h, left_w = h // 2, w // 2
+            win_in = curses.newwin(top_h, left_w, 0, 0)
+            win_log = curses.newwin(top_h, w - left_w, 0, left_w)
+            win_graph = curses.newwin(h - top_h, w, top_h, 0)
+
+            key = stdscr.getch()
+            if key == 27: break # ESC Key
+            elif key == ord('q') or key == ord('Q'): break
+            elif key == ord('h') or key == ord('H'): self.show_help = not self.show_help
+            elif key == ord('+') or key == ord('='): self.zoom *= 1.2
+            elif key == ord('-') or key == ord('_'): self.zoom *= 0.8
+            elif key == curses.KEY_LEFT: self.offset_x -= 1.0 / self.zoom
+            elif key == curses.KEY_RIGHT: self.offset_x += 1.0 / self.zoom
+            elif key == ord('s') or key == ord('S'):
+                self.sample_idx = (self.sample_idx + 1) % len(self.samples)
+                func, title, logic = self.samples[self.sample_idx]
+                self.active_func = func
+                self.current_logic = f"SAMPLE: {title}\n{logic}"
+                self.history.append(f"LOADED: {title}")
+            elif key == 10: # Enter
+                if self.input_buffer.strip():
+                    res = self.safe_eval(self.input_buffer, x=1)
+                    if res is not None:
+                        self.history.append(f"{self.input_buffer} = {res:.4f}")
+                        self.active_func = self.input_buffer
+                        self.current_logic = f"MANUAL INPUT:\nEvaluating {self.input_buffer}\nZoom: {self.zoom:.1f}x"
+                    else: self.history.append("SYNTAX ERROR")
+                    self.input_buffer = ""
+            elif key in (curses.KEY_BACKSPACE, 127, 8): self.input_buffer = self.input_buffer[:-1]
+            elif 32 <= key <= 126: self.input_buffer += chr(key)
+
+            self.draw_input(win_in)
+            self.draw_log(win_log)
+            self.draw_graph(win_graph)
+            if self.show_help:
+                help_win = curses.newwin(h-8, w-14, 4, 7)
+                self.draw_help(help_win)
+
+            curses.doupdate()
+            self.frame += 1
+            time.sleep(0.04)
+
+def _calc_advanced_graphing():
+    """Launch the Advanced Graphing Calculator (Curses-based Science Console)"""
+    try:
+        console = ScienceConsole()
+        curses.wrapper(console.run)
+    except KeyboardInterrupt:
+        pass
+    except Exception as e:
+        print(f"{COLORS['1'][0]}Error launching Advanced Graphing Calculator: {e}{RESET}")
+        input("Press Enter to continue...")
+
+# --- STANDARD GRAPHING CALCULATOR MENU ---
+
 def feature_graphing_calculator():
     """Advanced Graphing Calculator - TI-Nspire CX II CAS Simulation."""
     while True:
@@ -6610,6 +6832,7 @@ def feature_graphing_calculator():
         print_header("📊 Graphing Calculator - TI-Nspire CX II CAS", extra_info="| Python CAS Edition")
         
         print(f"\n{BOLD}Main Menu:{RESET}")
+        print(f" {BOLD}[A]{RESET}  🧠 Advanced Graphing Calculator (Interactive Curses HUD)")
         print(f" {BOLD}[1]{RESET}  📈 Graph Plotter (ASCII Terminal)")
         print(f" {BOLD}[2]{RESET}  🧮 Scientific Calculator")
         print(f" {BOLD}[3]{RESET}  🔬 CAS - Computer Algebra System")
@@ -6621,10 +6844,12 @@ def feature_graphing_calculator():
         print(f" {BOLD}[9]{RESET}  📖 Calculator Help & Examples")
         print(f" {BOLD}[0]{RESET}  ↩️  Return to Command Center")
         
-        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
         
         if choice == '0':
             break
+        elif choice == 'A':
+            safe_run("general", "Advanced_Graphing_Calculator", _calc_advanced_graphing)
         elif choice == '1':
             safe_run("general", "Graph_Plotter", _calc_graph_plotter)
         elif choice == '2':
@@ -9297,6 +9522,9 @@ ctx = {
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
+# Version 17 - Graphing Calculator & ASCII Plotting
+# Added a powerful Graphing Calculator module with support for plotting functions, parametric equations, and
+# polar graphs using ASCII characters. The calculator includes a full CAS (Computer Algebra System) for symbolic math, equation solving, differentiation, and integration. It also supports statistics functions like mean, median, mode, standard deviation, and regression analysis. The graphing interface allows users to input mathematical expressions and see them visualized in the terminal with adjustable axes and scaling. This module is accessible via Command Center option S and provides a robust tool for mathematical exploration directly within the pythonOS environment.
 # Version 18 - Media Scanner & Player Integration 
 # The Graphing Calculator is now fully integrated and operational script now has the best Python graphing calculator with ASCII plotting, CAS, statistics, and more - all built right in! . Just launch pythonOScmd and press [S] from the Command Center.
 # This update enhances the Media Scanner by integrating it with an external terminal-based MP3 player.
