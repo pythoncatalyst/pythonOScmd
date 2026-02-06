@@ -66,7 +66,7 @@ def boot_loader():
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
     # 1. Define required libraries
-    required = {'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil'}
+    required = {'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil', 'numpy'}
     missing = set()
 
     # 2. Check what is actually installed without using pkg_resources1
@@ -127,6 +127,8 @@ def boot_loader():
                     sys.modules['bs4'] = MockModule()
                 elif lib == 'gputil':
                     sys.modules['GPUtil'] = MockModule()
+                elif lib == 'numpy':
+                    sys.modules['numpy'] = MockModule()
                 else:
                     sys.modules[lib] = MockModule()
 
