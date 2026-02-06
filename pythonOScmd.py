@@ -8779,11 +8779,116 @@ threading.Thread(target=autonomous_optimizer_daemon, daemon=True).start()
 
 print(f"\n{COLORS['10'][0]}[+] Autonomous Optimizer V21.1 Linked Successfully.{RESET}")
 
+# --- EARTH & MOON ANIMATION ---
+def animate_earth_and_moon_exit(stop_event):
+    """
+    Animated Earth with rotating texture and orbiting Moon.
+    Runs in background thread until stop_event is set.
+    """
+    # Simplified wrapped map of Earth's continents
+    earth_texture = "  ..###...  ....#######....  ...###...  ....#######....  "
+    
+    # Animation settings
+    total_frames = 30
+    frame_count = 0
+    
+    try:
+        while not stop_event.is_set():
+            f = frame_count % total_frames
+            
+            # Calculate Earth rotation offset
+            earth_offset = int((f / total_frames) * (len(earth_texture) // 2))
+            
+            # Calculate Moon position (circular orbit)
+            angle = (f / total_frames) * 2 * math.pi
+            moon_x = int(math.sin(angle) * 25) + 30
+            is_behind = math.cos(angle) > 0
+            
+            # Earth ASCII structure
+            earth_lines = [
+                "      _______      ",
+                "   ./#########\\.   ",
+                "  /#############\\  ",
+                " |###############| ",
+                " |###############| ",
+                "  \\#############/  ",
+                "   '\\#########/'   ",
+                "      -------      "
+            ]
+            
+            # Move cursor to top to create animation effect
+            # ANSI escape: move cursor to row 1, then save position
+            sys.__stdout__.write("\033[1;1H")  # Move to top-left
+            sys.__stdout__.write("\033[s")      # Save cursor position
+            
+            # Render title
+            sys.__stdout__.write("\n" + " " * 15 + "🌍 EARTH & MOON ORBIT 🌙\n")
+            sys.__stdout__.write(" " * 10 + "═" * 40 + "\n")
+            
+            # Render each line of Earth
+            for i, line in enumerate(earth_lines):
+                # Replace '#' with rotating texture
+                display_line = list(line)
+                for j, char in enumerate(display_line):
+                    if char == '#':
+                        tex_idx = (j + earth_offset) % (len(earth_texture) // 2)
+                        display_line[j] = earth_texture[tex_idx]
+                
+                row_text = "".join(display_line)
+                row_padding = " " * 20
+                full_row = list(row_padding + row_text + row_padding)
+                
+                # Add Moon on middle row
+                if i == 4:
+                    if is_behind:
+                        if moon_x < 20 or moon_x > 40:
+                            if 0 <= moon_x < len(full_row):
+                                full_row[moon_x] = '🌑'
+                    else:
+                        if 0 <= moon_x < len(full_row):
+                            full_row[moon_x] = '🌕'
+                
+                sys.__stdout__.write("".join(full_row) + "\n")
+            
+            sys.__stdout__.write(" " * 10 + "═" * 40 + "\n\n")
+            sys.__stdout__.write("\033[u")  # Restore cursor position
+            sys.__stdout__.flush()
+            
+            frame_count += 1
+            time.sleep(0.08)  # ~12 FPS
+            
+    except Exception:
+        pass
+
 # --- USER-CONTROLLED BACKGROUND OPTIMIZER ---
 def start_autonomous_monitor():
-    print(f"\n{COLORS['10'][0]}[🤖 AI] Would you like to enable the Autonomous Optimizer?{RESET}")
+    # Create stop event for animation
+    stop_animation = threading.Event()
+    
+    # Start animation in background thread
+    animation_thread = threading.Thread(
+        target=animate_earth_and_moon_exit, 
+        args=(stop_animation,), 
+        daemon=True
+    )
+    animation_thread.start()
+    
+    # Clear screen and position content below animation
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Add spacing for animation (12 lines)
+    print("\n" * 12)
+    
+    print(f"{COLORS['10'][0]}[🤖 AI] Would you like to enable the Autonomous Optimizer?{RESET}")
     print("   (Automatically adjusts UI, Power, and Thermal settings based on load)")
     choice = input(f"{BOLD}🎯 Enable AI-Assisted Management? (y/n): {RESET}").strip().lower()
+    
+    # Stop animation
+    stop_animation.set()
+    time.sleep(0.1)  # Give animation time to stop
+    
+    # Clear screen after animation stops
+    os.system('cls' if os.name == 'nt' else 'clear')
 
     if choice == 'y':
         def optimizer_logic():
@@ -9188,8 +9293,8 @@ ctx = {
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
-# Version 18 - Media Scanner & Player Integration
-# The Graphing Calculator is now fully integrated and operational. Just launch pythonOScmd and press [S] from the Command Center.
+# Version 18 - Media Scanner & Player Integration 
+# The Graphing Calculator is now fully integrated and operational script now has the best Python graphing calculator with ASCII plotting, CAS, statistics, and more - all built right in! . Just launch pythonOScmd and press [S] from the Command Center.
 # This update enhances the Media Scanner by integrating it with an external terminal-based MP3 player.
 # The Media Scanner now allows users to browse their filesystem for audio files and play them directly from
 # the terminal. The player supports common audio formats like MP3, WAV, FLAC, OGG, M4A, and AAC.
