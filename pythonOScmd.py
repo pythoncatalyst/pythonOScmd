@@ -2080,6 +2080,7 @@ temp_unit = "C"
 truncated_thermal = False
 mini_view = False
 doc_word_render_mode = "pandoc"
+display_mode = "classic"
 
 _user_config = _load_user_config()
 if isinstance(_user_config, dict):
@@ -2090,12 +2091,18 @@ if isinstance(_user_config, dict):
     truncated_thermal = _user_config.get("truncated_thermal", truncated_thermal)
     mini_view = _user_config.get("mini_view", mini_view)
     doc_word_render_mode = _user_config.get("doc_word_render_mode", doc_word_render_mode)
+    display_mode = _user_config.get("display_mode", display_mode)
 
 def _update_user_config(**updates):
     if not isinstance(_user_config, dict):
         return
     _user_config.update(updates)
     _save_user_config(_user_config)
+
+def _set_display_mode(mode):
+    global display_mode
+    display_mode = mode
+    _update_user_config(display_mode=display_mode)
 
 # --- NEW: VISUAL FX STREAM FILTER ---
 class VisualFXFilter:
@@ -9591,6 +9598,445 @@ def asciiplayer_run():
     finally:
         _asciip_reset_terminal()
 
+# --- ENHANCED DISPLAY MODE (CURSES-BASED) ---
+
+def _enhanced_curses_init(stdscr):
+    curses.start_color()
+    curses.use_default_colors()
+    curses.init_pair(1, curses.COLOR_CYAN, -1)
+    curses.init_pair(2, curses.COLOR_GREEN, -1)
+    curses.init_pair(3, curses.COLOR_YELLOW, -1)
+    curses.init_pair(4, curses.COLOR_MAGENTA, -1)
+    curses.init_pair(5, curses.COLOR_WHITE, -1)
+    stdscr.nodelay(True)
+    stdscr.keypad(True)
+    try:
+        curses.curs_set(0)
+    except Exception:
+        pass
+
+def _enhanced_wrap_lines(text, width):
+    if not text:
+        return ["(empty)"]
+    lines = []
+    for raw in str(text).splitlines():
+        if not raw:
+            lines.append("")
+            continue
+        while len(raw) > width:
+            lines.append(raw[:width])
+            raw = raw[width:]
+        lines.append(raw)
+    return lines
+
+def _enhanced_set_display(state, title, text):
+    state["display_title"] = title
+    state["display_lines"] = _enhanced_wrap_lines(text, max(10, state["right_width"] - 2))
+    state["display_scroll"] = 0
+
+def _enhanced_left_lines():
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    lines = []
+    lines.append(f"Time: {now}")
+    lines.append(f"OS: {platform.system()} {platform.release()}")
+    lines.append(f"Node: {platform.node()}")
+    lines.append(f"CPU: {psutil.cpu_percent(interval=None)}%  Cores: {psutil.cpu_count(logical=False)}")
+    mem = psutil.virtual_memory()
+    lines.append(f"RAM: {mem.percent}%  Free: {_format_gb(mem.available)}")
+    disk = psutil.disk_usage('/')
+    lines.append(f"Disk: {disk.percent}%  Free: {_format_gb(disk.free)}")
+    net = psutil.net_io_counters()
+    lines.append(f"Net: TX {_format_mb(net.bytes_sent)}  RX {_format_mb(net.bytes_recv)}")
+    try:
+        boot_str, uptime_str = _format_boot_info(psutil.boot_time())
+        lines.append(f"Boot: {boot_str}")
+        lines.append(f"Uptime: {uptime_str}")
+    except Exception:
+        pass
+    if weather_cache:
+        temp = weather_cache.get("temp", "N/A")
+        icon = weather_cache.get("icon", "")
+        humidity = weather_cache.get("humidity", "N/A")
+        wind = weather_cache.get("wind", "N/A")
+        lines.append(f"Weather: {icon} {temp}  Hum: {humidity}  Wind: {wind}")
+    return lines
+
+def _enhanced_render_left(win, lines):
+    h, w = win.getmaxyx()
+    win.erase()
+    win.attron(curses.color_pair(1))
+    win.box()
+    win.addnstr(0, 2, " MAIN DISPLAY ", w - 4)
+    for i, line in enumerate(lines[: h - 2]):
+        win.addnstr(1 + i, 1, line, w - 2)
+    win.noutrefresh()
+
+def _enhanced_render_right(win, state):
+    h, w = win.getmaxyx()
+    win.erase()
+    win.attron(curses.color_pair(3))
+    win.box()
+    title = state.get("display_title") or "DISPLAY"
+    win.addnstr(0, 2, f" {title} ", w - 4)
+    lines = state.get("display_lines") or ["(empty)"]
+    scroll = state.get("display_scroll", 0)
+    view = lines[scroll: scroll + (h - 2)]
+    for i, line in enumerate(view):
+        win.addnstr(1 + i, 1, line, w - 2)
+    win.noutrefresh()
+
+def _enhanced_render_bottom(win, input_buffer, menu_lines):
+    h, w = win.getmaxyx()
+    win.erase()
+    win.attron(curses.color_pair(2))
+    win.box()
+    win.addnstr(0, 2, " COMMAND CENTER (ENHANCED) ", w - 4)
+    for i, line in enumerate(menu_lines[: h - 4]):
+        win.addnstr(1 + i, 1, line, w - 2)
+    prompt = "CMD > "
+    win.addnstr(h - 2, 1, prompt, w - 2)
+    win.addnstr(h - 2, 1 + len(prompt), input_buffer[-(w - len(prompt) - 3):], w - len(prompt) - 2)
+    win.noutrefresh()
+
+def _enhanced_prompt(stdscr, prompt):
+    curses.echo(False)
+    buffer = ""
+    while True:
+        h, w = stdscr.getmaxyx()
+        stdscr.move(h - 2, 1)
+        stdscr.clrtoeol()
+        stdscr.addnstr(h - 2, 1, prompt, w - 2, curses.color_pair(2))
+        stdscr.addnstr(h - 1, 1, buffer[-(w - 2):], w - 2, curses.color_pair(5))
+        stdscr.refresh()
+        key = stdscr.getch()
+        if key in (10, 13):
+            break
+        if key in (27,):
+            buffer = ""
+            break
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            buffer = buffer[:-1]
+            continue
+        if 32 <= key <= 126:
+            buffer += chr(key)
+    return buffer.strip()
+
+def _enhanced_run_fullscreen(stdscr, func, *args, **kwargs):
+    try:
+        curses.endwin()
+    except Exception:
+        pass
+    try:
+        func(*args, **kwargs)
+    finally:
+        try:
+            _enhanced_curses_init(stdscr)
+            stdscr.clear()
+        except Exception:
+            pass
+
+def _enhanced_web_preview(stdscr, state):
+    url = _enhanced_prompt(stdscr, "URL (blank to cancel): ")
+    if not url:
+        return
+    parsed = urlparse(url)
+    if not parsed.scheme:
+        url = f"http://{url}"
+    try:
+        resp = requests.get(url, timeout=8)
+        text = _strip_html(resp.text)
+        text = _limit_text(text, max_chars=15000)
+        header = f"URL: {url}\nStatus: {resp.status_code}\n"
+        _enhanced_set_display(state, "WEB PREVIEW", header + text)
+    except Exception as e:
+        _enhanced_set_display(state, "WEB PREVIEW", f"Error: {e}")
+
+def _enhanced_doc_preview(stdscr, state):
+    path = _enhanced_prompt(stdscr, "Document path (blank to cancel): ")
+    if not path:
+        return
+    if not os.path.exists(path):
+        _enhanced_set_display(state, "DOC PREVIEW", f"File not found: {path}")
+        return
+    ext = os.path.splitext(path)[1].lower()
+    text = None
+    err = None
+    if ext in (".txt", ".log", ".md", ".conf", ".wg", ".ini", ".cfg", ".json", ".yaml", ".yml"):
+        text, err = _read_text_file(path)
+    elif ext == ".pdf":
+        text, err = _read_pdf(path)
+    elif ext == ".doc":
+        text, err = _read_doc(path)
+    elif ext == ".docx":
+        text, err = _read_docx(path)
+    elif ext == ".epub":
+        text, err = _read_epub(path)
+    elif ext == ".mobi":
+        text, err = _read_mobi(path)
+    elif ext in (".csv", ".tsv"):
+        delimiter = '\t' if ext == ".tsv" else None
+        rows, err = _read_csv(path, delimiter=delimiter)
+        if rows is not None:
+            text = _render_table(rows)
+    elif ext in (".xlsx", ".xls"):
+        rows, err = _read_excel(path)
+        if rows is not None:
+            text = _render_table(rows)
+    else:
+        err = "Unsupported file type"
+    if err:
+        _enhanced_set_display(state, "DOC PREVIEW", err)
+        return
+    text = _limit_text(text)
+    _enhanced_set_display(state, f"DOC PREVIEW: {os.path.basename(path)}", text)
+
+def _enhanced_media_preview(stdscr, state):
+    base = _enhanced_prompt(stdscr, "Media directory (blank for cwd): ")
+    if not base:
+        base = os.getcwd()
+    if not os.path.isdir(base):
+        _enhanced_set_display(state, "MEDIA", f"Not a directory: {base}")
+        return
+    exts = (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".mp4", ".mkv", ".avi", ".mov")
+    files = []
+    for root, _, names in os.walk(base):
+        for name in names:
+            if name.lower().endswith(exts):
+                files.append(os.path.join(root, name))
+            if len(files) >= 50:
+                break
+        if len(files) >= 50:
+            break
+    if not files:
+        _enhanced_set_display(state, "MEDIA", "No media files found.")
+        return
+    lines = [f"[{i}] {os.path.basename(p)}" for i, p in enumerate(files)]
+    _enhanced_set_display(state, "MEDIA", "\n".join(lines))
+    choice = _enhanced_prompt(stdscr, "Play full-screen index (blank to cancel): ")
+    if not choice:
+        return
+    if not choice.isdigit() or int(choice) >= len(files):
+        _enhanced_set_display(state, "MEDIA", "Invalid selection.")
+        return
+    path = files[int(choice)]
+    ext = os.path.splitext(path)[1].lower()
+    def _play_selected():
+        if ext in (".mp4", ".mkv", ".avi", ".mov") and "_asciip_play_video" in globals():
+            _asciip_play_video(path)
+        else:
+            feature_media_menu()
+    _enhanced_run_fullscreen(stdscr, _play_selected)
+    _enhanced_set_display(state, "MEDIA", f"Last played: {os.path.basename(path)}")
+
+def _enhanced_process_summary(state):
+    lines = []
+    procs = []
+    for p in psutil.process_iter(['pid', 'name', 'memory_percent', 'cpu_percent']):
+        try:
+            info = p.info
+            procs.append(info)
+        except Exception:
+            continue
+    procs.sort(key=lambda x: x.get('memory_percent') or 0, reverse=True)
+    lines.append("Top processes by memory:")
+    for p in procs[:10]:
+        name = p.get('name') or 'unknown'
+        mem = p.get('memory_percent') or 0
+        cpu = p.get('cpu_percent') or 0
+        lines.append(f"{p.get('pid')} {name}  MEM {mem:.1f}%  CPU {cpu:.1f}%")
+    _enhanced_set_display(state, "PROCESSES", "\n".join(lines))
+
+def _enhanced_disk_summary(state):
+    disk = psutil.disk_usage('/')
+    io = psutil.disk_io_counters()
+    lines = [
+        f"Total: {_format_gb(disk.total)}",
+        f"Used: {_format_gb(disk.used)} ({disk.percent}%)",
+        f"Free: {_format_gb(disk.free)}",
+    ]
+    if io:
+        lines.append(f"Read: {_format_mb(io.read_bytes)}  Write: {_format_mb(io.write_bytes)}")
+    _enhanced_set_display(state, "DISK", "\n".join(lines))
+
+def _enhanced_network_summary(state):
+    host = socket.gethostname()
+    try:
+        ip = socket.gethostbyname(host)
+    except Exception:
+        ip = "unknown"
+    net = psutil.net_io_counters()
+    lines = [
+        f"Host: {host}",
+        f"IP: {ip}",
+        f"TX: {_format_mb(net.bytes_sent)}",
+        f"RX: {_format_mb(net.bytes_recv)}",
+        f"Packets TX: {net.packets_sent}",
+        f"Packets RX: {net.packets_recv}",
+    ]
+    _enhanced_set_display(state, "NETWORK", "\n".join(lines))
+
+def _enhanced_handle_choice(choice, stdscr, state):
+    global is_blinking, temp_unit, truncated_thermal, mini_view
+    if not choice:
+        return
+    choice = choice.strip().upper()
+    if choice == '1':
+        is_blinking = not is_blinking
+        _update_user_config(is_blinking=is_blinking)
+    elif choice == '2':
+        temp_unit = "F" if temp_unit == "C" else "C"
+        _update_user_config(temp_unit=temp_unit)
+    elif choice == '3':
+        truncated_thermal = not truncated_thermal
+        _update_user_config(truncated_thermal=truncated_thermal)
+    elif choice == '4':
+        mini_view = not mini_view
+        _update_user_config(mini_view=mini_view)
+    elif choice == '5':
+        _set_display_mode("classic")
+        state["exit"] = True
+    elif choice == '6':
+        _enhanced_run_fullscreen(stdscr, _select_color_scheme)
+    elif choice == '7':
+        _enhanced_web_preview(stdscr, state)
+    elif choice == '8':
+        _enhanced_disk_summary(state)
+    elif choice == '9':
+        _enhanced_process_summary(state)
+    elif choice == '0':
+        _enhanced_network_summary(state)
+    elif choice == 'I':
+        _enhanced_media_preview(stdscr, state)
+    elif choice == 'T':
+        _enhanced_doc_preview(stdscr, state)
+    elif choice == 'A':
+        _enhanced_run_fullscreen(stdscr, feature_security_audit)
+    elif choice == 'B':
+        _enhanced_run_fullscreen(stdscr, feature_environment_probe)
+    elif choice == 'C':
+        _enhanced_run_fullscreen(stdscr, feature_hardware_serials)
+    elif choice == 'D':
+        _enhanced_run_fullscreen(stdscr, feature_deep_probe_ai)
+    elif choice == 'E':
+        _enhanced_run_fullscreen(stdscr, feature_simple_calendar)
+    elif choice == 'F':
+        _enhanced_run_fullscreen(stdscr, feature_latency_probe)
+    elif choice == 'G':
+        _enhanced_run_fullscreen(stdscr, feature_weather_display)
+    elif choice == 'H':
+        _enhanced_run_fullscreen(stdscr, feature_test_font_size)
+    elif choice == 'J':
+        _enhanced_run_fullscreen(stdscr, feature_wifi_toolkit)
+    elif choice == 'K':
+        _enhanced_run_fullscreen(stdscr, feature_ai_center)
+    elif choice == 'L':
+        _enhanced_run_fullscreen(stdscr, feature_bluetooth_toolkit)
+    elif choice == 'M':
+        _enhanced_run_fullscreen(stdscr, feature_traffic_report)
+    elif choice == 'N':
+        _enhanced_run_fullscreen(stdscr, feature_database_log_center)
+    elif choice == 'O':
+        _enhanced_run_fullscreen(stdscr, feature_download_center)
+    elif choice == 'P':
+        _enhanced_run_fullscreen(stdscr, feature_pwn_tools)
+    elif choice == 'Q':
+        _enhanced_run_fullscreen(stdscr, feature_python_power)
+    elif choice == 'R':
+        _enhanced_run_fullscreen(stdscr, feature_satellite_tracker)
+    elif choice == 'S':
+        _enhanced_run_fullscreen(stdscr, feature_graphing_calculator)
+
+def _select_color_scheme():
+    print("\n--- SELECT COLOR ---")
+    for k, v in COLORS.items():
+        print(f"[{k}] {v[0]}{v[2]}{RESET}")
+    color_choice = input("Select color number or [R]: ").strip().upper()
+    global active_color_key, user_has_chosen
+    if color_choice in COLORS:
+        active_color_key, user_has_chosen = color_choice, True
+        _update_user_config(active_color_key=active_color_key, user_has_chosen=user_has_chosen)
+    elif color_choice == 'R':
+        user_has_chosen = False
+        _update_user_config(user_has_chosen=user_has_chosen)
+
+def feature_enhanced_display_mode():
+    def _run(stdscr):
+        _enhanced_curses_init(stdscr)
+        state = {
+            "display_title": "DISPLAY",
+            "display_lines": ["Select a command to view output."],
+            "display_scroll": 0,
+            "right_width": 40,
+            "exit": False,
+        }
+        menu_lines = [
+            "1 Blink  2 Temp  3 Thermal  4 Mini  5 Exit  6 Color",
+            "7 Web Preview  8 Disk  9 Proc  0 Network",
+            "A Audit  B Env  C HW  D AI  E Calendar  F Latency",
+            "G Weather  H FX  I Media  J WiFi  K AI Center",
+            "L Bluetooth  M Traffic  N DB/Logs  O Download",
+            "P PWN  Q Python  R Satellite  S Calculator  T Docs",
+            "Ctrl+T return to classic",
+        ]
+        input_buffer = ""
+        last_left = 0
+        left_lines = _enhanced_left_lines()
+
+        while True:
+            h, w = stdscr.getmaxyx()
+            if h < 24 or w < 80:
+                stdscr.erase()
+                stdscr.addstr(0, 0, "Enlarge window for Enhanced Display Mode")
+                stdscr.refresh()
+                time.sleep(0.2)
+                continue
+            bottom_h = max(7, h // 3)
+            top_h = h - bottom_h
+            left_w = w // 2
+            right_w = w - left_w
+            state["right_width"] = right_w
+
+            left = curses.newwin(top_h, left_w, 0, 0)
+            right = curses.newwin(top_h, right_w, 0, left_w)
+            bottom = curses.newwin(bottom_h, w, top_h, 0)
+
+            now = time.time()
+            if now - last_left >= 1:
+                left_lines = _enhanced_left_lines()
+                last_left = now
+            _enhanced_render_left(left, left_lines)
+            _enhanced_render_right(right, state)
+            _enhanced_render_bottom(bottom, input_buffer, menu_lines)
+
+            curses.doupdate()
+
+            key = stdscr.getch()
+            if key == -1:
+                time.sleep(0.05)
+                continue
+            if key == 20:  # Ctrl+T
+                _set_display_mode("classic")
+                return
+            if key in (curses.KEY_PPAGE,):
+                state["display_scroll"] = max(0, state["display_scroll"] - 5)
+                continue
+            if key in (curses.KEY_NPAGE,):
+                state["display_scroll"] = min(len(state["display_lines"]) - 1, state["display_scroll"] + 5)
+                continue
+            if key in (curses.KEY_BACKSPACE, 127, 8):
+                input_buffer = input_buffer[:-1]
+                continue
+            if key in (10, 13):
+                _enhanced_handle_choice(input_buffer, stdscr, state)
+                input_buffer = ""
+                if state.get("exit"):
+                    return
+                continue
+            if 32 <= key <= 126:
+                input_buffer += chr(key)
+
+    curses.wrapper(_run)
+
 # --- MAIN OPERATING SYSTEM LOOP ---
 
 while True:
@@ -9701,6 +10147,11 @@ while True:
                 print("🔋 Battery:           N/A")
         print(f"\n{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
 
+    if display_mode == "enhanced":
+        stop_clock = True
+        feature_enhanced_display_mode()
+        continue
+
     stop_clock = False
     threading.Thread(target=live_system_identity_clock, daemon=True).start()
 
@@ -9714,11 +10165,11 @@ while True:
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
     print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-    print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker")
+    print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode")
     print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-T): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
     _update_user_config(last_choice=choice)
     stop_clock = True
 
@@ -9782,6 +10233,9 @@ while True:
     elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
     elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
     elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
+    elif choice == 'U':
+        _set_display_mode("enhanced")
+        feature_enhanced_display_mode()
 
 #version 21
 
@@ -10355,10 +10809,12 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-# version pythonOScmd102 base pythonOS70
+# version pythonOScmd103 base pythonOS70
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
+# Added Enhnaced Display Mode with improved font rendering and color accuracy for terminals that support advanced ANSI codes. This mode optimizes the visual experience by utilizing 24-bit color and enhanced character sets, providing a richer and more vibrant interface. Users can toggle this mode from the Command Center using option U, allowing for a more immersive pythonOS experience on compatible terminals.
+# Version 15 - Text & Document Center
 # Added Text & Document Center with a built-in text editor and document viewer supporting various formats, including .txt, .md, .pdf, and .docx. The editor features syntax highlighting for code files, markdown preview, and basic formatting tools. The document viewer can render PDFs and Word documents directly in the terminal using ASCII art and supports navigation through pages and sections. This module is accessible via Command Center option T and provides a comprehensive solution for managing text and documents within the pythonOS environment.
 # Version 16 - Earth & Moon Animation
 # Version 17 - Graphing Calculator & ASCII Plotting I'll replace the ScienceConsole class with the improved version that includes NumPy integration, variable storage, rolling calculations, and enhanced UI features
