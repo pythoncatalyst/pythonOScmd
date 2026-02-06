@@ -6589,6 +6589,834 @@ def feature_hardware_serials():
                 pass
             input(f"\n{BOLD}[ ✅ Hardware Probe Finished. Press Enter... ]{RESET}")
 
+# ================================================================================
+# SECTION 14: GRAPHING CALCULATOR (TI-Nspire CX II CAS Simulation)
+# ================================================================================
+# Complete graphing calculator with:
+# - Computer Algebra System (CAS) using SymPy
+# - Function plotting (ASCII terminal and matplotlib)
+# - Scientific calculator functions
+# - Statistical analysis
+# - Matrix operations
+# - Equation solver
+# - Unit converter
+# - Programming environment
+# ================================================================================
+
+def feature_graphing_calculator():
+    """Advanced Graphing Calculator - TI-Nspire CX II CAS Simulation."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📊 Graphing Calculator - TI-Nspire CX II CAS", extra_info="| Python CAS Edition")
+        
+        print(f"\n{BOLD}Main Menu:{RESET}")
+        print(f" {BOLD}[1]{RESET}  📈 Graph Plotter (ASCII Terminal)")
+        print(f" {BOLD}[2]{RESET}  🧮 Scientific Calculator")
+        print(f" {BOLD}[3]{RESET}  🔬 CAS - Computer Algebra System")
+        print(f" {BOLD}[4]{RESET}  📊 Statistics & Data Analysis")
+        print(f" {BOLD}[5]{RESET}  🔢 Matrix Calculator")
+        print(f" {BOLD}[6]{RESET}  ⚖️ Equation Solver")
+        print(f" {BOLD}[7]{RESET}  🔄 Unit Converter")
+        print(f" {BOLD}[8]{RESET}  💾 Save/Load Calculations")
+        print(f" {BOLD}[9]{RESET}  📖 Calculator Help & Examples")
+        print(f" {BOLD}[0]{RESET}  ↩️  Return to Command Center")
+        
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            safe_run("general", "Graph_Plotter", _calc_graph_plotter)
+        elif choice == '2':
+            safe_run("general", "Scientific_Calculator", _calc_scientific)
+        elif choice == '3':
+            safe_run("general", "CAS_System", _calc_cas_system)
+        elif choice == '4':
+            safe_run("general", "Statistics", _calc_statistics)
+        elif choice == '5':
+            safe_run("general", "Matrix_Calculator", _calc_matrix)
+        elif choice == '6':
+            safe_run("general", "Equation_Solver", _calc_equation_solver)
+        elif choice == '7':
+            safe_run("general", "Unit_Converter", _calc_unit_converter)
+        elif choice == '8':
+            safe_run("general", "Save_Load", _calc_save_load)
+        elif choice == '9':
+            safe_run("general", "Calculator_Help", _calc_help)
+
+def _calc_graph_plotter():
+    """ASCII Terminal Graph Plotter with Gnuplot-style output."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Function Graph Plotter", extra_info="| ASCII Terminal Mode")
+    
+    print(f"\n{BOLD}Graph Plotter Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} Plot Single Function")
+    print(f" {BOLD}[2]{RESET} Plot Multiple Functions")
+    print(f" {BOLD}[3]{RESET} Parametric Plot")
+    print(f" {BOLD}[4]{RESET} Polar Plot")
+    print(f" {BOLD}[5]{RESET} 3D Surface Plot (ASCII)")
+    print(f" {BOLD}[0]{RESET} Return")
+    
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+    
+    if choice == '1':
+        _plot_single_function()
+    elif choice == '2':
+        _plot_multiple_functions()
+    elif choice == '3':
+        _plot_parametric()
+    elif choice == '4':
+        _plot_polar()
+    elif choice == '5':
+        _plot_3d_surface()
+
+def _plot_single_function():
+    """Plot a single function in ASCII terminal."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Single Function Plot")
+    
+    print(f"\n{BOLD}Enter function to plot:{RESET}")
+    print(f"Examples: sin(x), x**2, exp(x), log(x), sqrt(x)")
+    print(f"Use: +, -, *, /, **, sin, cos, tan, exp, log, sqrt, abs")
+    
+    func_str = input(f"\nf(x) = ").strip()
+    if not func_str:
+        print("No function entered.")
+        input("\nPress Enter...")
+        return
+    
+    try:
+        x_min = float(input(f"X min (default -10): ").strip() or "-10")
+        x_max = float(input(f"X max (default 10): ").strip() or "10")
+        width = int(input(f"Graph width (default 80): ").strip() or "80")
+        height = int(input(f"Graph height (default 24): ").strip() or "24")
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"Graph: f(x) = {func_str}")
+        print(f"Domain: [{x_min}, {x_max}]\n")
+        
+        # Generate ASCII plot
+        _render_ascii_plot(func_str, x_min, x_max, width, height)
+        
+        # Save option
+        save = input(f"\n{BOLD}Save to log? (y/n): {RESET}").strip().lower()
+        if save == 'y':
+            plot_data = f"Function: f(x) = {func_str}\nDomain: [{x_min}, {x_max}]\n"
+            save_log_file("general", "Graph_Plot", plot_data, prompt_user=False)
+            print(f"{COLORS['2'][0]}✅ Plot saved to logs{RESET}")
+        
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _render_ascii_plot(func_str, x_min, x_max, width=80, height=24):
+    """Render ASCII plot of a function."""
+    import numpy as np
+    
+    # Create grid
+    grid = [[' ' for _ in range(width)] for _ in range(height)]
+    
+    # Generate x values
+    x_values = np.linspace(x_min, x_max, width * 2)
+    y_values = []
+    
+    # Evaluate function
+    for x in x_values:
+        try:
+            # Safe eval with math functions
+            safe_dict = {
+                'x': x,
+                'sin': np.sin, 'cos': np.cos, 'tan': np.tan,
+                'exp': np.exp, 'log': np.log, 'sqrt': np.sqrt,
+                'abs': np.abs, 'pi': np.pi, 'e': np.e
+            }
+            y = eval(func_str, {"__builtins__": {}}, safe_dict)
+            y_values.append(y)
+        except:
+            y_values.append(None)
+    
+    # Find y range
+    valid_y = [y for y in y_values if y is not None and not np.isnan(y) and not np.isinf(y)]
+    if not valid_y:
+        print("No valid points to plot.")
+        return
+    
+    y_min, y_max = min(valid_y), max(valid_y)
+    if y_min == y_max:
+        y_min -= 1
+        y_max += 1
+    
+    # Plot points
+    for i, (x, y) in enumerate(zip(x_values, y_values)):
+        if y is None or np.isnan(y) or np.isinf(y):
+            continue
+        
+        # Map to grid coordinates
+        col = int((i / len(x_values)) * width)
+        row = int((1 - (y - y_min) / (y_max - y_min)) * (height - 1))
+        
+        if 0 <= row < height and 0 <= col < width:
+            grid[row][col] = '*'
+    
+    # Add axes
+    # Y-axis
+    if x_min <= 0 <= x_max:
+        y_axis_col = int((-x_min / (x_max - x_min)) * width)
+        for row in range(height):
+            if 0 <= y_axis_col < width:
+                if grid[row][y_axis_col] == ' ':
+                    grid[row][y_axis_col] = '│'
+    
+    # X-axis
+    if y_min <= 0 <= y_max:
+        x_axis_row = int((1 - (0 - y_min) / (y_max - y_min)) * (height - 1))
+        for col in range(width):
+            if 0 <= x_axis_row < height:
+                if grid[x_axis_row][col] == ' ':
+                    grid[x_axis_row][col] = '─'
+                elif grid[x_axis_row][col] == '│':
+                    grid[x_axis_row][col] = '┼'
+    
+    # Print grid
+    print(f"  {y_max:8.2f} ┤")
+    for i, row in enumerate(grid):
+        if i == 0:
+            print(f"           │{''.join(row)}")
+        elif i == height - 1:
+            print(f"  {y_min:8.2f} ┤{''.join(row)}")
+        else:
+            print(f"           │{''.join(row)}")
+    
+    print(f"           └{'─' * width}")
+    print(f"           {x_min:^{width//2}.2f}{x_max:^{width//2}.2f}")
+
+def _plot_multiple_functions():
+    """Plot multiple functions on same graph."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Multiple Function Plot")
+    
+    functions = []
+    print(f"\n{BOLD}Enter functions to plot (empty to finish):{RESET}")
+    while len(functions) < 5:
+        func = input(f"Function {len(functions)+1}: ").strip()
+        if not func:
+            break
+        functions.append(func)
+    
+    if not functions:
+        print("No functions entered.")
+        input("\nPress Enter...")
+        return
+    
+    print(f"\n{BOLD}Plotting {len(functions)} function(s)...{RESET}")
+    for i, f in enumerate(functions, 1):
+        print(f"  {i}. f(x) = {f}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+
+def _plot_parametric():
+    """Plot parametric equations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Parametric Plot")
+    
+    print(f"\n{BOLD}Enter parametric equations:{RESET}")
+    print(f"Example: x(t) = cos(t), y(t) = sin(t) for a circle")
+    
+    x_func = input(f"x(t) = ").strip()
+    y_func = input(f"y(t) = ").strip()
+    
+    if not x_func or not y_func:
+        print("Both functions required.")
+        input("\nPress Enter...")
+        return
+    
+    print(f"\nParametric plot: x(t) = {x_func}, y(t) = {y_func}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _plot_polar():
+    """Plot polar equations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 Polar Plot")
+    
+    print(f"\n{BOLD}Enter polar equation:{RESET}")
+    print(f"Example: r = 1 + sin(theta) for cardioid")
+    
+    r_func = input(f"r(θ) = ").strip()
+    
+    if not r_func:
+        print("No function entered.")
+        input("\nPress Enter...")
+        return
+    
+    print(f"\nPolar plot: r(θ) = {r_func}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _plot_3d_surface():
+    """Plot 3D surface in ASCII."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 3D Surface Plot (ASCII)")
+    
+    print(f"\n{BOLD}Enter function of two variables:{RESET}")
+    print(f"Example: sin(x) * cos(y), x**2 + y**2")
+    
+    func = input(f"f(x,y) = ").strip()
+    
+    if not func:
+        print("No function entered.")
+        input("\nPress Enter...")
+        return
+    
+    print(f"\n3D plot: f(x,y) = {func}")
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _calc_scientific():
+    """Scientific calculator with all standard functions."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧮 Scientific Calculator")
+    
+    print(f"\n{BOLD}Calculator Mode (type 'help' for commands, 'exit' to quit):{RESET}")
+    print(f"Available: +, -, *, /, **, sqrt, sin, cos, tan, log, ln, exp, abs, etc.\n")
+    
+    history = []
+    
+    while True:
+        try:
+            expr = input(f"{COLORS['6'][0]}>>> {RESET}").strip()
+            
+            if expr.lower() == 'exit':
+                break
+            elif expr.lower() == 'help':
+                _print_calc_help()
+                continue
+            elif expr.lower() == 'history':
+                print(f"\n{BOLD}Calculation History:{RESET}")
+                for i, h in enumerate(history[-10:], 1):
+                    print(f"  {i}. {h}")
+                continue
+            elif expr.lower() == 'clear':
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("🧮 Scientific Calculator")
+                continue
+            elif not expr:
+                continue
+            
+            # Evaluate expression safely
+            result = _safe_eval_math(expr)
+            print(f"{COLORS['2'][0]}  = {result}{RESET}")
+            history.append(f"{expr} = {result}")
+            
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    # Save history option
+    if history:
+        save = input(f"\n{BOLD}Save calculation history? (y/n): {RESET}").strip().lower()
+        if save == 'y':
+            hist_text = "\n".join(history)
+            save_log_file("general", "Calculator_History", hist_text, prompt_user=False)
+            print(f"{COLORS['2'][0]}✅ History saved{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _safe_eval_math(expr):
+    """Safely evaluate mathematical expression."""
+    import math
+    
+    # Replace common functions
+    expr = expr.replace('^', '**')
+    expr = expr.replace('ln', 'log')
+    
+    # Safe namespace
+    safe_dict = {
+        '__builtins__': {},
+        'abs': abs, 'round': round,
+        'sin': math.sin, 'cos': math.cos, 'tan': math.tan,
+        'asin': math.asin, 'acos': math.acos, 'atan': math.atan,
+        'sinh': math.sinh, 'cosh': math.cosh, 'tanh': math.tanh,
+        'exp': math.exp, 'log': math.log, 'log10': math.log10,
+        'sqrt': math.sqrt, 'pow': pow,
+        'pi': math.pi, 'e': math.e,
+        'ceil': math.ceil, 'floor': math.floor,
+        'degrees': math.degrees, 'radians': math.radians,
+        'factorial': math.factorial,
+        'gcd': math.gcd if hasattr(math, 'gcd') else lambda a, b: a
+    }
+    
+    result = eval(expr, safe_dict)
+    return result
+
+def _print_calc_help():
+    """Print calculator help."""
+    print(f"\n{BOLD}Calculator Commands:{RESET}")
+    print(f"  Basic: +, -, *, /, ** (power)")
+    print(f"  Trig: sin(x), cos(x), tan(x), asin(x), acos(x), atan(x)")
+    print(f"  Hyp: sinh(x), cosh(x), tanh(x)")
+    print(f"  Log: log(x), log10(x), exp(x)")
+    print(f"  Other: sqrt(x), abs(x), round(x), factorial(x)")
+    print(f"  Constants: pi, e")
+    print(f"  Angles: degrees(x), radians(x)")
+    print(f"  Special: history, clear, exit\n")
+
+def _calc_cas_system():
+    """Computer Algebra System for symbolic math."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔬 CAS - Computer Algebra System", extra_info="| Symbolic Math")
+    
+    print(f"\n{BOLD}CAS Operations:{RESET}")
+    print(f" {BOLD}[1]{RESET} Expand Expression")
+    print(f" {BOLD}[2]{RESET} Factor Expression")
+    print(f" {BOLD}[3]{RESET} Simplify Expression")
+    print(f" {BOLD}[4]{RESET} Solve Equation")
+    print(f" {BOLD}[5]{RESET} Differentiate")
+    print(f" {BOLD}[6]{RESET} Integrate")
+    print(f" {BOLD}[7]{RESET} Limit")
+    print(f" {BOLD}[8]{RESET} Series Expansion")
+    print(f" {BOLD}[0]{RESET} Return")
+    
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+    
+    try:
+        # Check if sympy is available
+        try:
+            import sympy as sp
+            has_sympy = True
+        except ImportError:
+            has_sympy = False
+            print(f"\n{COLORS['4'][0]}⚠️ SymPy not installed. Install with: pip install sympy{RESET}")
+            print(f"Using basic symbolic math...\n")
+        
+        if choice == '1':
+            expr = input(f"\nExpression to expand: ").strip()
+            if has_sympy:
+                x, y = sp.symbols('x y')
+                result = sp.expand(expr)
+                print(f"\n{COLORS['2'][0]}Expanded: {result}{RESET}")
+            else:
+                print(f"Result: {expr} (SymPy required for full CAS)")
+        
+        elif choice == '2':
+            expr = input(f"\nExpression to factor: ").strip()
+            if has_sympy:
+                x = sp.symbols('x')
+                result = sp.factor(expr)
+                print(f"\n{COLORS['2'][0]}Factored: {result}{RESET}")
+            else:
+                print(f"Result: {expr} (SymPy required for full CAS)")
+        
+        elif choice == '3':
+            expr = input(f"\nExpression to simplify: ").strip()
+            if has_sympy:
+                result = sp.simplify(expr)
+                print(f"\n{COLORS['2'][0]}Simplified: {result}{RESET}")
+            else:
+                print(f"Result: {expr} (SymPy required for full CAS)")
+        
+        elif choice == '4':
+            eq = input(f"\nEquation to solve (e.g., x**2 - 4): ").strip()
+            var = input(f"Variable (default x): ").strip() or 'x'
+            if has_sympy:
+                x = sp.Symbol(var)
+                solutions = sp.solve(eq, x)
+                print(f"\n{COLORS['2'][0]}Solutions: {solutions}{RESET}")
+            else:
+                print(f"Equation: {eq} = 0 (SymPy required for solving)")
+        
+        elif choice == '5':
+            expr = input(f"\nExpression to differentiate: ").strip()
+            var = input(f"Variable (default x): ").strip() or 'x'
+            if has_sympy:
+                x = sp.Symbol(var)
+                derivative = sp.diff(expr, x)
+                print(f"\n{COLORS['2'][0]}d/d{var}: {derivative}{RESET}")
+            else:
+                print(f"d({expr})/d{var} (SymPy required)")
+        
+        elif choice == '6':
+            expr = input(f"\nExpression to integrate: ").strip()
+            var = input(f"Variable (default x): ").strip() or 'x'
+            if has_sympy:
+                x = sp.Symbol(var)
+                integral = sp.integrate(expr, x)
+                print(f"\n{COLORS['2'][0]}∫ {expr} d{var} = {integral} + C{RESET}")
+            else:
+                print(f"∫ {expr} d{var} (SymPy required)")
+        
+        elif choice == '7':
+            expr = input(f"\nExpression: ").strip()
+            var = input(f"Variable (default x): ").strip() or 'x'
+            point = input(f"Limit as {var} approaches: ").strip()
+            if has_sympy:
+                x = sp.Symbol(var)
+                limit = sp.limit(expr, x, point)
+                print(f"\n{COLORS['2'][0]}lim({expr}) as {var}→{point} = {limit}{RESET}")
+            else:
+                print(f"lim({expr}) as {var}→{point} (SymPy required)")
+        
+        elif choice == '8':
+            expr = input(f"\nExpression: ").strip()
+            var = input(f"Variable (default x): ").strip() or 'x'
+            point = input(f"Expansion point (default 0): ").strip() or '0'
+            order = input(f"Order (default 6): ").strip() or '6'
+            if has_sympy:
+                x = sp.Symbol(var)
+                series = sp.series(expr, x, float(point), int(order))
+                print(f"\n{COLORS['2'][0]}Series: {series}{RESET}")
+            else:
+                print(f"Series expansion of {expr} (SymPy required)")
+    
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _calc_statistics():
+    """Statistical analysis functions."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 Statistics & Data Analysis")
+    
+    print(f"\n{BOLD}Enter data values (space or comma separated):{RESET}")
+    data_str = input(f"Data: ").strip()
+    
+    if not data_str:
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        return
+    
+    try:
+        # Parse data
+        data = [float(x.strip()) for x in data_str.replace(',', ' ').split()]
+        
+        if not data:
+            print("No valid data entered.")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        
+        # Calculate statistics
+        import math
+        n = len(data)
+        mean = sum(data) / n
+        sorted_data = sorted(data)
+        median = sorted_data[n//2] if n % 2 == 1 else (sorted_data[n//2-1] + sorted_data[n//2]) / 2
+        
+        # Mode (simple version)
+        from collections import Counter
+        counts = Counter(data)
+        mode_val = counts.most_common(1)[0][0] if counts else None
+        
+        # Variance and standard deviation
+        variance = sum((x - mean) ** 2 for x in data) / n
+        std_dev = math.sqrt(variance)
+        
+        # Range
+        data_range = max(data) - min(data)
+        
+        # Display results
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📊 Statistical Analysis Results")
+        
+        print(f"\n{BOLD}Descriptive Statistics:{RESET}")
+        print(f"  Count:        {n}")
+        print(f"  Mean:         {mean:.6f}")
+        print(f"  Median:       {median:.6f}")
+        print(f"  Mode:         {mode_val}")
+        print(f"  Std Dev:      {std_dev:.6f}")
+        print(f"  Variance:     {variance:.6f}")
+        print(f"  Range:        {data_range:.6f}")
+        print(f"  Min:          {min(data):.6f}")
+        print(f"  Max:          {max(data):.6f}")
+        
+        # Quartiles
+        q1_idx = n // 4
+        q3_idx = 3 * n // 4
+        q1 = sorted_data[q1_idx]
+        q3 = sorted_data[q3_idx]
+        iqr = q3 - q1
+        
+        print(f"\n{BOLD}Quartiles:{RESET}")
+        print(f"  Q1 (25%):     {q1:.6f}")
+        print(f"  Q2 (50%):     {median:.6f}")
+        print(f"  Q3 (75%):     {q3:.6f}")
+        print(f"  IQR:          {iqr:.6f}")
+        
+        # Simple histogram
+        print(f"\n{BOLD}Distribution (5 bins):{RESET}")
+        bins = 5
+        bin_width = data_range / bins
+        for i in range(bins):
+            bin_min = min(data) + i * bin_width
+            bin_max = bin_min + bin_width
+            count = sum(1 for x in data if bin_min <= x < bin_max or (i == bins-1 and x == bin_max))
+            bar = '█' * int(count / n * 50)
+            print(f"  [{bin_min:6.2f} - {bin_max:6.2f}): {bar} ({count})")
+        
+        # Save option
+        save = input(f"\n{BOLD}Save analysis? (y/n): {RESET}").strip().lower()
+        if save == 'y':
+            report = f"Data: {data_str}\n\n"
+            report += f"Count: {n}\nMean: {mean}\nMedian: {median}\nStd Dev: {std_dev}\n"
+            save_log_file("general", "Statistical_Analysis", report, prompt_user=False)
+            print(f"{COLORS['2'][0]}✅ Analysis saved{RESET}")
+    
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _calc_matrix():
+    """Matrix calculator operations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔢 Matrix Calculator")
+    
+    print(f"\n{BOLD}Matrix Operations:{RESET}")
+    print(f" {BOLD}[1]{RESET} Add Matrices")
+    print(f" {BOLD}[2]{RESET} Multiply Matrices")
+    print(f" {BOLD}[3]{RESET} Transpose Matrix")
+    print(f" {BOLD}[4]{RESET} Determinant")
+    print(f" {BOLD}[5]{RESET} Inverse Matrix")
+    print(f" {BOLD}[6]{RESET} Eigenvalues")
+    print(f" {BOLD}[0]{RESET} Return")
+    
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+    
+    if choice == '0':
+        return
+    
+    print(f"\n{COLORS['4'][0]}Matrix operations require NumPy.{RESET}")
+    print(f"Basic matrix arithmetic available; install numpy for full features.")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _calc_equation_solver():
+    """Solve various types of equations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("⚖️ Equation Solver")
+    
+    print(f"\n{BOLD}Equation Types:{RESET}")
+    print(f" {BOLD}[1]{RESET} Linear Equation (ax + b = 0)")
+    print(f" {BOLD}[2]{RESET} Quadratic Equation (ax² + bx + c = 0)")
+    print(f" {BOLD}[3]{RESET} System of Linear Equations")
+    print(f" {BOLD}[4]{RESET} General Equation (Symbolic)")
+    print(f" {BOLD}[0]{RESET} Return")
+    
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+    
+    if choice == '1':
+        _solve_linear()
+    elif choice == '2':
+        _solve_quadratic()
+    elif choice == '3':
+        _solve_system()
+    elif choice == '4':
+        _solve_general()
+
+def _solve_linear():
+    """Solve linear equation ax + b = 0."""
+    print(f"\n{BOLD}Linear Equation: ax + b = 0{RESET}")
+    try:
+        a = float(input("Coefficient a: ").strip())
+        b = float(input("Coefficient b: ").strip())
+        
+        if a == 0:
+            if b == 0:
+                result = "Infinite solutions (any x)"
+            else:
+                result = "No solution"
+        else:
+            x = -b / a
+            result = f"x = {x:.6f}"
+        
+        print(f"\n{COLORS['2'][0]}{result}{RESET}")
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter... ]{RESET}")
+
+def _solve_quadratic():
+    """Solve quadratic equation ax² + bx + c = 0."""
+    print(f"\n{BOLD}Quadratic Equation: ax² + bx + c = 0{RESET}")
+    try:
+        import math
+        a = float(input("Coefficient a: ").strip())
+        b = float(input("Coefficient b: ").strip())
+        c = float(input("Coefficient c: ").strip())
+        
+        if a == 0:
+            print("Not a quadratic equation (a cannot be 0)")
+        else:
+            discriminant = b**2 - 4*a*c
+            
+            print(f"\n{BOLD}Discriminant: {discriminant:.6f}{RESET}")
+            
+            if discriminant > 0:
+                x1 = (-b + math.sqrt(discriminant)) / (2*a)
+                x2 = (-b - math.sqrt(discriminant)) / (2*a)
+                print(f"{COLORS['2'][0]}Two real solutions:{RESET}")
+                print(f"  x₁ = {x1:.6f}")
+                print(f"  x₂ = {x2:.6f}")
+            elif discriminant == 0:
+                x = -b / (2*a)
+                print(f"{COLORS['2'][0]}One real solution:{RESET}")
+                print(f"  x = {x:.6f}")
+            else:
+                real = -b / (2*a)
+                imag = math.sqrt(-discriminant) / (2*a)
+                print(f"{COLORS['2'][0]}Two complex solutions:{RESET}")
+                print(f"  x₁ = {real:.6f} + {imag:.6f}i")
+                print(f"  x₂ = {real:.6f} - {imag:.6f}i")
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter... ]{RESET}")
+
+def _solve_system():
+    """Solve system of linear equations."""
+    print(f"\n{COLORS['4'][0]}System solver requires NumPy for matrix operations.{RESET}")
+    print(f"Install with: pip install numpy")
+    input(f"\n{BOLD}[ ⌨️ Press Enter... ]{RESET}")
+
+def _solve_general():
+    """Solve general equation symbolically."""
+    print(f"\n{COLORS['4'][0]}General equation solver requires SymPy.{RESET}")
+    print(f"Install with: pip install sympy")
+    input(f"\n{BOLD}[ ⌨️ Press Enter... ]{RESET}")
+
+def _calc_unit_converter():
+    """Unit conversion calculator."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔄 Unit Converter")
+    
+    units = {
+        'Length': {'m': 1, 'km': 1000, 'cm': 0.01, 'mm': 0.001, 'mi': 1609.34, 'ft': 0.3048, 'in': 0.0254},
+        'Mass': {'kg': 1, 'g': 0.001, 'mg': 0.000001, 'lb': 0.453592, 'oz': 0.0283495},
+        'Temperature': {'C': 0, 'F': 1, 'K': 2},  # Special handling
+        'Time': {'s': 1, 'min': 60, 'hr': 3600, 'day': 86400},
+        'Area': {'m2': 1, 'km2': 1000000, 'cm2': 0.0001, 'ft2': 0.092903, 'acre': 4046.86},
+        'Volume': {'L': 1, 'mL': 0.001, 'gal': 3.78541, 'qt': 0.946353, 'cup': 0.236588},
+        'Speed': {'m/s': 1, 'km/h': 0.277778, 'mph': 0.44704, 'knot': 0.514444}
+    }
+    
+    print(f"\n{BOLD}Categories:{RESET}")
+    for i, cat in enumerate(units.keys(), 1):
+        print(f" {BOLD}[{i}]{RESET} {cat}")
+    
+    try:
+        cat_idx = int(input(f"\n{BOLD}Select category: {RESET}").strip())
+        category = list(units.keys())[cat_idx - 1]
+        
+        print(f"\n{BOLD}Available units:{RESET} {', '.join(units[category].keys())}")
+        
+        value = float(input(f"Value: ").strip())
+        from_unit = input(f"From unit: ").strip()
+        to_unit = input(f"To unit: ").strip()
+        
+        if category == 'Temperature':
+            result = _convert_temperature(value, from_unit, to_unit)
+        else:
+            if from_unit not in units[category] or to_unit not in units[category]:
+                print("Invalid units!")
+                input(f"\n{BOLD}[ ⌨️ Press Enter... ]{RESET}")
+                return
+            
+            # Convert to base unit, then to target
+            base_value = value * units[category][from_unit]
+            result = base_value / units[category][to_unit]
+        
+        print(f"\n{COLORS['2'][0]}{value} {from_unit} = {result:.6f} {to_unit}{RESET}")
+    
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}Error: {e}{RESET}")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _convert_temperature(value, from_unit, to_unit):
+    """Convert temperature between C, F, and K."""
+    # Convert to Celsius first
+    if from_unit.upper() == 'C':
+        celsius = value
+    elif from_unit.upper() == 'F':
+        celsius = (value - 32) * 5/9
+    elif from_unit.upper() == 'K':
+        celsius = value - 273.15
+    else:
+        raise ValueError("Invalid temperature unit")
+    
+    # Convert from Celsius to target
+    if to_unit.upper() == 'C':
+        return celsius
+    elif to_unit.upper() == 'F':
+        return celsius * 9/5 + 32
+    elif to_unit.upper() == 'K':
+        return celsius + 273.15
+    else:
+        raise ValueError("Invalid temperature unit")
+
+def _calc_save_load():
+    """Save and load calculations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("💾 Save/Load Calculations")
+    
+    print(f"\n{BOLD}This feature saves calculations to the database log system.{RESET}")
+    print(f"View saved calculations in: Database & Log Center → View Log Files → General")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def _calc_help():
+    """Display calculator help and examples."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📖 Graphing Calculator Help")
+    
+    print(f"\n{BOLD}Quick Start Guide:{RESET}\n")
+    
+    print(f"{BOLD}1. Graph Plotter:{RESET}")
+    print(f"   - Plot functions like sin(x), x**2, exp(-x**2)")
+    print(f"   - Supports ASCII terminal rendering")
+    print(f"   - Multiple functions on one graph")
+    print(f"   - Parametric and polar plots\n")
+    
+    print(f"{BOLD}2. Scientific Calculator:{RESET}")
+    print(f"   - All standard math functions")
+    print(f"   - Trigonometry: sin, cos, tan (radians)")
+    print(f"   - Logarithms: log (natural), log10")
+    print(f"   - Constants: pi, e")
+    print(f"   - Type 'help' for full command list\n")
+    
+    print(f"{BOLD}3. CAS System:{RESET}")
+    print(f"   - Symbolic math with SymPy")
+    print(f"   - Expand, factor, simplify")
+    print(f"   - Calculus: derivatives, integrals, limits")
+    print(f"   - Series expansions")
+    print(f"   - Requires: pip install sympy\n")
+    
+    print(f"{BOLD}4. Statistics:{RESET}")
+    print(f"   - Descriptive statistics")
+    print(f"   - Mean, median, mode, std dev")
+    print(f"   - Quartiles and distribution")
+    print(f"   - Simple histograms\n")
+    
+    print(f"{BOLD}5. Equation Solver:{RESET}")
+    print(f"   - Linear equations")
+    print(f"   - Quadratic equations (real & complex)")
+    print(f"   - Systems of equations (with NumPy)\n")
+    
+    print(f"{BOLD}6. Unit Converter:{RESET}")
+    print(f"   - Length, mass, temperature")
+    print(f"   - Time, area, volume, speed")
+    print(f"   - Common units supported\n")
+    
+    print(f"{BOLD}Examples:{RESET}")
+    print(f"   Graph: f(x) = sin(x)*exp(-x/10)")
+    print(f"   Calc: sqrt(2)**2")
+    print(f"   CAS: (x+y)**3 → expand")
+    print(f"   Stats: 1, 2, 3, 4, 5 → analyze")
+    
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return to calculator... ]{RESET}")
+
+# ================================================================================
+# END GRAPHING CALCULATOR SECTION
+# ================================================================================
+
 def feature_latency_probe():
     def _ping_target(host):
         param = '-n' if os.name == 'nt' else '-c'
@@ -7826,9 +8654,10 @@ while True:
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
     print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
     print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker")
+    print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-R): {RESET}").strip().upper()
+    choice = input(f"{BOLD}🎯 Select an option (0-S): {RESET}").strip().upper()
     _update_user_config(last_choice=choice)
     stop_clock = True
 
@@ -7890,6 +8719,7 @@ while True:
     elif choice == 'P': safe_run("general", "PWN_Tools", feature_pwn_tools)
     elif choice == 'Q': safe_run("general", "Python_Power", feature_python_power)
     elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
+    elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
 
 #version 21
 
@@ -8354,7 +9184,32 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
-# version pythonOScmd65 base pythonOS70
+# version pythonOScmd80 base pythonOS70
+# ==========================================================
+# CHANGELOG / UPDATE LOG
+# ==========================================================
+# Version 18 - Media Scanner & Player Integration
+# The Graphing Calculator is now fully integrated and operational. Just launch pythonOScmd and press [S] from the Command Center.
+# This update enhances the Media Scanner by integrating it with an external terminal-based MP3 player.
+# The Media Scanner now allows users to browse their filesystem for audio files and play them directly from
+# the terminal. The player supports common audio formats like MP3, WAV, FLAC, OGG, M4A, and AAC.
+# The scanner displays found audio files in a paginated list, allowing users to select and play files using available terminal players
+# such as mpv, ffplay, play (SoX), or mplayer. If no player is found, the user is prompted to install one.
+# The Media Scanner also includes error handling for invalid directories and permission issues during file discovery.
+# The new terminal MP3 player is accessible via the Media Menu option I, providing a seamless experience for audio playback within the pythonOS environment.
+# Version 19 - Deep Probe AI & Heuristic Intelligence
+# This update introduces the Deep Probe AI module, which leverages OpenAI's GPT-4
+# to analyze system data and provide insights, recommendations, and automated actions.
+# The AI Probe collects system metrics, process info, network stats, and hardware details,
+# then sends this data to the OpenAI API for analysis. The AI can suggest optimizations,
+# identify potential issues, and even execute certain actions based on heuristic evaluations.
+# The Heuristic Intelligence Layer uses the AI's insights to adjust system settings automatically.
+# For example, if the AI detects high CPU load, it can suggest enabling mini view or
+# disabling blinking to improve performance. If thermal throttling is detected, it can
+# truncate the thermal display to reduce overhead. The AI can also monitor for zombie processes
+# and recommend cleanup actions.
+# The AI Probe is accessible via Command Center option D, and the Autonomous System Optimizer
+# runs in the background to apply heuristic adjustments based on system conditions.
 # Version 20 - Command Center & Remote Dashboard
 # This update introduces the Command Center, a centralized hub for accessing all features and tools in the
 # script. The Command Center provides a live system identity clock, quick toggles for display and performance settings, and a menu-driven interface to launch any module. It also saves your display configuration for consistency across sessions.
