@@ -569,7 +569,7 @@ def feature_database_log_center():
             safe_run("general", "Database_Settings", _database_settings)
         elif choice == '10':
             safe_run("system", "Lite_Scan", _lite_scan)
-        elif choice == '11':
+            _enhanced_satellite_view(stdscr, state)
             safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
         elif choice == '12':
             safe_run("general", "Advanced_Database_Suite", _advanced_database_suite)
@@ -9629,6 +9629,11 @@ def _enhanced_wrap_lines(text, width):
         lines.append(raw)
     return lines
 
+def _enhanced_strip_ansi(text):
+    if not text:
+        return ""
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
+
 def _enhanced_set_display(state, title, text):
     state["display_title"] = title
     state["display_lines"] = _enhanced_wrap_lines(text, max(10, state["right_width"] - 2))
@@ -9671,6 +9676,16 @@ def _enhanced_render_left(win, lines):
         win.addnstr(1 + i, 1, line, w - 2)
     win.noutrefresh()
 
+def _enhanced_render_left_custom(win, title, lines, color_pair=1):
+    h, w = win.getmaxyx()
+    win.erase()
+    win.attron(curses.color_pair(color_pair))
+    win.box()
+    win.addnstr(0, 2, f" {title} ", w - 4)
+    for i, line in enumerate(lines[: h - 2]):
+        win.addnstr(1 + i, 1, line, w - 2)
+    win.noutrefresh()
+
 def _enhanced_render_right(win, state):
     h, w = win.getmaxyx()
     win.erase()
@@ -9685,18 +9700,34 @@ def _enhanced_render_right(win, state):
         win.addnstr(1 + i, 1, line, w - 2)
     win.noutrefresh()
 
-def _enhanced_render_bottom(win, input_buffer, menu_lines):
-    h, w = win.getmaxyx()
-    win.erase()
-    win.attron(curses.color_pair(2))
-    win.box()
-    win.addnstr(0, 2, " COMMAND CENTER (ENHANCED) ", w - 4)
-    for i, line in enumerate(menu_lines[: h - 4]):
-        win.addnstr(1 + i, 1, line, w - 2)
+def _enhanced_set_submenu(state, title, lines):
+    state["submenu_title"] = title
+    state["submenu_lines"] = lines or ["(empty)"]
+
+def _enhanced_render_bottom_split(left_win, right_win, input_buffer, menu_lines, state):
+    lh, lw = left_win.getmaxyx()
+    rh, rw = right_win.getmaxyx()
+
+    left_win.erase()
+    left_win.attron(curses.color_pair(2))
+    left_win.box()
+    left_win.addnstr(0, 2, " COMMAND CENTER (ENHANCED) ", lw - 4)
+    for i, line in enumerate(menu_lines[: lh - 4]):
+        left_win.addnstr(1 + i, 1, line, lw - 2)
     prompt = "CMD > "
-    win.addnstr(h - 2, 1, prompt, w - 2)
-    win.addnstr(h - 2, 1 + len(prompt), input_buffer[-(w - len(prompt) - 3):], w - len(prompt) - 2)
-    win.noutrefresh()
+    left_win.addnstr(lh - 2, 1, prompt, lw - 2)
+    left_win.addnstr(lh - 2, 1 + len(prompt), input_buffer[-(lw - len(prompt) - 3):], lw - len(prompt) - 2)
+    left_win.noutrefresh()
+
+    right_win.erase()
+    right_win.attron(curses.color_pair(4))
+    right_win.box()
+    sub_title = state.get("submenu_title") or "SUB MENU"
+    right_win.addnstr(0, 2, f" {sub_title} ", rw - 4)
+    sub_lines = state.get("submenu_lines") or ["(empty)"]
+    for i, line in enumerate(sub_lines[: rh - 2]):
+        right_win.addnstr(1 + i, 1, line, rw - 2)
+    right_win.noutrefresh()
 
 def _enhanced_prompt(stdscr, prompt):
     curses.echo(False)
@@ -9875,75 +9906,346 @@ def _enhanced_network_summary(state):
     ]
     _enhanced_set_display(state, "NETWORK", "\n".join(lines))
 
+class _EnhancedSatelliteSession:
+    def __init__(self):
+        self.qth = _satellite_default_qth()
+        self.store = TLEStore()
+        self.trails = {}
+        self.targets = _satellite_targets_from_config(self.store)
+        self.primary_target = self.targets[0] if self.targets else "0 LEMUR 1"
+        self.health = self._initial_health()
+        self.last_message = "Ready."
+        self.map = MapRenderer()
+
+    def _initial_health(self):
+        if HAVE_PREDICT and HAVE_REQUESTS:
+            return "OPTIMAL"
+        if HAVE_PREDICT or HAVE_REQUESTS:
+            return "DEGRADED"
+        return "OFFLINE"
+
+    def _health_icon(self):
+        if self.health == "OPTIMAL":
+            return "🟢"
+        if self.health == "DEGRADED":
+            return "🟡"
+        return "🔴"
+
+    def update_map_size(self, width, height):
+        self.map = MapRenderer(width=width, height=height)
+
+    def get_pos(self, tle, now):
+        if HAVE_PREDICT:
+            try:
+                obs = predict.observe(tle, self.qth, at=now)
+                lon = obs["longitude"]
+                if lon < 0:
+                    lon += 360
+                return obs["latitude"], lon
+            except Exception:
+                pass
+
+        try:
+            l2 = tle.splitlines()[2]
+            inc = float(l2[8:16])
+            n = float(l2[52:63])
+            period = 86400 / n
+            theta = ((now % period) / period) * 2 * math.pi
+            lat = inc * math.sin(theta)
+            lon = (now / 240) % 360
+            return lat, lon
+        except Exception:
+            return 0.0, 0.0
+
+    def compute_positions(self, now):
+        targets = [t for t in self.targets if self.store.get(t)]
+        if not targets:
+            targets = ["0 LEMUR 1"]
+            self.targets = targets
+            self.primary_target = "0 LEMUR 1"
+
+        positions = {}
+        for name in targets[:SAT_MAX_TARGETS]:
+            tle = self.store.get(name)
+            if not tle:
+                continue
+            lat, lon = self.get_pos(tle, now)
+            positions[name] = (lat, lon)
+            trail = self.trails.setdefault(name, deque(maxlen=TRAIL_LENGTH))
+            trail.append((lat, lon))
+
+        if self.primary_target not in targets:
+            self.primary_target = targets[0]
+
+        return targets, positions
+
+    def _sync_targets(self):
+        _update_user_config(sat_targets=self.targets[:SAT_MAX_TARGETS], sat_target=self.primary_target)
+
+    def handle_command(self, cmd):
+        cmd = cmd.strip().lower()
+        if not cmd:
+            return
+        if cmd == "q":
+            self.last_message = "Quit satellite view."
+            return "quit"
+        if cmd == "u":
+            if self.store.update_from_celestrak():
+                self.health = "OPTIMAL"
+                self.last_message = "TLE update complete."
+            else:
+                self.last_message = "TLE update failed."
+            return
+        if cmd.startswith("s "):
+            name = cmd[2:].strip()
+            if self.store.get(name):
+                if name not in self.targets:
+                    if len(self.targets) < SAT_MAX_TARGETS:
+                        self.targets.append(name)
+                    else:
+                        self.last_message = f"Max targets reached ({SAT_MAX_TARGETS})."
+                        return
+                self.primary_target = name
+                _satellite_log_selection(name)
+                self._sync_targets()
+                self.last_message = f"Primary set: {name}."
+            else:
+                self.last_message = f"Unknown target: {name}."
+            return
+        if cmd.startswith("a "):
+            name = cmd[2:].strip()
+            if not self.store.get(name):
+                self.last_message = f"Unknown target: {name}."
+                return
+            if name in self.targets:
+                self.last_message = f"Already tracking: {name}."
+                return
+            if len(self.targets) >= SAT_MAX_TARGETS:
+                self.last_message = f"Max targets reached ({SAT_MAX_TARGETS})."
+                return
+            self.targets.append(name)
+            _satellite_log_selection(name)
+            self._sync_targets()
+            self.last_message = f"Added: {name}."
+            return
+        if cmd.startswith("r "):
+            name = cmd[2:].strip()
+            if name in self.targets:
+                self.targets.remove(name)
+                if self.primary_target == name:
+                    self.primary_target = self.targets[0] if self.targets else "0 LEMUR 1"
+                self._sync_targets()
+                self.last_message = f"Removed: {name}."
+            else:
+                self.last_message = f"Not tracked: {name}."
+            return
+        self.last_message = "Unknown command."
+
+def _enhanced_satellite_view(stdscr, state):
+    session = _EnhancedSatelliteSession()
+    input_buffer = ""
+    last_frame = 0
+    left_lines = ["Initializing satellite view..."]
+    menu_lines = [
+        "SAT COMMANDS:",
+        "U Update TLEs",
+        "S <name> Set Primary",
+        "A <name> Add",
+        "R <name> Remove",
+        "Q Quit",
+    ]
+
+    while True:
+        h, w = stdscr.getmaxyx()
+        if h < 24 or w < 80:
+            stdscr.erase()
+            stdscr.addstr(0, 0, "Enlarge window for Enhanced Display Mode")
+            stdscr.refresh()
+            time.sleep(0.2)
+            continue
+
+        bottom_h = max(7, h // 3)
+        top_h = h - bottom_h
+        left_w = w // 2
+        right_w = w - left_w
+        bottom_left_w = max(20, w // 2)
+        bottom_right_w = w - bottom_left_w
+
+        left = curses.newwin(top_h, left_w, 0, 0)
+        right = curses.newwin(top_h, right_w, 0, left_w)
+        bottom_left = curses.newwin(bottom_h, bottom_left_w, top_h, 0)
+        bottom_right = curses.newwin(bottom_h, bottom_right_w, top_h, bottom_left_w)
+
+        now = time.time()
+        if now - last_frame >= 1:
+            session.update_map_size(max(20, right_w - 6), max(10, top_h - 2))
+            targets, positions = session.compute_positions(now)
+
+            earth_dist = (1.524 - 1.0) * AU_KM
+            latency_min = (earth_dist / C_KMS) / 60
+            marker_map = {name: SAT_MARKERS[i] for i, name in enumerate(targets[:SAT_MAX_TARGETS])}
+            tracking_line = ", ".join([f"{marker_map.get(name, '?')}:{name}" for name in targets[:SAT_MAX_TARGETS]])
+
+            lat = lon = None
+            if session.primary_target in positions:
+                lat, lon = positions[session.primary_target]
+            tele_line = "TELEMETRY: N/A"
+            if lat is not None and lon is not None:
+                lat_suffix = "N" if lat >= 0 else "S"
+                lon_suffix = "E" if lon >= 0 else "W"
+                tele_line = f"TELEMETRY: {abs(lat):>6.2f}{lat_suffix}  {abs(lon):>7.2f}{lon_suffix}"
+
+            left_lines = [
+                f"== MARS BRIDGE STATUS: {session.health} {session._health_icon()} | TARGET: {session.primary_target} ==",
+                f"MISSION CLOCK: {time.ctime(now)} UTC",
+                f"EARTH DISTANCE: {earth_dist:,.0f} KM | LATENCY: {latency_min:.1f}m",
+                f"SATELLITES IN MEMORY: {session.store.count()}",
+                f"TRACKING (max {SAT_MAX_TARGETS}): {tracking_line}",
+                "",
+                tele_line,
+                "[U] Update TLEs | [S <name>] Set Primary | [A <name>] Add | [R <name>] Remove | [Q] Quit",
+                "(Type command and press Enter)",
+            ]
+
+            map_text = session.map.render_multi(session.trails, positions, marker_map=marker_map, primary_name=session.primary_target)
+            map_text = _enhanced_strip_ansi(map_text)
+            state["display_title"] = "SAT MAP"
+            state["display_lines"] = _enhanced_wrap_lines(map_text, max(10, right_w - 2))
+            state["display_scroll"] = 0
+
+            _enhanced_set_submenu(state, "Satellite Menu", [
+                f"Targets: {', '.join(targets[:SAT_MAX_TARGETS])}",
+                f"Primary: {session.primary_target}",
+                f"Last: {session.last_message}",
+            ])
+
+            last_frame = now
+
+        _enhanced_render_left_custom(left, "SATELLITE STATUS", _enhanced_wrap_lines("\n".join(left_lines), max(10, left_w - 2)), color_pair=1)
+        _enhanced_render_right(right, state)
+        _enhanced_render_bottom_split(bottom_left, bottom_right, input_buffer, menu_lines, state)
+        curses.doupdate()
+
+        key = stdscr.getch()
+        if key == -1:
+            time.sleep(0.05)
+            continue
+        if key == 20:  # Ctrl+T
+            _set_display_mode("classic")
+            return
+        if key in (curses.KEY_BACKSPACE, 127, 8):
+            input_buffer = input_buffer[:-1]
+            continue
+        if key in (10, 13):
+            cmd = input_buffer.strip()
+            input_buffer = ""
+            res = session.handle_command(cmd)
+            if res == "quit":
+                return
+            continue
+        if 32 <= key <= 126:
+            input_buffer += chr(key)
+
 def _enhanced_handle_choice(choice, stdscr, state):
     global is_blinking, temp_unit, truncated_thermal, mini_view
     if not choice:
         return
     choice = choice.strip().upper()
+    _enhanced_set_submenu(state, f"Selected: {choice}", ["Launching..."])
     if choice == '1':
+        _enhanced_set_submenu(state, "Blink", ["Toggle blinking text."])
         is_blinking = not is_blinking
         _update_user_config(is_blinking=is_blinking)
     elif choice == '2':
+        _enhanced_set_submenu(state, "Temperature Unit", ["Toggle C/F."])
         temp_unit = "F" if temp_unit == "C" else "C"
         _update_user_config(temp_unit=temp_unit)
     elif choice == '3':
+        _enhanced_set_submenu(state, "Thermal Mode", ["Toggle full/short thermal display."])
         truncated_thermal = not truncated_thermal
         _update_user_config(truncated_thermal=truncated_thermal)
     elif choice == '4':
+        _enhanced_set_submenu(state, "Mini View", ["Toggle mini view display."])
         mini_view = not mini_view
         _update_user_config(mini_view=mini_view)
     elif choice == '5':
+        _enhanced_set_submenu(state, "Exit", ["Return to classic Command Center."])
         _set_display_mode("classic")
         state["exit"] = True
     elif choice == '6':
+        _enhanced_set_submenu(state, "Color Scheme", ["Pick a color theme."])
         _enhanced_run_fullscreen(stdscr, _select_color_scheme)
     elif choice == '7':
+        _enhanced_set_submenu(state, "Web Preview", ["Enter a URL for the preview pane."])
         _enhanced_web_preview(stdscr, state)
     elif choice == '8':
+        _enhanced_set_submenu(state, "Disk Summary", ["Show disk usage and IO summary."])
         _enhanced_disk_summary(state)
     elif choice == '9':
+        _enhanced_set_submenu(state, "Process Summary", ["Show top processes by memory."])
         _enhanced_process_summary(state)
     elif choice == '0':
+        _enhanced_set_submenu(state, "Network Summary", ["Show host, IP, and counters."])
         _enhanced_network_summary(state)
     elif choice == 'I':
+        _enhanced_set_submenu(state, "Media", ["Scan for media files.", "Pick index to play full-screen."])
         _enhanced_media_preview(stdscr, state)
     elif choice == 'T':
+        _enhanced_set_submenu(state, "Text & Doc", ["Enter a file path to preview."])
         _enhanced_doc_preview(stdscr, state)
     elif choice == 'A':
+        _enhanced_set_submenu(state, "Security Audit", ["Run security audit (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_security_audit)
     elif choice == 'B':
+        _enhanced_set_submenu(state, "Environment Probe", ["Run environment probe (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_environment_probe)
     elif choice == 'C':
+        _enhanced_set_submenu(state, "Hardware Serials", ["Show hardware serials (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_hardware_serials)
     elif choice == 'D':
+        _enhanced_set_submenu(state, "AI Probe", ["Run AI probe (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_deep_probe_ai)
     elif choice == 'E':
+        _enhanced_set_submenu(state, "Calendar", ["Open calendar (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_simple_calendar)
     elif choice == 'F':
+        _enhanced_set_submenu(state, "Latency Probe", ["Run latency probe (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_latency_probe)
     elif choice == 'G':
+        _enhanced_set_submenu(state, "Weather", ["Open weather display (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_weather_display)
     elif choice == 'H':
+        _enhanced_set_submenu(state, "Display FX", ["Open display FX tools (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_test_font_size)
     elif choice == 'J':
+        _enhanced_set_submenu(state, "WiFi Toolkit", ["Open WiFi toolkit (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_wifi_toolkit)
     elif choice == 'K':
+        _enhanced_set_submenu(state, "AI Center", ["Open AI Center (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_ai_center)
     elif choice == 'L':
+        _enhanced_set_submenu(state, "Bluetooth", ["Open Bluetooth toolkit (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_bluetooth_toolkit)
     elif choice == 'M':
+        _enhanced_set_submenu(state, "Traffic Report", ["Open traffic report (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_traffic_report)
     elif choice == 'N':
+        _enhanced_set_submenu(state, "Database/Logs", ["Open DB/log center (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_database_log_center)
     elif choice == 'O':
+        _enhanced_set_submenu(state, "Download Center", ["Open download center (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_download_center)
     elif choice == 'P':
+        _enhanced_set_submenu(state, "PWN Tools", ["Open PWN tools (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_pwn_tools)
     elif choice == 'Q':
+        _enhanced_set_submenu(state, "Python Power", ["Open Python Power (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_python_power)
     elif choice == 'R':
-        _enhanced_run_fullscreen(stdscr, feature_satellite_tracker)
+        _enhanced_set_submenu(state, "Satellite Tracker", ["Open enhanced satellite view."])
+        _enhanced_satellite_view(stdscr, state)
     elif choice == 'S':
+        _enhanced_set_submenu(state, "Graphing Calculator", ["Open calculator (full-screen)."])
         _enhanced_run_fullscreen(stdscr, feature_graphing_calculator)
 
 def _select_color_scheme():
@@ -9968,6 +10270,8 @@ def feature_enhanced_display_mode():
             "display_scroll": 0,
             "right_width": 40,
             "exit": False,
+            "submenu_title": "SUB MENU",
+            "submenu_lines": ["Select a command to load its submenu."],
         }
         menu_lines = [
             "1 Blink  2 Temp  3 Thermal  4 Mini  5 Exit  6 Color",
@@ -9998,7 +10302,10 @@ def feature_enhanced_display_mode():
 
             left = curses.newwin(top_h, left_w, 0, 0)
             right = curses.newwin(top_h, right_w, 0, left_w)
-            bottom = curses.newwin(bottom_h, w, top_h, 0)
+            bottom_left_w = max(20, w // 2)
+            bottom_right_w = w - bottom_left_w
+            bottom_left = curses.newwin(bottom_h, bottom_left_w, top_h, 0)
+            bottom_right = curses.newwin(bottom_h, bottom_right_w, top_h, bottom_left_w)
 
             now = time.time()
             if now - last_left >= 1:
@@ -10006,7 +10313,7 @@ def feature_enhanced_display_mode():
                 last_left = now
             _enhanced_render_left(left, left_lines)
             _enhanced_render_right(right, state)
-            _enhanced_render_bottom(bottom, input_buffer, menu_lines)
+            _enhanced_render_bottom_split(bottom_left, bottom_right, input_buffer, menu_lines, state)
 
             curses.doupdate()
 
