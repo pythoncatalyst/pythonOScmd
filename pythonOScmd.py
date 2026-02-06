@@ -10298,7 +10298,7 @@ def feature_enhanced_display_mode():
             "G Weather  H FX  I Media  J WiFi  K AI Center",
             "L Bluetooth  M Traffic  N DB/Logs  O Download",
             "P PWN  Q Python  R Satellite  S Calculator  T Docs",
-            "Ctrl+T return to classic",
+            "Ctrl+T return to classic, Ctrl-C Auto launch Enchanced Mode on next boot",
         ]
         input_buffer = ""
         last_left = 0
