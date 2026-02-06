@@ -9629,6 +9629,26 @@ def _enhanced_wrap_lines(text, width):
         lines.append(raw)
     return lines
 
+def _enhanced_crop_lines(lines, width, height):
+    cropped = []
+    for line in lines[:height]:
+        cropped.append(str(line)[:width])
+    return cropped
+
+def _enhanced_set_display_for_pane(state, title, text, pane_w, pane_h, wrap=True):
+    width = max(10, pane_w)
+    height = max(1, pane_h)
+    if wrap:
+        lines = _enhanced_wrap_lines(text, width)
+    else:
+        raw_lines = str(text).splitlines() if text else ["(empty)"]
+        lines = _enhanced_crop_lines(raw_lines, width, height)
+    if len(lines) > height:
+        lines = lines[:height - 1] + ["..."]
+    state["display_title"] = title
+    state["display_lines"] = lines
+    state["display_scroll"] = 0
+
 def _enhanced_strip_ansi(text):
     if not text:
         return ""
@@ -10109,9 +10129,7 @@ def _enhanced_satellite_view(stdscr, state):
 
             map_text = session.map.render_multi(session.trails, positions, marker_map=marker_map, primary_name=session.primary_target)
             map_text = _enhanced_strip_ansi(map_text)
-            state["display_title"] = "SAT MAP"
-            state["display_lines"] = _enhanced_wrap_lines(map_text, max(10, right_w - 2))
-            state["display_scroll"] = 0
+            _enhanced_set_display_for_pane(state, "SAT MAP", map_text, right_w - 2, top_h - 2, wrap=False)
 
             _enhanced_set_submenu(state, "Satellite Menu", [
                 f"Targets: {', '.join(targets[:SAT_MAX_TARGETS])}",
