@@ -6659,46 +6659,69 @@ class ScienceConsole:
             "bin": bin, "hex": hex, "oct": oct, "int": int, "float": float, "complex": complex
         }
         self.user_vars = {"a": 1.0, "b": 5.0, "c": 0.0, "y": 0.0}
-        self.history = ["AI-GRADE OMEGA ONLINE", "UI NAVIGATION LABELS RESTORED"]
-        self.rolling_calcs = []
+        self.history = ["LOGIC CORE: MAXIMIZED", "SCHOLAR MODE: ACTIVE"]
+        self.rolling_calcs = ["Select a sample (;) to begin analysis."]
         self.cmd_history = []
-        self.cmd_idx = -1
         self.input_buffer = ""
         self.active_func = "sin(x + t)"
-        self.show_help = False
         self.frame = 0
         self.zoom = 1.0
         self.offset_x = 0.0
 
-        # Comprehensive Sample Library
+        # SAMPLES LIBRARY: RESTORED & ENHANCED WITH SYNTAX GUIDES
         self.samples = [
-            ("sin(x + t)", "Wave Motion", "y = sin(x + t)"),
-            ("x**3 + x**2 + x + 1", "Polynomial", "Order-3 Curve"),
-            ("exp(-0.5 * (x**2))", "Gaussian", "Bell Curve"),
-            ("solve([1,1,10],[1,-1,4])", "System Solver", "Linear Equation Set"),
-            ("1 / (1 + exp(-x))", "Sigmoid", "AI Neural Activation"),
-            ("sqrt(abs(1 - (abs(x)-1)**2))", "Heart Curve", "Geometric heart")
+            ("sin(x + t)", "Sine Wave", "Math: Periodic oscillation. Life: Sound waves. Syntax: sin(x + t)"),
+            ("x^3 + x^2*y + x*y^2 + y^3 + sin(t)", "Polynomial", "Math: Higher-order logic. Life: Fluid stress. Syntax: x^3 + x^2 y + x y^2 + y^3"),
+            ("abs(sin(x + t))*2", "Rectified Wave", "Math: Absolute periodicity. Life: Power adapters. Syntax: abs(sin(x+t))*2"),
+            ("exp(-abs(x)) * cos(x * t)", "Quantum Pulse", "Math: Dampened oscillation. Life: Shock absorbers. Syntax: exp(-abs(x)) * cos(x*t)"),
+            ("1 / (1 + exp(-x + sin(t)))", "Sigmoid Curve", "Math: Logistic growth. Life: AI Neural Nets. Syntax: 1 / (1 + exp(-x))"),
+            ("solve([1,1,10 + sin(t)],[1,-1,4])", "Linear System", "Math: Intersection logic. Life: GPS. Syntax: solve([1,1,10],[1,-1,4])"),
+            ("sqrt(abs(1 - (abs(x)-1)**2)) + 0.1*sin(t)", "Heart Curve", "Math: Geometry. Life: Organic shapes. Syntax: sqrt(abs(1-(abs(x)-1)^2))"),
+            ("sin(x * (5 + sin(t)))/5", "Frequency Warp", "Math: Variable period. Life: Doppler effect. Syntax: sin(x*5)/5"),
+            ("sin(x*1.1 + t) + sin(x*0.9 + t)", "Beat Pattern", "Math: Superposition. Life: Tuning instruments. Syntax: sin(x*1.1) + sin(x*0.9)"),
+            ("1 if sin(x + t) > 0 else -1", "Square Wave", "Math: Binary logic. Life: Computer clocks. Syntax: 1 if sin(x)>0 else -1"),
+            ("abs((x + t) % 2 - 1)", "Triangle Wave", "Math: Linear periodicity. Life: Synthesizers. Syntax: abs((x)%2 - 1)"),
+            ("(x + t) % 1", "Sawtooth Drive", "Math: Harmonic rise. Life: CRT electron beams. Syntax: x % 1"),
+            ("exp(-0.5 * (x + sin(t))**2)", "Gaussian Bell", "Math: Distribution. Life: IQ scores/Probability. Syntax: exp(-0.5 * x^2)"),
+            ("sin(x**2 + t)", "Fresnel Integral", "Math: Quadratic phase. Life: Light diffraction. Syntax: sin(x^2)"),
+            ("log(abs(x) + 1) * sin(x + t)", "Log-Amplitude", "Math: Growth scaling. Life: Richter scale/Decibels. Syntax: log(abs(x)+1)"),
+            ("sin(x * (3 + sin(t*0.5)) + t)", "FM Synthesis", "Math: Freq modulation. Life: Radio broadcast. Syntax: sin(x*(3+sin(t)))"),
+            ("(1 + 0.5 * sin(t)) * sin(5 * x)", "AM Synthesis", "Math: Amp modulation. Life: AM Radio signals. Syntax: (1+0.5)*sin(5*x)"),
+            ("max(-2, min(2, tan(x + t)))", "Clipped Tan", "Math: Bound tangent. Life: Guitar distortion. Syntax: tan(x)"),
+            ("0.1 * x**3 - x + sin(t)", "Cubic Drift", "Math: Polynomial roots. Life: Bridge engineering. Syntax: 0.1*x^3 - x"),
+            ("floor(x + t)", "Step Scroll", "Math: Integer flooring. Life: Digital sampling. Syntax: floor(x)"),
+            ("sin(x + t) / (x if x != 0 else 0.01)", "Sinc Pulse", "Math: Sampling theorem. Life: Image resizing. Syntax: sin(x)/x"),
+            ("sinh(x + sin(t)) / cosh(x)", "Hyperbolic Tanh", "Math: Logistic limit. Life: Deep learning. Syntax: sinh(x)/cosh(x)"),
+            ("0.1 * x**4 - x**2 + sin(t)", "Double Well", "Math: Bifurcation. Life: Magnetic states. Syntax: 0.1*x^4 - x^2"),
+            ("sin(x + t) + 0.5 * sin(10 * x + t*2)", "Turbulence", "Math: Fourier. Life: Wind/Water ripples. Syntax: sin(x) + 0.5*sin(10*x)"),
+            ("log(log(abs(x) + 2) + 1)", "Double Log", "Math: Iterated growth. Life: Complexity analysis. Syntax: log(log(x+2)+1)"),
+            ("exp(-x**2) * sin(10 * x + t)", "Wavelet", "Math: Localized wave. Life: MRI imaging/JPEG. Syntax: exp(-x^2)*sin(10*x)"),
+            ("abs(x + sin(t)) ** 0.5", "Root Curve", "Math: Concave growth. Life: Brightness perception. Syntax: abs(x)^0.5"),
+            ("sin(x - t) - sin(x + t)", "Standing Wave", "Math: Node logic. Life: Microwave heating. Syntax: sin(x-t)-sin(x+t)"),
+            ("pow(2, (x + sin(t))/4) / 10", "Exponential", "Math: Growth. Life: Virus spread/Fission. Syntax: 2^(x/4)"),
+            ("1 if (x + t) % 2 < 0.2 else 0", "Pulse Train", "Math: Duty cycle. Life: LED Dimming (PWM). Syntax: 1 if x%2<0.2 else 0"),
+            ("cos(x) * sin(t)", "Phase Shifter", "Math: Oscillation. Life: Phased-array radar. Syntax: cos(x)*sin(t)"),
+            ("0.5 * (x + sin(x + t))", "Jitter Line", "Math: Stochastic drift. Life: Stock trends. Syntax: 0.5*(x+sin(x))")
         ]
-        self.sample_idx = 0
+        self.sample_idx = -1
 
     def solve_linear(self, eq1, eq2):
         try:
-            a = np.array([[eq1[0], eq1[1]], [eq2[0], eq2[1]]])
-            b = np.array([eq1[2], eq2[2]])
-            x_res = np.linalg.solve(a, b)
-            return f"x={x_res[0]:.2f}, y={x_res[1]:.2f}"
-        except: return "Use: solve([1,1,10],[1,-1,4])"
+            a, b = np.array([[eq1[0], eq1[1]], [eq2[0], eq2[1]]]), np.array([eq1[2], eq2[2]])
+            res = np.linalg.solve(a, b)
+            return f"x={res[0]:.2f}, y={res[1]:.2f}"
+        except: return "Check solve() args"
+
+    def ai_preprocess(self, expr):
+        expr = expr.replace("^", "**")
+        expr = re.sub(r'(\d)([a-zA-Z])', r'\1*\2', expr)
+        expr = re.sub(r'([xytabc])\s+([xytabc])', r'\1*\2', expr)
+        expr = re.sub(r'([xytabc])([xytabc])', r'\1*\2', expr)
+        return expr
 
     def safe_eval(self, expr, x=0, t=0):
-        # AI-Grade Auto-Correction
-        expr = expr.replace("^", "**")
+        expr = self.ai_preprocess(expr)
         try:
-            if "=" in expr and expr.split("=")[0].strip() in self.user_vars:
-                var_name, val_expr = expr.split("=")
-                val = eval(val_expr.strip(), {"__builtins__": None}, self.base_namespace)
-                self.user_vars[var_name.strip()] = val
-                return f"VAR {var_name.strip()} = {val}"
-
             ctx = {**self.base_namespace, **self.user_vars, "x": x, "t": t, "solve": self.solve_linear}
             return eval(expr, {"__builtins__": None}, ctx)
         except: return None
@@ -6709,16 +6732,12 @@ class ScienceConsole:
         win.addstr(0, 2, " ⌨️ COMMAND INTERFACE ")
         for i, entry in enumerate(self.history[-4:]):
             win.addstr(1 + i, 2, f" • {str(entry)[:w-6]}", curses.color_pair(5))
-
-        # GREEN INPUT LINE
         win.addstr(h-2, 2, " CMD > ", curses.color_pair(2) | curses.A_BOLD)
         win.addstr(self.input_buffer, curses.color_pair(2) | curses.A_BOLD)
         if (self.frame // 10) % 2 == 0:
             win.addch(h-2, 10 + len(self.input_buffer), curses.ACS_BLOCK, curses.color_pair(2))
-
-        # NAVIGATION LABELS
-        nav_msg = " [;] SAMPLES+  [ESC] EXIT "
-        win.addstr(h-2, w - len(nav_msg) - 2, nav_msg, curses.color_pair(4))
+        msg = " [;] SAMPLES+  [ESC] EXIT "
+        win.addstr(h-2, w - len(msg) - 2, msg, curses.color_pair(4))
         win.noutrefresh()
 
     def draw_log(self, win):
@@ -6728,26 +6747,29 @@ class ScienceConsole:
         for y in range(1, h-1):
             try: win.addch(y, mid, curses.ACS_VLINE)
             except: pass
-
         win.addstr(0, 2, " 📖 SYNTAX ")
-        guide = ["POWER: x**2", "MULT: 2*x", "LOG: log(x,b)", "VARS: a=5"]
-        for i, line in enumerate(guide):
-            win.addstr(1 + i, 1, line[:mid-2], curses.color_pair(1))
+        guide = ["POWER: x^3", "COEFF: 2x", "TERMS: x y", "SYSTEM: solve()"]
+        for i, line in enumerate(guide): win.addstr(1 + i, 1, line[:mid-2], curses.color_pair(1))
 
         win.addstr(0, mid + 2, " 💡 ANALYTICAL FEED ")
-        for i, calc in enumerate(self.rolling_calcs[-(h-3):]):
-            win.addstr(1 + i, mid + 2, f"» {calc[:w-mid-6]}", curses.color_pair(4))
+        y_off = 1
+        for entry in self.rolling_calcs:
+            words = str(entry).split()
+            line = ""
+            for word in words:
+                if len(line + word) > (w - mid - 6):
+                    if y_off < h-1: win.addstr(y_off, mid + 2, line, curses.color_pair(4)); y_off += 1
+                    line = word + " "
+                else: line += word + " "
+            if y_off < h-1: win.addstr(y_off, mid + 2, line, curses.color_pair(4)); y_off += 1
         win.noutrefresh()
 
     def draw_graph(self, win):
         h, w = win.getmaxyx()
         win.erase(); win.attron(curses.color_pair(3)); win.box()
-
-        # HUD CONTROLS MESSAGE
         ctrls = " [PGUP/DN] ZOOM | [L/R ARROWS] PAN "
         win.addstr(0, 2, f" 📡 {self.active_func} ", curses.A_BOLD)
         win.addstr(0, w - len(ctrls) - 2, ctrls, curses.color_pair(4))
-
         mid_y, mid_x = h // 2, w // 2
         for x_p in range(1, w-1):
             try: win.addch(mid_y, x_p, curses.ACS_HLINE, curses.A_DIM)
@@ -6755,15 +6777,13 @@ class ScienceConsole:
         for y_p in range(1, h-1):
             try: win.addch(y_p, mid_x, curses.ACS_VLINE, curses.A_DIM)
             except: pass
-
         for x_pixel in range(1, w - 1):
             x_val = (x_pixel - mid_x) * (0.15 / self.zoom) + self.offset_x
             y_val = self.safe_eval(self.active_func, x=x_val, t=self.frame * 0.1)
             if isinstance(y_val, (int, float, complex)):
                 if isinstance(y_val, complex): y_val = y_val.real
                 y_pixel = int(mid_y - (y_val * (h / 5) * self.zoom))
-                if 1 <= y_pixel < h - 1:
-                    win.addch(y_pixel, x_pixel, "█")
+                if 1 <= y_pixel < h - 1: win.addch(y_pixel, x_pixel, "█")
         win.noutrefresh()
 
     def run(self, stdscr):
@@ -6774,44 +6794,34 @@ class ScienceConsole:
         curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
         curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
         stdscr.nodelay(True); stdscr.keypad(True); curses.curs_set(0)
-
         while True:
             h, w = stdscr.getmaxyx()
             if h < 22 or w < 80:
-                stdscr.addstr(0,0, "ENLARGE WINDOW"); stdscr.refresh()
-                time.sleep(0.1); continue
-
-            win_in = curses.newwin(h // 2, w // 2, 0, 0)
-            win_log = curses.newwin(h // 2, w - (w // 2), 0, w // 2)
-            win_graph = curses.newwin(h - (h // 2), w, h // 2, 0)
-
+                stdscr.addstr(0,0, "ENLARGE WINDOW"); stdscr.refresh(); time.sleep(0.1); continue
+            win_in, win_log, win_graph = curses.newwin(h//2, w//2, 0, 0), curses.newwin(h//2, w-(w//2), 0, w//2), curses.newwin(h-(h//2), w, h//2, 0)
             key = stdscr.getch()
             if key == 27: break
             elif key == ord(';'):
                 self.sample_idx = (self.sample_idx + 1) % len(self.samples)
-                func, title, _ = self.samples[self.sample_idx]
+                func, title, desc = self.samples[self.sample_idx]
                 self.active_func = func
                 self.history.append(f"LOAD: {title}")
-                self.rolling_calcs.append(f"SAMPLE: {title}")
+                self.rolling_calcs = [f"NAME: {title}", "", desc]
             elif key == curses.KEY_PPAGE: self.zoom *= 1.1
             elif key == curses.KEY_NPAGE: self.zoom *= 0.9
-            elif key == curses.KEY_LEFT: self.offset_x -= 1.0 / self.zoom
-            elif key == curses.KEY_RIGHT: self.offset_x += 1.0 / self.zoom
+            elif key in [curses.KEY_LEFT, curses.KEY_RIGHT]:
+                self.offset_x += (1.0/self.zoom if key == curses.KEY_RIGHT else -1.0/self.zoom)
             elif key == 10:
                 if self.input_buffer.strip():
-                    self.cmd_history.append(self.input_buffer)
                     res = self.safe_eval(self.input_buffer, x=1)
                     if res is not None:
-                        formatted_res = f"{res:.4f}" if isinstance(res, float) else str(res)
-                        self.history.append(formatted_res)
-                        self.rolling_calcs.append(f"{self.input_buffer} = {formatted_res}")
-                        if "=" not in self.input_buffer and "solve" not in self.input_buffer:
-                            self.active_func = self.input_buffer
+                        f_res = f"{res:.4f}" if isinstance(res, float) else str(res)
+                        self.history.append(f_res); self.rolling_calcs = [f"RES: {f_res}"]
+                        if "=" not in self.input_buffer and "solve" not in self.input_buffer: self.active_func = self.input_buffer
                     else: self.history.append("ERR: CHECK SYNTAX")
                     self.input_buffer = ""
             elif key in (curses.KEY_BACKSPACE, 127, 8): self.input_buffer = self.input_buffer[:-1]
             elif 32 <= key <= 126: self.input_buffer += chr(key)
-
             self.draw_input(win_in); self.draw_log(win_log); self.draw_graph(win_graph)
             curses.doupdate(); self.frame += 1; time.sleep(0.04)
 
