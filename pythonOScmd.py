@@ -165,6 +165,18 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
 
+try:
+    from textual.app import App, ComposeResult
+    from textual.containers import Container, Horizontal, Vertical, Grid
+    from textual.reactive import reactive
+    from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab
+except Exception:
+    App = None
+    ComposeResult = None
+    Container = Horizontal = Vertical = Grid = None
+    reactive = None
+    Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = None
+
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
     if os.name != 'posix':
@@ -2081,6 +2093,9 @@ truncated_thermal = False
 mini_view = False
 doc_word_render_mode = "pandoc"
 display_mode = "classic"
+textual_style_mode = "inline"
+textual_layout_mode = "two_pane"
+TEXTUAL_CSS_PATH = os.path.join(SCRIPT_DIR, "textual_enhanced.css")
 
 _user_config = _load_user_config()
 if isinstance(_user_config, dict):
@@ -2092,6 +2107,8 @@ if isinstance(_user_config, dict):
     mini_view = _user_config.get("mini_view", mini_view)
     doc_word_render_mode = _user_config.get("doc_word_render_mode", doc_word_render_mode)
     display_mode = _user_config.get("display_mode", display_mode)
+    textual_style_mode = _user_config.get("textual_style_mode", textual_style_mode)
+    textual_layout_mode = _user_config.get("textual_layout_mode", textual_layout_mode)
 
 def _update_user_config(**updates):
     if not isinstance(_user_config, dict):
@@ -10279,88 +10296,324 @@ def _select_color_scheme():
         user_has_chosen = False
         _update_user_config(user_has_chosen=user_has_chosen)
 
+TEXTUAL_INLINE_CSS = """
+Screen {
+    background: #0f131a;
+    color: #e5e7eb;
+}
+#layout-root {
+    height: 1fr;
+}
+#nav {
+    width: 30;
+    border: round #2a2f3a;
+}
+#content {
+    border: round #2a2f3a;
+    padding: 1 2;
+}
+#detail-title {
+    text-style: bold;
+    color: #8ec6ff;
+}
+.dashboard {
+    grid-size: 3 2;
+    grid-gutter: 1 1;
+    padding: 1;
+}
+.card {
+    border: round #2a2f3a;
+    padding: 1;
+}
+#tabs {
+    dock: top;
+}
+#tab-content {
+    border: round #2a2f3a;
+    padding: 1 2;
+    height: 1fr;
+}
+#topbar {
+    height: 1;
+    background: #151b24;
+    color: #9bd;
+    padding: 0 1;
+}
+#enhanced-indicator {
+    width: 36;
+    text-align: right;
+}
+"""
+
 def feature_enhanced_display_mode():
-    def _run(stdscr):
-        _enhanced_curses_init(stdscr)
-        state = {
-            "display_title": "DISPLAY",
-            "display_lines": ["Select a command to view output."],
-            "display_scroll": 0,
-            "right_width": 40,
-            "exit": False,
-            "submenu_title": "SUB MENU",
-            "submenu_lines": ["Select a command to load its submenu."],
-        }
-        menu_lines = [
-            "1 Blink  2 Temp  3 Thermal  4 Mini  5 Exit  6 Color",
-            "7 Web Preview  8 Disk  9 Proc  0 Network",
-            "A Audit  B Env  C HW  D AI  E Calendar  F Latency",
-            "G Weather  H FX  I Media  J WiFi  K AI Center",
-            "L Bluetooth  M Traffic  N DB/Logs  O Download",
-            "P PWN  Q Python  R Satellite  S Calculator  T Docs",
-            "Ctrl+T return to classic, Ctrl-C Auto launch Enchanced Mode on next boot",
-        ]
-        input_buffer = ""
-        last_left = 0
-        left_lines = _enhanced_left_lines()
+    return run_pytextos()
 
-        while True:
-            h, w = stdscr.getmaxyx()
-            if h < 24 or w < 80:
-                stdscr.erase()
-                stdscr.addstr(0, 0, "Enlarge window for Enhanced Display Mode")
-                stdscr.refresh()
-                time.sleep(0.2)
-                continue
-            bottom_h = max(7, h // 3)
-            top_h = h - bottom_h
-            left_w = w // 2
-            right_w = w - left_w
-            state["right_width"] = right_w
+def run_pytextos():
+    if App is None:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{COLORS['1'][0]}ERROR: Textual is not installed!{RESET}")
+        print(f"Install with: {BOLD}pip install textual{RESET}")
+        print("\nFalling back to classic Command Center...")
+        time.sleep(2)
+        _set_display_mode("classic")
+        return
 
-            left = curses.newwin(top_h, left_w, 0, 0)
-            right = curses.newwin(top_h, right_w, 0, left_w)
-            bottom_left_w = max(20, w // 2)
-            bottom_right_w = w - bottom_left_w
-            bottom_left = curses.newwin(bottom_h, bottom_left_w, top_h, 0)
-            bottom_right = curses.newwin(bottom_h, bottom_right_w, top_h, bottom_left_w)
+    try:
+        class PyTextOS(App):
+            BINDINGS = [
+                ("l", "cycle_layout", "Layout"),
+                ("r", "run_selected", "Run"),
+                ("q", "quit", "Quit"),
+            ]
 
-            now = time.time()
-            if now - last_left >= 1:
-                left_lines = _enhanced_left_lines()
-                last_left = now
-            _enhanced_render_left(left, left_lines)
-            _enhanced_render_right(right, state)
-            _enhanced_render_bottom_split(bottom_left, bottom_right, input_buffer, menu_lines, state)
+            def __init__(self, section_actions, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.section_actions = section_actions
+                self.sections = [
+                    ("system", "System Overview"),
+                    ("weather", "Weather"),
+                    ("satellite", "Satellite Tracker"),
+                    ("network", "Network Tools"),
+                    ("security", "Security Tools"),
+                    ("calculator", "Graphing Calculator"),
+                    ("media", "Media Scan"),
+                    ("docs", "Text & Doc Center"),
+                    ("logs", "Database & Logs"),
+                ]
+                self.layout_modes = ["two_pane", "dashboard", "tabs"]
+                self.layout_mode = textual_layout_mode if textual_layout_mode in self.layout_modes else "two_pane"
+                self.style_mode = textual_style_mode
+                self.selected_key = self.sections[0][0]
+                self.pending_action = None
+                self.nav = None
+                self.detail_title = None
+                self.detail_body = None
+                self.dashboard_cards = {}
+                self.tabs = None
+                self.tab_content = None
 
-            curses.doupdate()
+            def compose(self):
+                yield Horizontal(
+                    Static("PYTEXTOS"),
+                    Static("", id="enhanced-indicator"),
+                    id="topbar",
+                )
+                yield Container(id="layout-root")
+                yield Footer()
 
-            key = stdscr.getch()
-            if key == -1:
-                time.sleep(0.05)
-                continue
-            if key == 20:  # Ctrl+T
-                _set_display_mode("classic")
-                return
-            if key in (curses.KEY_PPAGE,):
-                state["display_scroll"] = max(0, state["display_scroll"] - 5)
-                continue
-            if key in (curses.KEY_NPAGE,):
-                state["display_scroll"] = min(len(state["display_lines"]) - 1, state["display_scroll"] + 5)
-                continue
-            if key in (curses.KEY_BACKSPACE, 127, 8):
-                input_buffer = input_buffer[:-1]
-                continue
-            if key in (10, 13):
-                _enhanced_handle_choice(input_buffer, stdscr, state)
-                input_buffer = ""
-                if state.get("exit"):
+            def on_mount(self):
+                self._spinner_index = 0
+                self._spinner_frames = ["PY>_", "PY>__", "PY>___", "PY>__"]
+                self._indicator = self.query_one("#enhanced-indicator", Static)
+                self._apply_style_mode()
+                self._mount_layout()
+                self._update_detail(self.selected_key)
+                self.set_interval(0.4, self._tick_spinner)
+                self.set_interval(1.0, self._refresh_dynamic)
+
+            def _tick_spinner(self):
+                frame = self._spinner_frames[self._spinner_index]
+                self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
+                if self._indicator:
+                    self._indicator.update(f"ENHANCED MODE {frame}")
+
+            def _apply_style_mode(self):
+                if self.style_mode == "file" and os.path.exists(TEXTUAL_CSS_PATH):
+                    self.CSS_PATH = TEXTUAL_CSS_PATH
+                else:
+                    self.CSS = TEXTUAL_INLINE_CSS
+
+            def _build_system_summary(self):
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage('/')
+                net = psutil.net_io_counters()
+                lines = [
+                    f"OS: {platform.system()} {platform.release()}",
+                    f"Node: {platform.node()}",
+                    f"CPU: {psutil.cpu_percent(interval=None)}% | Cores: {psutil.cpu_count(logical=False)}",
+                    f"RAM: {mem.percent}% | Free: {_format_gb(mem.available)}",
+                    f"Disk: {disk.percent}% | Free: {_format_gb(disk.free)}",
+                    f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
+                ]
+                if weather_cache:
+                    temp = weather_cache.get("temp", "N/A")
+                    icon = weather_cache.get("icon", "")
+                    humidity = weather_cache.get("humidity", "N/A")
+                    wind = weather_cache.get("wind", "N/A")
+                    lines.append(f"Weather: {icon} {temp} | Hum: {humidity} | Wind: {wind}")
+                return "\n".join(lines)
+
+            def _section_summary(self, key):
+                if key == "system":
+                    return self._build_system_summary()
+                if key == "weather":
+                    return "Live weather view with cached readings and forecast."
+                if key == "satellite":
+                    return "Track up to 5 satellites with telemetry and map view."
+                if key == "network":
+                    return "Network toolkit, latency probe, WiFi tools, and traffic report."
+                if key == "security":
+                    return "Security audit and defense center launch points."
+                if key == "calculator":
+                    return "Graphing calculator with CAS, plots, and scientific tools."
+                if key == "media":
+                    return "Media scanner and integrated audio/video playback."
+                if key == "docs":
+                    return "Text and document center for browse, preview, and edit."
+                if key == "logs":
+                    return "Database, logs, swap cache, and report tools."
+                return "Select a module to view details."
+
+            def _section_detail(self, key):
+                base = self._section_summary(key)
+                layout_line = f"Layout: {self.layout_mode.replace('_', ' ')}"
+                if key in self.section_actions:
+                    return f"{base}\n\nPress R to run this module in classic mode.\n{layout_line}"
+                return f"{base}\n\n{layout_line}"
+
+            def _fill_nav(self, nav):
+                nav.remove_children()
+                for key, title in self.sections:
+                    item = ListItem(Label(title), id=f"nav-{key}")
+                    nav.append(item)
+
+            def _mount_layout(self):
+                root = self.query_one("#layout-root", Container)
+                root.remove_children()
+                self.dashboard_cards = {}
+                self.nav = None
+                self.detail_title = None
+                self.detail_body = None
+                self.tabs = None
+                self.tab_content = None
+
+                if self.layout_mode == "two_pane":
+                    nav = ListView(id="nav")
+                    self._fill_nav(nav)
+                    content = Vertical(
+                        Static("", id="detail-title"),
+                        Static("", id="detail-body"),
+                        id="content",
+                    )
+                    root.mount(Horizontal(nav, content))
+                    self.nav = nav
+                    self.detail_title = content.query_one("#detail-title", Static)
+                    self.detail_body = content.query_one("#detail-body", Static)
+                    self._select_nav_key(self.selected_key)
                     return
-                continue
-            if 32 <= key <= 126:
-                input_buffer += chr(key)
 
-    curses.wrapper(_run)
+                if self.layout_mode == "dashboard":
+                    grid = Grid(id="dashboard", classes="dashboard")
+                    for key, title in self.sections:
+                        text = f"{title}\n\n{self._section_summary(key)}"
+                        card = Static(text, classes="card", id=f"card-{key}")
+                        self.dashboard_cards[key] = card
+                        grid.mount(card)
+                    root.mount(grid)
+                    return
+
+                tabs = Tabs(id="tabs")
+                for key, title in self.sections:
+                    tabs.add_tab(Tab(title, id=f"tab-{key}"))
+                content = Static("", id="tab-content")
+                root.mount(Vertical(tabs, content))
+                self.tabs = tabs
+                self.tab_content = content
+                self._select_tab_key(self.selected_key)
+
+            def _select_nav_key(self, key):
+                if not self.nav:
+                    return
+                for idx, item in enumerate(self.nav.children):
+                    if item.id == f"nav-{key}":
+                        self.nav.index = idx
+                        break
+
+            def _select_tab_key(self, key):
+                if not self.tabs:
+                    return
+                tab_id = f"tab-{key}"
+                try:
+                    self.tabs.active = tab_id
+                except Exception:
+                    pass
+
+            def _update_detail(self, key):
+                self.selected_key = key
+                title = dict(self.sections).get(key, "Details")
+                detail = self._section_detail(key)
+                if self.detail_title and self.detail_body:
+                    self.detail_title.update(title)
+                    self.detail_body.update(detail)
+                if self.tab_content:
+                    self.tab_content.update(f"{title}\n\n{detail}")
+
+            def _refresh_dynamic(self):
+                if self.layout_mode == "dashboard":
+                    for key, card in self.dashboard_cards.items():
+                        title = dict(self.sections).get(key, key.title())
+                        card.update(f"{title}\n\n{self._section_summary(key)}")
+                if self.selected_key == "system":
+                    self._update_detail("system")
+
+            def _key_from_item(self, item):
+                if not item or not item.id:
+                    return None
+                if item.id.startswith("nav-"):
+                    return item.id[4:]
+                return None
+
+            def action_cycle_layout(self):
+                current = self.layout_modes.index(self.layout_mode)
+                self.layout_mode = self.layout_modes[(current + 1) % len(self.layout_modes)]
+                _update_user_config(textual_layout_mode=self.layout_mode)
+                self._mount_layout()
+                self._update_detail(self.selected_key)
+
+            def action_run_selected(self):
+                if self.selected_key in self.section_actions:
+                    self.pending_action = self.selected_key
+                    self.exit()
+
+            def action_quit(self):
+                self.exit()
+
+            def on_list_view_selected(self, event):
+                key = self._key_from_item(event.item)
+                if key:
+                    self._update_detail(key)
+
+            def on_tabs_tab_activated(self, event):
+                if event.tab.id and event.tab.id.startswith("tab-"):
+                    key = event.tab.id[4:]
+                    self._update_detail(key)
+
+        section_actions = {
+            "weather": ("weather", "Weather_Display", feature_weather_display),
+            "satellite": ("general", "Satellite_Tracker", feature_satellite_tracker),
+            "network": ("network", "Network_Toolkit", feature_network_toolkit),
+            "security": ("security", "Security_Audit", feature_security_audit),
+            "calculator": ("general", "Graphing_Calculator", feature_graphing_calculator),
+            "media": ("media", "Media_Scanner", feature_media_scanner),
+            "docs": ("general", "Text_Doc_Center", feature_text_doc_center),
+            "logs": ("general", "Database_Log_Center", feature_database_log_center),
+        }
+
+        app = PyTextOS(section_actions)
+        app.run()
+
+        _set_display_mode("classic")
+        if app.pending_action:
+            category, operation, func = section_actions[app.pending_action]
+            safe_run(category, operation, func)
+
+    except Exception as e:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{COLORS['1'][0]}ERROR in PyTextOS:{RESET}")
+        print(f"{str(e)}\n")
+        print("Falling back to classic Command Center...")
+        time.sleep(3)
+        _set_display_mode("classic")
 
 # --- MAIN OPERATING SYSTEM LOOP ---
 
@@ -10490,7 +10743,7 @@ while True:
     print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
     print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
     print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-    print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode")
+    print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
     print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
     print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
@@ -10558,6 +10811,8 @@ while True:
     elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
     elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
     elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
+    elif choice == 'V':
+        _set_display_mode("classic")
     elif choice == 'U':
         _set_display_mode("enhanced")
         feature_enhanced_display_mode()
