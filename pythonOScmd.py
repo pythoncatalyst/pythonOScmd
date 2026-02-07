@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
+"""pythonOScmd - Unified Terminal Operating System."""
+
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
@@ -38,7 +39,6 @@
 # - Option 3 and 13 are most like a T.V.
 # - Fix needed: Command Center Option 9, selection 2 (Ctrl+C handling)
 ################################################################################
-"""
 # ================================================================================
 # SECTION 1: IMPORTS & CORE DEPENDENCIES
 # ================================================================================
@@ -165,17 +165,42 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
 
-try:
-    from textual.app import App, ComposeResult
-    from textual.containers import Container, Horizontal, Vertical, Grid
-    from textual.reactive import reactive
-    from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab
-except Exception:
-    App = None
-    ComposeResult = None
-    Container = Horizontal = Vertical = Grid = None
-    reactive = None
-    Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = None
+# Textual imports are loaded lazily to keep classic mode fast and avoid hard dependency at startup.
+App = ComposeResult = Container = Horizontal = Vertical = Grid = None
+reactive = None
+Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = Markdown = None
+_TEXTUAL_IMPORTED = False
+_TEXTUAL_IMPORT_ERROR = None
+
+
+def _ensure_textual_imports():
+    """Lazy-load Textual widgets the first time enhanced mode is launched."""
+    global App, ComposeResult, Container, Horizontal, Vertical, Grid, reactive
+    global Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab, Digits, Markdown
+    global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR
+    if _TEXTUAL_IMPORTED:
+        return True
+    try:
+        from textual.app import App, ComposeResult
+        from textual.containers import Container, Horizontal, Vertical, Grid
+        from textual.reactive import reactive
+        from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab
+        try:
+            from textual.widgets import Digits, Markdown
+        except Exception:
+            # Fallbacks if specific widgets are missing in older/newer releases
+            Digits = Static
+            Markdown = Static
+        _TEXTUAL_IMPORTED = True
+        _TEXTUAL_IMPORT_ERROR = None
+        return True
+    except Exception as exc:
+        _TEXTUAL_IMPORTED = False
+        _TEXTUAL_IMPORT_ERROR = exc
+        App = ComposeResult = Container = Horizontal = Vertical = Grid = None
+        reactive = None
+        Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = Markdown = None
+        return False
 
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
@@ -286,7 +311,11 @@ def _load_user_config():
     except Exception:
         return {}
 
-def _save_user_config(config):
+def _save_user_config(config, allow_create=False):
+    # Avoid creating a fresh config file unless explicitly allowed
+    if not allow_create and not os.path.exists(CONFIG_FILE):
+        return
+
     os.makedirs(DB_DIR, exist_ok=True)
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
@@ -2110,11 +2139,11 @@ if isinstance(_user_config, dict):
     textual_style_mode = _user_config.get("textual_style_mode", textual_style_mode)
     textual_layout_mode = _user_config.get("textual_layout_mode", textual_layout_mode)
 
-def _update_user_config(**updates):
+def _update_user_config(create_if_missing=False, **updates):
     if not isinstance(_user_config, dict):
         return
     _user_config.update(updates)
-    _save_user_config(_user_config)
+    _save_user_config(_user_config, allow_create=create_if_missing)
 
 def _set_display_mode(mode):
     global display_mode
@@ -10303,6 +10332,7 @@ Screen {
 }
 #layout-root {
     height: 1fr;
+    padding: 0 1;
 }
 #nav {
     width: 30;
@@ -10311,10 +10341,15 @@ Screen {
 #content {
     border: round #2a2f3a;
     padding: 1 2;
+    height: 1fr;
 }
 #detail-title {
     text-style: bold;
     color: #8ec6ff;
+}
+#detail-body {
+    height: 1fr;
+    overflow: auto;
 }
 .dashboard {
     grid-size: 3 2;
@@ -10324,6 +10359,7 @@ Screen {
 .card {
     border: round #2a2f3a;
     padding: 1;
+    min-height: 6;
 }
 #tabs {
     dock: top;
@@ -10343,43 +10379,105 @@ Screen {
     width: 36;
     text-align: right;
 }
+#status-strip {
+    height: 3;
+    background: #111722;
+    border: round #263040;
+    padding: 0 1;
+    column-gap: 1;
+}
+.pill {
+    border: round #2a2f3a;
+    padding: 0 1;
+    height: 3;
+    min-width: 16;
+    content-align: center middle;
+}
+.pill.warn {
+    border: round #d97757;
+    color: #fcd9c1;
+}
+.pill.crit {
+    border: round #ef4444;
+    color: #fecdd3;
+}
+.pill.ok {
+    border: round #2dd4bf;
+    color: #d1faf5;
+}
+#clock-digits {
+    width: 18;
+    border: round #2a2f3a;
+    text-align: center;
+}
 """
 
-def feature_enhanced_display_mode():
-    return run_pytextos()
+# Command Center actions presented in the Textual shell. Each entry includes
+# a key, title, summary, and the callable to launch.
+COMMAND_CENTER_ACTIONS = [
+    ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
+    ("browser", {"title": "Web Browser", "summary": "Launch the web browser center.", "category": "general", "operation": "Web_Browser", "func": feature_web_browser_center}),
+    ("disk", {"title": "Disk I/O Report", "summary": "Disk usage and throughput report.", "category": "general", "operation": "Disk_IO_Report", "func": feature_disk_io_report}),
+    ("process", {"title": "Process Search", "summary": "Find and inspect processes.", "category": "process", "operation": "Process_Search", "func": feature_process_search}),
+    ("plugin", {"title": "Plugin Center", "summary": "Manage and run plugins.", "category": "general", "operation": "Plugin_Center", "func": feature_plugin_center}),
+    ("dashboard", {"title": "Remote Dashboard", "summary": "Web-based live dashboard.", "category": "general", "operation": "Remote_Dashboard", "func": feature_remote_dashboard}),
+    ("pentest", {"title": "Pen Test Toolkit", "summary": "Offense utilities and scanners.", "category": "pentest", "operation": "Pen_Test_Toolkit", "func": feature_pentest_toolkit}),
+    ("defence", {"title": "Defence Center", "summary": "Defense hardening tools.", "category": "defense", "operation": "Defence_Center", "func": feature_defence_center}),
+    ("network", {"title": "Network Toolkit", "summary": "Network tests, traceroutes, scans.", "category": "network", "operation": "Network_Toolkit", "func": feature_network_toolkit}),
+    ("audit", {"title": "Security Audit", "summary": "Security checks and reports.", "category": "security", "operation": "Security_Audit", "func": feature_security_audit}),
+    ("env", {"title": "Environment Probe", "summary": "Environment variables and context.", "category": "system", "operation": "Environment_Probe", "func": feature_environment_probe}),
+    ("hardware", {"title": "Hardware Serials", "summary": "Hardware identifiers and serials.", "category": "hardware", "operation": "Hardware_Serials", "func": feature_hardware_serials}),
+    ("ai_probe", {"title": "AI Probe", "summary": "Deep probe AI analysis.", "category": "ai", "operation": "AI_Probe", "func": feature_deep_probe_ai}),
+    ("calendar", {"title": "Calendar", "summary": "Simple calendar utility.", "category": "general", "operation": "Calendar", "func": feature_simple_calendar}),
+    ("latency", {"title": "Latency Probe", "summary": "Network latency and jitter checks.", "category": "network", "operation": "Latency_Probe", "func": feature_latency_probe}),
+    ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
+    ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
+    ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
+    ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
+    ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
+    ("bluetooth", {"title": "Bluetooth Toolkit", "summary": "Bluetooth scans and actions.", "category": "network", "operation": "Bluetooth_Toolkit", "func": feature_bluetooth_toolkit}),
+    ("traffic", {"title": "Traffic Report", "summary": "Traffic analysis and reporting.", "category": "network", "operation": "Traffic_Report", "func": feature_traffic_report}),
+    ("logs", {"title": "Database / Logs", "summary": "Log viewer and DB tools.", "category": "general", "operation": "Database_Log_Center", "func": feature_database_log_center}),
+    ("download", {"title": "Download Center", "summary": "Download manager and updater.", "category": "general", "operation": "Download_Center", "func": feature_download_center}),
+    ("pwn", {"title": "PWN Tools", "summary": "Offensive tooling suite.", "category": "general", "operation": "PWN_Tools", "func": feature_pwn_tools}),
+    ("python_power", {"title": "Python Power", "summary": "Python power demos and helpers.", "category": "general", "operation": "Python_Power", "func": feature_python_power}),
+    ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
+    ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
+    ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
+    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
+]
 
-def run_pytextos():
-    if App is None:
+COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
+
+def feature_enhanced_display_mode():
+    return run_pytextos(return_to_classic=True)
+
+def run_pytextos(return_to_classic=False):
+    if not _ensure_textual_imports():
         os.system('cls' if os.name == 'nt' else 'clear')
-        print(f"{COLORS['1'][0]}ERROR: Textual is not installed!{RESET}")
-        print(f"Install with: {BOLD}pip install textual{RESET}")
+        print(f"{COLORS['1'][0]}ERROR: Textual failed to load!{RESET}")
+        if _TEXTUAL_IMPORT_ERROR:
+            print(f"Reason: {_TEXTUAL_IMPORT_ERROR}")
+        print(f"Install/upgrade with: {BOLD}pip install --upgrade textual rich pygments{RESET}")
         print("\nFalling back to classic Command Center...")
         time.sleep(2)
         _set_display_mode("classic")
-        return
+        return run_classic_command_center()
 
     try:
         class PyTextOS(App):
             BINDINGS = [
                 ("l", "cycle_layout", "Layout"),
+                ("enter", "run_selected", "Run"),
                 ("r", "run_selected", "Run"),
                 ("q", "quit", "Quit"),
             ]
 
-            def __init__(self, section_actions, *args, **kwargs):
+            def __init__(self, actions, action_map, *args, **kwargs):
                 super().__init__(*args, **kwargs)
-                self.section_actions = section_actions
-                self.sections = [
-                    ("system", "System Overview"),
-                    ("weather", "Weather"),
-                    ("satellite", "Satellite Tracker"),
-                    ("network", "Network Tools"),
-                    ("security", "Security Tools"),
-                    ("calculator", "Graphing Calculator"),
-                    ("media", "Media Scan"),
-                    ("docs", "Text & Doc Center"),
-                    ("logs", "Database & Logs"),
-                ]
+                self.actions = actions
+                self.action_map = action_map
+                self.sections = [(key, meta.get("title", key.title())) for key, meta in actions]
                 self.layout_modes = ["two_pane", "dashboard", "tabs"]
                 self.layout_mode = textual_layout_mode if textual_layout_mode in self.layout_modes else "two_pane"
                 self.style_mode = textual_style_mode
@@ -10391,12 +10489,24 @@ def run_pytextos():
                 self.dashboard_cards = {}
                 self.tabs = None
                 self.tab_content = None
+                self._status_widgets = {}
+                self._clock_widget = None
+                self._last_net = None
+                self._last_net_ts = 0.0
 
             def compose(self):
                 yield Horizontal(
                     Static("PYTEXTOS"),
                     Static("", id="enhanced-indicator"),
                     id="topbar",
+                )
+                yield Horizontal(
+                    Digits("", id="clock-digits"),
+                    Static("CPU --", classes="pill", id="pill-cpu"),
+                    Static("MEM --", classes="pill", id="pill-mem"),
+                    Static("NET --", classes="pill", id="pill-net"),
+                    Static("WX --", classes="pill", id="pill-wx"),
+                    id="status-strip",
                 )
                 yield Container(id="layout-root")
                 yield Footer()
@@ -10405,9 +10515,13 @@ def run_pytextos():
                 self._spinner_index = 0
                 self._spinner_frames = ["PY>_", "PY>__", "PY>___", "PY>__"]
                 self._indicator = self.query_one("#enhanced-indicator", Static)
+                self._clock_widget = self.query_one("#clock-digits", Digits)
+                for pill_id in ["pill-cpu", "pill-mem", "pill-net", "pill-wx"]:
+                    self._status_widgets[pill_id] = self.query_one(f"#{pill_id}", Static)
                 self._apply_style_mode()
                 self._mount_layout()
                 self._update_detail(self.selected_key)
+                self._refresh_status()
                 self.set_interval(0.4, self._tick_spinner)
                 self.set_interval(1.0, self._refresh_dynamic)
 
@@ -10416,6 +10530,90 @@ def run_pytextos():
                 self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
                 if self._indicator:
                     self._indicator.update(f"ENHANCED MODE {frame}")
+
+            def _update_clock(self):
+                if self._clock_widget:
+                    now = datetime.datetime.now().strftime("%H:%M:%S")
+                    self._clock_widget.update(f"⏱ {now}")
+
+            def _pill(self, name, text, warn=False, crit=False):
+                pill = self._status_widgets.get(name)
+                if not pill:
+                    return
+                pill.update(text)
+                pill.set_class(False, "warn")
+                pill.set_class(False, "crit")
+                pill.set_class(False, "ok")
+                if crit:
+                    pill.add_class("crit")
+                elif warn:
+                    pill.add_class("warn")
+                else:
+                    pill.add_class("ok")
+
+            def _refresh_status(self):
+                self._update_clock()
+
+                def _to_float(val):
+                    try:
+                        return float(val)
+                    except Exception:
+                        return None
+
+                try:
+                    cpu_pct_raw = psutil.cpu_percent(interval=None)
+                    mem_raw = psutil.virtual_memory()
+                except Exception:
+                    cpu_pct_raw = None
+                    mem_raw = None
+
+                cpu_pct = _to_float(cpu_pct_raw)
+                mem_pct = _to_float(getattr(mem_raw, "percent", None))
+                mem_free = getattr(mem_raw, "available", None)
+
+                cpu_text = "CPU --"
+                mem_text = "MEM --"
+                cpu_warn = cpu_crit = False
+                mem_warn = mem_crit = False
+
+                if cpu_pct is not None:
+                    cpu_warn = cpu_pct > 75
+                    cpu_crit = cpu_pct > 90
+                    cpu_text = f"CPU {cpu_pct:5.1f}%"
+                self._pill("pill-cpu", cpu_text, warn=cpu_warn, crit=cpu_crit)
+
+                if mem_pct is not None:
+                    mem_warn = mem_pct > 75
+                    mem_crit = mem_pct > 90
+                    mem_text = f"MEM {mem_pct:5.1f}%"
+                self._pill("pill-mem", mem_text, warn=mem_warn, crit=mem_crit)
+
+                net_text = "NET --"
+                net_warn = False
+                try:
+                    net = psutil.net_io_counters()
+                    now = datetime.datetime.now()
+                    if self._last_net:
+                        dt = max(now.timestamp() - self._last_net_ts, 0.001)
+                        tx = (net.bytes_sent - self._last_net[0]) / dt
+                        rx = (net.bytes_recv - self._last_net[1]) / dt
+                        net_warn = (tx > 2_000_000) or (rx > 2_000_000)
+                        net_text = f"NET {rx/1024:4.1f}↓ {tx/1024:4.1f}↑ KB/s"
+                    self._last_net = (net.bytes_sent, net.bytes_recv)
+                    self._last_net_ts = now.timestamp()
+                except Exception:
+                    self._last_net = None
+                self._pill("pill-net", net_text, warn=net_warn)
+
+                wx_text = "WX --"
+                try:
+                    if weather_cache:
+                        temp = weather_cache.get("temp", "N/A")
+                        icon = weather_cache.get("icon", "")
+                        wx_text = f"WX {icon} {temp}"
+                except Exception:
+                    pass
+                self._pill("pill-wx", wx_text)
 
             def _apply_style_mode(self):
                 if self.style_mode == "file" and os.path.exists(TEXTUAL_CSS_PATH):
@@ -10446,30 +10644,34 @@ def run_pytextos():
             def _section_summary(self, key):
                 if key == "system":
                     return self._build_system_summary()
-                if key == "weather":
-                    return "Live weather view with cached readings and forecast."
-                if key == "satellite":
-                    return "Track up to 5 satellites with telemetry and map view."
-                if key == "network":
-                    return "Network toolkit, latency probe, WiFi tools, and traffic report."
-                if key == "security":
-                    return "Security audit and defense center launch points."
-                if key == "calculator":
-                    return "Graphing calculator with CAS, plots, and scientific tools."
-                if key == "media":
-                    return "Media scanner and integrated audio/video playback."
-                if key == "docs":
-                    return "Text and document center for browse, preview, and edit."
-                if key == "logs":
-                    return "Database, logs, swap cache, and report tools."
-                return "Select a module to view details."
+                meta = self.action_map.get(key, {})
+                return meta.get("summary", "Select a module to view details.")
 
             def _section_detail(self, key):
+                meta = self.action_map.get(key, {})
                 base = self._section_summary(key)
                 layout_line = f"Layout: {self.layout_mode.replace('_', ' ')}"
-                if key in self.section_actions:
-                    return f"{base}\n\nPress R to run this module in classic mode.\n{layout_line}"
-                return f"{base}\n\n{layout_line}"
+                detail_lines = [
+                    f"## {dict(self.sections).get(key, 'Details')}",
+                    "",
+                    base,
+                ]
+
+                op = meta.get("operation")
+                cat = meta.get("category")
+                if op:
+                    detail_lines.extend(["", f"- Operation: {op}"])
+                if cat:
+                    detail_lines.append(f"- Category: {cat}")
+
+                tips = [
+                    "Press Enter/R to launch the highlighted module.",
+                    "Press L to cycle layout (two-pane, dashboard, tabs).",
+                    "Press Q to exit the Textual shell.",
+                ]
+                detail_lines.extend(["", layout_line, ""])
+                detail_lines.extend([f"- {tip}" for tip in tips])
+                return "\n".join(detail_lines)
 
             def _fill_nav(self, nav):
                 nav.remove_children()
@@ -10489,16 +10691,16 @@ def run_pytextos():
 
                 if self.layout_mode == "two_pane":
                     nav = ListView(id="nav")
-                    self._fill_nav(nav)
                     content = Vertical(
                         Static("", id="detail-title"),
-                        Static("", id="detail-body"),
+                        Markdown("", id="detail-body"),
                         id="content",
                     )
                     root.mount(Horizontal(nav, content))
                     self.nav = nav
                     self.detail_title = content.query_one("#detail-title", Static)
-                    self.detail_body = content.query_one("#detail-body", Static)
+                    self.detail_body = content.query_one("#detail-body", Markdown)
+                    self._fill_nav(nav)
                     self._select_nav_key(self.selected_key)
                     return
 
@@ -10515,7 +10717,7 @@ def run_pytextos():
                 tabs = Tabs(id="tabs")
                 for key, title in self.sections:
                     tabs.add_tab(Tab(title, id=f"tab-{key}"))
-                content = Static("", id="tab-content")
+                content = Markdown("", id="tab-content")
                 root.mount(Vertical(tabs, content))
                 self.tabs = tabs
                 self.tab_content = content
@@ -10546,9 +10748,10 @@ def run_pytextos():
                     self.detail_title.update(title)
                     self.detail_body.update(detail)
                 if self.tab_content:
-                    self.tab_content.update(f"{title}\n\n{detail}")
+                    self.tab_content.update(detail)
 
             def _refresh_dynamic(self):
+                self._refresh_status()
                 if self.layout_mode == "dashboard":
                     for key, card in self.dashboard_cards.items():
                         title = dict(self.sections).get(key, key.title())
@@ -10571,7 +10774,7 @@ def run_pytextos():
                 self._update_detail(self.selected_key)
 
             def action_run_selected(self):
-                if self.selected_key in self.section_actions:
+                if self.selected_key in dict(self.sections):
                     self.pending_action = self.selected_key
                     self.exit()
 
@@ -10583,29 +10786,47 @@ def run_pytextos():
                 if key:
                     self._update_detail(key)
 
+            def on_list_view_highlighted(self, event):
+                key = self._key_from_item(event.item)
+                if key:
+                    self._update_detail(key)
+
             def on_tabs_tab_activated(self, event):
                 if event.tab.id and event.tab.id.startswith("tab-"):
                     key = event.tab.id[4:]
                     self._update_detail(key)
 
-        section_actions = {
-            "weather": ("weather", "Weather_Display", feature_weather_display),
-            "satellite": ("general", "Satellite_Tracker", feature_satellite_tracker),
-            "network": ("network", "Network_Toolkit", feature_network_toolkit),
-            "security": ("security", "Security_Audit", feature_security_audit),
-            "calculator": ("general", "Graphing_Calculator", feature_graphing_calculator),
-            "media": ("media", "Media_Scanner", feature_media_scanner),
-            "docs": ("general", "Text_Doc_Center", feature_text_doc_center),
-            "logs": ("general", "Database_Log_Center", feature_database_log_center),
-        }
+        _set_display_mode("enhanced")
+        actions = COMMAND_CENTER_ACTIONS
+        action_map = COMMAND_ACTION_MAP
 
-        app = PyTextOS(section_actions)
-        app.run()
+        while True:
+            app = PyTextOS(actions, action_map)
+            app.run()
 
-        _set_display_mode("classic")
-        if app.pending_action:
-            category, operation, func = section_actions[app.pending_action]
-            safe_run(category, operation, func)
+            if not app.pending_action:
+                break
+
+            meta = action_map.get(app.pending_action, {})
+            if meta.get("mode") == "classic":
+                _set_display_mode("classic")
+                run_classic_command_center()
+                if return_to_classic:
+                    return
+                break
+
+            func = meta.get("func")
+            if func:
+                safe_run(
+                    meta.get("category", "general"),
+                    meta.get("operation", meta.get("title", "Action")),
+                    func,
+                )
+                continue
+
+        if return_to_classic:
+            _set_display_mode("classic")
+            run_classic_command_center()
 
     except Exception as e:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -10614,208 +10835,214 @@ def run_pytextos():
         print("Falling back to classic Command Center...")
         time.sleep(3)
         _set_display_mode("classic")
+        run_classic_command_center()
 
 # --- MAIN OPERATING SYSTEM LOOP ---
 
-while True:
-    stop_clock = True
-    os.system('cls' if os.name == 'nt' else 'clear')
-    current_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    print_header("🆔 System Identity", extra_info=f"| 🕒 {current_dt}")
-    if not mini_view:
-        os_name = platform.system()
-        cpu_arch = platform.machine().lower()
-        is_arm = "arm" in cpu_arch or "aarch64" in cpu_arch
-        print(f"💻 Operating System: {BOLD}{os_name}{RESET}")
-        if os_name == "Linux": print("👑 OS Verdict:     King O.S.")
-        elif os_name == "Windows": print("📉 OS Verdict:     You had your chance")
-        elif os_name == "Darwin": print("👸 OS Verdict:     MacOS Queen O.S.")
-        print(f"📦 OS Release:      {platform.release()}")
-        print(f"🏗️ Architecture:    {platform.machine()} ({platform.architecture()[0]})")
-        print(f"📟 Processor Type:  {'ARM Based' if is_arm else 'x86 Based'}")
-        print(f"📛 Node Name:       {platform.node()}")
-        print_header("⚙️ CPU Architecture")
-        print(f"🖥️ Processor:       {platform.processor()}")
-        print(f"🧠 Physical Cores:  {psutil.cpu_count(logical=False)}")
-        print(f"🧵 Total Threads:   {psutil.cpu_count(logical=True)}")
-        cpufreq = psutil.cpu_freq()
-        if cpufreq: print(f"⚡ Max Frequency:   {cpufreq.max:.2f}Mhz")
-        print(f"📈 Current Usage:   {draw_bar(psutil.cpu_percent(interval=None))}")
-        print_header("🌡️ Thermal Sensors")
-        try:
-            temps = psutil.sensors_temperatures()
-            if not temps: print("🚦 Status:          No thermal sensors detected")
-            else:
-                unit_label = "\u00b0F" if temp_unit == "F" else "\u00b0C"
-                if truncated_thermal:
-                    core_temps = []
-                    other_temps = []
-                    for name, entries in temps.items():
-                        for entry in entries:
-                            c_temp = entry.current
-                            val = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
-                            label = entry.label or name
-                            if any(x in label.lower() for x in ["core", "thermal", "soc"]):
-                                core_temps.append(val)
-                            else: other_temps.append(f"{label}: {val:.1f}{unit_label}")
-                    if core_temps: print(f"🌡️ Avg Sensor Temp: {sum(core_temps) / len(core_temps):.1f}{unit_label}")
-                    if other_temps: print(f"🌡️ Other:                 {' | '.join(other_temps)}")
-                else:
-                    for name, entries in temps.items():
-                        for entry in entries:
-                            label = entry.label or name
-                            disp_t = (entry.current * 9/5) + 32 if temp_unit == "F" else entry.current
-                            print(f"🌡️ {label}: ".ljust(17) + f"{disp_t:.1f}{unit_label}")
-        except: print("🚦 Status:          Temperature sensors not supported on this OS")
+def run_classic_command_center():
+    global stop_clock, mini_view, truncated_thermal, is_blinking, temp_unit, active_color_key, user_has_chosen, display_mode
 
-        print_header("🔍 Advanced Hardware Probing")
-        try:
-            gpus = GPUtil.getGPUs()
-            if not gpus: print("🎮 GPU:              N/A (No Discrete GPU)")
-            for g in gpus:
-                gt = (g.temperature * 9/5) + 32 if temp_unit == "F" else g.temperature
-                print(f"🎮 GPU Model:       {g.name}")
-                print(f"📈 GPU Load:        {draw_bar(g.load*100)}")
-                print(f"🌡️ GPU Temp:        {gt:.1f}\u00b0{temp_unit}")
-                print(f"🧠 GPU Mem Used:    {g.memoryUsed}MB / {g.memoryTotal}MB")
-        except: print("🎮 GPU Probing:     N/A")
-        try:
-            fans = psutil.sensors_fans()
-            if not fans: print("🌀 Fans:              N/A")
-            else:
-                for name, entries in fans.items():
-                    for entry in entries:
-                        print(f"🌀 {entry.label or name}: ".ljust(17) + f"{entry.current} RPM")
-        except: print("🌀 Fan Probing:     N/A")
+    _bootstrap_classic_stack()
 
-        print_header("🧠 Memory Status")
-        mem = psutil.virtual_memory()
-        swap = psutil.swap_memory()
-        print(f"📏 Total RAM:       {_format_gb(mem.total)}")
-        print(f"🔓 Available RAM:   {_format_gb(mem.available)}")
-        print(f"📈 RAM Usage:       {draw_bar(mem.percent)}")
-        print(f"🔄 Swap Total:      {_format_gb(swap.total)}")
-        print_header("💽 Storage & Disk")
-        disk = psutil.disk_usage('/')
-        print(f"📏 Total Space:     {_format_gb(disk.total)}")
-        print(f"📈 Used Space:      {draw_bar(disk.percent)} ({_format_gb(disk.used)})")
-        print(f"🔓 Free Space:      {_format_gb(disk.free)}")
-        print_header("🌐 Network & IDs")
-        hostname = socket.gethostname()
-        print(f"📛 Hostname:         {hostname}")
-        try: print(f"📍 Local IP:         {socket.gethostbyname(hostname)}")
-        except: print("📍 Local IP:          Unknown")
-        mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
-        print(f"🆔 MAC Address:     {mac}")
-        net_io = psutil.net_io_counters()
-        print(f"⬆️ Data Sent:       {_format_mb(net_io.bytes_sent)}")
-        print(f"⬇️ Data Received:   {_format_mb(net_io.bytes_recv)}")
-        print_header("🐍 Python Context")
-        print(f"🐍 Python Version:  {platform.python_version()}")
-        print_header("🔮 Miscellaneous")
-        boot_str, uptime_str = _format_boot_info(psutil.boot_time())
-        print(f"🏁 System Boot:     {boot_str}")
-        print(f"⏱️ Uptime:          {uptime_str}")
-        battery = psutil.sensors_battery()
-        if battery:
-            try:
-                status = "🔌 Charging" if battery.power_plugged else "🔋 Discharging"
-                print(f"🔋 Battery:           {battery.percent}% ({status})")
-            except Exception:
-                print("🔋 Battery:           N/A")
-        print(f"\n{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
-
-    if display_mode == "enhanced":
+    while True:
         stop_clock = True
-        feature_enhanced_display_mode()
-        continue
+        os.system('cls' if os.name == 'nt' else 'clear')
+        current_dt = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        print_header("🆔 System Identity", extra_info=f"| 🕒 {current_dt}")
+        if not mini_view:
+            os_name = platform.system()
+            cpu_arch = platform.machine().lower()
+            is_arm = "arm" in cpu_arch or "aarch64" in cpu_arch
+            print(f"💻 Operating System: {BOLD}{os_name}{RESET}")
+            if os_name == "Linux": print("👑 OS Verdict:     King O.S.")
+            elif os_name == "Windows": print("📉 OS Verdict:     You had your chance")
+            elif os_name == "Darwin": print("👸 OS Verdict:     MacOS Queen O.S.")
+            print(f"📦 OS Release:      {platform.release()}")
+            print(f"🏗️ Architecture:    {platform.machine()} ({platform.architecture()[0]})")
+            print(f"📟 Processor Type:  {'ARM Based' if is_arm else 'x86 Based'}")
+            print(f"📛 Node Name:       {platform.node()}")
+            print_header("⚙️ CPU Architecture")
+            print(f"🖥️ Processor:       {platform.processor()}")
+            print(f"🧠 Physical Cores:  {psutil.cpu_count(logical=False)}")
+            print(f"🧵 Total Threads:   {psutil.cpu_count(logical=True)}")
+            cpufreq = psutil.cpu_freq()
+            if cpufreq: print(f"⚡ Max Frequency:   {cpufreq.max:.2f}Mhz")
+            print(f"📈 Current Usage:   {draw_bar(psutil.cpu_percent(interval=None))}")
+            print_header("🌡️ Thermal Sensors")
+            try:
+                temps = psutil.sensors_temperatures()
+                if not temps: print("🚦 Status:          No thermal sensors detected")
+                else:
+                    unit_label = "\u00b0F" if temp_unit == "F" else "\u00b0C"
+                    if truncated_thermal:
+                        core_temps = []
+                        other_temps = []
+                        for name, entries in temps.items():
+                            for entry in entries:
+                                c_temp = entry.current
+                                val = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
+                                label = entry.label or name
+                                if any(x in label.lower() for x in ["core", "thermal", "soc"]):
+                                    core_temps.append(val)
+                                else: other_temps.append(f"{label}: {val:.1f}{unit_label}")
+                        if core_temps: print(f"🌡️ Avg Sensor Temp: {sum(core_temps) / len(core_temps):.1f}{unit_label}")
+                        if other_temps: print(f"🌡️ Other:                 {' | '.join(other_temps)}")
+                    else:
+                        for name, entries in temps.items():
+                            for entry in entries:
+                                label = entry.label or name
+                                disp_t = (entry.current * 9/5) + 32 if temp_unit == "F" else entry.current
+                                print(f"🌡️ {label}: ".ljust(17) + f"{disp_t:.1f}{unit_label}")
+            except: print("🚦 Status:          Temperature sensors not supported on this OS")
 
-    stop_clock = False
-    threading.Thread(target=live_system_identity_clock, daemon=True).start()
+            print_header("🔍 Advanced Hardware Probing")
+            try:
+                gpus = GPUtil.getGPUs()
+                if not gpus: print("🎮 GPU:              N/A (No Discrete GPU)")
+                for g in gpus:
+                    gt = (g.temperature * 9/5) + 32 if temp_unit == "F" else g.temperature
+                    print(f"🎮 GPU Model:       {g.name}")
+                    print(f"📈 GPU Load:        {draw_bar(g.load*100)}")
+                    print(f"🌡️ GPU Temp:        {gt:.1f}\u00b0{temp_unit}")
+                    print(f"🧠 GPU Mem Used:    {g.memoryUsed}MB / {g.memoryTotal}MB")
+            except: print("🎮 GPU Probing:     N/A")
+            try:
+                fans = psutil.sensors_fans()
+                if not fans: print("🌀 Fans:              N/A")
+                else:
+                    for name, entries in fans.items():
+                        for entry in entries:
+                            print(f"🌀 {entry.label or name}: ".ljust(17) + f"{entry.current} RPM")
+            except: print("🌀 Fan Probing:     N/A")
 
-    c = get_current_color()
-    print(f"\n{BOLD}{c}{BOX_CHARS['TL']}{BOX_CHARS['H']*24} 🌍 COMMAND CENTER {BOX_CHARS['H']*24}{BOX_CHARS['TR']}{RESET}")
-    print(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
-    print(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
-    print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
-    print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
-    print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
-    print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
-    print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
-    print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-    print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
-    print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
-    print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
+            print_header("🧠 Memory Status")
+            mem = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            print(f"📏 Total RAM:       {_format_gb(mem.total)}")
+            print(f"🔓 Available RAM:   {_format_gb(mem.available)}")
+            print(f"📈 RAM Usage:       {draw_bar(mem.percent)}")
+            print(f"🔄 Swap Total:      {_format_gb(swap.total)}")
+            print_header("💽 Storage & Disk")
+            disk = psutil.disk_usage('/')
+            print(f"📏 Total Space:     {_format_gb(disk.total)}")
+            print(f"📈 Used Space:      {draw_bar(disk.percent)} ({_format_gb(disk.used)})")
+            print(f"🔓 Free Space:      {_format_gb(disk.free)}")
+            print_header("🌐 Network & IDs")
+            hostname = socket.gethostname()
+            print(f"📛 Hostname:         {hostname}")
+            try: print(f"📍 Local IP:         {socket.gethostbyname(hostname)}")
+            except: print("📍 Local IP:          Unknown")
+            mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
+            print(f"🆔 MAC Address:     {mac}")
+            net_io = psutil.net_io_counters()
+            print(f"⬆️ Data Sent:       {_format_mb(net_io.bytes_sent)}")
+            print(f"⬇️ Data Received:   {_format_mb(net_io.bytes_recv)}")
+            print_header("🐍 Python Context")
+            print(f"🐍 Python Version:  {platform.python_version()}")
+            print_header("🔮 Miscellaneous")
+            boot_str, uptime_str = _format_boot_info(psutil.boot_time())
+            print(f"🏁 System Boot:     {boot_str}")
+            print(f"⏱️ Uptime:          {uptime_str}")
+            battery = psutil.sensors_battery()
+            if battery:
+                try:
+                    status = "🔌 Charging" if battery.power_plugged else "🔋 Discharging"
+                    print(f"🔋 Battery:           {battery.percent}% ({status})")
+                except Exception:
+                    print("🔋 Battery:           N/A")
+            print(f"\n{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
 
-    choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
-    _update_user_config(last_choice=choice)
-    stop_clock = True
+        if display_mode == "enhanced":
+            stop_clock = True
+            feature_enhanced_display_mode()
+            continue
 
-    if choice == '1':
-        is_blinking = not is_blinking
-        _update_user_config(is_blinking=is_blinking)
-    elif choice == '2':
-        temp_unit = "F" if temp_unit == "C" else "C"
-        _update_user_config(temp_unit=temp_unit)
-    elif choice == '3':
-        truncated_thermal = not truncated_thermal
-        _update_user_config(truncated_thermal=truncated_thermal)
-    elif choice == '4':
-        mini_view = not mini_view
-        _update_user_config(mini_view=mini_view)
-    elif choice == '5':
-        _update_user_config(
-            active_color_key=active_color_key,
-            user_has_chosen=user_has_chosen,
-            is_blinking=is_blinking,
-            temp_unit=temp_unit,
-            truncated_thermal=truncated_thermal,
-            mini_view=mini_view
-        )
-        break
-    elif choice == '6':
-        print("\n--- 🎨 SELECT COLOR ---")
-        for k, v in COLORS.items(): print(f"[{k}] {v[0]}{v[2]}{RESET}")
-        color_choice = input("🎯 Select color number or [R]: ").strip().upper()
-        if color_choice in COLORS:
-            active_color_key, user_has_chosen = color_choice, True
-            _update_user_config(active_color_key=active_color_key, user_has_chosen=user_has_chosen)
-        elif color_choice == 'R':
-            user_has_chosen = False
-            _update_user_config(user_has_chosen=user_has_chosen)
-    elif choice == '7': safe_run("general", "Web_Browser", feature_web_browser_center)
-    elif choice == '8': safe_run("general", "Disk_IO_Report", feature_disk_io_report)
-    elif choice == '9': safe_run("process", "Process_Search", feature_process_search)
-    elif choice == '10': safe_run("general", "Plugin_Center", feature_plugin_center)
-    elif choice == '11': safe_run("general", "Remote_Dashboard", feature_remote_dashboard)
-    elif choice == '12': safe_run("pentest", "Pen_Test_Toolkit", feature_pentest_toolkit)
-    elif choice == '13': safe_run("defense", "Defence_Center", feature_defence_center)
-    elif choice == '0': safe_run("network", "Network_Toolkit", feature_network_toolkit)
-    elif choice == 'A': safe_run("security", "Security_Audit", feature_security_audit)
-    elif choice == 'B': safe_run("system", "Environment_Probe", feature_environment_probe)
-    elif choice == 'C': safe_run("hardware", "Hardware_Serials", feature_hardware_serials)
-    elif choice == 'D': safe_run("ai", "AI_Probe", feature_deep_probe_ai)
-    elif choice == 'E': safe_run("general", "Calendar", feature_simple_calendar)
-    elif choice == 'F': safe_run("network", "Latency_Probe", feature_latency_probe)
-    elif choice == 'G': safe_run("weather", "Weather_Display", feature_weather_display)
-    elif choice == 'H': safe_run("general", "Display_FX", feature_test_font_size)
-    elif choice == 'I': safe_run("media", "Media_Menu", feature_media_menu)
-    elif choice == 'J': safe_run("network", "WiFi_Toolkit", feature_wifi_toolkit)
-    elif choice == 'K': safe_run("ai", "AI_Center", feature_ai_center)
-    elif choice == 'L': safe_run("network", "Bluetooth_Toolkit", feature_bluetooth_toolkit)
-    elif choice == 'M': safe_run("network", "Traffic_Report", feature_traffic_report)
-    elif choice == 'N': safe_run("general", "Database_Log_Center", feature_database_log_center)
-    elif choice == 'O': safe_run("general", "Download_Center", feature_download_center)
-    elif choice == 'P': safe_run("general", "PWN_Tools", feature_pwn_tools)
-    elif choice == 'Q': safe_run("general", "Python_Power", feature_python_power)
-    elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
-    elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
-    elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
-    elif choice == 'V':
-        _set_display_mode("classic")
-    elif choice == 'U':
-        _set_display_mode("enhanced")
-        feature_enhanced_display_mode()
+        stop_clock = False
+        threading.Thread(target=live_system_identity_clock, daemon=True).start()
+
+        c = get_current_color()
+        print(f"\n{BOLD}{c}{BOX_CHARS['TL']}{BOX_CHARS['H']*24} 🌍 COMMAND CENTER {BOX_CHARS['H']*24}{BOX_CHARS['TR']}{RESET}")
+        print(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
+        print(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
+        print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
+        print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
+        print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
+        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
+        print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
+        print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
+        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
+        print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
+        print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
+
+        choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
+        _update_user_config(last_choice=choice)
+        stop_clock = True
+
+        if choice == '1':
+            is_blinking = not is_blinking
+            _update_user_config(is_blinking=is_blinking)
+        elif choice == '2':
+            temp_unit = "F" if temp_unit == "C" else "C"
+            _update_user_config(temp_unit=temp_unit)
+        elif choice == '3':
+            truncated_thermal = not truncated_thermal
+            _update_user_config(truncated_thermal=truncated_thermal)
+        elif choice == '4':
+            mini_view = not mini_view
+            _update_user_config(mini_view=mini_view)
+        elif choice == '5':
+            _update_user_config(
+                active_color_key=active_color_key,
+                user_has_chosen=user_has_chosen,
+                is_blinking=is_blinking,
+                temp_unit=temp_unit,
+                truncated_thermal=truncated_thermal,
+                mini_view=mini_view
+            )
+            break
+        elif choice == '6':
+            print("\n--- 🎨 SELECT COLOR ---")
+            for k, v in COLORS.items(): print(f"[{k}] {v[0]}{v[2]}{RESET}")
+            color_choice = input("🎯 Select color number or [R]: ").strip().upper()
+            if color_choice in COLORS:
+                active_color_key, user_has_chosen = color_choice, True
+                _update_user_config(active_color_key=active_color_key, user_has_chosen=user_has_chosen)
+            elif color_choice == 'R':
+                user_has_chosen = False
+                _update_user_config(user_has_chosen=user_has_chosen)
+        elif choice == '7': safe_run("general", "Web_Browser", feature_web_browser_center)
+        elif choice == '8': safe_run("general", "Disk_IO_Report", feature_disk_io_report)
+        elif choice == '9': safe_run("process", "Process_Search", feature_process_search)
+        elif choice == '10': safe_run("general", "Plugin_Center", feature_plugin_center)
+        elif choice == '11': safe_run("general", "Remote_Dashboard", feature_remote_dashboard)
+        elif choice == '12': safe_run("pentest", "Pen_Test_Toolkit", feature_pentest_toolkit)
+        elif choice == '13': safe_run("defense", "Defence_Center", feature_defence_center)
+        elif choice == '0': safe_run("network", "Network_Toolkit", feature_network_toolkit)
+        elif choice == 'A': safe_run("security", "Security_Audit", feature_security_audit)
+        elif choice == 'B': safe_run("system", "Environment_Probe", feature_environment_probe)
+        elif choice == 'C': safe_run("hardware", "Hardware_Serials", feature_hardware_serials)
+        elif choice == 'D': safe_run("ai", "AI_Probe", feature_deep_probe_ai)
+        elif choice == 'E': safe_run("general", "Calendar", feature_simple_calendar)
+        elif choice == 'F': safe_run("network", "Latency_Probe", feature_latency_probe)
+        elif choice == 'G': safe_run("weather", "Weather_Display", feature_weather_display)
+        elif choice == 'H': safe_run("general", "Display_FX", feature_test_font_size)
+        elif choice == 'I': safe_run("media", "Media_Menu", feature_media_menu)
+        elif choice == 'J': safe_run("network", "WiFi_Toolkit", feature_wifi_toolkit)
+        elif choice == 'K': safe_run("ai", "AI_Center", feature_ai_center)
+        elif choice == 'L': safe_run("network", "Bluetooth_Toolkit", feature_bluetooth_toolkit)
+        elif choice == 'M': safe_run("network", "Traffic_Report", feature_traffic_report)
+        elif choice == 'N': safe_run("general", "Database_Log_Center", feature_database_log_center)
+        elif choice == 'O': safe_run("general", "Download_Center", feature_download_center)
+        elif choice == 'P': safe_run("general", "PWN_Tools", feature_pwn_tools)
+        elif choice == 'Q': safe_run("general", "Python_Power", feature_python_power)
+        elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
+        elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
+        elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
+        elif choice == 'V':
+            _set_display_mode("classic")
+        elif choice == 'U':
+            _set_display_mode("enhanced")
+            feature_enhanced_display_mode()
 
 #version 21
 
@@ -11019,9 +11246,10 @@ def start_autonomous_monitor():
     else:
         print(f"{COLORS['3'][0]}ℹ️ Optimizer skipped. Manual control only.{RESET}")
 
-# Trigger the prompt
-start_autonomous_monitor()
-# --- HEURISTIC INTELLIGENCE LAYER ---
+# Trigger prompt and heuristic only when classic mode boots
+_classic_bootstrap_done = False
+
+
 def apply_heuristic_intelligence():
     """
     Leverages the Deep Probe AI logic to modify the OS environment.
@@ -11046,8 +11274,20 @@ def apply_heuristic_intelligence():
             sys.__stdout__.write(f"\n{COLORS['5'][0]}[🧠 AI] Detected {len(zombies)} zombies. Recommendation: Restart Kernel.{RESET}\n")
     except: pass
 
-# Inject the Heuristic check into the main loop by wrapping the start
-apply_heuristic_intelligence()
+def _bootstrap_classic_stack():
+    """Run interactive/bootstrap routines once before entering classic UI."""
+    global _classic_bootstrap_done
+    if _classic_bootstrap_done:
+        return
+    _classic_bootstrap_done = True
+    try:
+        start_autonomous_monitor()
+    except Exception:
+        pass
+    try:
+        apply_heuristic_intelligence()
+    except Exception:
+        pass
 
 # --- EXTERNAL MODULE LINKER & ENHANCED MEDIA HOOK ---
 def link_external_tool(tool_name, module_path, function_name="run", context=None):
@@ -11480,3 +11720,12 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
+
+
+def main():
+    """Launch Textual-first Command Center, falling back to classic if needed."""
+    run_pytextos(return_to_classic=False)
+
+
+if __name__ == "__main__":
+    main()
