@@ -10706,21 +10706,23 @@ def run_pytextos(return_to_classic=False):
 
                 if self.layout_mode == "dashboard":
                     grid = Grid(id="dashboard", classes="dashboard")
+                    # Parent must be mounted before mounting its children to avoid MountError
+                    root.mount(grid)
                     for key, title in self.sections:
                         text = f"{title}\n\n{self._section_summary(key)}"
                         card = Static(text, classes="card", id=f"card-{key}")
                         self.dashboard_cards[key] = card
                         grid.mount(card)
-                    root.mount(grid)
                     return
 
                 tabs = Tabs(id="tabs")
-                for key, title in self.sections:
-                    tabs.add_tab(Tab(title, id=f"tab-{key}"))
                 content = Markdown("", id="tab-content")
+                # Mount tabs before adding tab items so internal nodes exist
                 root.mount(Vertical(tabs, content))
                 self.tabs = tabs
                 self.tab_content = content
+                for key, title in self.sections:
+                    tabs.add_tab(Tab(title, id=f"tab-{key}"))
                 self._select_tab_key(self.selected_key)
 
             def _select_nav_key(self, key):
@@ -11633,6 +11635,7 @@ ctx = {
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
+# Version 14 - Enhanced Display Mode layout work and font rendering improvements
 # Added Enhnaced Display Mode with improved font rendering and color accuracy for terminals that support advanced ANSI codes. This mode optimizes the visual experience by utilizing 24-bit color and enhanced character sets, providing a richer and more vibrant interface. Users can toggle this mode from the Command Center using option U, allowing for a more immersive pythonOS experience on compatible terminals.
 # Version 15 - Text & Document Center
 # Added Text & Document Center with a built-in text editor and document viewer supporting various formats, including .txt, .md, .pdf, and .docx. The editor features syntax highlighting for code files, markdown preview, and basic formatting tools. The document viewer can render PDFs and Word documents directly in the terminal using ASCII art and supports navigation through pages and sections. This module is accessible via Command Center option T and provides a comprehensive solution for managing text and documents within the pythonOS environment.
