@@ -176,6 +176,7 @@ _TEXTUAL_IMPORT_ERROR = None
 
 # Shared format constants
 SUPPORTED_AUDIO_FORMATS = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov')
 
 
 def _ensure_textual_imports():
@@ -10476,7 +10477,7 @@ def _enhanced_media_preview(stdscr, state):
     if not os.path.isdir(base):
         _enhanced_set_display(state, "MEDIA", f"Not a directory: {base}")
         return
-    exts = SUPPORTED_AUDIO_FORMATS + (".mp4", ".mkv", ".avi", ".mov")
+    exts = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS
     files = []
     for root, _, names in os.walk(base):
         for name in names:
@@ -12776,7 +12777,7 @@ def universal_executor(file_path):
                 print(f"{COLORS['1'][0]}❌ Error: run(ctx) missing in plugin.{RESET}")
         except Exception as e:
             print(f"💥 Plugin Crash: {e}")
-    elif ext in SUPPORTED_AUDIO_FORMATS or ext == '.mp4':
+    elif ext in SUPPORTED_AUDIO_FORMATS or ext in SUPPORTED_VIDEO_FORMATS:
         # Calls your external media_engine script
         try:
             import media_engine
@@ -12794,7 +12795,7 @@ def feature_integrated_explorer():
     items = []
     for root, _, files in os.walk(target):
         for f in files:
-            if f.lower().endswith(SUPPORTED_AUDIO_FORMATS + ('.py', '.mp4')):
+            if f.lower().endswith(SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)):
                 items.append(os.path.join(root, f))
 
     if not items:
