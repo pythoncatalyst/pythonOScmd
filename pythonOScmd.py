@@ -664,7 +664,7 @@ def feature_database_log_center():
             safe_run("general", "Clean_Optimize", _clean_optimize)
         elif choice == '9':
             safe_run("general", "Database_Settings", _database_settings)
-        
+
         elif choice == '10':
             # Database Analytics
             print_header("📈 Database Analytics")
@@ -672,27 +672,27 @@ def feature_database_log_center():
             try:
                 with _db_connect() as conn:
                     cursor = conn.cursor()
-                    
+
                     # Top categories
                     cursor.execute("SELECT category, COUNT(*) as count FROM log_entries GROUP BY category ORDER BY count DESC LIMIT 5")
                     top_cats = cursor.fetchall()
                     print(f"{BOLD}📊 Top 5 Log Categories:{RESET}")
                     for cat, count in top_cats:
                         print(f"   {cat}: {count} entries")
-                    
+
                     # Database size
                     db_size = os.path.getsize(DB_FILE) / 1024 / 1024
                     print(f"\n{BOLD}💾 Database Size: {db_size:.2f} MB{RESET}")
-                    
+
                     # Average log size
                     cursor.execute("SELECT AVG(LENGTH(data)) FROM log_entries")
                     avg_size = cursor.fetchone()[0] or 0
                     print(f"{BOLD}📝 Average Log Entry Size: {avg_size:.0f} bytes{RESET}")
             except Exception as e:
                 print(f"Error: {e}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':
             # Backup/Restore
             print_header("🔐 Database Backup/Restore")
@@ -701,10 +701,10 @@ def feature_database_log_center():
             print(f"  [2] Restore from backup")
             print(f"  [3] List backups")
             op_choice = input(f"\nSelect: ").strip()
-            
+
             backup_dir = os.path.join(LOG_DIR, 'backups')
             os.makedirs(backup_dir, exist_ok=True)
-            
+
             if op_choice == '1':
                 import shutil
                 timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -721,9 +721,9 @@ def feature_database_log_center():
                         print(f"  • {backup}")
                 else:
                     print("No backups found")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '12':
             # Log Visualization
             print_header("📊 Log Visualization")
@@ -732,11 +732,11 @@ def feature_database_log_center():
                 with _db_connect() as conn:
                     cursor = conn.cursor()
                     cursor.execute("""
-                        SELECT category, COUNT(*) as count FROM log_entries 
+                        SELECT category, COUNT(*) as count FROM log_entries
                         GROUP BY category ORDER BY count DESC
                     """)
                     results = cursor.fetchall()
-                    
+
                     max_count = max([r[1] for r in results]) if results else 1
                     for cat, count in results:
                         bar_length = int(30 * count / max_count)
@@ -744,32 +744,32 @@ def feature_database_log_center():
                         print(f"  {cat:20} {bar} {count}")
             except:
                 print("Error generating visualization")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '13':
             # Advanced Search & Filter
             print_header("🔍 Advanced Search & Filter")
             search_term = input("Enter search term: ").strip()
             date_filter = input("Filter by date (YYYY-MM-DD or leave blank): ").strip()
-            
+
             print(f"\n{COLORS['2'][0]}🔎 Searching...{RESET}")
             try:
                 with _db_connect() as conn:
                     cursor = conn.cursor()
                     if date_filter:
                         cursor.execute("""
-                            SELECT category, operation, datetime FROM log_entries 
+                            SELECT category, operation, datetime FROM log_entries
                             WHERE (data LIKE ? OR operation LIKE ?) AND DATE(datetime) = ?
                             LIMIT 20
                         """, (f'%{search_term}%', f'%{search_term}%', date_filter))
                     else:
                         cursor.execute("""
-                            SELECT category, operation, datetime FROM log_entries 
+                            SELECT category, operation, datetime FROM log_entries
                             WHERE data LIKE ? OR operation LIKE ?
                             ORDER BY datetime DESC LIMIT 20
                         """, (f'%{search_term}%', f'%{search_term}%'))
-                    
+
                     results = cursor.fetchall()
                     if results:
                         print(f"\n{BOLD}Found {len(results)} results:{RESET}\n")
@@ -779,9 +779,9 @@ def feature_database_log_center():
                         print(f"{COLORS['3'][0]}No results found{RESET}")
             except Exception as e:
                 print(f"Error: {e}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '14':
             safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
         elif choice == '15':
@@ -2607,7 +2607,7 @@ def get_weather_data():
 def feature_weather_display():
     """Enhanced weather display with multi-location, forecasts, and alerts."""
     weather_locations = {}
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🌍 Enhanced Global Weather Station v2.0")
@@ -3878,7 +3878,7 @@ def feature_pentest_toolkit():
             print(f"  {BOLD}[3]{RESET} SQLmap - SQL Injection Tester")
             print(f"  {BOLD}[4]{RESET} Back")
             sub_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
-            
+
             if sub_choice == '1':
                 print(f"\n{COLORS['3'][0]}📌 Nikto Usage:{RESET}")
                 print("  nikto -h <target_url>")
@@ -3894,7 +3894,7 @@ def feature_pentest_toolkit():
                 print("  sqlmap -u '<url_with_parameters>'")
                 print("  sqlmap -u '<url>' --dbs")
                 print("  sqlmap -u '<url>' -D database_name --tables")
-            
+
             if sub_choice in ['1', '2', '3']:
                 install_cmd = input(f"\nShow installation command? (y/n): ").strip().lower()
                 if install_cmd == 'y':
@@ -3904,16 +3904,16 @@ def feature_pentest_toolkit():
                         print("  sudo apt install wpscan")
                     elif sub_choice == '3':
                         print("  sudo apt install sqlmap")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':
             # Penetration Report Generator
             print_header("📊 Penetration Test Report Generator")
             report_name = input("Enter report name (no extension): ").strip()
             target = input("Enter target/client name: ").strip()
             tester = input("Enter tester name: ").strip()
-            
+
             if report_name and target:
                 report_content = f"""PENETRATION TEST REPORT
 {'='*60}
@@ -3957,9 +3957,9 @@ CONCLUSION
                     rf.write(report_content)
                 print(f"\n{COLORS['2'][0]}✅ Report template created:{RESET}")
                 print(f"   {report_path}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             # Exploitation Framework
             print_header("🎯 Exploitation Framework")
@@ -3977,14 +3977,14 @@ CONCLUSION
             for idx, (technique, desc) in enumerate(techniques.items(), 1):
                 print(f"  [{idx}] {technique}")
                 print(f"       └─ {desc}")
-            
+
             expl_report = "Exploitation Framework Reference\\n" + "="*60 + "\\n\\n"
             for technique, desc in techniques.items():
                 expl_report += f"{technique}: {desc}\\n"
             save_log_file("pentest", "Exploitation_Framework", expl_report, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📦 Install Penetration Testing Tools")
@@ -4000,7 +4000,7 @@ CONCLUSION
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install nmap aircrack-ng john hashcat hydra")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':
             feature_download_center()
         else:
@@ -6068,15 +6068,15 @@ def feature_traffic_report():
                 print(f" {COLORS['4'][0]}[!] Map unavailable: location not found.{RESET}")
 
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             # Network Usage Statistics
             print_header("📊 Network Usage Statistics")
             print(f"\n{COLORS['2'][0]}Analyzing network usage...{RESET}\n")
-            
+
             net = psutil.net_io_counters()
             net_pernic = psutil.net_io_counters(pernic=True)
-            
+
             print(f"{BOLD}📡 Overall Statistics:{RESET}")
             print(f"  Bytes Sent:     {net.bytes_sent / (1024**3):.2f} GB")
             print(f"  Bytes Received: {net.bytes_recv / (1024**3):.2f} GB")
@@ -6084,23 +6084,23 @@ def feature_traffic_report():
             print(f"  Packets Recv:   {net.packets_recv:,}")
             print(f"  Errors In:      {net.errin}")
             print(f"  Errors Out:     {net.errout}")
-            
+
             print(f"\n{BOLD}🔌 Per-Interface Statistics:{RESET}")
             for iface, stats in net_pernic.items():
                 if stats.bytes_sent > 0 or stats.bytes_recv > 0:
                     print(f"  {iface}:")
                     print(f"    Sent: {stats.bytes_sent / (1024**2):.1f} MB")
                     print(f"    Recv: {stats.bytes_recv / (1024**2):.1f} MB")
-            
+
             net_report = f"Network Usage Report\\n{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n" + "="*50 + "\\n"
             net_report += f"Total Sent: {net.bytes_sent / (1024**3):.2f} GB\\n"
             net_report += f"Total Recv: {net.bytes_recv / (1024**3):.2f} GB\\n"
             net_report += f"Packets Sent: {net.packets_sent:,}\\n"
             net_report += f"Packets Recv: {net.packets_recv:,}\\n"
             save_log_file("network", "Network_Usage", net_report, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             print_header("🗺️ Live Traffic Links")
             links = {
@@ -6115,15 +6115,15 @@ def feature_traffic_report():
             if sel in links:
                 _open_url(links[sel])
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             # Peak Hours Analysis
             print_header("📈 Peak Hours Traffic Analysis")
             print(f"\n{COLORS['2'][0]}Traffic patterns by hour:{RESET}\n")
-            
+
             current_hour = datetime.datetime.now().hour
             print(f"{BOLD}Current Hour:{RESET} {current_hour}:00 - {current_hour}:59")
-            
+
             peak_hours = {
                 '06-09': 'Morning Rush (Heavy)',
                 '10-14': 'Mid-day (Moderate)',
@@ -6131,11 +6131,11 @@ def feature_traffic_report():
                 '19-22': 'Night Traffic (Light)',
                 '23-05': 'Late Night (Minimal)',
             }
-            
+
             print(f"\n{BOLD}Expected Patterns:{RESET}")
             for hours, pattern in peak_hours.items():
                 print(f"  {hours}: {pattern}")
-            
+
             # Recommendations
             print(f"\n{BOLD}💡 Recommendations:{RESET}")
             if 6 <= current_hour < 9:
@@ -6146,21 +6146,21 @@ def feature_traffic_report():
                 print("  ✅ Late night - optimal travel conditions")
             else:
                 print("  ✅ Normal traffic conditions expected")
-            
+
             peak_report = "Peak Hours Analysis\\n" + "="*50 + "\\n\\n"
             for hours, pattern in peak_hours.items():
                 peak_report += f"{hours}: {pattern}\\n"
             save_log_file("network", "Peak_Hours", peak_report, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             # Route Tracing
             print_header("🌍 Route Tracing & Latency")
             print(f"\n{BOLD}Enter destination to trace route:{RESET}")
             print("  Examples: 8.8.8.8, google.com, cloudflare.com")
             dest = input("  Destination: ").strip()
-            
+
             if dest:
                 print(f"\n{COLORS['2'][0]}Tracing route to {dest}...{RESET}\n")
                 try:
@@ -6171,9 +6171,9 @@ def feature_traffic_report():
                         subprocess.call(['traceroute', dest], timeout=10)
                 except:
                     print(f"{COLORS['3'][0]}Traceroute tool not available or timeout{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '6':
             _, _, _, _, _, report_lines = _traffic_snapshot()
             payload = "\n".join(report_lines)
@@ -6783,7 +6783,7 @@ def feature_media_scanner():
                         if item["type"] == "Video": c = COLORS["3"][0]  # Blue
                         elif item["type"] == "Audio": c = COLORS["5"][0]  # Magenta
                         elif item["type"] == "GIFs": c = COLORS["10"][0]  # Neon Green
-                        
+
                         total_size += item["size"]
                         print(f"{BOLD}[{i + 1}]{RESET} {c}[{item['type']}] {RESET}{item['name']} ({item['size']:.1f} MB)")
 
@@ -6818,22 +6818,22 @@ def feature_media_scanner():
             # Media Statistics & Analytics
             print_header("📊 Media Analytics")
             target_dir = input("📂 Enter the folder path to analyze: ").strip()
-            
+
             if not os.path.isdir(target_dir):
                 print(f" {COLORS['1'][0]}[!] Invalid directory.{RESET}")
                 time.sleep(2)
                 continue
-            
+
             stats = {"Audio": [], "Video": [], "Images": [], "GIFs": []}
             total_size = 0
-            
+
             for root, dirs, files in os.walk(target_dir):
                 for file in files:
                     ext = os.path.splitext(file)[1].lower()
                     file_path = os.path.join(root, file)
                     try:
                         size = os.path.getsize(file_path) / (1024*1024)
-                        for category, extensions in [("Audio", SUPPORTED_AUDIO_FORMATS), 
+                        for category, extensions in [("Audio", SUPPORTED_AUDIO_FORMATS),
                                                     ("Video", SUPPORTED_VIDEO_FORMATS),
                                                     ("Images", [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"]),
                                                     ("GIFs", [".gif"])]:
@@ -6843,17 +6843,17 @@ def feature_media_scanner():
                                 break
                     except:
                         pass
-            
+
             print(f"\n{BOLD}📊 Detailed Media Statistics:{RESET}\n")
             analytics_report = "Media Analytics Report\\n" + "="*50 + f"\\nDirectory: {target_dir}\\n\\n"
-            
+
             for category, files in stats.items():
                 if files:
                     cat_size = sum(f["size"] for f in files)
                     avg_size = cat_size / len(files)
                     largest = max(files, key=lambda x: x["size"])
                     smallest = min(files, key=lambda x: x["size"])
-                    
+
                     print(f"{BOLD}{category}:{RESET}")
                     print(f"  📌 Count: {len(files)}")
                     print(f"  💾 Total Size: {cat_size:.1f} MB")
@@ -6861,13 +6861,13 @@ def feature_media_scanner():
                     print(f"  📍 Largest: {largest['name']} ({largest['size']:.1f} MB)")
                     print(f"  📍 Smallest: {smallest['name']} ({smallest['size']:.1f} MB)")
                     print()
-                    
+
                     analytics_report += f"\\n{category}:\\n"
                     analytics_report += f"  Count: {len(files)}\\n"
                     analytics_report += f"  Total: {cat_size:.1f} MB\\n"
                     analytics_report += f"  Average: {avg_size:.1f} MB\\n"
                     analytics_report += f"  Largest: {largest['name']} ({largest['size']:.1f} MB)\\n"
-            
+
             analytics_report += f"\\nTOTAL SIZE: {total_size:.1f} MB\\n"
             save_log_file("media", "Analytics", analytics_report, prompt_user=True)
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
@@ -6877,18 +6877,18 @@ def feature_media_scanner():
             print_header("🎵 Playlist Creator")
             target_dir = input("📂 Enter folder with audio files: ").strip()
             playlist_name = input("📝 Enter playlist name (without extension): ").strip()
-            
+
             if not os.path.isdir(target_dir) or not playlist_name:
                 print(f" {COLORS['1'][0]}[!] Invalid input.{RESET}")
                 time.sleep(2)
                 continue
-            
+
             audio_files = []
             for root, dirs, files in os.walk(target_dir):
                 for file in files:
                     if os.path.splitext(file)[1].lower() in SUPPORTED_AUDIO_FORMATS:
                         audio_files.append(os.path.join(root, file))
-            
+
             if audio_files:
                 # Create M3U playlist
                 playlist_path = os.path.join(LOG_DIR, f"{playlist_name}.m3u")
@@ -6896,13 +6896,13 @@ def feature_media_scanner():
                     pf.write("#EXTM3U\\n")
                     for audio_file in audio_files:
                         pf.write(f"{audio_file}\\n")
-                
+
                 print(f"\n{COLORS['2'][0]}✅ Playlist Created!{RESET}")
                 print(f"   Files: {len(audio_files)}")
                 print(f"   Location: {playlist_path}")
             else:
                 print(f"{COLORS['1'][0]}No audio files found.{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '4':
@@ -7162,24 +7162,68 @@ def launch_btop_monitor():
         input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_web_browser_center():
+    """
+    Enhanced Web Browser Center with advanced Python web capabilities.
+    Features: HTTP testing, scraping, API testing, DNS, SSL, cookies, downloads, and more.
+    """
+    import json
+    import ssl
+    import socket
+    from urllib.parse import urlparse, urlencode, parse_qs
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🌐 Web Browser Center")
-        print(" [1] Render Page Text/Images")
-        print(" [2] Fetch Page Headers")
-        print(" [3] Save Page to Log")
-        print(" [4] Open in System Browser")
-        print(" [0] Return")
-        choice = input("\nSelect option: ").strip()
+        print_header("🌐 Web Browser Center - Advanced Edition")
+        print(f"\n {BOLD}CORE FEATURES:{RESET}")
+        print(f" [1] 📄 Render Page (Text/Images)")
+        print(f" [2] 📋 Fetch Page Headers")
+        print(f" [3] 💾 Save Page to Log")
+        print(f" [4] 🌍 Open in System Browser")
+
+        print(f"\n {BOLD}HTTP & API TESTING:{RESET}")
+        print(f" [5] 🔧 HTTP Request Builder (GET/POST/PUT/DELETE/PATCH)")
+        print(f" [6] 🔐 Test Authentication (Basic/Bearer/API Key)")
+        print(f" [7] 📊 JSON Response Parser")
+        print(f" [8] 🍪 Cookie Manager & Session Handler")
+
+        print(f"\n {BOLD}NETWORK & SECURITY:{RESET}")
+        print(f" [9] 🔒 SSL Certificate Inspector")
+        print(f" [10] 🎯 DNS Lookup & Resolution")
+        print(f" [11] 🌐 Port Scanner (Common Ports)")
+        print(f" [12] 🔗 URL Analyzer & Validator")
+
+        print(f"\n {BOLD}WEB SCRAPING & DATA:{RESET}")
+        print(f" [13] 🕷️ Advanced Web Scraper (CSS/XPath)")
+        print(f" [14] 📥 Bulk Download Manager")
+        print(f" [15] 🗂️ Sitemap & Link Extractor")
+        print(f" [16] 📱 User-Agent Switcher")
+
+        print(f"\n {BOLD}PERFORMANCE & MONITORING:{RESET}")
+        print(f" [17] ⏱️ Page Load Performance Analyzer")
+        print(f" [18] 🔍 HTTP Status Code Checker")
+        print(f" [19] 📍 Redirect Chain Tracer")
+        print(f" [20] 🛡️ Security Headers Audit")
+
+        print(f"\n {BOLD}UTILITIES:{RESET}")
+        print(f" [21] 🔄 URL Encoder/Decoder")
+        print(f" [22] 📑 HTML to Text Converter")
+        print(f" [23] 🔎 Search Multiple Engines")
+        print(f" [24] 📡 WHOIS & IP Lookup")
+        print(f" [0] ↩️ Return")
+
+        choice = input(f"\n{BOLD}Select option: {RESET}").strip()
 
         if choice == '0':
             return
 
-        url = input("🌐 Enter URL [https://www.google.com]: ").strip() or "https://www.google.com"
-        if not url.startswith('http'):
-            url = 'https://' + url
+        # Get URL for most operations
+        if choice != '21' and choice != '22' and choice != '23':
+            url = input(f"\n🌐 Enter URL [https://www.google.com]: ").strip() or "https://www.google.com"
+            if not url.startswith('http'):
+                url = 'https://' + url
 
-        if choice == '1':
+        # ========== CORE FEATURES ==========
+        if choice == '1':  # Render Page
             show_img = input("🖼️ Load images as Color ASCII? (y/n): ").strip().lower() == 'y'
             try:
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
@@ -7218,17 +7262,19 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
                 time.sleep(2)
-        elif choice == '2':
+
+        elif choice == '2':  # Fetch Headers
             try:
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                print_header("📄 Headers")
-                print(f"Status: {res.status_code}")
+                print_header("📄 Response Headers")
+                print(f"Status: {res.status_code}\n")
                 for k, v in res.headers.items():
                     print(f"{k}: {v}")
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '3':
+
+        elif choice == '3':  # Save Page
             try:
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
                 payload = f"URL: {url}\nStatus: {res.status_code}\n\n{res.text[:5000]}"
@@ -7236,8 +7282,404 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '4':
+
+        elif choice == '4':  # Open in Browser
             _open_url(url)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        # ========== HTTP & API TESTING ==========
+        elif choice == '5':  # HTTP Request Builder
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔧 HTTP Request Builder")
+            method = input("Method (GET/POST/PUT/DELETE/PATCH) [GET]: ").strip().upper() or "GET"
+
+            headers_str = input("Headers (JSON format) [{}]: ").strip() or "{}"
+            try:
+                headers_dict = json.loads(headers_str) if headers_str != "{}" else {}
+                headers_dict['User-Agent'] = headers_dict.get('User-Agent', 'Mozilla/5.0')
+            except:
+                headers_dict = {'User-Agent': 'Mozilla/5.0'}
+
+            body = ""
+            if method in ['POST', 'PUT', 'PATCH']:
+                body = input("Body (JSON/Form) [{}]: ").strip() or "{}"
+
+            try:
+                if method == 'GET':
+                    res = requests.get(url, headers=headers_dict, timeout=10)
+                elif method == 'POST':
+                    res = requests.post(url, data=body, headers=headers_dict, timeout=10)
+                elif method == 'PUT':
+                    res = requests.put(url, data=body, headers=headers_dict, timeout=10)
+                elif method == 'DELETE':
+                    res = requests.delete(url, headers=headers_dict, timeout=10)
+                elif method == 'PATCH':
+                    res = requests.patch(url, data=body, headers=headers_dict, timeout=10)
+
+                print(f"\n{COLORS['2'][0]}Status: {res.status_code}{RESET}\n")
+                print(f"{BOLD}Response (first 2000 chars):{RESET}\n{res.text[:2000]}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '6':  # Authentication Tester
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔐 Authentication Tester")
+            auth_type = input("Auth Type (basic/bearer/apikey): ").strip().lower()
+
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            try:
+                if auth_type == 'basic':
+                    user = input("Username: ").strip()
+                    pwd = input("Password: ").strip()
+                    res = requests.get(url, auth=(user, pwd), headers=headers, timeout=10)
+                elif auth_type == 'bearer':
+                    token = input("Bearer Token: ").strip()
+                    headers['Authorization'] = f"Bearer {token}"
+                    res = requests.get(url, headers=headers, timeout=10)
+                elif auth_type == 'apikey':
+                    key_name = input("Key Name (e.g., X-API-Key): ").strip()
+                    key_value = input("Key Value: ").strip()
+                    headers[key_name] = key_value
+                    res = requests.get(url, headers=headers, timeout=10)
+
+                print(f"\n{COLORS['2'][0]}Status: {res.status_code}{RESET}")
+                print(f"Auth: {'✅ Accepted' if res.status_code < 400 else '❌ Rejected'}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '7':  # JSON Parser
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📊 JSON Response Parser")
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                data = res.json()
+                print(json.dumps(data, indent=2)[:3000])
+            except Exception as e:
+                print(f"❌ Not valid JSON or Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '8':  # Cookie Manager
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🍪 Cookie Manager")
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                cookies = res.cookies.get_dict()
+                print(f"Cookies from {url}:\n")
+                for k, v in cookies.items():
+                    print(f"  {k}: {v}")
+                if not cookies:
+                    print("  [No cookies]")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        # ========== NETWORK & SECURITY ==========
+        elif choice == '9':  # SSL Certificate Inspector
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔒 SSL Certificate Inspector")
+            try:
+                hostname = urlparse(url).netloc
+                context = ssl.create_default_context()
+                with socket.create_connection((hostname, 443), timeout=5) as sock:
+                    with context.wrap_socket(sock, server_hostname=hostname) as ssock:
+                        cert = ssock.getpeercert()
+                        print(f"Subject: {dict(x[0] for x in cert['subject'])}")
+                        print(f"Issuer: {dict(x[0] for x in cert['issuer'])}")
+                        print(f"Version: {cert['version']}")
+                        print(f"Serial: {cert['serialNumber']}")
+                        print(f"Not Before: {cert['notBefore']}")
+                        print(f"Not After: {cert['notAfter']}")
+                        print(f"Algo: {cert['signatureAlgorithm']}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '10':  # DNS Lookup
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🎯 DNS Lookup")
+            try:
+                hostname = urlparse(url).netloc
+                ip = socket.gethostbyname(hostname)
+                print(f"Domain: {hostname}")
+                print(f"IP Address: {ip}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '11':  # Port Scanner
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🌐 Port Scanner")
+            common_ports = [80, 443, 8080, 8443, 22, 21, 25, 3306, 5432]
+            hostname = urlparse(url).netloc.split(':')[0]
+            print(f"Scanning {hostname}...\n")
+            for port in common_ports:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(1)
+                result = sock.connect_ex((hostname, port))
+                status = "🟢 OPEN" if result == 0 else "🔴 CLOSED"
+                print(f"  Port {port}: {status}")
+                sock.close()
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '12':  # URL Analyzer
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔗 URL Analyzer")
+            parsed = urlparse(url)
+            print(f"Scheme: {parsed.scheme}")
+            print(f"Netloc: {parsed.netloc}")
+            print(f"Path: {parsed.path}")
+            print(f"Params: {parsed.params}")
+            print(f"Query: {parsed.query}")
+            print(f"Fragment: {parsed.fragment}")
+            if parsed.query:
+                print(f"\nQuery Parameters:")
+                for k, v in parse_qs(parsed.query).items():
+                    print(f"  {k}: {v}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        # ========== WEB SCRAPING ==========
+        elif choice == '13':  # Advanced Scraper
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🕷️ Advanced Web Scraper")
+            selector = input("CSS Selector (e.g., 'a', 'div.class', 'p'): ").strip()
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                elements = soup.select(selector)
+                print(f"\n{COLORS['2'][0]}Found {len(elements)} elements{RESET}\n")
+                for i, el in enumerate(elements[:20]):
+                    print(f"[{i+1}] {el.get_text()[:100]}")
+                    if el.name == 'a':
+                        print(f"    → {el.get('href', 'N/A')}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '14':  # Bulk Download
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📥 Bulk Download Manager")
+            selector = input("CSS Selector for links (e.g., 'a.download'): ").strip() or "a"
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                links = soup.select(selector)
+                from urllib.parse import urljoin
+
+                download_dir = "downloads"
+                os.makedirs(download_dir, exist_ok=True)
+
+                print(f"\n📥 Found {len(links)} files. Download? (y/n): ")
+                if input().lower() == 'y':
+                    for i, link in enumerate(links[:10]):
+                        href = link.get('href')
+                        if href:
+                            full_url = urljoin(url, href)
+                            filename = full_url.split('/')[-1] or f"file_{i}"
+                            try:
+                                r = requests.get(full_url, timeout=5)
+                                with open(f"{download_dir}/{filename}", 'wb') as f:
+                                    f.write(r.content)
+                                print(f"  ✅ {filename}")
+                            except:
+                                print(f"  ❌ {filename}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '15':  # Sitemap & Links
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🗂️ Sitemap & Link Extractor")
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                links = soup.find_all('a', href=True)
+                from urllib.parse import urljoin
+
+                internal = []
+                external = []
+                for link in links:
+                    href = urljoin(url, link['href'])
+                    domain = urlparse(url).netloc
+                    if domain in urlparse(href).netloc:
+                        internal.append(href)
+                    else:
+                        external.append(href)
+
+                print(f"\n🔗 Internal Links: {len(set(internal))}")
+                for link in list(set(internal))[:10]:
+                    print(f"  {link[:80]}")
+                print(f"\n🔗 External Links: {len(set(external))}")
+                for link in list(set(external))[:10]:
+                    print(f"  {link[:80]}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '16':  # User-Agent Switcher
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📱 User-Agent Switcher")
+            agents = {
+                '1': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                '2': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36',
+                '3': 'Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X)',
+                '4': 'Mozilla/5.0 (iPad; CPU OS 14_6 like Mac OS X)',
+                '5': 'curl/7.64.1',
+                '6': 'Custom'
+            }
+            print("Select User-Agent:")
+            for k, v in agents.items():
+                print(f"  [{k}] {v[:60]}")
+            ua_choice = input("\nChoice: ").strip()
+            ua = agents.get(ua_choice, agents['1'])
+            if ua_choice == '6':
+                ua = input("Enter custom UA: ").strip()
+
+            try:
+                res = requests.get(url, headers={'User-Agent': ua}, timeout=10)
+                print(f"\nStatus: {res.status_code}")
+                print(f"Response size: {len(res.text)} bytes")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        # ========== PERFORMANCE & MONITORING ==========
+        elif choice == '17':  # Performance Analysis
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("⏱️ Page Load Performance")
+            try:
+                import time as time_module
+                start = time_module.time()
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                elapsed = time_module.time() - start
+
+                print(f"\nURL: {url}")
+                print(f"Load Time: {elapsed:.2f}s")
+                print(f"Response Size: {len(res.content)} bytes")
+                print(f"Content-Type: {res.headers.get('Content-Type', 'N/A')}")
+                print(f"Encoding: {res.encoding}")
+
+                speed = "🟢 Fast" if elapsed < 1 else "🟡 Normal" if elapsed < 3 else "🔴 Slow"
+                print(f"Speed: {speed}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '18':  # Status Code Checker
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔍 HTTP Status Code Checker")
+            urls_str = input("URLs (comma-separated): ").strip()
+            urls_list = [u.strip() for u in urls_str.split(',')]
+
+            print("\nChecking...")
+            for test_url in urls_list:
+                if not test_url.startswith('http'):
+                    test_url = 'https://' + test_url
+                try:
+                    res = requests.get(test_url, timeout=5)
+                    status_color = COLORS['2' if res.status_code < 400 else '1'][0]
+                    print(f"  {status_color}{test_url}: {res.status_code}{RESET}")
+                except:
+                    print(f"  {COLORS['1'][0]}{test_url}: ❌ Error{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '19':  # Redirect Tracer
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📍 Redirect Chain Tracer")
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, allow_redirects=True)
+                print(f"\nFinal URL: {res.url}")
+                print(f"Status: {res.status_code}")
+                print(f"Redirects: {len(res.history)}")
+                for i, redirect in enumerate(res.history):
+                    print(f"  [{i+1}] {redirect.status_code} → {redirect.url}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '20':  # Security Headers Audit
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🛡️ Security Headers Audit")
+            security_headers = [
+                'Content-Security-Policy',
+                'X-Frame-Options',
+                'X-Content-Type-Options',
+                'Strict-Transport-Security',
+                'X-XSS-Protection',
+                'Referrer-Policy'
+            ]
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                print("\nSecurity Headers:\n")
+                for header in security_headers:
+                    value = res.headers.get(header)
+                    status = "✅" if value else "⚠️"
+                    print(f"  {status} {header}: {value or 'Missing'}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        # ========== UTILITIES ==========
+        elif choice == '21':  # URL Encoder/Decoder
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔄 URL Encoder/Decoder")
+            from urllib.parse import quote, unquote
+            operation = input("(e)nconde or (d)ecode? [e]: ").strip().lower() or 'e'
+            text = input("Enter text: ").strip()
+            if operation == 'e':
+                result = quote(text)
+                print(f"\nEncoded: {result}")
+            else:
+                result = unquote(text)
+                print(f"\nDecoded: {result}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '22':  # HTML to Text
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📑 HTML to Text Converter")
+            html = input("Enter HTML (or URL for scrape): ").strip()
+            try:
+                if html.startswith('http'):
+                    res = requests.get(html, timeout=10)
+                    html = res.text
+                soup = BeautifulSoup(html, 'html.parser')
+                text = soup.get_text()
+                print(f"\nConverted Text:\n{text[:1000]}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '23':  # Search Engines
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔎 Search Multiple Engines")
+            query = input("Search query: ").strip()
+            if query:
+                from urllib.parse import urlencode
+                engines = {
+                    'Google': 'https://www.google.com/search?q=',
+                    'DuckDuckGo': 'https://duckduckgo.com/?q=',
+                    'Bing': 'https://www.bing.com/search?q=',
+                    'GitHub': 'https://github.com/search?q='
+                }
+                print(f"\nSearch URLs for '{query}':\n")
+                for name, base_url in engines.items():
+                    search_url = base_url + quote(query)
+                    print(f"  {name}: {search_url}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '24':  # WHOIS & IP Lookup
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📡 WHOIS & IP Lookup")
+            try:
+                hostname = urlparse(url).netloc
+                ip = socket.gethostbyname(hostname)
+                print(f"Domain: {hostname}")
+                print(f"IP: {ip}")
+                print(f"\nNote: Full WHOIS requires additional library")
+                print(f"Install: pip install python-whois")
+            except Exception as e:
+                print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_process_search():
@@ -7487,7 +7929,7 @@ def feature_disk_io_report():
                     read_vals.append(read_speed)
                     write_vals.append(write_speed)
                     last_io = now_io
-                
+
                 avg_read = sum(read_vals) / len(read_vals) if read_vals else 0
                 avg_write = sum(write_vals) / len(write_vals) if write_vals else 0
                 print(f"\n{BOLD}Pattern Analysis:{RESET}")
@@ -7495,7 +7937,7 @@ def feature_disk_io_report():
                 print(f"  Average Write Speed: {avg_write:.2f} MB/s")
                 print(f"  Max Read: {max(read_vals):.2f} MB/s" if read_vals else "  Max Read: N/A")
                 print(f"  Max Write: {max(write_vals):.2f} MB/s" if write_vals else "  Max Write: N/A")
-                
+
                 if avg_read > 100 or avg_write > 100:
                     print(f"\n⚠️ {COLORS['1'][0]}High I/O activity detected!{RESET}")
                 else:
@@ -7514,7 +7956,7 @@ def feature_disk_io_report():
                         processes.append((proc.info['name'], io.read_bytes + io.write_bytes))
                     except:
                         pass
-                
+
                 top_procs = sorted(processes, key=lambda x: x[1], reverse=True)[:5]
                 for i, (name, io_bytes) in enumerate(top_procs, 1):
                     print(f"  {i}. {name}: {io_bytes / (1024**2):.2f} MB")
@@ -7639,7 +8081,7 @@ def feature_network_toolkit():
                 print(f"  Packets Received: {net_stats.packets_recv}")
                 print(f"  Errors In: {net_stats.errin}")
                 print(f"  Errors Out: {net_stats.errout}")
-                
+
                 if net_stats.errin > 100 or net_stats.errout > 100:
                     print(f"\n⚠️ {COLORS['1'][0]}High error count detected{RESET}")
                 else:
@@ -7696,7 +8138,7 @@ def feature_network_toolkit():
                             processes.append((proc.info['name'], len(connections)))
                     except:
                         pass
-                
+
                 top_procs = sorted(processes, key=lambda x: x[1], reverse=True)[:10]
                 print(f"\n{BOLD}{'Process':<30} {'Connections':<12}{RESET}")
                 print("-" * 42)
@@ -7718,7 +8160,7 @@ def feature_network_toolkit():
                 print(f"  Dropped Out: {stats.dropout}")
                 print(f"  Errors In: {stats.errin}")
                 print(f"  Errors Out: {stats.errout}")
-                
+
                 total_data = (stats.bytes_sent + stats.bytes_recv) / (1024**3)
                 print(f"\n{BOLD}Total Data Transferred: {total_data:.2f} GB{RESET}")
             except Exception as e:
@@ -7926,14 +8368,14 @@ def feature_wifi_toolkit():
             except Exception as e:
                 print(f"{COLORS['1'][0]}[!] Error: {e}{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif wifi_choice == '7':
             # WiFi Network Quality Analysis
             print_header("📶 WiFi Network Quality Analysis")
             print(f"\n{COLORS['2'][0]}Analyzing network quality...{RESET}\n")
-            
+
             quality_report = "WiFi Network Quality Report\\n" + "="*50 + "\\n\\n"
-            
+
             # Check signal strength
             print(f"{BOLD}Signal Quality Levels:{RESET}")
             levels = {
@@ -7945,19 +8387,19 @@ def feature_wifi_toolkit():
             }
             for range_str, quality in levels.items():
                 print(f"  {range_str}: {quality}")
-            
+
             quality_report += "Signal Quality Guide:\\n"
             for range_str, quality in levels.items():
                 quality_report += f"  {range_str}: {quality}\\n"
-            
+
             # Channel recommendations
             print(f"\n{BOLD}Channel Recommendations (2.4GHz):{RESET}")
             print("  Non-overlapping channels: 1, 6, 11, 13 (region dependent)")
             quality_report += "\\nChannel Recommendations:\\n  Non-overlapping: 1, 6, 11, 13\\n"
-            
+
             save_log_file("network", "WiFi_Quality", quality_report, prompt_user=True)
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif wifi_choice == '8':
             # WiFi Security Checker
             print_header("🛡️ WiFi Security Checker")
@@ -7972,16 +8414,16 @@ def feature_wifi_toolkit():
                 '🛡️ Features': 'Disable WPS and remote management',
                 '📊 Monitoring': 'Check connected devices regularly',
             }
-            
+
             security_report = "WiFi Security Audit Report\\n" + "="*50 + "\\n\\n"
             for tip, advice in security_tips.items():
                 print(f"  {tip}")
                 print(f"    └─ {advice}\n")
                 security_report += f"{tip}\\n  {advice}\\n\\n"
-            
+
             save_log_file("network", "WiFi_Security", security_report, prompt_user=True)
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif wifi_choice == '9':
             # WiFi Optimization
             print_header("🚀 WiFi Optimization Tips")
@@ -8000,16 +8442,16 @@ def feature_wifi_toolkit():
                 "11. Enable band steering if available",
                 "12. Disable older WiFi standards (802.11b, 802.11g)",
             ]
-            
+
             for tip in tips:
                 print(f"  {tip}")
-            
+
             optim_report = "WiFi Optimization Report\\n" + "="*50 + "\\n\\n"
             for tip in tips:
                 optim_report += f"{tip}\\n"
             save_log_file("network", "WiFi_Optimization", optim_report, prompt_user=True)
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif wifi_choice == '10':
             feature_download_center()
         elif wifi_choice == '11':
@@ -8256,7 +8698,7 @@ def feature_ai_center():
                 print(f"{BOLD}🤖 {model}:{RESET}")
                 for attr, rating in specs.items():
                     print(f"   {attr.capitalize()}: {rating}")
-            
+
             comparison_report = "AI Model Comparison Report\\n" + "="*50 + "\\n"
             for model, specs in models.items():
                 comparison_report += f"\\n{model}:\\n"
@@ -8281,7 +8723,7 @@ def feature_ai_center():
             }
             for task, recommendations in analyzers.items():
                 print(f"{BOLD}📌 {task}:{RESET} {recommendations}")
-            
+
             analyzer_report = "AI Model Analyzer Report\\n" + "="*50 + "\\n"
             for task, recommendations in analyzers.items():
                 analyzer_report += f"\\n{task}:\\n  {recommendations}\\n"
@@ -8305,7 +8747,7 @@ def feature_ai_center():
             for idx, (category, prompt) in enumerate(prompts.items(), 1):
                 print(f"{BOLD}[{idx}]{RESET} {category}:")
                 print(f"    └─ {prompt}")
-            
+
             prompt_report = "AI Prompt Library\\n" + "="*50 + "\\n"
             for category, prompt in prompts.items():
                 prompt_report += f"\\n{category}:\\n  {prompt}\\n"
@@ -8318,9 +8760,9 @@ def feature_ai_center():
             print(f"\n{COLORS['2'][0]}🗂️ Manage and Review Previous AI Responses{RESET}\n")
             cache_dir = os.path.join(LOG_DIR, 'ai_cache')
             os.makedirs(cache_dir, exist_ok=True)
-            
+
             cache_files = [f for f in os.listdir(cache_dir) if f.endswith('.txt')] if os.path.exists(cache_dir) else []
-            
+
             if cache_files:
                 print(f"{COLORS['2'][0]}Found {len(cache_files)} cached responses:{RESET}\n")
                 for idx, file in enumerate(cache_files[:10], 1):
@@ -8330,13 +8772,13 @@ def feature_ai_center():
                     print(f"       Created: {time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(file_path)))}")
             else:
                 print(f"{COLORS['3'][0]}No cached responses yet. Start interacting with AI models to build cache.{RESET}")
-            
+
             # Cache statistics
             total_size = sum(os.path.getsize(os.path.join(cache_dir, f)) for f in cache_files) / 1024 / 1024 if cache_files else 0
             print(f"\n{BOLD}📊 Cache Statistics:{RESET}")
             print(f"   Total Files: {len(cache_files)}")
             print(f"   Total Size: {total_size:.2f} MB")
-            
+
             cache_report = f"AI Response Cache Report\\n" + "="*50 + f"\\n\\nTotal Files: {len(cache_files)}\\nTotal Size: {total_size:.2f} MB\\n\\n"
             for file in cache_files[:20]:
                 file_path = os.path.join(cache_dir, file)
@@ -8774,13 +9216,13 @@ def feature_graphing_calculator():
                 print(f"  Imaginary part: {comp.imag}")
                 print(f"  Magnitude: {abs(comp):.6f}")
                 print(f"  Phase: {__import__('cmath').phase(comp):.6f} rad")
-                
+
                 comp_report = f"Complex Number Analysis\\n{comp_str}\\n\\nReal: {comp.real}\\nImaginary: {comp.imag}\\nMagnitude: {abs(comp):.6f}\\n"
                 save_log_file("general", "Complex_Analysis", comp_report, prompt_user=True)
             except:
                 print(f"{COLORS['1'][0]}Invalid format{RESET}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             # Trigonometric Functions
             print_header("📐 Trigonometric Functions")
@@ -8790,11 +9232,11 @@ def feature_graphing_calculator():
             print(f"  [3] tan(x)")
             print(f"  [4] Inverse functions")
             trig_choice = input(f"\nSelect: ").strip()
-            
+
             if trig_choice in ['1', '2', '3']:
                 angle_deg = float(input("Enter angle (degrees): "))
                 angle_rad = __import__('math').radians(angle_deg)
-                
+
                 if trig_choice == '1':
                     result = __import__('math').sin(angle_rad)
                     func_name = "sin"
@@ -8804,7 +9246,7 @@ def feature_graphing_calculator():
                 else:
                     result = __import__('math').tan(angle_rad)
                     func_name = "tan"
-                
+
                 print(f"\n{BOLD}{func_name}({angle_deg}°) = {result:.6f}{RESET}")
             elif trig_choice == '4':
                 print(f"\n{BOLD}Inverse Functions:{RESET}")
@@ -8813,9 +9255,9 @@ def feature_graphing_calculator():
                 if -1 <= value <= 1:
                     print(f"  asin({value}) = {__import__('math').degrees(__import__('math').asin(value)):.2f}°")
                     print(f"  acos({value}) = {__import__('math').degrees(__import__('math').acos(value)):.2f}°")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':
             # Random & Probability
             print_header("🎲 Random & Probability")
@@ -8825,7 +9267,7 @@ def feature_graphing_calculator():
             print(f"  [3] Combinations")
             print(f"  [4] Permutations")
             rand_choice = input(f"\nSelect: ").strip()
-            
+
             if rand_choice == '1':
                 a = int(input("Min: "))
                 b = int(input("Max: "))
@@ -8850,9 +9292,9 @@ def feature_graphing_calculator():
                     print(f"P({n},{k}) = {result}")
                 except:
                     print("Invalid input")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':
             safe_run("general", "Save_Load", _calc_save_load)
         elif choice == '12':
