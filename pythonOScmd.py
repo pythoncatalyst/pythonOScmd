@@ -11396,7 +11396,7 @@ COMMAND_CENTER_ACTIONS = [
     ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
-    ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single mp2/mp3/ogg/flac file.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
+    ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single MP2/MP3/OGG/FLAC file.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
@@ -12594,7 +12594,7 @@ def play_audio_file(file_path):
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_quick_audio_playback():
-    """Quick path-based audio launcher available from Command Center."""
+    """Quick path-based audio launcher for common audio formats (mp2/mp3/wav/ogg/flac/m4a/aac)."""
     print_header("🎧 Quick Audio Player")
     supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
     prompt_ext = "/".join(ext.strip(".") for ext in supported)
