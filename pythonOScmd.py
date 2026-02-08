@@ -175,7 +175,7 @@ _TEXTUAL_IMPORTED = False
 _TEXTUAL_IMPORT_ERROR = None
 
 # Shared format constants
-SUPPORTED_AUDIO_FORMATS = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+SUPPORTED_AUDIO_FORMATS = ('.aac', '.flac', '.m4a', '.mp2', '.mp3', '.ogg', '.wav')
 SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv')
 SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
 
@@ -11384,7 +11384,7 @@ def feature_quick_audio_playback():
     """Quick path-based audio launcher for common audio formats."""
     print_header("🎧 Quick Audio Player")
     supported = SUPPORTED_AUDIO_FORMATS
-    prompt_ext = ", ".join(ext.strip(".") for ext in supported)
+    prompt_ext = ", ".join(ext.strip(".") for ext in supported[:4]) + ", etc."
     target = input(f"📂 Enter audio file path (Supported: {prompt_ext}): ").strip()
     if not target:
         print(f"{COLORS['4'][0]}No file selected.{RESET}")
