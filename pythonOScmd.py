@@ -177,6 +177,7 @@ _TEXTUAL_IMPORT_ERROR = None
 # Shared format constants
 SUPPORTED_AUDIO_FORMATS = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
 SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov')
+SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
 
 
 def _ensure_textual_imports():
@@ -5961,7 +5962,7 @@ def feature_media_scanner():
 
     # Extension definitions for the future solar system usage
     media_exts = {
-        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Audio": SUPPORTED_AUDIO_FORMATS,
         "Video": [".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"],
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
@@ -12526,7 +12527,7 @@ def feature_terminal_mp3_player():
             continue
 
         # Find all audio files
-        audio_extensions = list(SUPPORTED_AUDIO_FORMATS)
+        audio_extensions = SUPPORTED_AUDIO_FORMATS
         audio_files = []
 
         try:
@@ -12654,7 +12655,7 @@ def feature_media_scanner_integrated():
         return
 
     media_exts = {
-        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Audio": SUPPORTED_AUDIO_FORMATS,
         "Video": [".mp4", ".mkv"],
         "Images": [".jpg", ".png", ".webp"]
     }
@@ -12795,7 +12796,7 @@ def feature_integrated_explorer():
     items = []
     for root, _, files in os.walk(target):
         for f in files:
-            if f.lower().endswith(SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)):
+            if f.lower().endswith(SUPPORTED_MEDIA_PLUGIN_FORMATS):
                 items.append(os.path.join(root, f))
 
     if not items:
