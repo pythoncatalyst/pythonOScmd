@@ -6442,6 +6442,483 @@ def _download_center_catalog():
                 "https://www.celestrak.org/",
                 "https://rhodesmill.org/pyephem/"
             ]
+        },
+        "security_audit": {
+            "title": "🔐 Security Audit Tools",
+            "description": "Security scanning, auditing, and compliance tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y lynis",
+                    "sudo apt-get install -y aide",
+                    "sudo apt-get install -y ossec-hids-agent"
+                ] + _pip_install_cmds(["bandit", "safety", "trufflehog", "semgrep"]),
+                "fedora": [
+                    "sudo dnf install -y lynis",
+                    "sudo dnf install -y aide",
+                ] + _pip_install_cmds(["bandit", "safety", "trufflehog", "semgrep"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm lynis",
+                    "sudo pacman -Syu --noconfirm aide",
+                ] + _pip_install_cmds(["bandit", "safety", "trufflehog", "semgrep"]),
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add lynis",
+                    "sudo apk add aide",
+                ] + _pip_install_cmds(["bandit", "safety", "trufflehog", "semgrep"]),
+                "generic": _pip_install_cmds(["bandit", "safety", "trufflehog", "semgrep"]) + [
+                    "# Install lynis, aide via package manager"
+                ]
+            },
+            "links": [
+                "https://cisofy.com/lynis/",
+                "https://aid.sourceforge.io/",
+                "https://ossec-docs.readthedocs.io/",
+                "https://bandit.readthedocs.io/",
+                "https://github.com/trufflesecurity/trufflehog"
+            ]
+        },
+        "fuzzing": {
+            "title": "🧪 Fuzzing & Vulnerability Tools",
+            "description": "Fuzzing frameworks and vulnerability detection tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y afl",
+                    "sudo apt-get install -y honggfuzz",
+                ] + _pip_install_cmds(["atheris", "hypothesis", "fuzzer"]),
+                "fedora": [
+                    "sudo dnf install -y afl",
+                    "sudo dnf install -y honggfuzz",
+                ] + _pip_install_cmds(["atheris", "hypothesis", "fuzzer"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm afl",
+                ] + _pip_install_cmds(["atheris", "hypothesis", "fuzzer"]),
+                "generic": _pip_install_cmds(["atheris", "hypothesis", "fuzzer"]) + [
+                    "# Install AFL, honggfuzz via package manager"
+                ]
+            },
+            "links": [
+                "https://lcamtuf.coredump.cx/afl/",
+                "https://honggfuzz.dev/",
+                "https://pypi.org/project/atheris/",
+                "https://hypothesis.readthedocs.io/"
+            ]
+        },
+        "vpn": {
+            "title": "📡 VPN & Tunneling Tools",
+            "description": "VPN, SSH tunneling, and secure proxy tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y wireguard wireguard-tools",
+                    "sudo apt-get install -y openvpn openssl",
+                    "sudo apt-get install -y openssh-client",
+                    "sudo apt-get install -y tor privoxy"
+                ] + _pip_install_cmds(["paramiko", "fabric"]),
+                "fedora": [
+                    "sudo dnf install -y wireguard-tools",
+                    "sudo dnf install -y openvpn openssl",
+                    "sudo dnf install -y openssh-clients",
+                    "sudo dnf install -y tor privoxy"
+                ] + _pip_install_cmds(["paramiko", "fabric"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm wireguard-tools",
+                    "sudo pacman -Syu --noconfirm openvpn openssl",
+                    "sudo pacman -Syu --noconfirm openssh",
+                    "sudo pacman -Syu --noconfirm tor privoxy"
+                ] + _pip_install_cmds(["paramiko", "fabric"]),
+                "generic": _pip_install_cmds(["paramiko", "fabric"]) + [
+                    "# Install Wireguard, OpenVPN, SSH, Tor via package manager"
+                ]
+            },
+            "links": [
+                "https://www.wireguard.com/",
+                "https://openvpn.net/",
+                "https://www.torproject.org/",
+                "https://www.paramiko.org/",
+                "https://www.fabfile.org/"
+            ]
+        },
+        "api_web": {
+            "title": "🔗 API & Web Service Tools",
+            "description": "REST API, GraphQL, and web service development tools",
+            "commands": {
+                "generic": _pip_install_cmds([
+                    "requests", "httpx", "aiohttp",
+                    "graphql-core", "graphene",
+                    "fastapi", "starlette",
+                    "swagger-ui", "openapi-spec-validator"
+                ])
+            },
+            "links": [
+                "https://requests.readthedocs.io/",
+                "https://www.python-httpx.org/",
+                "https://docs.aiohttp.org/",
+                "https://graphql-core-3.readthedocs.io/",
+                "https://graphene-python.org/",
+                "https://fastapi.tiangolo.com/"
+            ]
+        },
+        "iot_embedded": {
+            "title": "📲 IoT & Embedded Network Tools",
+            "description": "IoT, embedded systems, and microcontroller tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y esptool",
+                    "sudo apt-get install -y minicom",
+                    "sudo apt-get install -y screen"
+                ] + _pip_install_cmds(["adafruit-ampy", "micropython", "paho-mqtt"]),
+                "fedora": [
+                    "sudo dnf install -y esptool",
+                    "sudo dnf install -y minicom",
+                    "sudo dnf install -y screen"
+                ] + _pip_install_cmds(["adafruit-ampy", "micropython", "paho-mqtt"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm esptool",
+                    "sudo pacman -Syu --noconfirm minicom",
+                    "sudo pacman -Syu --noconfirm screen"
+                ] + _pip_install_cmds(["adafruit-ampy", "micropython", "paho-mqtt"]),
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add minicom",
+                    "sudo apk add screen"
+                ] + _pip_install_cmds(["adafruit-ampy", "micropython", "paho-mqtt"]),
+                "generic": _pip_install_cmds(["adafruit-ampy", "micropython", "paho-mqtt"]) + [
+                    "# Install esptool, minicom, screen via package manager"
+                ]
+            },
+            "links": [
+                "https://github.com/espressif/esptool",
+                "https://learn.adafruit.com/micropython",
+                "https://www.eclipse.org/paho/index.php?page=clients/python/index.php",
+                "https://www.arduino.cc/"
+            ]
+        },
+        "geolocation": {
+            "title": "🌍 Geolocation & Mapping Tools",
+            "description": "Geolocation, mapping, and location intelligence tools",
+            "commands": {
+                "generic": _pip_install_cmds([
+                    "folium", "geopandas", "geopy",
+                    "pyproj", "cartopy", "leaflet"
+                ])
+            },
+            "links": [
+                "https://python-visualization.github.io/folium/",
+                "https://geopandas.org/",
+                "https://geopy.readthedocs.io/",
+                "https://www.pyproj.org/",
+                "https://scitools.org.uk/cartopy/",
+                "https://leafletjs.com/"
+            ]
+        },
+        "database_orm": {
+            "title": "📦 Database & ORM Tools",
+            "description": "SQL databases, ORM frameworks, and query tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y postgresql postgresql-client",
+                    "sudo apt-get install -y mysql-client",
+                    "sudo apt-get install -y sqlite3"
+                ] + _pip_install_cmds(["sqlalchemy", "alembic", "tortoise-orm", "psycopg2-binary", "pymysql"]),
+                "fedora": [
+                    "sudo dnf install -y postgresql",
+                    "sudo dnf install -y mysql",
+                    "sudo dnf install -y sqlite"
+                ] + _pip_install_cmds(["sqlalchemy", "alembic", "tortoise-orm", "psycopg2-binary", "pymysql"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm postgresql",
+                    "sudo pacman -Syu --noconfirm mysql",
+                    "sudo pacman -Syu --noconfirm sqlite"
+                ] + _pip_install_cmds(["sqlalchemy", "alembic", "tortoise-orm", "psycopg2-binary", "pymysql"]),
+                "generic": _pip_install_cmds(["sqlalchemy", "alembic", "tortoise-orm", "psycopg2-binary", "pymysql"]) + [
+                    "# Install PostgreSQL, MySQL, SQLite via package manager"
+                ]
+            },
+            "links": [
+                "https://www.postgresql.org/",
+                "https://www.mysql.com/",
+                "https://www.sqlite.org/",
+                "https://www.sqlalchemy.org/",
+                "https://alembic.sqlalchemy.org/",
+                "https://tortoise-orm.readthedocs.io/"
+            ]
+        },
+        "devops": {
+            "title": "🚀 DevOps & Containerization",
+            "description": "Docker, Kubernetes, CI/CD, and Infrastructure as Code",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y docker.io",
+                    "sudo apt-get install -y docker-compose",
+                    "sudo apt-get install -y git"
+                ] + _pip_install_cmds(["docker", "ansible", "terraform", "boto3"]),
+                "fedora": [
+                    "sudo dnf install -y docker",
+                    "sudo dnf install -y docker-compose",
+                    "sudo dnf install -y git"
+                ] + _pip_install_cmds(["docker", "ansible", "terraform", "boto3"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm docker",
+                    "sudo pacman -Syu --noconfirm docker-compose",
+                    "sudo pacman -Syu --noconfirm git"
+                ] + _pip_install_cmds(["docker", "ansible", "terraform", "boto3"]),
+                "generic": _pip_install_cmds(["docker", "ansible", "terraform", "boto3"]) + [
+                    "# Install Docker, Docker Compose via package manager"
+                ]
+            },
+            "links": [
+                "https://www.docker.com/",
+                "https://docs.docker.com/compose/",
+                "https://kubernetes.io/",
+                "https://www.ansible.com/",
+                "https://www.terraform.io/",
+                "https://boto3.amazonaws.com/"
+            ]
+        },
+        "ml_ai": {
+            "title": "🤖 Machine Learning & AI Tools",
+            "description": "PyTorch, TensorFlow, Hugging Face, and AI frameworks",
+            "commands": {
+                "generic": _pip_install_cmds([
+                    "torch", "tensorflow", "transformers",
+                    "huggingface-hub", "datasets",
+                    "scikit-learn", "xgboost", "lightgbm"
+                ])
+            },
+            "links": [
+                "https://pytorch.org/",
+                "https://www.tensorflow.org/",
+                "https://huggingface.co/",
+                "https://huggingface.co/docs/transformers/",
+                "https://huggingface.co/docs/datasets/",
+                "https://scikit-learn.org/",
+                "https://xgboost.readthedocs.io/",
+                "https://lightgbm.readthedocs.io/"
+            ]
+        },
+        "scientific": {
+            "title": "📈 Scientific Computing Libraries",
+            "description": "SciPy, SymPy, and advanced scientific computing",
+            "commands": {
+                "generic": _pip_install_cmds([
+                    "scipy", "sympy", "statsmodels",
+                    "networkx", "opencv-python", "pillow"
+                ])
+            },
+            "links": [
+                "https://scipy.org/",
+                "https://www.sympy.org/",
+                "https://www.statsmodels.org/",
+                "https://networkx.org/",
+                "https://opencv.org/",
+                "https://pillow.readthedocs.io/"
+            ]
+        },
+        "research": {
+            "title": "🔬 Research & Academic Tools",
+            "description": "Jupyter, Pandas, and research-oriented tools",
+            "commands": {
+                "generic": _pip_install_cmds([
+                    "jupyter", "jupyterlab", "pandas",
+                    "plotly", "dash", "bokeh",
+                    "scholarly", "arxiv"
+                ])
+            },
+            "links": [
+                "https://jupyter.org/",
+                "https://jupyterlab.readthedocs.io/",
+                "https://pandas.pydata.org/",
+                "https://plotly.com/python/",
+                "https://dash.plotly.com/",
+                "https://docs.bokeh.org/",
+                "https://scholarly.readthedocs.io/",
+                "https://github.com/lukasschwab/arxiv.py"
+            ]
+        },
+        "graphics": {
+            "title": "🎨 Graphics & Design Tools",
+            "description": "Image processing, graphics, and design tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y gimp",
+                    "sudo apt-get install -y inkscape",
+                    "sudo apt-get install -y blender"
+                ] + _pip_install_cmds(["pillow", "opencv-python", "matplotlib", "plotly"]),
+                "fedora": [
+                    "sudo dnf install -y gimp",
+                    "sudo dnf install -y inkscape",
+                    "sudo dnf install -y blender"
+                ] + _pip_install_cmds(["pillow", "opencv-python", "matplotlib", "plotly"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm gimp",
+                    "sudo pacman -Syu --noconfirm inkscape",
+                    "sudo pacman -Syu --noconfirm blender"
+                ] + _pip_install_cmds(["pillow", "opencv-python", "matplotlib", "plotly"]),
+                "generic": _pip_install_cmds(["pillow", "opencv-python", "matplotlib", "plotly"]) + [
+                    "# Install GIMP, Inkscape, Blender via package manager"
+                ]
+            },
+            "links": [
+                "https://www.gimp.org/",
+                "https://inkscape.org/",
+                "https://www.blender.org/",
+                "https://pillow.readthedocs.io/",
+                "https://opencv.org/",
+                "https://matplotlib.org/"
+            ]
+        },
+        "audio": {
+            "title": "🎵 Audio & Music Tools",
+            "description": "Audio processing, music creation, and sound tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y sox",
+                    "sudo apt-get install -y audacity",
+                    "sudo apt-get install -y flac",
+                    "sudo apt-get install -y opus-tools"
+                ] + _pip_install_cmds(["librosa", "soundfile", "pydub", "music21"]),
+                "fedora": [
+                    "sudo dnf install -y sox",
+                    "sudo dnf install -y audacity",
+                    "sudo dnf install -y flac",
+                    "sudo dnf install -y opus-tools"
+                ] + _pip_install_cmds(["librosa", "soundfile", "pydub", "music21"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm sox",
+                    "sudo pacman -Syu --noconfirm audacity",
+                    "sudo pacman -Syu --noconfirm flac",
+                    "sudo pacman -Syu --noconfirm opus-tools"
+                ] + _pip_install_cmds(["librosa", "soundfile", "pydub", "music21"]),
+                "generic": _pip_install_cmds(["librosa", "soundfile", "pydub", "music21"]) + [
+                    "# Install SoX, Audacity, FLAC via package manager"
+                ]
+            },
+            "links": [
+                "https://sox.sourceforge.net/",
+                "https://www.audacityteam.org/",
+                "https://xiph.org/flac/",
+                "https://librosa.org/",
+                "https://soundfile.readthedocs.io/",
+                "https://pydub.simplewebrtc.org/"
+            ]
+        },
+        "file_management": {
+            "title": "🗂️ File Management & Storage",
+            "description": "File systems, compression, backup, and storage tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y rsync",
+                    "sudo apt-get install -y rclone",
+                    "sudo apt-get install -y zip unzip",
+                    "sudo apt-get install -y tar gzip bzip2"
+                ] + _pip_install_cmds(["pathlib2", "tqdm", "progress"]),
+                "fedora": [
+                    "sudo dnf install -y rsync",
+                    "sudo dnf install -y rclone",
+                    "sudo dnf install -y zip unzip",
+                    "sudo dnf install -y tar gzip bzip2"
+                ] + _pip_install_cmds(["pathlib2", "tqdm", "progress"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm rsync",
+                    "sudo pacman -Syu --noconfirm rclone",
+                    "sudo pacman -Syu --noconfirm zip",
+                    "sudo pacman -Syu --noconfirm tar gzip bzip2"
+                ] + _pip_install_cmds(["pathlib2", "tqdm", "progress"]),
+                "generic": _pip_install_cmds(["pathlib2", "tqdm", "progress"]) + [
+                    "# Install rsync, rclone, zip via package manager"
+                ]
+            },
+            "links": [
+                "https://rsync.samba.org/",
+                "https://rclone.org/",
+                "https://www.python.org/",
+                "https://tqdm.github.io/"
+            ]
+        },
+        "maintenance": {
+            "title": "🔄 System Maintenance & Cleanup",
+            "description": "System optimization, cleanup, and maintenance tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get autoremove",
+                    "sudo apt-get autoclean",
+                    "sudo apt-get install -y bleachbit",
+                    "sudo apt-get install -y clamav"
+                ] + _pip_install_cmds(["psutil", "speedtest-cli"]),
+                "fedora": [
+                    "sudo dnf autoremove",
+                    "sudo dnf clean all",
+                    "sudo dnf install -y bleachbit",
+                    "sudo dnf install -y clamav"
+                ] + _pip_install_cmds(["psutil", "speedtest-cli"]),
+                "arch": [
+                    "sudo pacman -Syu",
+                    "sudo pacman -Rdd $(pacman -Qdtq)",
+                    "sudo pacman -Syu --noconfirm bleachbit",
+                    "sudo pacman -Syu --noconfirm clamav"
+                ] + _pip_install_cmds(["psutil", "speedtest-cli"]),
+                "generic": _pip_install_cmds(["psutil", "speedtest-cli"]) + [
+                    "# Run package manager cleanup commands"
+                ]
+            },
+            "links": [
+                "https://www.bleachbit.org/",
+                "https://www.clamav.net/",
+                "https://psutil.readthedocs.io/",
+                "https://www.speedtest.net/"
+            ]
+        },
+        "advanced_build": {
+            "title": "🚀 Advanced Installation & Build Tools",
+            "description": "Build systems, compilers, and advanced package tools",
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y build-essential",
+                    "sudo apt-get install -y cmake",
+                    "sudo apt-get install -y gcc g++ gfortran",
+                    "sudo apt-get install -y make autoconf libtool"
+                ] + _pip_install_cmds(["setuptools", "wheel", "twine", "poetry"]),
+                "fedora": [
+                    "sudo dnf install -y @development-tools",
+                    "sudo dnf install -y cmake",
+                    "sudo dnf install -y gcc g++ gfortran",
+                    "sudo dnf install -y make autoconf libtool"
+                ] + _pip_install_cmds(["setuptools", "wheel", "twine", "poetry"]),
+                "arch": [
+                    "sudo pacman -Syu --noconfirm base-devel",
+                    "sudo pacman -Syu --noconfirm cmake",
+                    "sudo pacman -Syu --noconfirm gcc",
+                    "sudo pacman -Syu --noconfirm make autoconf libtool"
+                ] + _pip_install_cmds(["setuptools", "wheel", "twine", "poetry"]),
+                "alpine": [
+                    "sudo apk update",
+                    "sudo apk add build-base",
+                    "sudo apk add cmake",
+                    "sudo apk add gcc g++ gfortran",
+                    "sudo apk add make autoconf libtool"
+                ] + _pip_install_cmds(["setuptools", "wheel", "twine", "poetry"]),
+                "generic": _pip_install_cmds(["setuptools", "wheel", "twine", "poetry"]) + [
+                    "# Install build tools, CMake, compilers via package manager"
+                ]
+            },
+            "links": [
+                "https://cmake.org/",
+                "https://gcc.gnu.org/",
+                "https://github.com/pypa/setuptools",
+                "https://github.com/pypa/wheel",
+                "https://github.com/pypa/twine",
+                "https://python-poetry.org/"
+            ]
         }
     }
 
@@ -6717,17 +7194,72 @@ def feature_tui_tools():
 
 
 def feature_download_center():
-    """Download Center: OS-aware update/install scripts."""
+    """📦 Enhanced Download Center: 27-Feature OS-Aware Package Management System."""
     os_key = _detect_os_key()
     catalog = _download_center_catalog()
+    
+    # OS Detection and Information
+    def _detect_system_info():
+        """Detect detailed system information."""
+        info = {
+            "os": _detect_os_key(),
+            "arch": platform.machine(),
+            "platform": platform.system(),
+            "python_version": platform.python_version(),
+            "node_available": shutil.which("node") is not None,
+            "npm_available": shutil.which("npm") is not None,
+            "pip_available": shutil.which("pip") is not None or shutil.which("pip3") is not None,
+            "git_available": shutil.which("git") is not None,
+            "docker_available": shutil.which("docker") is not None,
+        }
+        return info
+    
+    # Compatibility checking algorithms
+    def _check_os_compatibility(package_key, os_target):
+        """Check if package is compatible with target OS."""
+        catalog_entry = catalog.get(package_key, {})
+        commands = catalog_entry.get("commands", {})
+        if os_target in commands:
+            return True, "Direct support"
+        if "generic" in commands:
+            return True, "Generic support available"
+        if "arm" in commands and platform.machine().lower() in ["armv7l", "armv6l", "aarch64"]:
+            return True, "ARM architecture support"
+        return False, "Not compatible with this OS"
+    
+    # ARM vs x86_64 architecture detection
+    def _detect_architecture():
+        """Detect system architecture (x86_64, ARM, etc)."""
+        arch = platform.machine().lower()
+        if arch in ["x86_64", "amd64"]:
+            return "x86_64", "Standard 64-bit Intel/AMD"
+        elif arch in ["armv7l", "armv8l", "arm"]:
+            return "ARM32", "32-bit ARM (Raspberry Pi, etc)"
+        elif arch == "aarch64":
+            return "ARM64", "64-bit ARM (ARMv8)"
+        elif arch in ["i386", "i686"]:
+            return "x86", "32-bit Intel/AMD"
+        elif arch == "riscv64":
+            return "RISC-V", "RISC-V 64-bit"
+        else:
+            return arch, "Other/Unknown"
 
     def select_os(current_key):
+        """Select target OS with compatibility information."""
         options = [
             "debian", "kali", "fedora", "arch", "alpine", "linux",
             "macos", "windows", "android", "ios", "esp32"
         ]
-        print(f"\n{BOLD}Detected OS:{RESET} {current_key}")
-        print("Select OS target:")
+        print(f"\n{BOLD}Current System:{RESET}")
+        sys_info = _detect_system_info()
+        arch_type, arch_desc = _detect_architecture()
+        print(f"  OS: {sys_info['os']}")
+        print(f"  Architecture: {arch_type} ({arch_desc})")
+        print(f"  Platform: {sys_info['platform']}")
+        print(f"  Python: {sys_info['python_version']}")
+        print(f"  Tools: {'Node' if sys_info['node_available'] else ''} {'NPM' if sys_info['npm_available'] else ''} {'PIP' if sys_info['pip_available'] else ''} {'Git' if sys_info['git_available'] else ''} {'Docker' if sys_info['docker_available'] else ''}")
+        
+        print(f"\n{BOLD}Select Target OS:{RESET}")
         for i, k in enumerate(options, 1):
             print(f"  [{i}] {k}")
         choice = input("\nSelect OS number (or Enter to keep): ").strip()
@@ -6735,49 +7267,231 @@ def feature_download_center():
             return options[int(choice) - 1]
         return current_key
 
+    def show_os_detection():
+        """Show OS detection and system information menu."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🖥️ System Detection & Compatibility")
+        sys_info = _detect_system_info()
+        arch_type, arch_desc = _detect_architecture()
+        
+        print(f"\n{BOLD}DETECTED SYSTEM INFORMATION:{RESET}")
+        print(f"  OS Type: {sys_info['os']}")
+        print(f"  Platform: {sys_info['platform']}")
+        print(f"  Architecture: {arch_type} ({arch_desc})")
+        print(f"  Python Version: {sys_info['python_version']}")
+        
+        print(f"\n{BOLD}AVAILABLE TOOLS:{RESET}")
+        tools = [
+            ("Node.js", sys_info['node_available']),
+            ("NPM", sys_info['npm_available']),
+            ("PIP/PIP3", sys_info['pip_available']),
+            ("Git", sys_info['git_available']),
+            ("Docker", sys_info['docker_available']),
+        ]
+        for tool, available in tools:
+            status = f"{COLORS['2'][0]}✓ Available{RESET}" if available else f"{COLORS['1'][0]}✗ Not found{RESET}"
+            print(f"  {tool:20} {status}")
+        
+        print(f"\n{BOLD}COMPATIBILITY MATRIX:{RESET}")
+        print("  Your system can install from: Linux distro commands, ARM syntax (if applicable)")
+        if arch_type.startswith("ARM"):
+            print(f"  {COLORS['2'][0]}✓ ARM packages available (Raspberry Pi, Android, etc){RESET}")
+        else:
+            print(f"  {COLORS['2'][0]}✓ x86_64 packages available (standard Linux/macOS/Windows){RESET}")
+        
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def show_package_info(package_key):
+        """Show detailed package information with download links."""
+        entry = catalog.get(package_key, {})
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(entry.get("title", "Package Information"))
+        
+        print(f"\n{BOLD}Description:{RESET}")
+        print(f"  {entry.get('description', 'No description available')}")
+        
+        print(f"\n{BOLD}Supported Operating Systems:{RESET}")
+        commands = entry.get("commands", {})
+        for os_name in commands.keys():
+            if os_name != "generic":
+                compat, msg = _check_os_compatibility(package_key, os_name)
+                status = f"{COLORS['2'][0]}✓{RESET}" if compat else f"{COLORS['1'][0]}✗{RESET}"
+                print(f"  {status} {os_name}")
+        
+        if "generic" in commands:
+            print(f"  {COLORS['2'][0]}✓ generic (fallback){RESET}")
+        
+        print(f"\n{BOLD}Download Links:{RESET}")
+        links = entry.get("links", [])
+        if links:
+            for i, link in enumerate(links, 1):
+                print(f"  [{i}] {link}")
+        else:
+            print("  No direct links available")
+        
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def show_architecture_guide():
+        """Show architecture compatibility guide."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🏗️ Architecture & Distro Guide")
+        
+        arch_type, arch_desc = _detect_architecture()
+        print(f"\n{BOLD}YOUR SYSTEM:{RESET}")
+        print(f"  Architecture: {arch_type}")
+        print(f"  Description: {arch_desc}")
+        
+        print(f"\n{BOLD}LINUX DISTRO SYNTAX:{RESET}")
+        print("  Debian/Ubuntu/Kali: sudo apt-get install package-name")
+        print("  Fedora/RHEL: sudo dnf install package-name")
+        print("  Arch/Manjaro: sudo pacman -S package-name")
+        print("  Alpine: sudo apk add package-name")
+        
+        print(f"\n{BOLD}ARM DISTRO SYNTAX (Raspberry Pi, ARM devices):{RESET}")
+        if arch_type.startswith("ARM"):
+            print(f"  {COLORS['2'][0]}Your system uses ARM architecture{RESET}")
+            print("  Compatible distributions: Raspbian, Ubuntu ARM, Arch ARM")
+            print("  Package managers work the same as x86_64")
+            print("  Many packages have ARM-optimized builds available")
+        else:
+            print(f"  {COLORS['1'][0]}Your system uses x86_64 architecture{RESET}")
+            print("  Install ARM packages on ARM devices using standard syntax")
+        
+        print(f"\n{BOLD}DOWNLOAD LINKS FOR COMMON TOOLS:{RESET}")
+        links_info = [
+            ("Node.js", "https://nodejs.org/en/download/package-manager/"),
+            ("Python", "https://www.python.org/downloads/"),
+            ("Git", "https://git-scm.com/download/"),
+            ("Docker", "https://docs.docker.com/get-docker/"),
+            ("Homebrew (macOS)", "https://brew.sh/"),
+        ]
+        for tool, link in links_info:
+            print(f"  {tool:20} {link}")
+        
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def show_dependency_checker():
+        """Check and show dependency information."""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔍 Dependency Checker")
+        
+        print(f"\n{BOLD}INSTALLED DEPENDENCIES:{RESET}")
+        dependencies = [
+            ("Python 3", shutil.which("python3") or shutil.which("python")),
+            ("PIP Package Manager", shutil.which("pip") or shutil.which("pip3")),
+            ("Git Version Control", shutil.which("git")),
+            ("Node.js Runtime", shutil.which("node")),
+            ("NPM Package Manager", shutil.which("npm")),
+            ("Curl/Wget", shutil.which("curl") or shutil.which("wget")),
+            ("Docker Container", shutil.which("docker")),
+            ("sudo Privilege", shutil.which("sudo")),
+        ]
+        
+        for dep_name, path in dependencies:
+            if path:
+                print(f"  {COLORS['2'][0]}✓{RESET} {dep_name:25} {path}")
+            else:
+                print(f"  {COLORS['1'][0]}✗{RESET} {dep_name:25} Not found")
+        
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    sys_info = _detect_system_info()
+    
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("Download Center")
-        print(f"{BOLD}OS Target:{RESET} {os_key}")
-        print(f"{BOLD}Select a package group:{RESET}")
-        print(" [1] Pen Test Tools (Command Center 12)")
-        print(" [2] Defence Tools (Command Center 13)")
-        print(" [3] Network/WiFi/Bluetooth Tools (0/J/L)")
-        print(" [4] Media Tools (I)")
-        print(" [5] AI Center Tools (K)")
-        print(" [6] Core PythonOS Libraries")
-        print(" [7] General Purpose Python Libraries")
-        print(" [8] Data Science / Analysis Stack")
-        print(" [9] Web Development Stack")
-        print(" [10] PWN Tools (P)")
-        print(" [11] MapSCII (Satellite Tracker)")
-        print(" [12] Text & Doc Tools (T)")
-        print(" [13] TUI Tools (Command Center X)")
-        print(" [S] Select OS Target")
-        print(" [0] Return")
+        print_header("📦 Enhanced Download Center (27 Features)")
+        arch_type, _ = _detect_architecture()
+        print(f"{BOLD}System:{RESET} {sys_info['os']} | {BOLD}Architecture:{RESET} {arch_type} | {BOLD}Python:{RESET} {sys_info['python_version']}")
+        print(f"\n{BOLD}CATEGORY 1: SECURITY & TESTING (5 options){RESET}")
+        print(" [1] 🔍 Pen Test Tools (Command Center 12)")
+        print(" [2] 🛡️  Defence Tools (Command Center 13)")
+        print(" [3] 💻 PWN Tools (Command Center P)")
+        print(" [4] 🔐 Security Audit Tools")
+        print(" [5] 🧪 Fuzzing & Vulnerability Tools")
+        
+        print(f"\n{BOLD}CATEGORY 2: NETWORKING & COMMUNICATIONS (5 options){RESET}")
+        print(" [6] 🌐 Network/WiFi/Bluetooth Tools (0/J/L)")
+        print(" [7] 📡 VPN & Tunneling Tools")
+        print(" [8] 🔗 API & Web Service Tools")
+        print(" [9] 📲 IoT & Embedded Network Tools")
+        print(" [10] 🌍 Geolocation & Mapping Tools")
+        
+        print(f"\n{BOLD}CATEGORY 3: DEVELOPMENT & PROGRAMMING (5 options){RESET}")
+        print(" [11] 🐍 Core PythonOS Libraries")
+        print(" [12] 🔧 General Purpose Python Libraries")
+        print(" [13] 🌐 Web Development Stack")
+        print(" [14] 📦 Database & ORM Tools")
+        print(" [15] 🚀 DevOps & Containerization")
+        
+        print(f"\n{BOLD}CATEGORY 4: DATA & SCIENCE (4 options){RESET}")
+        print(" [16] 📊 Data Science / Analysis Stack")
+        print(" [17] 🤖 Machine Learning & AI Tools")
+        print(" [18] 📈 Scientific Computing Libraries")
+        print(" [19] 🔬 Research & Academic Tools")
+        
+        print(f"\n{BOLD}CATEGORY 5: MEDIA & CONTENT (4 options){RESET}")
+        print(" [20] 🎬 Media Tools (Command Center I)")
+        print(" [21] 🎨 Graphics & Design Tools")
+        print(" [22] 🎵 Audio & Music Tools")
+        print(" [23] 📄 Text & Doc Tools (Command Center T)")
+        
+        print(f"\n{BOLD}CATEGORY 6: SYSTEM & UTILITIES (4 options){RESET}")
+        print(" [24] 🛠️  TUI Tools (Command Center X)")
+        print(" [25] 🗂️  File Management & Storage")
+        print(" [26] 🔄 System Maintenance & Cleanup")
+        print(" [27] 🚀 Advanced Installation & Build Tools")
+        
+        print(f"\n{BOLD}SYSTEM & INFO OPTIONS:{RESET}")
+        print(" [D] 🖥️  System Detection & Compatibility")
+        print(" [A] 🏗️  Architecture & Distro Guide")
+        print(" [C] 🔍 Dependency Checker")
+        print(" [I] ℹ️  Package Information Viewer")
+        print(" [S] 📍 Select OS Target")
+        print(" [0] ↩️  Return to Command Center")
 
         choice = input("\nSelect option: ").strip().upper()
         if choice == '0':
             break
+        
+        if choice == 'D':
+            show_os_detection()
+            continue
+        if choice == 'A':
+            show_architecture_guide()
+            continue
+        if choice == 'C':
+            show_dependency_checker()
+            continue
+        if choice == 'I':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("ℹ️ Package Information")
+            mapping_display = {
+                "1": "pentest", "2": "defence", "3": "pwn_tools", "4": "security_audit", "5": "fuzzing",
+                "6": "network", "7": "vpn", "8": "api_web", "9": "iot_embedded", "10": "geolocation",
+                "11": "core_python", "12": "general_python", "13": "web_dev", "14": "database_orm", "15": "devops",
+                "16": "data_science", "17": "ml_ai", "18": "scientific", "19": "research",
+                "20": "media", "21": "graphics", "22": "audio", "23": "text_doc",
+                "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build"
+            }
+            print("Enter package number to view info (or 0 to skip): ")
+            pkg_choice = input().strip()
+            if pkg_choice in mapping_display:
+                show_package_info(mapping_display[pkg_choice])
+            continue
         if choice == 'S':
-            os_key = select_os(os_key)
+            sys_info['os'] = select_os(sys_info['os'])
+            os_key = sys_info['os']
             continue
 
         mapping = {
-            "1": "pentest",
-            "2": "defence",
-            "3": "network",
-            "4": "media",
-            "5": "ai",
-            "6": "core_python",
-            "7": "general_python",
-            "8": "data_science",
-            "9": "web_dev",
-            "10": "pwn_tools",
-            "11": "mapscii",
-            "12": "text_doc",
-            "13": "tui_tools"
+            "1": "pentest", "2": "defence", "3": "pwn_tools", "4": "security_audit", "5": "fuzzing",
+            "6": "network", "7": "vpn", "8": "api_web", "9": "iot_embedded", "10": "geolocation",
+            "11": "core_python", "12": "general_python", "13": "web_dev", "14": "database_orm", "15": "devops",
+            "16": "data_science", "17": "ml_ai", "18": "scientific", "19": "research",
+            "20": "media", "21": "graphics", "22": "audio", "23": "text_doc",
+            "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build"
         }
+        
         key = mapping.get(choice)
         if not key:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
@@ -6787,6 +7501,8 @@ def feature_download_center():
         entry = catalog.get(key, {})
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(entry.get("title", "Download Center"))
+        print(f"\n{BOLD}Target OS:{RESET} {os_key}")
+        
         cmd_list = _download_center_print_commands(os_key, entry)
         if cmd_list:
             run = input("\nRun install commands now? (y/n): ").strip().lower()
