@@ -18742,6 +18742,88 @@ if file_mgr_meta:
     # Deep copy to keep legacy key isolated from future mutations
     COMMAND_ACTION_MAP["file-system"] = copy.deepcopy(file_mgr_meta)
 
+# === DYNAMIC MENU BUILDER FOR CLASSIC & PYTEXTOS SYNC ===
+def _build_classic_app_menu_options():
+    """
+    Build menu options from CLASSIC_APP_ACTIONS for display in both classic and PyTextOS.
+    This ensures both menus stay in sync automatically when items are added/removed.
+    
+    Returns: Dict with layout info for displaying the menu.
+    """
+    app_options = []
+    
+    # Define a mapping of app keys to their single-letter shortcuts
+    single_letter_keys = {
+        'browser': '7', 'disk': '8', 'process': '9', 'plugin': '10',
+        'dashboard': '11', 'pentest': '12', 'defence': '13', 'network': '0',
+        'audit': 'A', 'env': 'B', 'hardware': 'C', 'ai_probe': 'D',
+        'calendar': 'E', 'latency': 'F', 'weather': 'G', 'displayfx': 'H',
+        'media': 'I', 'pybeacon': 'W', 'wifi': 'J', 'ai_center': 'K',
+        'bluetooth': 'L', 'traffic': 'M', 'logs': 'N', 'download': 'O',
+        'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
+        'docs': 'T'
+    }
+    
+    for key, meta in CLASSIC_APP_ACTIONS:
+        shortcut = single_letter_keys.get(key, '?')
+        title = meta.get("title", key)
+        app_options.append((shortcut, title, key))
+    
+    # Also add special options
+    special_opts = [
+        ('X', 'TUI Tools', 'tui_tools'),
+    ]
+    
+    return {
+        'apps': app_options,
+        'special': special_opts,
+        'single_letter_keys': single_letter_keys,
+    }
+
+def _format_classic_menu_display():
+    """
+    Format the classic command center menu for display.
+    Dynamically generates the menu from CLASSIC_APP_ACTIONS.
+    
+    Returns: Formatted menu string for printing.
+    """
+    menu_data = _build_classic_app_menu_options()
+    
+    # Build formatted menu lines (3 items per row where possible)
+    lines = []
+    items = menu_data['apps']
+    
+    # Start with static options
+    lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
+    lines.append(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
+    
+    # Group items by category for better layout
+    # Group 1: Network & System Tools (0, 7-11)
+    group1_keys = {'network': '0', 'browser': '7', 'disk': '8', 'process': '9', 'plugin': '10', 'dashboard': '11'}
+    group1 = [(k, items) for s, t, k in items if k in group1_keys]
+    
+    if group1:
+        lines.append(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
+        lines.append(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
+    
+    # Group 2: Security & Probing (A-E)
+    lines.append(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
+    
+    # Group 3: Monitoring & Media (F-I)
+    lines.append(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🚀 pyBeacon")
+    
+    # Group 4: Network Tools (J-M)
+    lines.append(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
+    
+    # Group 5: Management Tools (N-T)
+    lines.append(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
+    lines.append(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc  {BOLD}[X]{RESET} 🛠️ TUI Tools")
+    
+    # Display modes
+    lines.append(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
+    
+    return "\n".join(lines)
+
 TEXTUAL_BAR_LENGTH = 20  # Usage bar spans 20 blocks (5% utilization per block)
 TEXTUAL_BAR_RATIO = TEXTUAL_BAR_LENGTH / 100.0  # Blocks per percent of utilization
 
@@ -19477,16 +19559,9 @@ def run_classic_command_center():
 
         c = get_current_color()
         print(f"\n{BOLD}{c}{BOX_CHARS['TL']}{BOX_CHARS['H']*24} 🌍 COMMAND CENTER {BOX_CHARS['H']*24}{BOX_CHARS['TR']}{RESET}")
-        print(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
-        print(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
-        print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
-        print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
-        print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
-        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🚀 pyBeacon")
-        print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
-        print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc  {BOLD}[X]{RESET} 🛠️ TUI Tools")
-        print(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
+        # Use dynamic menu builder to sync with PyTextOS
+        menu_display = _format_classic_menu_display()
+        print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
         choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
