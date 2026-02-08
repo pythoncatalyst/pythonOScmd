@@ -11441,8 +11441,8 @@ CLASSIC_APP_ACTIONS = [
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
 ]
 
-# Command Center actions presented in the Textual shell. Each entry includes
-# a key, title, summary, and the callable to launch.
+# Command Center actions presented in the Textual shell. Entries may include
+# optional metadata (category, operation, func, mode) alongside title/summary.
 COMMAND_CENTER_ACTIONS = [
     ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
     *CLASSIC_APP_ACTIONS,
@@ -11686,7 +11686,7 @@ def run_pytextos(return_to_classic=False):
                         pct = max(0, min(100, float(pct)))
                     except (TypeError, ValueError):
                         pct = 0.0
-                    filled = int((pct + (TEXTUAL_BAR_SCALE / 2)) / TEXTUAL_BAR_SCALE)
+                    filled = round(pct / TEXTUAL_BAR_SCALE)
                     filled = max(0, min(TEXTUAL_BAR_LENGTH, filled))
                     return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
 
