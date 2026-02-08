@@ -2125,6 +2125,9 @@ display_mode = "classic"
 textual_style_mode = "inline"
 textual_layout_mode = "two_pane"
 TEXTUAL_CSS_PATH = os.path.join(SCRIPT_DIR, "textual_enhanced.css")
+TEXTUAL_MONITOR_WIDTH = 46  # Width of the upper-right monitor pane in columns
+SCRIPT_MONITOR_LINE_WIDTH = 60  # Width used when rendering script monitor content
+SCRIPT_MONITOR_MAX_LINES = 40  # Number of recent lines to show in the script monitor
 _monitor_buffer = deque(maxlen=200)
 _monitor_lock = threading.Lock()
 _active_textual_monitor = None
@@ -2133,11 +2136,13 @@ def monitor_print(message: str):
     """Append a line of text to the Textual monitor pane (upper-right)."""
     ts = datetime.datetime.now().strftime("%H:%M:%S")
     line = f"[{ts}] {message}"
+    target = None
     with _monitor_lock:
         _monitor_buffer.append(line)
-    if _active_textual_monitor:
+        target = _active_textual_monitor
+    if target:
         try:
-            _active_textual_monitor.refresh_script_monitor()
+            target.refresh_script_monitor()
         except Exception:
             pass
 
@@ -10434,7 +10439,7 @@ def _select_color_scheme():
         user_has_chosen = False
         _update_user_config(user_has_chosen=user_has_chosen)
 
-TEXTUAL_INLINE_CSS = """
+TEXTUAL_INLINE_CSS = f"""
 Screen {
     background: #0f131a;
     color: #e5e7eb;
@@ -10507,7 +10512,7 @@ Screen {
     column-gap: 1;
 }
 #monitor-pane {
-    width: 46;
+    width: {TEXTUAL_MONITOR_WIDTH};
     height: 18;
     border: round #2a2f3a;
     background: #0a0e14;
@@ -11364,17 +11369,18 @@ def run_pytextos(return_to_classic=False):
 
             def _get_script_monitor_display(self):
                 """Render the script monitor buffer into the monitor pane."""
+                width = SCRIPT_MONITOR_LINE_WIDTH
                 lines = []
-                lines.append("═" * 60)
-                lines.append(" SCRIPT MONITOR (TOP-RIGHT) ".center(60, "═"))
-                lines.append("═" * 60)
+                lines.append("═" * width)
+                lines.append(" SCRIPT MONITOR (TOP-RIGHT) ".center(width, "═"))
+                lines.append("═" * width)
                 with _monitor_lock:
                     buf = list(_monitor_buffer)
                 if not buf:
                     lines.append(" No script output yet. Use monitor_print('msg') to log.")
                 else:
-                    lines.extend(buf[-40:])
-                lines.append("─" * 60)
+                    lines.extend(buf[-SCRIPT_MONITOR_MAX_LINES:])
+                lines.append("─" * width)
                 lines.append("Press 'M' to cycle monitors | output stays pinned here.")
                 return "\n".join(lines)
 
