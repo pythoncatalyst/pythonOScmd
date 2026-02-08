@@ -2126,9 +2126,10 @@ textual_style_mode = "inline"
 textual_layout_mode = "two_pane"
 TEXTUAL_CSS_PATH = os.path.join(SCRIPT_DIR, "textual_enhanced.css")
 TEXTUAL_MONITOR_WIDTH = 46  # Width of the upper-right monitor pane in columns
-SCRIPT_MONITOR_LINE_WIDTH = 60  # Width used when rendering script monitor content
+SCRIPT_MONITOR_LINE_WIDTH = TEXTUAL_MONITOR_WIDTH  # Match pane width to avoid wrapping
 SCRIPT_MONITOR_MAX_LINES = 40  # Number of recent lines to show in the script monitor
-_monitor_buffer = deque(maxlen=200)
+SCRIPT_MONITOR_BUFFER_MAX = SCRIPT_MONITOR_MAX_LINES * 5  # Keep 5 pages of history
+_monitor_buffer = deque(maxlen=SCRIPT_MONITOR_BUFFER_MAX)
 _monitor_lock = threading.Lock()
 _active_textual_monitor = None
 
@@ -2143,8 +2144,11 @@ def monitor_print(message: str):
     if target:
         try:
             target.refresh_script_monitor()
-        except Exception:
-            pass
+        except Exception as exc:
+            try:
+                sys.__stdout__.write(f"\n[monitor_print] refresh failed: {exc}\n")
+            except Exception:
+                pass
 
 _user_config = _load_user_config()
 if isinstance(_user_config, dict):
