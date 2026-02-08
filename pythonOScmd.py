@@ -5415,6 +5415,7 @@ def feature_traffic_report():
 # --- AI & CALENDAR ADDITIONS ---
 
 HEAVY_NETWORK_INTAKE_THRESHOLD_MB = 512  # MB threshold for flagging heavy ingress
+AI_RECOMMENDATION_LIMIT = 8
 
 def _ai_probe_snapshot():
     cpu_stress = psutil.cpu_percent(interval=0.5)
@@ -5430,7 +5431,7 @@ def _ai_probe_snapshot():
     elif stress_score > 50:
         verdict = "MODERATE LOAD"
 
-    ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))
+    ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))  # keep legacy weighting for familiarity
     os_name = platform.system()
     arch = platform.machine()
     pyver = platform.python_version()
@@ -5525,7 +5526,13 @@ def _ai_recommendations(snapshot):
     recs.append("Curate tools ➜ use Download Center (AI Tools) to fetch SDKs for preferred providers.")
 
     # Deduplicate in case multiple heuristics emit the same recommendation
-    return list(dict.fromkeys(recs))
+    deduped = []
+    seen = set()
+    for item in recs:
+        if item not in seen:
+            deduped.append(item)
+            seen.add(item)
+    return deduped
 
 
 def _ai_data_fusion():
@@ -5603,7 +5610,7 @@ def feature_ai_app_handler(snapshot=None):
         print(f" Health Verdict: {snapshot['verdict']} | Readiness {snapshot['ai_readiness']}/100 | Stress {snapshot['stress_score']:.1f}")
         recs = _ai_recommendations(snapshot)
         print_header("📌 Suggested Actions")
-        for idx, rec in enumerate(recs[:8], 1):
+        for idx, rec in enumerate(recs[:AI_RECOMMENDATION_LIMIT], 1):
             print(f" [{idx}] {rec}")
 
         action_map = {
@@ -5628,7 +5635,10 @@ def feature_ai_app_handler(snapshot=None):
             snapshot = _ai_probe_snapshot()
             continue
         if choice == 'S':
-            export_lines = ["AI APP HANDLER PLAN", "-" * 40] + recs + ["", "Snapshot:"] + snapshot["lines"]
+            export_lines = ["AI APP HANDLER PLAN", "-" * 40]
+            export_lines.extend(recs)
+            export_lines.extend(["", "Snapshot:"])
+            export_lines.extend(snapshot["lines"])
             file_path = _export_report(export_lines, "AppHandler")
             print(f"{COLORS['2'][0]}✅ Plan exported: {file_path}{RESET}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
@@ -5718,7 +5728,7 @@ def feature_deep_probe_ai():
 
         recs = _ai_recommendations(snapshot)
         print_header("🤖 AI App Handler Suggestions")
-        for rec in recs[:5]:
+        for rec in recs[:AI_RECOMMENDATION_LIMIT]:
             print(f" - {rec}")
 
         file_path = _export_report(snapshot["lines"], "Advanced")
