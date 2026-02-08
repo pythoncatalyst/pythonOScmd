@@ -179,7 +179,7 @@ SUPPORTED_AUDIO_FORMATS = ('.aac', '.flac', '.m4a', '.mp2', '.mp3', '.ogg', '.wa
 SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv')
 SUPPORTED_PLAYBACK_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS
 SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
-MAX_DISPLAYED_FORMATS = 4
+MAX_DISPLAYED_FORMATS = len(SUPPORTED_AUDIO_FORMATS)
 
 
 def _ensure_textual_imports():
@@ -5964,8 +5964,8 @@ def feature_media_scanner():
 
     # Extension definitions for the future solar system usage
     media_exts = {
-        "Audio": SUPPORTED_AUDIO_FORMATS,
-        "Video": SUPPORTED_VIDEO_FORMATS,
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Video": list(SUPPORTED_VIDEO_FORMATS),
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
     }
@@ -12657,8 +12657,8 @@ def feature_media_scanner_integrated():
         return
 
     media_exts = {
-        "Audio": SUPPORTED_AUDIO_FORMATS,
-        "Video": SUPPORTED_VIDEO_FORMATS,
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Video": list(SUPPORTED_VIDEO_FORMATS),
         "Images": [".jpg", ".png", ".webp"]
     }
 
