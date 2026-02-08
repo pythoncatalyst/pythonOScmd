@@ -5463,7 +5463,7 @@ def _ai_probe_snapshot():
 
     lines = []
     lines.append("AI DEEP PROBE REPORT")
-    lines.append("=" * 60)
+    lines.append("=")
     lines.append(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     lines.append(f"OS: {os_name} {platform.release()} | Arch: {arch}")
     lines.append(f"Python: {pyver} | Node: {platform.node()}")
@@ -5525,22 +5525,21 @@ def _ai_recommendations(snapshot):
     net_recv = snapshot.get("net_recv_mb", 0)
 
     if stress > 80 or mem > 85:
-        recs.append("High stress detected ➜ run Security Audit and Process Intelligence to isolate offenders.")
+        recs.append("High stress detected -> run Security Audit and Process Intelligence to isolate offenders.")
     if disk > 85:
-        recs.append("Disk pressure ➜ open Database/Logs Center to archive or purge swap/log cache.")
+        recs.append("Disk pressure -> open Database/Logs Center to archive or purge swap/log cache.")
     if zombies and zombies > 0:
-        recs.append(f"Found {zombies} zombie processes ➜ use Environment Probe to inspect stuck services.")
+        recs.append(f"Found {zombies} zombie processes -> use Environment Probe to inspect stuck services.")
     if net_recv > HEAVY_NETWORK_INTAKE_THRESHOLD_MB:
-        recs.append("Heavy network intake ➜ open Traffic Report to trace noisy endpoints.")
+        recs.append("Heavy network intake -> open Traffic Report to trace noisy endpoints.")
     if cpu > 70 and mem > 70:
-        recs.append("CPU & RAM elevated ➜ schedule Latency Probe to validate responsiveness.")
+        recs.append("CPU & RAM elevated -> schedule Latency Probe to validate responsiveness.")
 
-    recs.append("Sync AI data ➜ run AI Data Fusion to snapshot pythonOS_data for later review.")
-    recs.append("Need quick answers ➜ launch AI Language Interpreter for guided remediation steps.")
-    recs.append("Curate tools ➜ use Download Center (AI Tools) to fetch SDKs for preferred providers.")
+    recs.append("Sync AI data -> run AI Data Fusion to snapshot pythonOS_data for later review.")
+    recs.append("Need quick answers -> launch AI Language Interpreter for guided remediation steps.")
+    recs.append("Curate tools -> use Download Center (AI Tools) to fetch SDKs for preferred providers.")
 
-    # Deduplicate while preserving order (heuristics may overlap)
-    return list(dict.fromkeys(recs))
+    return recs
 
 
 def _ai_data_fusion():
@@ -5619,8 +5618,9 @@ def feature_ai_app_handler(snapshot=None):
         print_header("🧠 AI App Handler")
         print(f" Health Verdict: {snapshot['verdict']} | Readiness {snapshot['ai_readiness']}/100 | Stress {snapshot['stress_score']:.1f}")
         recs = _ai_recommendations(snapshot)
+        display_recs = recs[:AI_RECOMMENDATION_LIMIT]
         print_header("📌 Suggested Actions")
-        for idx, rec in enumerate(recs[:AI_RECOMMENDATION_LIMIT], 1):
+        for idx, rec in enumerate(display_recs, 1):
             print(f" [{idx}] {rec}")
 
         action_map = {
@@ -5646,7 +5646,7 @@ def feature_ai_app_handler(snapshot=None):
             continue
         if choice == 'S':
             export_lines = ["AI APP HANDLER PLAN", "-" * 40]
-            export_lines.extend(recs)
+            export_lines.extend(display_recs)
             export_lines.extend(["", "Snapshot:"])
             export_lines.extend(snapshot["lines"])
             file_path = _export_report(export_lines, "AppHandler")
@@ -5661,7 +5661,7 @@ def feature_ai_app_handler(snapshot=None):
             try:
                 func()
             except Exception as exc:
-                print(f"{COLORS['1'][0]}[!] {label} failed: {exc}{RESET}")
+                print(f"{COLORS['1'][0]}[!] {label} failed ({exc.__class__.__name__}).{RESET}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
         else:
             print(f"{COLORS['1'][0]}Invalid selection{RESET}")
