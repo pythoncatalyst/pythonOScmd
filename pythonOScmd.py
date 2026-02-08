@@ -11456,7 +11456,7 @@ COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
 # Backward compatibility for previously hyphenated key
 file_mgr_meta = COMMAND_ACTION_MAP.get("file_manager_suite")
 if file_mgr_meta:
-    COMMAND_ACTION_MAP.setdefault("file-system", file_mgr_meta)
+    COMMAND_ACTION_MAP.setdefault("file-system", dict(file_mgr_meta))
 
 TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar (each block ≈5%)
 TEXTUAL_BAR_RATIO = TEXTUAL_BAR_LENGTH / 100.0  # Blocks per percent of utilization
@@ -11692,7 +11692,6 @@ def run_pytextos(return_to_classic=False):
                     except (TypeError, ValueError):
                         pct = 0.0
                     filled = int(pct * TEXTUAL_BAR_RATIO)
-                    filled = max(0, min(TEXTUAL_BAR_LENGTH, filled))
                     return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
 
                 def _fmt_pct(val):
