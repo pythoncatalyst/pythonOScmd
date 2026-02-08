@@ -11453,6 +11453,9 @@ COMMAND_CENTER_ACTIONS = [
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
 
+TEXTUAL_BAR_SCALE = 5  # Each block represents 5% utilization
+TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar
+
 def feature_enhanced_display_mode():
     """Enhanced Display Mode - Launches Bpytop System Monitor."""
     os.system('cls' if os.name == 'nt' else 'clear')
@@ -11678,16 +11681,14 @@ def run_pytextos(return_to_classic=False):
                 disk = psutil.disk_usage('/')
                 net = psutil.net_io_counters()
 
-                BAR_SCALE = 5  # Each block represents 5% utilization
-                BAR_LENGTH = 20  # Total blocks shown in the usage bar
-
                 def _render_usage_bar(pct):
                     try:
                         pct = max(0, min(100, float(pct)))
                     except (TypeError, ValueError):
                         pct = 0.0
-                    filled = int(pct / BAR_SCALE)
-                    return "█" * filled + "░" * (BAR_LENGTH - filled)
+                    filled = int((pct + (TEXTUAL_BAR_SCALE / 2)) / TEXTUAL_BAR_SCALE)
+                    filled = max(0, min(TEXTUAL_BAR_LENGTH, filled))
+                    return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
 
                 cpu_pct = psutil.cpu_percent(interval=None)
                 mem_pct = getattr(mem, "percent", 0)
