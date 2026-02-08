@@ -5957,7 +5957,7 @@ def feature_media_scanner():
 
     # Extension definitions for the future solar system usage
     media_exts = {
-        "Audio": [".mp3", ".wav", ".flac", ".ogg", ".m4a"],
+        "Audio": [".mp3", ".mp2", ".wav", ".flac", ".ogg", ".m4a"],
         "Video": [".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"],
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
@@ -9561,7 +9561,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         TinyTag = None  # type: ignore
         _tinytag_error = f"TinyTag error: {exc}"
 
-    audio_exts = (".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac")
+    audio_exts = (".mp3", ".mp2", ".wav", ".ogg", ".flac", ".m4a", ".aac")
     video_exts = (".mp4", ".mkv", ".avi", ".mov")
 
     class MediaLounge(App):
@@ -10473,7 +10473,7 @@ def _enhanced_media_preview(stdscr, state):
     if not os.path.isdir(base):
         _enhanced_set_display(state, "MEDIA", f"Not a directory: {base}")
         return
-    exts = (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".mp4", ".mkv", ".avi", ".mov")
+    exts = (".mp3", ".mp2", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".mp4", ".mkv", ".avi", ".mov")
     files = []
     for root, _, names in os.walk(base):
         for name in names:
@@ -11396,6 +11396,7 @@ COMMAND_CENTER_ACTIONS = [
     ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
+    ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single mp2/mp3/ogg/flac file.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
@@ -12134,7 +12135,7 @@ def run_classic_command_center():
         print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
         print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
         print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
+        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode   {BOLD}[W]{RESET} 🎧 Quick Audio")
         print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
@@ -12202,6 +12203,7 @@ def run_classic_command_center():
         elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
         elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
         elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
+        elif choice == 'W': safe_run("media", "Quick_Audio", feature_quick_audio_playback)
         elif choice == 'V':
             _set_display_mode("classic")
         elif choice == 'U':
@@ -12494,7 +12496,7 @@ def feature_terminal_mp3_player():
             continue
 
         # Find all audio files
-        audio_extensions = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac']
+        audio_extensions = ['.mp3', '.mp2', '.wav', '.flac', '.ogg', '.m4a', '.aac']
         audio_files = []
 
         try:
@@ -12591,6 +12593,25 @@ def play_audio_file(file_path):
     print(f"\n{COLORS['2'][0]}✅ Playback finished{RESET}")
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
+def feature_quick_audio_playback():
+    """Quick path-based audio launcher available from Command Center."""
+    print_header("🎧 Quick Audio Player")
+    target = input("📂 Enter audio file path (mp2/mp3/wav/ogg/flac/m4a/aac): ").strip()
+    if not target:
+        print(f"{COLORS['4'][0]}No file selected.{RESET}")
+        time.sleep(1)
+        return
+    target = os.path.expanduser(target)
+    if os.path.isdir(target) or not os.path.exists(target):
+        print(f"{COLORS['1'][0]}❌ Invalid audio file path.{RESET}")
+        time.sleep(1)
+        return
+    ext = os.path.splitext(target)[1].lower()
+    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+    if ext not in supported:
+        print(f"{COLORS['4'][0]}⚠️ Unsupported extension detected. Attempting playback...{RESET}")
+    play_audio_file(target)
+
 def feature_linked_media_player():
     """
     An extension for Option [I] that asks to launch an external player.
@@ -12622,7 +12643,7 @@ def feature_media_scanner_integrated():
         return
 
     media_exts = {
-        "Audio": [".mp3", ".wav", ".ogg"],
+        "Audio": [".mp3", ".mp2", ".wav", ".ogg"],
         "Video": [".mp4", ".mkv"],
         "Images": [".jpg", ".png", ".webp"]
     }
@@ -12745,7 +12766,7 @@ def universal_executor(file_path):
                 print(f"{COLORS['1'][0]}❌ Error: run(ctx) missing in plugin.{RESET}")
         except Exception as e:
             print(f"💥 Plugin Crash: {e}")
-    elif ext in ['.mp3', '.wav', '.mp4']:
+    elif ext in ['.mp3', '.mp2', '.wav', '.mp4']:
         # Calls your external media_engine script
         try:
             import media_engine
@@ -12763,7 +12784,7 @@ def feature_integrated_explorer():
     items = []
     for root, _, files in os.walk(target):
         for f in files:
-            if f.lower().endswith(('.mp3', '.py', '.wav', '.mp4')):
+            if f.lower().endswith(('.mp3', '.mp2', '.py', '.wav', '.mp4')):
                 items.append(os.path.join(root, f))
 
     if not items:
