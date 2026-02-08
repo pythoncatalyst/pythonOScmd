@@ -11375,6 +11375,30 @@ def feature_file_manager_suite():
             print(f"{get_current_color()}✗{RESET} Invalid option")
             time.sleep(1)
 
+def feature_quick_audio_playback():
+    """Quick path-based audio launcher for common audio formats (mp3/mp2/wav/ogg/flac/m4a/aac)."""
+    print_header("🎧 Quick Audio Player")
+    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+    prompt_ext = "/".join(ext.strip(".") for ext in supported)
+    target = input(f"📂 Enter audio file path ({prompt_ext}): ").strip()
+    if not target:
+        print(f"{COLORS['4'][0]}No file selected.{RESET}")
+        time.sleep(1)
+        return
+    target = os.path.expanduser(target)
+    if not os.path.isfile(target):
+        print(f"{COLORS['1'][0]}❌ Invalid audio file path.{RESET}")
+        time.sleep(1)
+        return
+    ext = os.path.splitext(target)[1].lower()
+    if ext not in supported:
+        print(f"{COLORS['4'][0]}⚠️ Unsupported extension detected. Attempting playback...{RESET}")
+    try:
+        play_audio_file(target)
+    except Exception as exc:
+        print(f"{COLORS['1'][0]}❌ Playback failed: {exc}{RESET}")
+        time.sleep(1)
+
 # Command Center actions presented in the Textual shell. Each entry includes
 # a key, title, summary, and the callable to launch.
 COMMAND_CENTER_ACTIONS = [
@@ -12592,26 +12616,6 @@ def play_audio_file(file_path):
 
     print(f"\n{COLORS['2'][0]}✅ Playback finished{RESET}")
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-
-def feature_quick_audio_playback():
-    """Quick path-based audio launcher for common audio formats (mp3/mp2/wav/ogg/flac/m4a/aac)."""
-    print_header("🎧 Quick Audio Player")
-    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
-    prompt_ext = "/".join(ext.strip(".") for ext in supported)
-    target = input(f"📂 Enter audio file path ({prompt_ext}): ").strip()
-    if not target:
-        print(f"{COLORS['4'][0]}No file selected.{RESET}")
-        time.sleep(1)
-        return
-    target = os.path.expanduser(target)
-    if not os.path.isfile(target):
-        print(f"{COLORS['1'][0]}❌ Invalid audio file path.{RESET}")
-        time.sleep(1)
-        return
-    ext = os.path.splitext(target)[1].lower()
-    if ext not in supported:
-        print(f"{COLORS['4'][0]}⚠️ Unsupported extension detected. Attempting playback...{RESET}")
-    play_audio_file(target)
 
 def feature_linked_media_player():
     """
