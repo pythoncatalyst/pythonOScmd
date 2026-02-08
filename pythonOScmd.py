@@ -11376,7 +11376,7 @@ def feature_file_manager_suite():
             time.sleep(1)
 
 def feature_quick_audio_playback():
-    """Quick path-based audio launcher for common audio formats (mp3/mp2/wav/ogg/flac/m4a/aac)."""
+    """Quick path-based audio launcher for common audio formats."""
     print_header("🎧 Quick Audio Player")
     supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
     prompt_ext = ", ".join(ext.strip(".") for ext in supported)
