@@ -2135,7 +2135,7 @@ _active_textual_monitor = None
 
 def monitor_print(message: str):
     """Append a line of text to the Textual monitor pane (upper-right)."""
-    ts = datetime.datetime.now().strftime("%H:%M:%S")
+    ts = time.strftime("%H:%M:%S", time.localtime())
     line = f"[{ts}] {message}"
     target = None
     with _monitor_lock:
@@ -2146,7 +2146,7 @@ def monitor_print(message: str):
             target.refresh_script_monitor()
         except Exception as exc:
             try:
-                sys.__stdout__.write(f"\n[monitor_print] refresh failed: {exc}\n")
+                sys.__stdout__.write(f"\n[monitor_print] refresh failed on {type(target).__name__}: {exc}\n")
             except Exception:
                 pass
 
@@ -11371,7 +11371,7 @@ def run_pytextos(return_to_classic=False):
                         name = self.monitor_mode.upper()
                         self._monitor_indicator.update(f"{icon} {name}")
 
-            def _get_script_monitor_display(self):
+            def _get_script_monitor_content(self):
                 """Render the script monitor buffer into the monitor pane."""
                 width = SCRIPT_MONITOR_LINE_WIDTH
                 lines = []
@@ -11381,7 +11381,7 @@ def run_pytextos(return_to_classic=False):
                 with _monitor_lock:
                     buf = list(_monitor_buffer)
                 if not buf:
-                    lines.append(" No script output yet. Use monitor_print('msg') to log.")
+                    lines.append(" No script output yet. Use the global monitor_print(\"msg\") to log.")
                 else:
                     lines.extend(buf[-SCRIPT_MONITOR_MAX_LINES:])
                 lines.append("─" * width)
@@ -11498,7 +11498,7 @@ def run_pytextos(return_to_classic=False):
                     return
 
                 if self.monitor_mode == "script":
-                    self.monitor_pane.update(self._get_script_monitor_display())
+                    self.monitor_pane.update(self._get_script_monitor_content())
                 elif self.monitor_mode == "stats":
                     # Show inline stats display
                     content = self._get_monitor_stats_display()
