@@ -9315,9 +9315,14 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         from textual import on
         from textual.containers import Horizontal, Vertical
         from textual.widgets import Header, Footer, Input, TextLog, Button, DirectoryTree, Static
-    except Exception:
-        print(f"{get_current_color()}✗{RESET} Textual not installed.")
-        print("\nInstall with: pip install textual")
+    except Exception as exc:
+        textual_present = importlib.util.find_spec("textual") is not None
+        if textual_present:
+            print(f"{get_current_color()}✗{RESET} Textual import failed: {exc}")
+            print("\nInstall/upgrade with: pip install --upgrade textual")
+        else:
+            print(f"{get_current_color()}✗{RESET} Textual not installed.")
+            print("\nInstall with: pip install textual")
         input("\nPress Enter to return...")
         return
 
