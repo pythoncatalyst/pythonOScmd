@@ -9547,7 +9547,10 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         from textual.app import App, ComposeResult
         from textual import on
         from textual.containers import Horizontal, Vertical
-        from textual.widgets import Header, Footer, Input, TextLog, Button, DirectoryTree, Static
+        try:
+            from textual.widgets import Header, Footer, Input, TextLog, Button, DirectoryTree, Static
+        except ImportError:
+            from textual.widgets import Header, Footer, Input, Log as TextLog, Button, DirectoryTree, Static
     except Exception as exc:
         textual_present = importlib.util.find_spec("textual") is not None
         if textual_present:
@@ -9803,7 +9806,10 @@ def feature_textual_widget_board(screenshot_path=None):
         from textual.app import App, ComposeResult
         from textual import on
         from textual.containers import Horizontal, Vertical, Container
-        from textual.widgets import Header, Footer, ListView, ListItem, Label, Static, Input, Button, TextLog
+        try:
+            from textual.widgets import Header, Footer, ListView, ListItem, Label, Static, Input, Button, TextLog
+        except ImportError:
+            from textual.widgets import Header, Footer, ListView, ListItem, Label, Static, Input, Button, Log as TextLog
     except Exception as exc:
         textual_present = importlib.util.find_spec("textual") is not None
         print(f"\n{get_current_color()}✗{RESET} Textual widget board unavailable.")
