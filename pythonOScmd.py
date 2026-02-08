@@ -5414,6 +5414,8 @@ def feature_traffic_report():
 
 # --- AI & CALENDAR ADDITIONS ---
 
+HEAVY_NETWORK_INTAKE_THRESHOLD_MB = 512  # MB threshold for flagging heavy ingress
+
 def _ai_probe_snapshot():
     cpu_stress = psutil.cpu_percent(interval=0.5)
     mem = psutil.virtual_memory()
@@ -5428,7 +5430,7 @@ def _ai_probe_snapshot():
     elif stress_score > 50:
         verdict = "MODERATE LOAD"
 
-    ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))
+    ai_readiness = max(0, 100 - int((mem_stress * 0.35) + (disk.percent * 0.2) + (cpu_stress * 0.45)))
     os_name = platform.system()
     arch = platform.machine()
     pyver = platform.python_version()
@@ -5472,6 +5474,7 @@ def _ai_probe_snapshot():
     lines.append(f"Data Sent: {net.bytes_sent / (1024**2):.2f} MB")
     lines.append(f"Data Received: {net.bytes_recv / (1024**2):.2f} MB")
     lines.append("=" * 60)
+    # Legacy fields are preserved; extra metadata feeds the AI App Handler without breaking existing consumers.
     return {
         "stress_score": stress_score,
         "verdict": verdict,
@@ -5505,7 +5508,6 @@ def _ai_recommendations(snapshot):
     cpu = snapshot.get("cpu", 0)
     zombies = snapshot.get("zombies")
     net_recv = snapshot.get("net_recv_mb", 0)
-    net_heavy_threshold_mb = 512  # treat 512MB+ ingress as heavy sustained intake
 
     if stress > 80 or mem > 85:
         recs.append("High stress detected ➜ run Security Audit and Process Intelligence to isolate offenders.")
@@ -5513,7 +5515,7 @@ def _ai_recommendations(snapshot):
         recs.append("Disk pressure ➜ open Database/Logs Center to archive or purge swap/log cache.")
     if zombies and zombies > 0:
         recs.append(f"Found {zombies} zombie processes ➜ use Environment Probe to inspect stuck services.")
-    if net_recv > net_heavy_threshold_mb:
+    if net_recv > HEAVY_NETWORK_INTAKE_THRESHOLD_MB:
         recs.append("Heavy network intake ➜ open Traffic Report to trace noisy endpoints.")
     if cpu > 70 and mem > 70:
         recs.append("CPU & RAM elevated ➜ schedule Latency Probe to validate responsiveness.")
@@ -5522,6 +5524,7 @@ def _ai_recommendations(snapshot):
     recs.append("Need quick answers ➜ launch AI Language Interpreter for guided remediation steps.")
     recs.append("Curate tools ➜ use Download Center (AI Tools) to fetch SDKs for preferred providers.")
 
+    # Deduplicate in case multiple heuristics emit the same recommendation
     return list(dict.fromkeys(recs))
 
 
