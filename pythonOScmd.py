@@ -176,7 +176,7 @@ _TEXTUAL_IMPORT_ERROR = None
 
 # Shared format constants
 SUPPORTED_AUDIO_FORMATS = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
-SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov')
+SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv')
 SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
 
 
@@ -5963,7 +5963,7 @@ def feature_media_scanner():
     # Extension definitions for the future solar system usage
     media_exts = {
         "Audio": SUPPORTED_AUDIO_FORMATS,
-        "Video": [".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"],
+        "Video": SUPPORTED_VIDEO_FORMATS,
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
     }
@@ -9567,7 +9567,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         _tinytag_error = f"TinyTag error: {exc}"
 
     audio_exts = SUPPORTED_AUDIO_FORMATS
-    video_exts = (".mp4", ".mkv", ".avi", ".mov")
+    video_exts = SUPPORTED_VIDEO_FORMATS
 
     class MediaLounge(App):
         MAX_DISPLAY_LINES = 40  # Keep rendered output concise inside the terminal UI
@@ -12656,7 +12656,7 @@ def feature_media_scanner_integrated():
 
     media_exts = {
         "Audio": SUPPORTED_AUDIO_FORMATS,
-        "Video": [".mp4", ".mkv"],
+        "Video": SUPPORTED_VIDEO_FORMATS,
         "Images": [".jpg", ".png", ".webp"]
     }
 
