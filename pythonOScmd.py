@@ -11448,7 +11448,7 @@ COMMAND_CENTER_ACTIONS = [
     *CLASSIC_APP_ACTIONS,
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
-    ("file-system", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
+    ("file_manager_suite", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
@@ -11678,13 +11678,16 @@ def run_pytextos(return_to_classic=False):
                 disk = psutil.disk_usage('/')
                 net = psutil.net_io_counters()
 
+                BAR_SCALE = 5  # Each block represents 5% utilization
+                BAR_LENGTH = 20  # Total blocks shown in the usage bar
+
                 def _render_usage_bar(pct):
                     try:
                         pct = max(0, min(100, float(pct)))
                     except (TypeError, ValueError):
                         pct = 0.0
-                    filled = int(pct / 5)
-                    return "█" * filled + "░" * (20 - filled)
+                    filled = int(pct / BAR_SCALE)
+                    return "█" * filled + "░" * (BAR_LENGTH - filled)
 
                 cpu_pct = psutil.cpu_percent(interval=None)
                 mem_pct = getattr(mem, "percent", 0)
