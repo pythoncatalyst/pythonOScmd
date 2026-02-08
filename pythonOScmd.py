@@ -5414,81 +5414,261 @@ def feature_traffic_report():
 
 # --- AI & CALENDAR ADDITIONS ---
 
-def feature_deep_probe_ai():
-    def _ai_probe_snapshot():
-        cpu_stress = psutil.cpu_percent(interval=0.5)
-        mem = psutil.virtual_memory()
-        mem_stress = mem.percent
-        disk = psutil.disk_usage('/')
-        net = psutil.net_io_counters()
-        stress_score = (cpu_stress * 0.4) + (mem_stress * 0.4)
+HEAVY_NETWORK_INTAKE_THRESHOLD_MB = 512  # MB threshold for flagging heavy ingress
+AI_RECOMMENDATION_LIMIT = 8
+AI_STRESS_WEIGHTS = {"cpu": 0.45, "mem": 0.45, "disk": 0.10}
+AI_READINESS_WEIGHTS = {"mem": 0.4, "disk": 0.3, "cpu": 0.3}
 
-        verdict = "OPTIMAL"
-        if stress_score > 80:
-            verdict = "CRITICAL STRESS"
-        elif stress_score > 50:
-            verdict = "MODERATE LOAD"
+def _ai_probe_snapshot():
+    cpu_stress = psutil.cpu_percent(interval=0.5)
+    mem = psutil.virtual_memory()
+    mem_stress = mem.percent
+    disk = psutil.disk_usage('/')
+    net = psutil.net_io_counters()
+    stress_score = (
+        (cpu_stress * AI_STRESS_WEIGHTS["cpu"])
+        + (mem_stress * AI_STRESS_WEIGHTS["mem"])
+        + (disk.percent * AI_STRESS_WEIGHTS["disk"])
+    )  # disk kept lightweight to avoid false criticals
 
-        ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))
-        os_name = platform.system()
-        arch = platform.machine()
-        pyver = platform.python_version()
+    verdict = "OPTIMAL"
+    if stress_score > 80:
+        verdict = "CRITICAL STRESS"
+    elif stress_score > 50:
+        verdict = "MODERATE LOAD"
 
-        ctx_switches = None
-        zombie_count = None
-        handles = None
-        try:
-            ctx_switches = psutil.cpu_stats().ctx_switches
-            zombie_count = len([p for p in psutil.process_iter() if p.status() == psutil.STATUS_ZOMBIE])
-            proc = psutil.Process()
-            handles = proc.num_handles() if os.name == 'nt' else proc.num_fds()
-        except Exception:
-            pass
+    ai_readiness = max(
+        0,
+        100
+        - int(
+            (mem_stress * AI_READINESS_WEIGHTS["mem"])
+            + (disk.percent * AI_READINESS_WEIGHTS["disk"])
+            + (cpu_stress * AI_READINESS_WEIGHTS["cpu"])
+        ),
+    )  # keep legacy weighting for familiarity
+    os_name = platform.system()
+    arch = platform.machine()
+    pyver = platform.python_version()
 
-        lines = []
-        lines.append("AI DEEP PROBE REPORT")
-        lines.append("=" * 60)
-        lines.append(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-        lines.append(f"OS: {os_name} {platform.release()} | Arch: {arch}")
-        lines.append(f"Python: {pyver} | Node: {platform.node()}")
-        lines.append("")
-        lines.append("[AI HEALTH]")
-        lines.append(f"CPU Load: {cpu_stress:.1f}%")
-        lines.append(f"Memory Load: {mem_stress:.1f}%")
-        lines.append(f"Disk Used: {disk.percent:.1f}%")
-        lines.append(f"Stress Index: {stress_score:.1f}/100")
-        lines.append(f"Health Verdict: {verdict}")
-        lines.append(f"AI Readiness Score: {ai_readiness}/100")
-        lines.append("")
-        lines.append("[SYSTEM SIGNALS]")
-        if ctx_switches is not None:
-            lines.append(f"Context Switches: {ctx_switches:,}")
-        if zombie_count is not None:
-            lines.append(f"Zombie Count: {zombie_count}")
-        if handles is not None:
-            lines.append(f"Active OS Handles: {handles}")
-        lines.append(f"Uptime: {str(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())).split('.')[0]}")
-        lines.append("")
-        lines.append("[NETWORK]")
-        lines.append(f"Data Sent: {net.bytes_sent / (1024**2):.2f} MB")
-        lines.append(f"Data Received: {net.bytes_recv / (1024**2):.2f} MB")
-        lines.append("=")
-        return {
-            "stress_score": stress_score,
-            "verdict": verdict,
-            "ai_readiness": ai_readiness,
-            "lines": lines
+    ctx_switches = None
+    zombie_count = None
+    handles = None
+    try:
+        ctx_switches = psutil.cpu_stats().ctx_switches
+        zombie_count = len([p for p in psutil.process_iter() if p.status() == psutil.STATUS_ZOMBIE])
+        proc = psutil.Process()
+        handles = proc.num_handles() if os.name == 'nt' else proc.num_fds()
+    except Exception:
+        pass
+
+    lines = []
+    lines.append("AI DEEP PROBE REPORT")
+    lines.append("=")
+    lines.append(f"Timestamp: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    lines.append(f"OS: {os_name} {platform.release()} | Arch: {arch}")
+    lines.append(f"Python: {pyver} | Node: {platform.node()}")
+    lines.append("")
+    lines.append("[AI HEALTH]")
+    lines.append(f"CPU Load: {cpu_stress:.1f}%")
+    lines.append(f"Memory Load: {mem_stress:.1f}%")
+    lines.append(f"Disk Used: {disk.percent:.1f}%")
+    lines.append(f"Stress Index: {stress_score:.1f}/100")
+    lines.append(f"Health Verdict: {verdict}")
+    lines.append(f"AI Readiness Score: {ai_readiness}/100")
+    lines.append("")
+    lines.append("[SYSTEM SIGNALS]")
+    if ctx_switches is not None:
+        lines.append(f"Context Switches: {ctx_switches:,}")
+    if zombie_count is not None:
+        lines.append(f"Zombie Count: {zombie_count}")
+    if handles is not None:
+        lines.append(f"Active OS Handles: {handles}")
+    lines.append(f"Uptime: {str(datetime.datetime.now() - datetime.datetime.fromtimestamp(psutil.boot_time())).split('.')[0]}")
+    lines.append("")
+    lines.append("[NETWORK]")
+    lines.append(f"Data Sent: {net.bytes_sent / (1024**2):.2f} MB")
+    lines.append(f"Data Received: {net.bytes_recv / (1024**2):.2f} MB")
+    lines.append("=" * 60)
+    # Legacy fields are preserved; extra metadata feeds the AI App Handler without breaking existing consumers.
+    return {
+        "stress_score": stress_score,
+        "verdict": verdict,
+        "ai_readiness": ai_readiness,
+        "lines": lines,
+        "cpu": cpu_stress,
+        "mem": mem_stress,
+        "disk": disk.percent,
+        "net_sent_mb": net.bytes_sent / (1024**2),
+        "net_recv_mb": net.bytes_recv / (1024**2),
+        "zombies": zombie_count,
+        "handles": handles,
+    }
+
+
+def _export_report(lines, tag):
+    content = "\n".join(lines)
+    file_path = save_log_file("ai", f"AI_Probe_{tag}", content, prompt_user=False)
+    try:
+        log_to_database("ai", f"AI_Probe_{tag}", content, file_path=file_path, status="success")
+    except Exception:
+        pass
+    return file_path
+
+
+def _ai_recommendations(snapshot):
+    recs = []
+    stress = snapshot.get("stress_score", 0)
+    disk = snapshot.get("disk", 0)
+    mem = snapshot.get("mem", 0)
+    cpu = snapshot.get("cpu", 0)
+    zombies = snapshot.get("zombies")
+    net_recv = snapshot.get("net_recv_mb", 0)
+
+    if stress > 80 or mem > 85:
+        recs.append("High stress detected -> run Security Audit and Process Intelligence to isolate offenders.")
+    if disk > 85:
+        recs.append("Disk pressure -> open Database/Logs Center to archive or purge swap/log cache.")
+    if zombies and zombies > 0:
+        recs.append(f"Found {zombies} zombie processes -> use Environment Probe to inspect stuck services.")
+    if net_recv > HEAVY_NETWORK_INTAKE_THRESHOLD_MB:
+        recs.append("Heavy network intake -> open Traffic Report to trace noisy endpoints.")
+    if cpu > 70 and mem > 70:
+        recs.append("CPU & RAM elevated -> schedule Latency Probe to validate responsiveness.")
+
+    recs.append("Sync AI data -> run AI Data Fusion to snapshot pythonOS_data for later review.")
+    recs.append("Need quick answers -> launch AI Language Interpreter for guided remediation steps.")
+    recs.append("Curate tools -> use Download Center (AI Tools) to fetch SDKs for preferred providers.")
+
+    return recs
+
+
+def _ai_data_fusion():
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧬 AI Data Fusion")
+    print(f"Data Root: {DB_DIR}")
+    print(f"Log Root:  {LOG_DIR}")
+    print(f"Swap Cache: {SWAP_CACHE_DIR}")
+
+    log_counts = {}
+    newest = (None, 0)
+    total_bytes = 0
+
+    for root, _, files in os.walk(LOG_DIR):
+        for name in files:
+            path = os.path.join(root, name)
+            try:
+                stat = os.stat(path)
+                total_bytes += stat.st_size
+                cat = os.path.basename(os.path.dirname(path))
+                log_counts[cat] = log_counts.get(cat, 0) + 1
+                if stat.st_mtime > newest[1]:
+                    newest = (path, stat.st_mtime)
+            except Exception:
+                pass
+
+    print_header("📁 Log Intelligence")
+    if log_counts:
+        for cat, count in sorted(log_counts.items()):
+            print(f" {cat:<16} {count} files")
+        print(f" Total Log Size: {total_bytes / (1024**2):.2f} MB")
+        if newest[0]:
+            print(f" Newest Log: {newest[0]}")
+    else:
+        print(" No logs found.")
+
+    print_header("🔄 Swap Cache")
+    try:
+        swap_files = [f for f in os.listdir(SWAP_CACHE_DIR) if os.path.isfile(os.path.join(SWAP_CACHE_DIR, f))]
+        if swap_files:
+            for f in swap_files[:10]:
+                print(f" {f}")
+            if len(swap_files) > 10:
+                print(f" ... and {len(swap_files) - 10} more")
+        else:
+            print(" Swap cache is empty.")
+    except Exception:
+        print(" Swap cache not accessible.")
+
+    stage = input("\nStage a file into swap cache? (y/n): ").strip().lower()
+    if stage == 'y':
+        src = input("Enter file path to stage: ").strip()
+        if os.path.exists(src) and os.path.isfile(src):
+            try:
+                dst = os.path.join(SWAP_CACHE_DIR, os.path.basename(src))
+                shutil.copy2(src, dst)
+                print(f"{COLORS['2'][0]}✅ Staged: {dst}{RESET}")
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Stage failed: {e}{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}❌ File not found{RESET}")
+
+    input(f"\n{BOLD}[ ✅ Data Fusion Finished. Press Enter... ]{RESET}")
+
+
+def feature_ai_app_handler(snapshot=None):
+    """
+    Offline AI app orchestrator that routes health signals to command-center actions.
+    snapshot: optional precomputed _ai_probe_snapshot() dict; if None, a fresh snapshot is taken.
+    Returns None after user exits the interactive menu.
+    """
+    snapshot = snapshot or _ai_probe_snapshot()
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧠 AI App Handler")
+        print(f" Health Verdict: {snapshot['verdict']} | Readiness {snapshot['ai_readiness']}/100 | Stress {snapshot['stress_score']:.1f}")
+        recs = _ai_recommendations(snapshot)
+        display_recs = recs[:AI_RECOMMENDATION_LIMIT]
+        print_header("📌 Suggested Actions")
+        for idx, rec in enumerate(display_recs, 1):
+            print(f" [{idx}] {rec}")
+
+        action_map = {
+            "A": ("Security Audit", feature_security_audit),
+            "B": ("Environment Probe", feature_environment_probe),
+            "C": ("Latency Probe", feature_latency_probe),
+            "D": ("Traffic Report", feature_traffic_report),
+            "E": ("Database/Logs Center", feature_database_log_center),
+            "F": ("AI Data Fusion", _ai_data_fusion),
         }
 
-    def _export_report(lines, tag):
-        content = "\n".join(lines)
-        file_path = save_log_file("ai", f"AI_Probe_{tag}", content, prompt_user=False)
-        try:
-            log_to_database("ai", f"AI_Probe_{tag}", content, file_path=file_path, status="success")
-        except Exception:
-            pass
-        return file_path
+        print_header("🎛️ Action Router")
+        print(f" {BOLD}[A]{RESET} Security Audit    {BOLD}[B]{RESET} Environment Probe")
+        print(f" {BOLD}[C]{RESET} Latency Probe     {BOLD}[D]{RESET} Traffic Report")
+        print(f" {BOLD}[E]{RESET} Database/Logs     {BOLD}[F]{RESET} AI Data Fusion")
+        print(f" {BOLD}[R]{RESET} Refresh Signals   {BOLD}[S]{RESET} Export Plan     {BOLD}[0]{RESET} Return")
 
+        choice = input(f"\n{BOLD}Select action: {RESET}").strip().upper()
+        if choice == '0':
+            return
+        if choice == 'R':
+            snapshot = _ai_probe_snapshot()
+            continue
+        if choice == 'S':
+            export_lines = ["AI APP HANDLER PLAN", "-" * 40]
+            export_lines.extend(display_recs)
+            export_lines.extend(["", "Snapshot:"])
+            export_lines.extend(snapshot["lines"])
+            file_path = _export_report(export_lines, "AppHandler")
+            print(f"{COLORS['2'][0]}✅ Plan exported: {file_path}{RESET}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+            continue
+
+        action = action_map.get(choice)
+        if action:
+            label, func = action
+            print(f"\n{COLORS['2'][0]}⏳ Launching {label}...{RESET}\n")
+            try:
+                func()
+            except Exception as exc:
+                print(f"{COLORS['1'][0]}[!] {label} failed ({exc.__class__.__name__}).{RESET}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}Invalid selection{RESET}")
+            time.sleep(1)
+
+
+def feature_deep_probe_ai():
     def _ai_language_interpreter():
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🗣️ AI Language Interpreter")
@@ -5556,71 +5736,14 @@ def feature_deep_probe_ai():
         for a in alerts:
             print(f" - {a}")
 
+        recs = _ai_recommendations(snapshot)
+        print_header("🤖 AI App Handler Suggestions")
+        for rec in recs[:AI_RECOMMENDATION_LIMIT]:
+            print(f" - {rec}")
+
         file_path = _export_report(snapshot["lines"], "Advanced")
         print(f"\n{COLORS['2'][0]}✅ Advanced probe exported: {file_path}{RESET}")
         input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
-
-    def _ai_data_fusion():
-        os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🧬 AI Data Fusion")
-        print(f"Data Root: {DB_DIR}")
-        print(f"Log Root:  {LOG_DIR}")
-        print(f"Swap Cache: {SWAP_CACHE_DIR}")
-
-        log_counts = {}
-        newest = (None, 0)
-        total_bytes = 0
-
-        for root, _, files in os.walk(LOG_DIR):
-            for name in files:
-                path = os.path.join(root, name)
-                try:
-                    stat = os.stat(path)
-                    total_bytes += stat.st_size
-                    cat = os.path.basename(os.path.dirname(path))
-                    log_counts[cat] = log_counts.get(cat, 0) + 1
-                    if stat.st_mtime > newest[1]:
-                        newest = (path, stat.st_mtime)
-                except Exception:
-                    pass
-
-        print_header("📁 Log Intelligence")
-        if log_counts:
-            for cat, count in sorted(log_counts.items()):
-                print(f" {cat:<16} {count} files")
-            print(f" Total Log Size: {total_bytes / (1024**2):.2f} MB")
-            if newest[0]:
-                print(f" Newest Log: {newest[0]}")
-        else:
-            print(" No logs found.")
-
-        print_header("🔄 Swap Cache")
-        try:
-            swap_files = [f for f in os.listdir(SWAP_CACHE_DIR) if os.path.isfile(os.path.join(SWAP_CACHE_DIR, f))]
-            if swap_files:
-                for f in swap_files[:10]:
-                    print(f" {f}")
-                if len(swap_files) > 10:
-                    print(f" ... and {len(swap_files) - 10} more")
-            else:
-                print(" Swap cache is empty.")
-        except Exception:
-            print(" Swap cache not accessible.")
-
-        stage = input("\nStage a file into swap cache? (y/n): ").strip().lower()
-        if stage == 'y':
-            src = input("Enter file path to stage: ").strip()
-            if os.path.exists(src) and os.path.isfile(src):
-                try:
-                    dst = os.path.join(SWAP_CACHE_DIR, os.path.basename(src))
-                    shutil.copy2(src, dst)
-                    print(f"{COLORS['2'][0]}✅ Staged: {dst}{RESET}")
-                except Exception as e:
-                    print(f"{COLORS['1'][0]}❌ Stage failed: {e}{RESET}")
-            else:
-                print(f"{COLORS['1'][0]}❌ File not found{RESET}")
-
-        input(f"\n{BOLD}[ ✅ Data Fusion Finished. Press Enter... ]{RESET}")
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -5629,6 +5752,7 @@ def feature_deep_probe_ai():
         print(" [2] AI Language Interpreter")
         print(" [3] Advanced AI Probing")
         print(" [4] AI Data Fusion (pythonOS_data)")
+        print(" [5] AI App Handler (router)")
         print(" [0] Return")
 
         choice = input("\nSelect option: ").strip()
@@ -5649,6 +5773,8 @@ def feature_deep_probe_ai():
             _advanced_ai_probe()
         elif choice == '4':
             _ai_data_fusion()
+        elif choice == '5':
+            feature_ai_app_handler(snapshot=_ai_probe_snapshot())
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -6755,8 +6881,9 @@ def feature_ai_center():
         print(f" {BOLD}[5]{RESET} 🟡 Claude (Anthropic)")
         print(f" {BOLD}[6]{RESET} 🧠 AI Probe Center")
         print(f" {BOLD}[7]{RESET} 📦 Open Download Center (AI Tools)")
-        print(f" {BOLD}[8]{RESET} ↩️ Return to Main Menu")
-        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-8): {RESET}").strip()
+        print(f" {BOLD}[8]{RESET} 🧠 AI App Handler (offline)")
+        print(f" {BOLD}[9]{RESET} ↩️ Return to Main Menu")
+        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-9): {RESET}").strip()
 
         if ai_choice == '1':
             print_header("🤖 ChatGPT (OpenAI)")
@@ -6883,6 +7010,8 @@ def feature_ai_center():
         elif ai_choice == '7':
             feature_download_center()
         elif ai_choice == '8':
+            feature_ai_app_handler()
+        elif ai_choice == '9':
             break
 
 def feature_security_audit():
