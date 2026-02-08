@@ -2125,6 +2125,30 @@ display_mode = "classic"
 textual_style_mode = "inline"
 textual_layout_mode = "two_pane"
 TEXTUAL_CSS_PATH = os.path.join(SCRIPT_DIR, "textual_enhanced.css")
+TEXTUAL_MONITOR_WIDTH = 46  # Width of the upper-right monitor pane in columns
+SCRIPT_MONITOR_LINE_WIDTH = TEXTUAL_MONITOR_WIDTH  # Match pane width to avoid wrapping
+SCRIPT_MONITOR_MAX_LINES = 40  # Number of recent lines to show in the script monitor
+SCRIPT_MONITOR_BUFFER_MAX = SCRIPT_MONITOR_MAX_LINES * 5  # Keep 5 pages of history
+_monitor_buffer = deque(maxlen=SCRIPT_MONITOR_BUFFER_MAX)
+_monitor_lock = threading.Lock()
+_active_textual_monitor = None
+
+def monitor_print(message: str):
+    """Append a line of text to the Textual monitor pane (upper-right)."""
+    ts = time.strftime("%H:%M:%S", time.localtime())
+    line = f"[{ts}] {message}"
+    target = None
+    with _monitor_lock:
+        _monitor_buffer.append(line)
+        target = _active_textual_monitor
+    if target:
+        try:
+            target.refresh_script_monitor()
+        except Exception as exc:
+            try:
+                sys.__stdout__.write(f"\n[monitor_print] refresh failed on {type(target).__name__}: {exc}\n")
+            except Exception:
+                pass
 
 _user_config = _load_user_config()
 if isinstance(_user_config, dict):
@@ -10419,7 +10443,7 @@ def _select_color_scheme():
         user_has_chosen = False
         _update_user_config(user_has_chosen=user_has_chosen)
 
-TEXTUAL_INLINE_CSS = """
+TEXTUAL_INLINE_CSS = f"""
 Screen {
     background: #0f131a;
     color: #e5e7eb;
@@ -10427,6 +10451,12 @@ Screen {
 #layout-root {
     height: 1fr;
     padding: 0 1;
+}
+#body {
+    height: 1fr;
+}
+#body #layout-root {
+    width: 1fr;
 }
 #nav {
     width: 30;
@@ -10486,12 +10516,13 @@ Screen {
     column-gap: 1;
 }
 #monitor-pane {
+    width: {TEXTUAL_MONITOR_WIDTH};
     height: 18;
     border: round #2a2f3a;
     background: #0a0e14;
     padding: 1 2;
     overflow: auto;
-    margin: 1 0;
+    margin: 1 0 1 1;
 }
 .pill {
     border: round #2a2f3a;
@@ -11002,15 +11033,16 @@ def run_pytextos(return_to_classic=False):
                 self._last_net = None
                 self._last_net_ts = 0.0
                 # Monitor cycling
-                self.monitor_modes = ["off", "bpytop", "htop", "gtop", "btop", "stats"]
-                self.monitor_mode = "stats"  # Default to stats display
+                self.monitor_modes = ["script", "stats", "bpytop", "htop", "gtop", "btop", "off"]
+                self.monitor_mode = "script"  # Default to script monitor
                 self.monitor_pane = None
                 self.monitor_available = {
+                    "script": True,
+                    "stats": True,  # Always available
                     "bpytop": shutil.which('bpytop') is not None,
                     "htop": shutil.which('htop') is not None,
                     "gtop": shutil.which('gtop') is not None,
                     "btop": shutil.which('btop') is not None,
-                    "stats": True,  # Always available
                 }
 
             def compose(self):
@@ -11028,12 +11060,15 @@ def run_pytextos(return_to_classic=False):
                     Static("WX --", classes="pill", id="pill-wx"),
                     id="status-strip",
                 )
-                # Monitor pane (top pane)
-                yield Static("", id="monitor-pane", classes="monitor-pane")
-                yield Container(id="layout-root")
+                # Body: main content with monitor docked to the upper-right
+                with Horizontal(id="body"):
+                    yield Container(id="layout-root")
+                    yield Static("", id="monitor-pane", classes="monitor-pane")
                 yield Footer()
 
             def on_mount(self):
+                global _active_textual_monitor
+                _active_textual_monitor = self
                 self._spinner_index = 0
                 self._spinner_frames = ["PY>_", "PY>__", "PY>___", "PY>__"]
                 self._indicator = self.query_one("#enhanced-indicator", Static)
@@ -11050,6 +11085,11 @@ def run_pytextos(return_to_classic=False):
                 self.set_interval(0.4, self._tick_spinner)
                 self.set_interval(1.0, self._refresh_dynamic)
                 self.set_interval(2.0, self._update_monitor_display)
+
+            def on_unmount(self):
+                global _active_textual_monitor
+                if _active_textual_monitor is self:
+                    _active_textual_monitor = None
 
             def _tick_spinner(self):
                 frame = self._spinner_frames[self._spinner_index]
@@ -11320,6 +11360,7 @@ def run_pytextos(return_to_classic=False):
                         self._monitor_indicator.update("📊 OFF")
                     else:
                         icons = {
+                            "script": "📝",
                             "bpytop": "🚀",
                             "htop": "🖥️",
                             "gtop": "📊",
@@ -11329,6 +11370,23 @@ def run_pytextos(return_to_classic=False):
                         icon = icons.get(self.monitor_mode, "📊")
                         name = self.monitor_mode.upper()
                         self._monitor_indicator.update(f"{icon} {name}")
+
+            def _get_script_monitor_content(self):
+                """Render the script monitor buffer into the monitor pane."""
+                width = SCRIPT_MONITOR_LINE_WIDTH
+                lines = []
+                lines.append("═" * width)
+                lines.append(" SCRIPT MONITOR (TOP-RIGHT) ".center(width, "═"))
+                lines.append("═" * width)
+                with _monitor_lock:
+                    buf = list(_monitor_buffer)
+                if not buf:
+                    lines.append(" No script output yet. Use the global monitor_print(\"msg\") to log.")
+                else:
+                    lines.extend(buf[-SCRIPT_MONITOR_MAX_LINES:])
+                lines.append("─" * width)
+                lines.append("Press 'M' to cycle monitors | output stays pinned here.")
+                return "\n".join(lines)
 
             def _get_monitor_stats_display(self):
                 """Generate a rich stats display for the monitor pane."""
@@ -11439,7 +11497,9 @@ def run_pytextos(return_to_classic=False):
                     self.monitor_pane.update("[Monitor Off - Press 'M' to enable]")
                     return
 
-                if self.monitor_mode == "stats":
+                if self.monitor_mode == "script":
+                    self.monitor_pane.update(self._get_script_monitor_content())
+                elif self.monitor_mode == "stats":
                     # Show inline stats display
                     content = self._get_monitor_stats_display()
                     self.monitor_pane.update(content)
@@ -11450,6 +11510,11 @@ def run_pytextos(return_to_classic=False):
                         self.monitor_pane.update(content)
                     else:
                         self.monitor_pane.update(f"[{self.monitor_mode.upper()} not installed - Press 'M' to cycle]")
+
+            def refresh_script_monitor(self):
+                """Public hook used by monitor_print to refresh the buffer display."""
+                if self.monitor_mode == "script":
+                    self._update_monitor_display()
 
             def action_run_selected(self):
                 if self.selected_key in dict(self.sections):
