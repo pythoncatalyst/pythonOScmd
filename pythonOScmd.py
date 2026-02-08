@@ -3097,16 +3097,36 @@ def check_pentest_tool(tool_name):
     """Check if a penetration testing tool is installed."""
     return shutil.which(tool_name) is not None
 
-def _is_safe_cli_value(value):
-    """Basic validation to reduce shell injection risk for host/keyword inputs."""
-    return bool(value and re.fullmatch(r"[A-Za-z0-9_.:/@-]+", value))
+_TARGET_PATTERN = re.compile(r"^[A-Za-z0-9_.:/@-]+$")
+_KEYWORD_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+$")
+_SHELL_METACHARACTERS = (";", "&&", "||", "`", "$(", "$", ">", "<", "|", "&", "{", "}", "*", "?", "[", "]", "~", "!", "\n", "'", "\"", "\\", "\r")
+
+def _contains_shell_metacharacters(parts):
+    for part in parts:
+        for bad in _SHELL_METACHARACTERS:
+            if bad in part:
+                return True
+    return False
+
+def _is_safe_cli_target(value):
+    """Basic validation to reduce shell injection risk for host/CIDR inputs."""
+    return bool(value and _TARGET_PATTERN.fullmatch(value))
+
+def _is_safe_cli_keyword(value):
+    """Restrict metasploit search keywords to a smaller safe subset."""
+    return bool(value and _KEYWORD_PATTERN.fullmatch(value))
 
 def _sanitize_custom_command(raw, expected):
     """Parse a custom command while rejecting obvious shell metacharacters."""
-    if not raw or any(tok in raw for tok in (";", "&&", "||", "`", "$(", ">", "<")):
+    if not raw:
         return None
-    parts = shlex.split(raw)
+    try:
+        parts = shlex.split(raw)
+    except ValueError:
+        return None
     if not parts:
+        return None
+    if _contains_shell_metacharacters(parts):
         return None
     if parts[0] == "sudo":
         if len(parts) < 2 or parts[1] != expected:
@@ -3150,46 +3170,63 @@ def feature_nmap_scanner():
         return
     elif choice == '1':
         target = input("Enter target IP or hostname: ").strip()
-        if _is_safe_cli_value(target):
-            cmd = ["nmap", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        cmd = ["nmap", target]
     elif choice == '2':
         target = input("Enter network range (e.g., 192.168.1.0/24): ").strip()
-        if _is_safe_cli_value(target):
-            cmd = ["nmap", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        cmd = ["nmap", target]
     elif choice == '3':
         target = input("Enter target IP or hostname: ").strip()
-        if _is_safe_cli_value(target):
-            cmd = ["nmap", "-p", "21,22,23,25,53,80,443,3306,3389,8080", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        cmd = ["nmap", "-p", "21,22,23,25,53,80,443,3306,3389,8080", target]
     elif choice == '4':
         target = input("Enter target IP or hostname: ").strip()
-        if _is_safe_cli_value(target):
-            cmd = ["nmap", "-A", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        cmd = ["nmap", "-A", target]
     elif choice == '5':
         target = input("Enter target IP or hostname: ").strip()
-        if _is_safe_cli_value(target):
-            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
-            cmd = ["sudo", "nmap", "-sS", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
+        cmd = ["sudo", "nmap", "-sS", target]
     elif choice == '6':
         target = input("Enter target IP or hostname: ").strip()
-        if _is_safe_cli_value(target):
-            print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
-            cmd = ["sudo", "nmap", "-O", target]
+        if not _is_safe_cli_target(target):
+            print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
+        print(f"{COLORS['4'][0]}⚠️  Requires root/sudo privileges{RESET}")
+        cmd = ["sudo", "nmap", "-O", target]
     elif choice == '7':
         raw = input("Enter full nmap command: ").strip()
         cmd = _sanitize_custom_command(raw, "nmap")
         if cmd is None and raw:
             print(f"{COLORS['1'][0]}❌ Invalid or unsafe command.{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            return
     else:
         print(f"{COLORS['1'][0]}Invalid choice{RESET}")
         input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         return
 
-    if cmd is None and choice in {'1', '2', '3', '4', '5', '6'}:
-        print(f"{COLORS['1'][0]}❌ Invalid target. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
-
     if cmd:
-        pretty_cmd = " ".join(shlex.quote(part) for part in cmd)
-        print(f"\n{COLORS['6'][0]}Executing: {pretty_cmd}{RESET}\n")
+        display_cmd = " ".join(shlex.quote(part) for part in cmd)
+        print(f"\n{COLORS['6'][0]}Executing: {display_cmd}{RESET}\n")
         print(f"{COLORS['4'][0]}⚠️  Press Ctrl+C to stop scan{RESET}\n")
         try:
             _run_cli(cmd, "nmap_scan")
@@ -3229,10 +3266,22 @@ def feature_metasploit_console():
         _run_cli(["msfconsole"], "msfconsole_launch")
     elif choice == '2':
         keyword = input("Enter search keyword (e.g., windows, apache): ").strip()
-        if _is_safe_cli_value(keyword):
-            _run_cli(["msfconsole", "-q", "-x", f"search {keyword}; exit"], "msf_search")
+        if _is_safe_cli_keyword(keyword):
+            rc_path = None
+            try:
+                rc_fd, rc_path = tempfile.mkstemp(prefix="msf_", suffix=".rc", text=True)
+                # Keyword is allowlisted and written to a resource file (no shell interpretation).
+                with os.fdopen(rc_fd, "w", encoding="utf-8") as rc:
+                    rc.write(f"search {keyword}\nexit\n")
+                _run_cli(["msfconsole", "-q", "-r", rc_path], "msf_search")
+            finally:
+                if rc_path:
+                    try:
+                        os.remove(rc_path)
+                    except OSError:
+                        pass
         elif keyword:
-            print(f"{COLORS['1'][0]}❌ Invalid keyword. Only letters, numbers, and .:/@-_ are allowed.{RESET}")
+            print(f"{COLORS['1'][0]}❌ Invalid keyword. Use letters, numbers, dots, hyphens, or underscores only.{RESET}")
     elif choice == '3':
         _run_cli(["msfconsole", "--version"], "msfconsole_version")
     elif choice == '4':
