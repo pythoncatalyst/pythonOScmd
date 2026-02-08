@@ -11686,9 +11686,15 @@ def run_pytextos(return_to_classic=False):
                         pct = max(0, min(100, float(pct)))
                     except (TypeError, ValueError):
                         pct = 0.0
-                    filled = round(pct / TEXTUAL_BAR_SCALE)
+                    filled = round(pct * (1 / TEXTUAL_BAR_SCALE))
                     filled = max(0, min(TEXTUAL_BAR_LENGTH, filled))
                     return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
+
+                def _fmt_pct(val):
+                    try:
+                        return f"{float(val):.1f}%"
+                    except (TypeError, ValueError):
+                        return "0.0%"
 
                 cpu_pct = psutil.cpu_percent(interval=None)
                 mem_pct = getattr(mem, "percent", 0)
@@ -11697,9 +11703,9 @@ def run_pytextos(return_to_classic=False):
                 lines = [
                     f"OS: {platform.system()} {platform.release()}",
                     f"Node: {platform.node()}",
-                    f"CPU: {cpu_pct:.1f}% [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {mem_pct:.1f}% [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
-                    f"Disk: {disk_pct:.1f}% [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
+                    f"CPU: {_fmt_pct(cpu_pct)} [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
+                    f"RAM: {_fmt_pct(mem_pct)} [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                    f"Disk: {_fmt_pct(disk_pct)} [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
                     f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
                 ]
                 if weather_cache:
