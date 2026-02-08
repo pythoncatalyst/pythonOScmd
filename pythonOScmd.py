@@ -69,7 +69,10 @@ def boot_loader():
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
     # 1. Define required libraries
-    required = {'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil', 'numpy'}
+    required = {
+        'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil', 'numpy',
+        'textual', 'rich', 'pygments', 'pygame', 'tinytag'
+    }
     missing = set()
 
     # 2. Check what is actually installed without using pkg_resources1
@@ -174,6 +177,14 @@ reactive = None
 Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = Markdown = None
 _TEXTUAL_IMPORTED = False
 _TEXTUAL_IMPORT_ERROR = None
+
+TEXTUAL_WIDGET_REGISTRY = {}
+
+def register_textual_widget(key, title, builder):
+    """Register an additional Textual widget for the widget board."""
+    if not key or not callable(builder):
+        return
+    TEXTUAL_WIDGET_REGISTRY[key] = {"title": title, "builder": builder}
 
 # Shared format constants
 SUPPORTED_AUDIO_FORMATS = ('.aac', '.flac', '.m4a', '.mp2', '.mp3', '.ogg', '.wav')
@@ -9783,6 +9794,295 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         input("\nPress Enter to return...")
 
 
+def feature_textual_widget_board(screenshot_path=None):
+    """Launch a Textual widget board with embedded mini apps."""
+    try:
+        from textual.app import App, ComposeResult
+        from textual import on
+        from textual.containers import Horizontal, Vertical, Container
+        from textual.widgets import Header, Footer, ListView, ListItem, Label, Static, Input, Button, TextLog
+    except Exception as exc:
+        textual_present = importlib.util.find_spec("textual") is not None
+        print(f"\n{get_current_color()}✗{RESET} Textual widget board unavailable.")
+        if textual_present:
+            print(f"Import error: {exc}")
+            print("Install/upgrade with: pip install --upgrade textual rich pygments pygame tinytag")
+        else:
+            print("Install with: pip install textual rich pygments pygame tinytag")
+        input("\nPress Enter to return...")
+        return
+
+    SAFE_MATH = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
+    SAFE_MATH.update({"abs": abs, "round": round})
+
+    def _safe_eval(expr: str):
+        try:
+            return eval(expr, {"__builtins__": {}}, SAFE_MATH)
+        except Exception as exc:  # pragma: no cover - interactive widget
+            return f"error: {exc}"
+
+    class CalculatorWidget(Static):
+        def compose(self) -> ComposeResult:
+            yield Static("Textual Calculator", classes="title")
+            yield Input(placeholder="Enter expression, e.g. 2+2 or sin(1)", id="calc-expr")
+            yield Button("Compute", id="calc-run", variant="primary")
+            yield Static("Result: --", id="calc-result")
+
+        @on(Button.Pressed, "#calc-run")
+        @on(Input.Submitted, "#calc-expr")
+        def handle_compute(self, event):
+            expr = self.query_one("#calc-expr", Input).value.strip()
+            if not expr:
+                return
+            result = _safe_eval(expr)
+            self.query_one("#calc-result", Static).update(f"Result: {result}")
+
+    class Mp3Widget(Static):
+        def on_mount(self):
+            self.audio_ready = False
+            self.audio_error = ""
+            self._paused = False
+            self._pygame = None
+            try:
+                os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+                import pygame  # type: ignore
+                pygame.mixer.init()
+                self._pygame = pygame
+                self.audio_ready = True
+            except Exception as exc:  # pragma: no cover - optional dependency
+                self.audio_error = str(exc)
+
+        def compose(self) -> ComposeResult:
+            yield Static("Textual MP3 Player", classes="title")
+            yield Input(placeholder="Path to MP3/WAV file", id="mp3-path")
+            with Horizontal():
+                yield Button("Play", id="mp3-play", variant="success")
+                yield Button("Pause/Resume", id="mp3-toggle")
+                yield Button("Stop", id="mp3-stop", variant="warning")
+            yield TextLog(id="mp3-log", highlight=False, markup=False)
+
+        def _log(self, message):
+            self.query_one("#mp3-log", TextLog).write(message)
+
+        def _load_audio(self, path):
+            if not self.audio_ready or not self._pygame:
+                self._log(f"Audio unavailable: {self.audio_error or 'pygame missing'}")
+                return False
+            try:
+                self._pygame.mixer.music.load(path)
+                return True
+            except Exception as exc:  # pragma: no cover - runtime safety
+                self._log(f"❌ {exc}")
+                return False
+
+        @on(Button.Pressed, "#mp3-play")
+        @on(Input.Submitted, "#mp3-path")
+        def handle_play(self, _event):
+            path = self.query_one("#mp3-path", Input).value.strip()
+            if not path:
+                self._log("Enter a file path first.")
+                return
+            if self._load_audio(path):
+                try:
+                    self._pygame.mixer.music.play()
+                    self._paused = False
+                    self._log(f"▶️ Playing {os.path.basename(path)}")
+                except Exception as exc:
+                    self._log(f"❌ {exc}")
+
+        @on(Button.Pressed, "#mp3-toggle")
+        def handle_toggle(self, _event):
+            if not self.audio_ready or not self._pygame:
+                self._log("Audio unavailable.")
+                return
+            try:
+                if self._paused:
+                    self._pygame.mixer.music.unpause()
+                    self._log("Resumed.")
+                else:
+                    self._pygame.mixer.music.pause()
+                    self._log("Paused.")
+                self._paused = not self._paused
+            except Exception as exc:
+                self._log(f"❌ {exc}")
+
+        @on(Button.Pressed, "#mp3-stop")
+        def handle_stop(self, _event):
+            if not self.audio_ready or not self._pygame:
+                return
+            try:
+                self._pygame.mixer.music.stop()
+                self._log("⏹️ Stopped.")
+            except Exception as exc:
+                self._log(f"❌ {exc}")
+
+        def on_unmount(self):
+            if self.audio_ready and self._pygame:
+                try:
+                    self._pygame.mixer.music.stop()
+                    self._pygame.mixer.quit()
+                except Exception:
+                    pass
+
+    class NotesWidget(Static):
+        def compose(self) -> ComposeResult:
+            yield Static("Quick Notes", classes="title")
+            yield TextLog(id="notes-log", highlight=False, markup=False)
+            yield Input(placeholder="Type a note and press Enter", id="notes-input")
+
+        @on(Input.Submitted, "#notes-input")
+        def add_note(self, event):
+            note = self.query_one("#notes-input", Input).value.strip()
+            if not note:
+                return
+            self.query_one("#notes-log", TextLog).write(f"• {note}")
+            self.query_one("#notes-input", Input).value = ""
+
+    class StopwatchWidget(Static):
+        def on_mount(self):
+            self._start = None
+            self._running = False
+            self.set_interval(0.5, self._tick)
+
+        def compose(self) -> ComposeResult:
+            yield Static("Stopwatch", classes="title")
+            yield Static("Elapsed: 0.0s", id="stopwatch-display")
+            with Horizontal():
+                yield Button("Start", id="sw-start", variant="success")
+                yield Button("Stop", id="sw-stop", variant="warning")
+                yield Button("Reset", id="sw-reset")
+
+        def _tick(self):
+            if not self._running or self._start is None:
+                return
+            elapsed = time.time() - self._start
+            self.query_one("#stopwatch-display", Static).update(f"Elapsed: {elapsed:.1f}s")
+
+        @on(Button.Pressed, "#sw-start")
+        def start_sw(self, _event):
+            if not self._running:
+                self._start = time.time()
+                self._running = True
+
+        @on(Button.Pressed, "#sw-stop")
+        def stop_sw(self, _event):
+            self._running = False
+
+        @on(Button.Pressed, "#sw-reset")
+        def reset_sw(self, _event):
+            self._start = time.time()
+            self.query_one("#stopwatch-display", Static).update("Elapsed: 0.0s")
+
+    class StatsWidget(Static):
+        def on_mount(self):
+            self.set_interval(1.0, self._refresh_stats)
+
+        def compose(self) -> ComposeResult:
+            yield Static("System Stats", classes="title")
+            yield Static("CPU: --", id="stats-cpu")
+            yield Static("Mem: --", id="stats-mem")
+            yield Static("Disk: --", id="stats-disk")
+            yield Static("Net: --", id="stats-net")
+
+        def _refresh_stats(self):
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage('/')
+                net = psutil.net_io_counters()
+                self.query_one("#stats-cpu", Static).update(f"CPU: {cpu:.1f}%")
+                self.query_one("#stats-mem", Static).update(f"Mem: {mem.percent:.1f}%")
+                self.query_one("#stats-disk", Static).update(f"Disk: {disk.percent:.1f}%")
+                self.query_one("#stats-net", Static).update(f"Net: {net.bytes_sent/1024:.1f}↑/{net.bytes_recv/1024:.1f}↓ KB")
+            except Exception:
+                pass
+
+    default_widgets = {
+        "calculator": {"title": "Calculator", "builder": CalculatorWidget},
+        "mp3": {"title": "MP3 Player", "builder": Mp3Widget},
+        "notes": {"title": "Notes", "builder": NotesWidget},
+        "stopwatch": {"title": "Stopwatch", "builder": StopwatchWidget},
+        "stats": {"title": "System Stats", "builder": StatsWidget},
+    }
+
+    widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
+    if not widgets:
+        print("No widgets registered for the Textual board.")
+        return
+
+    class WidgetBoard(App):
+        CSS = """
+        #widget-body { height: 1fr; }
+        #widget-nav { width: 32; border: solid $primary; }
+        #widget-panel { padding: 1; border: solid $secondary; }
+        .title { content-align: center middle; height: 1; }
+        """
+
+        def __init__(self, widget_defs):
+            super().__init__()
+            self.widget_defs = widget_defs
+            self.selected = next(iter(widget_defs))
+            self.nav = None
+            self.panel = None
+
+        def compose(self) -> ComposeResult:
+            nav_items = [ListItem(Label(meta.get("title", key.title())), id=f"w-{key}") for key, meta in self.widget_defs.items()]
+            yield Header(show_clock=True)
+            yield Horizontal(
+                ListView(*nav_items, id="widget-nav"),
+                Container(id="widget-panel"),
+                id="widget-body",
+            )
+            yield Footer()
+
+        def on_mount(self):
+            self.nav = self.query_one("#widget-nav", ListView)
+            self.panel = self.query_one("#widget-panel", Container)
+            for idx, item in enumerate(self.nav.children):
+                if item.id == f"w-{self.selected}":
+                    self.nav.index = idx
+                    break
+            self._load_widget(self.selected)
+
+        def _load_widget(self, key):
+            if not self.panel:
+                return
+            self.panel.remove_children()
+            meta = self.widget_defs.get(key, {})
+            builder = meta.get("builder")
+            try:
+                widget = builder() if callable(builder) else Static("Invalid widget")
+            except Exception as exc:
+                widget = Static(f"Unable to load widget: {exc}")
+            self.panel.mount(widget)
+
+        @on(ListView.Selected, "#widget-nav")
+        def handle_select(self, event):
+            if not event.item.id.startswith("w-"):
+                return
+            key = event.item.id[2:]
+            self.selected = key
+            self._load_widget(key)
+
+        @on(ListView.Highlighted, "#widget-nav")
+        def handle_highlight(self, event):
+            if not event.item.id.startswith("w-"):
+                return
+            key = event.item.id[2:]
+            self.selected = key
+            self._load_widget(key)
+
+    try:
+        app = WidgetBoard(widgets)
+        if screenshot_path:
+            app.run(screenshot=screenshot_path)
+        else:
+            app.run()
+    except Exception as exc:
+        print(f"{get_current_color()}✗{RESET} Widget board error: {exc}")
+        input("\nPress Enter to return...")
+
+
 def feature_media_menu():
     """Media Scanner sub-menu that exposes existing scanners
     and an option to launch the asciiplayer plugin if installed.
@@ -11448,6 +11748,7 @@ COMMAND_CENTER_ACTIONS = [
     ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
     *CLASSIC_APP_ACTIONS,
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
+    ("widget_board", {"title": "Textual Widget Board", "summary": "Calculator, MP3, notes, stats, and stopwatch widgets.", "category": "general", "operation": "Widget_Board", "func": feature_textual_widget_board}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
     ("file_manager_suite", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
 ]
