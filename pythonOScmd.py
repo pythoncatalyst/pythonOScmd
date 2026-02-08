@@ -11408,10 +11408,8 @@ def feature_quick_audio_playback():
         print(f"{COLORS['1'][0]}❌ Playback failed: {exc}{RESET}")
         time.sleep(1)
 
-# Command Center actions presented in the Textual shell. Each entry includes
-# a key, title, summary, and the callable to launch.
-COMMAND_CENTER_ACTIONS = [
-    ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
+# Canonical catalog of classic Command Center apps so PyTextOS mirrors every module.
+CLASSIC_APP_ACTIONS = [
     ("browser", {"title": "Web Browser", "summary": "Launch the web browser center.", "category": "general", "operation": "Web_Browser", "func": feature_web_browser_center}),
     ("disk", {"title": "Disk I/O Report", "summary": "Disk usage and throughput report.", "category": "general", "operation": "Disk_IO_Report", "func": feature_disk_io_report}),
     ("process", {"title": "Process Search", "summary": "Find and inspect processes.", "category": "process", "operation": "Process_Search", "func": feature_process_search}),
@@ -11430,7 +11428,6 @@ COMMAND_CENTER_ACTIONS = [
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
     ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single audio file via terminal player.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
-    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
     ("bluetooth", {"title": "Bluetooth Toolkit", "summary": "Bluetooth scans and actions.", "category": "network", "operation": "Bluetooth_Toolkit", "func": feature_bluetooth_toolkit}),
@@ -11442,7 +11439,16 @@ COMMAND_CENTER_ACTIONS = [
     ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
     ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
-    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),("file-system", {"name": "File Manager Suite", "func": feature_file_manager_suite, "cat": "file"}),
+]
+
+# Command Center actions presented in the Textual shell. Each entry includes
+# a key, title, summary, and the callable to launch.
+COMMAND_CENTER_ACTIONS = [
+    ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
+    *CLASSIC_APP_ACTIONS,
+    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
+    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
+    ("file-system", {"name": "File Manager Suite", "func": feature_file_manager_suite, "cat": "file"}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
@@ -11671,12 +11677,25 @@ def run_pytextos(return_to_classic=False):
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage('/')
                 net = psutil.net_io_counters()
+
+                def _bar(pct):
+                    try:
+                        pct = max(0, min(100, float(pct)))
+                    except Exception:
+                        pct = 0.0
+                    filled = int(pct / 5)
+                    return "█" * filled + "░" * (20 - filled)
+
+                cpu_pct = psutil.cpu_percent(interval=None)
+                mem_pct = getattr(mem, "percent", 0)
+                disk_pct = getattr(disk, "percent", 0)
+
                 lines = [
                     f"OS: {platform.system()} {platform.release()}",
                     f"Node: {platform.node()}",
-                    f"CPU: {psutil.cpu_percent(interval=None)}% | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {mem.percent}% | Free: {_format_gb(mem.available)}",
-                    f"Disk: {disk.percent}% | Free: {_format_gb(disk.free)}",
+                    f"CPU: {cpu_pct:.1f}% [{_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
+                    f"RAM: {mem_pct}% [{_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                    f"Disk: {disk_pct}% [{_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
                     f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
                 ]
                 if weather_cache:
