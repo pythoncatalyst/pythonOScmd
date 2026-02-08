@@ -174,6 +174,9 @@ Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = M
 _TEXTUAL_IMPORTED = False
 _TEXTUAL_IMPORT_ERROR = None
 
+# Shared format constants
+SUPPORTED_AUDIO_FORMATS = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+
 
 def _ensure_textual_imports():
     """Lazy-load Textual widgets the first time enhanced mode is launched."""
@@ -5957,7 +5960,7 @@ def feature_media_scanner():
 
     # Extension definitions for the future solar system usage
     media_exts = {
-        "Audio": [".mp3", ".mp2", ".wav", ".flac", ".ogg", ".m4a"],
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
         "Video": [".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"],
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
@@ -9561,7 +9564,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         TinyTag = None  # type: ignore
         _tinytag_error = f"TinyTag error: {exc}"
 
-    audio_exts = (".mp3", ".mp2", ".wav", ".ogg", ".flac", ".m4a", ".aac")
+    audio_exts = SUPPORTED_AUDIO_FORMATS
     video_exts = (".mp4", ".mkv", ".avi", ".mov")
 
     class MediaLounge(App):
@@ -10473,7 +10476,7 @@ def _enhanced_media_preview(stdscr, state):
     if not os.path.isdir(base):
         _enhanced_set_display(state, "MEDIA", f"Not a directory: {base}")
         return
-    exts = (".mp3", ".mp2", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".mp4", ".mkv", ".avi", ".mov")
+    exts = SUPPORTED_AUDIO_FORMATS + (".mp4", ".mkv", ".avi", ".mov")
     files = []
     for root, _, names in os.walk(base):
         for name in names:
@@ -11378,7 +11381,7 @@ def feature_file_manager_suite():
 def feature_quick_audio_playback():
     """Quick path-based audio launcher for common audio formats."""
     print_header("🎧 Quick Audio Player")
-    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+    supported = SUPPORTED_AUDIO_FORMATS
     prompt_ext = ", ".join(ext.strip(".") for ext in supported)
     target = input(f"📂 Enter audio file path (Supported: {prompt_ext}): ").strip()
     if not target:
@@ -12158,10 +12161,10 @@ def run_classic_command_center():
         print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
         print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
         print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
-        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
+        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🎧 Quick Audio")
         print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
         print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode   {BOLD}[W]{RESET} 🎧 Quick Audio")
+        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
         print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
@@ -12218,6 +12221,7 @@ def run_classic_command_center():
         elif choice == 'G': safe_run("weather", "Weather_Display", feature_weather_display)
         elif choice == 'H': safe_run("general", "Display_FX", feature_test_font_size)
         elif choice == 'I': safe_run("media", "Media_Menu", feature_media_menu)
+        elif choice == 'W': safe_run("media", "Quick_Audio", feature_quick_audio_playback)
         elif choice == 'J': safe_run("network", "WiFi_Toolkit", feature_wifi_toolkit)
         elif choice == 'K': safe_run("ai", "AI_Center", feature_ai_center)
         elif choice == 'L': safe_run("network", "Bluetooth_Toolkit", feature_bluetooth_toolkit)
@@ -12229,7 +12233,6 @@ def run_classic_command_center():
         elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
         elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
         elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
-        elif choice == 'W': safe_run("media", "Quick_Audio", feature_quick_audio_playback)
         elif choice == 'V':
             _set_display_mode("classic")
         elif choice == 'U':
@@ -12522,7 +12525,7 @@ def feature_terminal_mp3_player():
             continue
 
         # Find all audio files
-        audio_extensions = ['.mp3', '.mp2', '.wav', '.flac', '.ogg', '.m4a', '.aac']
+        audio_extensions = list(SUPPORTED_AUDIO_FORMATS)
         audio_files = []
 
         try:
@@ -12650,7 +12653,7 @@ def feature_media_scanner_integrated():
         return
 
     media_exts = {
-        "Audio": [".mp3", ".mp2", ".wav", ".ogg"],
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
         "Video": [".mp4", ".mkv"],
         "Images": [".jpg", ".png", ".webp"]
     }
@@ -12773,7 +12776,7 @@ def universal_executor(file_path):
                 print(f"{COLORS['1'][0]}❌ Error: run(ctx) missing in plugin.{RESET}")
         except Exception as e:
             print(f"💥 Plugin Crash: {e}")
-    elif ext in ['.mp3', '.mp2', '.wav', '.mp4']:
+    elif ext in SUPPORTED_AUDIO_FORMATS or ext == '.mp4':
         # Calls your external media_engine script
         try:
             import media_engine
@@ -12791,7 +12794,7 @@ def feature_integrated_explorer():
     items = []
     for root, _, files in os.walk(target):
         for f in files:
-            if f.lower().endswith(('.mp3', '.mp2', '.py', '.wav', '.mp4')):
+            if f.lower().endswith(SUPPORTED_AUDIO_FORMATS + ('.py', '.mp4')):
                 items.append(os.path.join(root, f))
 
     if not items:
