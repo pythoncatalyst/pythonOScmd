@@ -189,6 +189,36 @@ def register_textual_widget(key, title, builder):
         raise ValueError("register_textual_widget requires a non-empty key and a callable builder")
     TEXTUAL_WIDGET_REGISTRY[key] = {"title": title, "builder": builder}
 
+# Machine-readable manifest to help collaborating AIs understand and safely extend
+# interactive Textual modules without breaking entry points.
+AI_APP_MANIFEST = {
+    "textual_media_lounge": {
+        "description": "ASCII-first media browser with audio/video hooks.",
+        "entrypoint": "feature_textual_media_lounge",
+        "depends_on": ["textual", "rich", "pygame", "tinytag", "requests", "bs4"],
+    },
+    "textual_widget_board": {
+        "description": "Modular widget board containing calculator, MP3, notes, stopwatch, and stats.",
+        "entrypoint": "feature_textual_widget_board",
+        "depends_on": ["textual", "rich", "pygame", "psutil"],
+    },
+    "pytextos_shell": {
+        "description": "Main Textual command shell mirroring classic Command Center actions.",
+        "entrypoint": "run_pytextos",
+        "depends_on": ["textual", "rich", "psutil"],
+    },
+}
+
+
+def get_ai_app_manifest(include_callables=False):
+    """Expose AI manifest for tooling; optionally attach callable references."""
+    manifest = copy.deepcopy(AI_APP_MANIFEST)
+    if include_callables:
+        manifest["textual_media_lounge"]["callable"] = globals().get("feature_textual_media_lounge")
+        manifest["textual_widget_board"]["callable"] = globals().get("feature_textual_widget_board")
+        manifest["pytextos_shell"]["callable"] = globals().get("run_pytextos")
+    return manifest
+
 # Shared format constants
 SUPPORTED_AUDIO_FORMATS = ('.aac', '.flac', '.m4a', '.mp2', '.mp3', '.ogg', '.wav')
 SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv')
@@ -9788,9 +9818,10 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         if not selected_video.exists():
             print(f"{get_current_color()}✗{RESET} Video missing: {selected_video}")
             return
+        video_player = getattr(app, "video_player", None)
         try:
-            if self.video_player:
-                self.video_player(str(selected_video))
+            if video_player:
+                video_player(str(selected_video))
             else:
                 if shutil.which("ffplay"):
                     subprocess.run(["ffplay", "-autoexit", str(selected_video)], check=False)
@@ -10075,9 +10106,11 @@ def feature_textual_widget_board(screenshot_path=None):
     class WidgetBoard(App):
         CSS = """
         #widget-body { height: 1fr; }
-        #widget-nav { width: 32; border: solid $primary; }
+        #widget-nav-container { width: 32; }
+        #widget-nav { border: solid $primary; }
         #widget-panel { padding: 1; border: solid $secondary; }
         .title { content-align: center middle; height: 1; }
+        #widget-quit { dock: bottom; margin: 1 0; }
         """
 
         def __init__(self, widget_defs):
@@ -10094,11 +10127,11 @@ def feature_textual_widget_board(screenshot_path=None):
                 nav_items.append(ListItem(Label(meta.get("title", key.title())), id=f"w-{key}"))
                 self._nav_index[key] = idx
             yield Header(show_clock=True)
-            yield Horizontal(
-                ListView(*nav_items, id="widget-nav"),
-                Container(id="widget-panel"),
-                id="widget-body",
-            )
+            with Horizontal(id="widget-body"):
+                with Vertical(id="widget-nav-container"):
+                    yield ListView(*nav_items, id="widget-nav")
+                    yield Button("Quit", id="widget-quit", variant="error")
+                yield Container(id="widget-panel")
             yield Footer()
 
         def on_mount(self):
@@ -10113,7 +10146,11 @@ def feature_textual_widget_board(screenshot_path=None):
                 return
             if not key:
                 return
-            self.panel.remove_children()
+            if hasattr(self.panel, "remove_children"):
+                self.panel.remove_children()
+            else:
+                for child in list(self.panel.children):
+                    child.remove()
             meta = self.widget_defs.get(key, {})
             builder = meta.get("builder")
             try:
@@ -10124,6 +10161,8 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(ListView.Selected, "#widget-nav")
         def handle_select(self, event):
+            if not event or not getattr(event, "item", None) or getattr(event.item, "id", None) is None:
+                return
             if not event.item.id.startswith("w-"):
                 return
             key = event.item.id[2:]
@@ -10132,11 +10171,17 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(ListView.Highlighted, "#widget-nav")
         def handle_highlight(self, event):
+            if not event or not getattr(event, "item", None) or getattr(event.item, "id", None) is None:
+                return
             if not event.item.id.startswith("w-"):
                 return
             key = event.item.id[2:]
             self.selected = key
             self._load_widget(key)
+
+        @on(Button.Pressed, "#widget-quit")
+        def handle_quit(self, _event):
+            self.exit()
 
     try:
         app = WidgetBoard(widgets)
