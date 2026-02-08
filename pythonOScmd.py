@@ -11694,8 +11694,8 @@ def run_pytextos(return_to_classic=False):
                     f"OS: {platform.system()} {platform.release()}",
                     f"Node: {platform.node()}",
                     f"CPU: {cpu_pct:.1f}% [{_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {mem_pct}% [{_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
-                    f"Disk: {disk_pct}% [{_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
+                    f"RAM: {mem_pct:.1f}% [{_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                    f"Disk: {disk_pct:.1f}% [{_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
                     f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
                 ]
                 if weather_cache:
