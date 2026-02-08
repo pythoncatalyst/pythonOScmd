@@ -5935,6 +5935,100 @@ def _open_url(url):
     else:
         os.system(f"$BROWSER '{url}' 2>/dev/null &")
 
+def launch_bpytop_monitor():
+    """Launch bpytop system monitor inline - displays in terminal."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    
+    # Check if bpytop is installed
+    bpytop_cmd = shutil.which('bpytop')
+    
+    if bpytop_cmd:
+        print(f"{COLORS['2'][0]}✅ Launching Bpytop System Monitor...{RESET}")
+        print(f"{COLORS['6'][0]}📊 Real-time CPU, Memory, Disk, Network, and Process Monitor{RESET}")
+        print(f"{COLORS['6'][0]}Press 'q' to quit and return to Command Center{RESET}\n")
+        time.sleep(1)
+        try:
+            # Launch bpytop - it takes over the entire terminal
+            subprocess.call(['bpytop'])
+        except KeyboardInterrupt:
+            print(f"\n{COLORS['4'][0]}🛑 Bpytop interrupted{RESET}")
+        except Exception as e:
+            print(f"{COLORS['1'][0]}❌ Error launching bpytop: {e}{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+    else:
+        # Bpytop not installed - provide installation instructions
+        print(f"{COLORS['1'][0]}❌ Bpytop is not installed{RESET}\n")
+        print(f"{BOLD}📦 Install Bpytop:{RESET}\n")
+        print(f"  {COLORS['6'][0]}Method 1 (pip - Recommended):{RESET}")
+        print(f"    pip3 install bpytop --upgrade\n")
+        print(f"  {COLORS['6'][0]}Method 2 (system package):{RESET}")
+        print(f"    Ubuntu/Debian: sudo apt install bpytop")
+        print(f"    Fedora: sudo dnf install bpytop")
+        print(f"    Arch: sudo pacman -S bpytop")
+        print(f"    macOS: brew install bpytop\n")
+        print(f"  {COLORS['6'][0]}Method 3 (snap):{RESET}")
+        print(f"    sudo snap install bpytop\n")
+        
+        install = input(f"{BOLD}Install bpytop now with pip? (y/n): {RESET}").strip().lower()
+        if install == 'y':
+            print(f"\n{COLORS['6'][0]}📥 Installing bpytop...{RESET}\n")
+            try:
+                subprocess.call([sys.executable, "-m", "pip", "install", "bpytop", "--upgrade"])
+                print(f"\n{COLORS['2'][0]}✅ Bpytop installed successfully!{RESET}")
+                print(f"{COLORS['2'][0]}Launch it again from Enhanced Display Mode (Option U > Option 1){RESET}")
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Installation failed: {e}{RESET}")
+        
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def launch_htop_monitor():
+    """Launch htop system monitor."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    htop_cmd = shutil.which('htop')
+    if htop_cmd:
+        print(f"{COLORS['2'][0]}✅ Launching Htop...{RESET}\n")
+        time.sleep(0.5)
+        try:
+            subprocess.call(['htop'])
+        except:
+            pass
+    else:
+        print(f"{COLORS['1'][0]}❌ Htop not installed{RESET}")
+        print(f"Install: sudo apt install htop")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def launch_gtop_monitor():
+    """Launch gtop system monitor (Node.js based)."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    gtop_cmd = shutil.which('gtop')
+    if gtop_cmd:
+        print(f"{COLORS['2'][0]}✅ Launching Gtop...{RESET}\n")
+        time.sleep(0.5)
+        try:
+            subprocess.call(['gtop'])
+        except:
+            pass
+    else:
+        print(f"{COLORS['1'][0]}❌ Gtop not installed{RESET}")
+        print(f"Install: npm install -g gtop")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+def launch_btop_monitor():
+    """Launch btop++ system monitor."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    btop_cmd = shutil.which('btop')
+    if btop_cmd:
+        print(f"{COLORS['2'][0]}✅ Launching Btop++...{RESET}\n")
+        time.sleep(0.5)
+        try:
+            subprocess.call(['btop'])
+        except:
+            pass
+    else:
+        print(f"{COLORS['1'][0]}❌ Btop++ not installed{RESET}")
+        print(f"Install: sudo apt install btop")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
 def feature_web_browser_center():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -10450,7 +10544,36 @@ COMMAND_CENTER_ACTIONS = [
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
 
 def feature_enhanced_display_mode():
-    return run_pytextos(return_to_classic=True)
+    """Enhanced Display Mode - Launches Bpytop System Monitor."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🎨 Enhanced Display Mode - Bpytop Monitor")
+    
+    print(f"\n{BOLD}System Resource Monitor Options:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🚀 Launch Bpytop (if installed)")
+    print(f" {BOLD}[2]{RESET} 🖥️  Launch Htop (if installed)")
+    print(f" {BOLD}[3]{RESET} 📊 Launch Gtop (if installed)")
+    print(f" {BOLD}[4]{RESET} ⚡ Launch Btop++ (if installed)")
+    print(f" {BOLD}[5]{RESET} 🎨 Launch Textual Interface (PyTextOS)")
+    print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+    
+    choice = input(f"\n{BOLD}Select monitor: {RESET}").strip()
+    
+    if choice == '0':
+        return
+    elif choice == '1':
+        launch_bpytop_monitor()
+    elif choice == '2':
+        launch_htop_monitor()
+    elif choice == '3':
+        launch_gtop_monitor()
+    elif choice == '4':
+        launch_btop_monitor()
+    elif choice == '5':
+        return run_pytextos(return_to_classic=True)
+    else:
+        print(f"{COLORS['1'][0]}Invalid option{RESET}")
+        time.sleep(1)
+        feature_enhanced_display_mode()
 
 def run_pytextos(return_to_classic=False):
     if not _ensure_textual_imports():
