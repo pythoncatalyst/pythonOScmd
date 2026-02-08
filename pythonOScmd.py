@@ -174,6 +174,13 @@ Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = M
 _TEXTUAL_IMPORTED = False
 _TEXTUAL_IMPORT_ERROR = None
 
+# Shared format constants
+SUPPORTED_AUDIO_FORMATS = ('.aac', '.flac', '.m4a', '.mp2', '.mp3', '.ogg', '.wav')
+SUPPORTED_VIDEO_FORMATS = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv')
+SUPPORTED_PLAYBACK_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS
+SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
+MAX_DISPLAYED_FORMATS = len(SUPPORTED_AUDIO_FORMATS)
+
 
 def _ensure_textual_imports():
     """Lazy-load Textual widgets the first time enhanced mode is launched."""
@@ -5957,8 +5964,8 @@ def feature_media_scanner():
 
     # Extension definitions for the future solar system usage
     media_exts = {
-        "Audio": [".mp3", ".wav", ".flac", ".ogg", ".m4a"],
-        "Video": [".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"],
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Video": list(SUPPORTED_VIDEO_FORMATS),
         "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
         "GIFs": [".gif"]
     }
@@ -9561,8 +9568,8 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         TinyTag = None  # type: ignore
         _tinytag_error = f"TinyTag error: {exc}"
 
-    audio_exts = (".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac")
-    video_exts = (".mp4", ".mkv", ".avi", ".mov")
+    audio_exts = SUPPORTED_AUDIO_FORMATS
+    video_exts = SUPPORTED_VIDEO_FORMATS
 
     class MediaLounge(App):
         MAX_DISPLAY_LINES = 40  # Keep rendered output concise inside the terminal UI
@@ -10473,7 +10480,7 @@ def _enhanced_media_preview(stdscr, state):
     if not os.path.isdir(base):
         _enhanced_set_display(state, "MEDIA", f"Not a directory: {base}")
         return
-    exts = (".mp3", ".wav", ".flac", ".ogg", ".m4a", ".aac", ".mp4", ".mkv", ".avi", ".mov")
+    exts = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS
     files = []
     for root, _, names in os.walk(base):
         for name in names:
@@ -11375,6 +11382,32 @@ def feature_file_manager_suite():
             print(f"{get_current_color()}✗{RESET} Invalid option")
             time.sleep(1)
 
+def feature_quick_audio_playback():
+    """Quick path-based audio launcher for common audio formats."""
+    print_header("🎧 Quick Audio Player")
+    supported = SUPPORTED_AUDIO_FORMATS
+    prompt_ext = ", ".join(ext.strip(".") for ext in supported[:MAX_DISPLAYED_FORMATS]) + ", etc."
+    target = input(f"📂 Enter audio file path (Supported: {prompt_ext}): ").strip()
+    if not target:
+        print(f"{COLORS['4'][0]}No file selected.{RESET}")
+        time.sleep(1)
+        return
+    target = os.path.expanduser(target)
+    if not os.path.isfile(target):
+        print(f"{COLORS['1'][0]}❌ Invalid audio file path.{RESET}")
+        time.sleep(1)
+        return
+    ext = os.path.splitext(target)[1].lower()
+    if ext not in supported:
+        print(f"{COLORS['1'][0]}❌ Unsupported extension: {ext or 'none'}{RESET}")
+        time.sleep(1)
+        return
+    try:
+        play_audio_file(target)
+    except Exception as exc:
+        print(f"{COLORS['1'][0]}❌ Playback failed: {exc}{RESET}")
+        time.sleep(1)
+
 # Command Center actions presented in the Textual shell. Each entry includes
 # a key, title, summary, and the callable to launch.
 COMMAND_CENTER_ACTIONS = [
@@ -11396,6 +11429,7 @@ COMMAND_CENTER_ACTIONS = [
     ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
+    ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single audio file via terminal player.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
@@ -12131,7 +12165,7 @@ def run_classic_command_center():
         print(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
         print(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
         print(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
-        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan")
+        print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🎧 Quick Audio")
         print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
         print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
         print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
@@ -12191,6 +12225,7 @@ def run_classic_command_center():
         elif choice == 'G': safe_run("weather", "Weather_Display", feature_weather_display)
         elif choice == 'H': safe_run("general", "Display_FX", feature_test_font_size)
         elif choice == 'I': safe_run("media", "Media_Menu", feature_media_menu)
+        elif choice == 'W': safe_run("media", "Quick_Audio", feature_quick_audio_playback)
         elif choice == 'J': safe_run("network", "WiFi_Toolkit", feature_wifi_toolkit)
         elif choice == 'K': safe_run("ai", "AI_Center", feature_ai_center)
         elif choice == 'L': safe_run("network", "Bluetooth_Toolkit", feature_bluetooth_toolkit)
@@ -12494,7 +12529,7 @@ def feature_terminal_mp3_player():
             continue
 
         # Find all audio files
-        audio_extensions = ['.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac']
+        audio_extensions = SUPPORTED_AUDIO_FORMATS
         audio_files = []
 
         try:
@@ -12622,8 +12657,8 @@ def feature_media_scanner_integrated():
         return
 
     media_exts = {
-        "Audio": [".mp3", ".wav", ".ogg"],
-        "Video": [".mp4", ".mkv"],
+        "Audio": list(SUPPORTED_AUDIO_FORMATS),
+        "Video": list(SUPPORTED_VIDEO_FORMATS),
         "Images": [".jpg", ".png", ".webp"]
     }
 
@@ -12745,7 +12780,7 @@ def universal_executor(file_path):
                 print(f"{COLORS['1'][0]}❌ Error: run(ctx) missing in plugin.{RESET}")
         except Exception as e:
             print(f"💥 Plugin Crash: {e}")
-    elif ext in ['.mp3', '.wav', '.mp4']:
+    elif ext in SUPPORTED_PLAYBACK_FORMATS:
         # Calls your external media_engine script
         try:
             import media_engine
@@ -12763,7 +12798,7 @@ def feature_integrated_explorer():
     items = []
     for root, _, files in os.walk(target):
         for f in files:
-            if f.lower().endswith(('.mp3', '.py', '.wav', '.mp4')):
+            if f.lower().endswith(SUPPORTED_MEDIA_PLUGIN_FORMATS):
                 items.append(os.path.join(root, f))
 
     if not items:
