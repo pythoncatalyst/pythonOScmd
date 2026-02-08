@@ -5422,7 +5422,7 @@ def _ai_probe_snapshot():
     mem_stress = mem.percent
     disk = psutil.disk_usage('/')
     net = psutil.net_io_counters()
-    stress_score = (cpu_stress * 0.4) + (mem_stress * 0.4) + (disk.percent * 0.2)
+    stress_score = (cpu_stress * 0.45) + (mem_stress * 0.45) + (disk.percent * 0.10)  # disk kept lightweight to avoid false criticals
 
     verdict = "OPTIMAL"
     if stress_score > 80:
@@ -5430,7 +5430,7 @@ def _ai_probe_snapshot():
     elif stress_score > 50:
         verdict = "MODERATE LOAD"
 
-    ai_readiness = max(0, 100 - int((mem_stress * 0.35) + (disk.percent * 0.2) + (cpu_stress * 0.45)))
+    ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))
     os_name = platform.system()
     arch = platform.machine()
     pyver = platform.python_version()
