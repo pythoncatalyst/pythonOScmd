@@ -10161,7 +10161,7 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(ListView.Selected, "#widget-nav")
         def handle_select(self, event):
-            if not event or not getattr(event, "item", None) or not getattr(event.item, "id", ""):
+            if not event or not getattr(event, "item", None) or getattr(event.item, "id", None) is None:
                 return
             if not event.item.id.startswith("w-"):
                 return
@@ -10171,7 +10171,7 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(ListView.Highlighted, "#widget-nav")
         def handle_highlight(self, event):
-            if not event or not getattr(event, "item", None) or not getattr(event.item, "id", ""):
+            if not event or not getattr(event, "item", None) or getattr(event.item, "id", None) is None:
                 return
             if not event.item.id.startswith("w-"):
                 return
