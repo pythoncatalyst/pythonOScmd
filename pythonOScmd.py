@@ -11678,10 +11678,10 @@ def run_pytextos(return_to_classic=False):
                 disk = psutil.disk_usage('/')
                 net = psutil.net_io_counters()
 
-                def _bar(pct):
+                def _render_usage_bar(pct):
                     try:
                         pct = max(0, min(100, float(pct)))
-                    except Exception:
+                    except (TypeError, ValueError):
                         pct = 0.0
                     filled = int(pct / 5)
                     return "█" * filled + "░" * (20 - filled)
@@ -11693,9 +11693,9 @@ def run_pytextos(return_to_classic=False):
                 lines = [
                     f"OS: {platform.system()} {platform.release()}",
                     f"Node: {platform.node()}",
-                    f"CPU: {cpu_pct:.1f}% [{_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {mem_pct:.1f}% [{_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
-                    f"Disk: {disk_pct:.1f}% [{_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
+                    f"CPU: {cpu_pct:.1f}% [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
+                    f"RAM: {mem_pct:.1f}% [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                    f"Disk: {disk_pct:.1f}% [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
                     f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
                 ]
                 if weather_cache:
