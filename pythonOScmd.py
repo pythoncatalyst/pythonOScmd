@@ -5416,6 +5416,8 @@ def feature_traffic_report():
 
 HEAVY_NETWORK_INTAKE_THRESHOLD_MB = 512  # MB threshold for flagging heavy ingress
 AI_RECOMMENDATION_LIMIT = 8
+AI_STRESS_WEIGHTS = {"cpu": 0.45, "mem": 0.45, "disk": 0.10}
+AI_READINESS_WEIGHTS = {"mem": 0.4, "disk": 0.3, "cpu": 0.3}
 
 def _ai_probe_snapshot():
     cpu_stress = psutil.cpu_percent(interval=0.5)
@@ -5423,7 +5425,11 @@ def _ai_probe_snapshot():
     mem_stress = mem.percent
     disk = psutil.disk_usage('/')
     net = psutil.net_io_counters()
-    stress_score = (cpu_stress * 0.45) + (mem_stress * 0.45) + (disk.percent * 0.10)  # disk kept lightweight to avoid false criticals
+    stress_score = (
+        (cpu_stress * AI_STRESS_WEIGHTS["cpu"])
+        + (mem_stress * AI_STRESS_WEIGHTS["mem"])
+        + (disk.percent * AI_STRESS_WEIGHTS["disk"])
+    )  # disk kept lightweight to avoid false criticals
 
     verdict = "OPTIMAL"
     if stress_score > 80:
@@ -5431,7 +5437,15 @@ def _ai_probe_snapshot():
     elif stress_score > 50:
         verdict = "MODERATE LOAD"
 
-    ai_readiness = max(0, 100 - int((mem_stress * 0.4) + (disk.percent * 0.3) + (cpu_stress * 0.3)))  # keep legacy weighting for familiarity
+    ai_readiness = max(
+        0,
+        100
+        - int(
+            (mem_stress * AI_READINESS_WEIGHTS["mem"])
+            + (disk.percent * AI_READINESS_WEIGHTS["disk"])
+            + (cpu_stress * AI_READINESS_WEIGHTS["cpu"])
+        ),
+    )  # keep legacy weighting for familiarity
     os_name = platform.system()
     arch = platform.machine()
     pyver = platform.python_version()
@@ -5525,14 +5539,8 @@ def _ai_recommendations(snapshot):
     recs.append("Need quick answers ➜ launch AI Language Interpreter for guided remediation steps.")
     recs.append("Curate tools ➜ use Download Center (AI Tools) to fetch SDKs for preferred providers.")
 
-    # Deduplicate in case multiple heuristics emit the same recommendation
-    deduped = []
-    seen = set()
-    for item in recs:
-        if item not in seen:
-            deduped.append(item)
-            seen.add(item)
-    return deduped
+    # Deduplicate while preserving order (heuristics may overlap)
+    return list(dict.fromkeys(recs))
 
 
 def _ai_data_fusion():
@@ -5601,6 +5609,8 @@ def _ai_data_fusion():
 def feature_ai_app_handler(snapshot=None):
     """
     Offline AI app orchestrator that routes health signals to command-center actions.
+    snapshot: optional precomputed _ai_probe_snapshot() dict; if None, a fresh snapshot is taken.
+    Returns None after user exits the interactive menu.
     """
     snapshot = snapshot or _ai_probe_snapshot()
 
