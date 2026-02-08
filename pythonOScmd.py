@@ -58,6 +58,9 @@ import importlib
 import importlib.util
 import copy
 
+# Hide pygame support prompt globally for interactive widgets
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+
 # ================================================================================
 # SECTION 3: CORE SYSTEM UTILITIES
 # ================================================================================
@@ -75,7 +78,7 @@ def boot_loader():
     }
     missing = set()
 
-    # 2. Check what is actually installed without using pkg_resources1
+    # 2. Check what is actually installed without using pkg_resources
 
     for lib in required:
         try:
@@ -183,7 +186,7 @@ TEXTUAL_WIDGET_REGISTRY = {}
 def register_textual_widget(key, title, builder):
     """Register an additional Textual widget for the widget board."""
     if not key or not callable(builder):
-        return
+        raise ValueError("register_textual_widget requires a non-empty key and a callable builder")
     TEXTUAL_WIDGET_REGISTRY[key] = {"title": title, "builder": builder}
 
 # Shared format constants
@@ -9814,12 +9817,51 @@ def feature_textual_widget_board(screenshot_path=None):
 
     SAFE_MATH = {k: getattr(math, k) for k in dir(math) if not k.startswith("_")}
     SAFE_MATH.update({"abs": abs, "round": round})
+    MAX_EXPRESSION_LENGTH = 120
 
     def _safe_eval(expr: str):
         try:
-            return eval(expr, {"__builtins__": {}}, SAFE_MATH)
+            import ast
+
+            def _eval(node):
+                if isinstance(node, ast.Expression):
+                    return _eval(node.body)
+                if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+                    return node.value
+                if isinstance(node, ast.BinOp):
+                    left = _eval(node.left)
+                    right = _eval(node.right)
+                    if isinstance(node.op, ast.Add):
+                        return left + right
+                    if isinstance(node.op, ast.Sub):
+                        return left - right
+                    if isinstance(node.op, ast.Mult):
+                        return left * right
+                    if isinstance(node.op, ast.Div):
+                        return left / right
+                    if isinstance(node.op, ast.Mod):
+                        return left % right
+                    if isinstance(node.op, ast.Pow):
+                        return left ** right
+                if isinstance(node, ast.UnaryOp):
+                    operand = _eval(node.operand)
+                    if isinstance(node.op, ast.UAdd):
+                        return +operand
+                    if isinstance(node.op, ast.USub):
+                        return -operand
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+                    fn = SAFE_MATH.get(node.func.id)
+                    if fn:
+                        args = [_eval(arg) for arg in node.args]
+                        return fn(*args)
+                raise ValueError("unsupported expression")
+
+            if len(expr) > MAX_EXPRESSION_LENGTH:
+                return f"expression too long (max {MAX_EXPRESSION_LENGTH} characters)"
+            tree = ast.parse(expr, mode="eval")
+            return _eval(tree)
         except Exception as exc:  # pragma: no cover - interactive widget
-            return f"error: {exc}"
+            return f"invalid expression or unsupported operation: {exc}"
 
     class CalculatorWidget(Static):
         def compose(self) -> ComposeResult:
@@ -9844,7 +9886,6 @@ def feature_textual_widget_board(screenshot_path=None):
             self._paused = False
             self._pygame = None
             try:
-                os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
                 import pygame  # type: ignore
                 pygame.mixer.init()
                 self._pygame = pygame
@@ -9970,12 +10011,28 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(Button.Pressed, "#sw-reset")
         def reset_sw(self, _event):
-            self._start = time.time()
+            self._running = False
+            self._start = None
             self.query_one("#stopwatch-display", Static).update("Elapsed: 0.0s")
 
     class StatsWidget(Static):
+        BYTES_PER_KIB = 1024
+
         def on_mount(self):
+            try:
+                psutil.cpu_percent(interval=None)
+            except Exception:
+                pass
             self.set_interval(1.0, self._refresh_stats)
+
+        def _fmt_bytes(self, val):
+            if val < self.BYTES_PER_KIB:
+                return f"{val:.0f} B"
+            if val >= self.BYTES_PER_KIB ** 3:
+                return f"{val / (self.BYTES_PER_KIB ** 3):.1f} GB"
+            if val >= self.BYTES_PER_KIB ** 2:
+                return f"{val / (self.BYTES_PER_KIB ** 2):.1f} MB"
+            return f"{val / self.BYTES_PER_KIB:.1f} KB"
 
         def compose(self) -> ComposeResult:
             yield Static("System Stats", classes="title")
@@ -9988,12 +10045,12 @@ def feature_textual_widget_board(screenshot_path=None):
             try:
                 cpu = psutil.cpu_percent(interval=None)
                 mem = psutil.virtual_memory()
-                disk = psutil.disk_usage('/')
+                disk = psutil.disk_usage(os.path.abspath(os.sep))
                 net = psutil.net_io_counters()
                 self.query_one("#stats-cpu", Static).update(f"CPU: {cpu:.1f}%")
                 self.query_one("#stats-mem", Static).update(f"Mem: {mem.percent:.1f}%")
                 self.query_one("#stats-disk", Static).update(f"Disk: {disk.percent:.1f}%")
-                self.query_one("#stats-net", Static).update(f"Net: {net.bytes_sent/1024:.1f}↑/{net.bytes_recv/1024:.1f}↓ KB")
+                self.query_one("#stats-net", Static).update(f"Net: {self._fmt_bytes(net.bytes_sent)}↑/{self._fmt_bytes(net.bytes_recv)}↓")
             except Exception:
                 pass
 
@@ -10006,9 +10063,6 @@ def feature_textual_widget_board(screenshot_path=None):
     }
 
     widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
-    if not widgets:
-        print("No widgets registered for the Textual board.")
-        return
 
     class WidgetBoard(App):
         CSS = """
@@ -10021,12 +10075,16 @@ def feature_textual_widget_board(screenshot_path=None):
         def __init__(self, widget_defs):
             super().__init__()
             self.widget_defs = widget_defs
-            self.selected = next(iter(widget_defs))
+            self.selected = next(iter(widget_defs), None)
             self.nav = None
             self.panel = None
+            self._nav_index = {}
 
         def compose(self) -> ComposeResult:
-            nav_items = [ListItem(Label(meta.get("title", key.title())), id=f"w-{key}") for key, meta in self.widget_defs.items()]
+            nav_items = []
+            for idx, (key, meta) in enumerate(self.widget_defs.items()):
+                nav_items.append(ListItem(Label(meta.get("title", key.title())), id=f"w-{key}"))
+                self._nav_index[key] = idx
             yield Header(show_clock=True)
             yield Horizontal(
                 ListView(*nav_items, id="widget-nav"),
@@ -10038,20 +10096,20 @@ def feature_textual_widget_board(screenshot_path=None):
         def on_mount(self):
             self.nav = self.query_one("#widget-nav", ListView)
             self.panel = self.query_one("#widget-panel", Container)
-            for idx, item in enumerate(self.nav.children):
-                if item.id == f"w-{self.selected}":
-                    self.nav.index = idx
-                    break
+            if self.selected in self._nav_index:
+                self.nav.index = self._nav_index[self.selected]
             self._load_widget(self.selected)
 
         def _load_widget(self, key):
             if not self.panel:
                 return
+            if not key:
+                return
             self.panel.remove_children()
             meta = self.widget_defs.get(key, {})
             builder = meta.get("builder")
             try:
-                widget = builder() if callable(builder) else Static("Invalid widget")
+                widget = builder() if callable(builder) else Static(f"Invalid widget builder for {key}")
             except Exception as exc:
                 widget = Static(f"Unable to load widget: {exc}")
             self.panel.mount(widget)
