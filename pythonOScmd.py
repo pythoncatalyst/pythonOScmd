@@ -54,6 +54,7 @@ import csv
 import textwrap
 import tempfile
 import importlib
+import importlib.util
 
 # ================================================================================
 # SECTION 3: CORE SYSTEM UTILITIES
