@@ -11457,8 +11457,7 @@ COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
 if "file_manager_suite" in COMMAND_ACTION_MAP:
     COMMAND_ACTION_MAP.setdefault("file-system", COMMAND_ACTION_MAP["file_manager_suite"])
 
-TEXTUAL_BAR_SCALE = 5  # Each block represents 5% utilization
-TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar
+TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar (5% per block)
 
 def feature_enhanced_display_mode():
     """Enhanced Display Mode - Launches Bpytop System Monitor."""
@@ -11690,7 +11689,7 @@ def run_pytextos(return_to_classic=False):
                         pct = max(0, min(100, float(pct)))
                     except (TypeError, ValueError):
                         pct = 0.0
-                    filled = round((pct / 100) * TEXTUAL_BAR_LENGTH)
+                    filled = int((pct * TEXTUAL_BAR_LENGTH) / 100)
                     filled = max(0, min(TEXTUAL_BAR_LENGTH, filled))
                     return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
 
