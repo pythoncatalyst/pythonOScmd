@@ -12596,18 +12596,19 @@ def play_audio_file(file_path):
 def feature_quick_audio_playback():
     """Quick path-based audio launcher available from Command Center."""
     print_header("🎧 Quick Audio Player")
-    target = input("📂 Enter audio file path (mp2/mp3/wav/ogg/flac/m4a/aac): ").strip()
+    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
+    prompt_ext = "/".join(ext.strip(".") for ext in supported)
+    target = input(f"📂 Enter audio file path ({prompt_ext}): ").strip()
     if not target:
         print(f"{COLORS['4'][0]}No file selected.{RESET}")
         time.sleep(1)
         return
     target = os.path.expanduser(target)
-    if os.path.isdir(target) or not os.path.exists(target):
+    if not os.path.isfile(target):
         print(f"{COLORS['1'][0]}❌ Invalid audio file path.{RESET}")
         time.sleep(1)
         return
     ext = os.path.splitext(target)[1].lower()
-    supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
     if ext not in supported:
         print(f"{COLORS['4'][0]}⚠️ Unsupported extension detected. Attempting playback...{RESET}")
     play_audio_file(target)
