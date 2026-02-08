@@ -11448,7 +11448,7 @@ COMMAND_CENTER_ACTIONS = [
     *CLASSIC_APP_ACTIONS,
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
-    ("file-system", {"name": "File Manager Suite", "func": feature_file_manager_suite, "cat": "file"}),
+    ("file-system", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
