@@ -10473,12 +10473,25 @@ Screen {
     width: 36;
     text-align: right;
 }
+#monitor-indicator {
+    width: 16;
+    text-align: right;
+    color: #8ec6ff;
+}
 #status-strip {
     height: 3;
     background: #111722;
     border: round #263040;
     padding: 0 1;
     column-gap: 1;
+}
+#monitor-pane {
+    height: 18;
+    border: round #2a2f3a;
+    background: #0a0e14;
+    padding: 1 2;
+    overflow: auto;
+    margin: 1 0;
 }
 .pill {
     border: round #2a2f3a;
@@ -10591,6 +10604,7 @@ def run_pytextos(return_to_classic=False):
         class PyTextOS(App):
             BINDINGS = [
                 ("l", "cycle_layout", "Layout"),
+                ("m", "cycle_monitor", "Monitor"),
                 ("enter", "run_selected", "Run"),
                 ("r", "run_selected", "Run"),
                 ("q", "quit", "Quit"),
@@ -10616,11 +10630,23 @@ def run_pytextos(return_to_classic=False):
                 self._clock_widget = None
                 self._last_net = None
                 self._last_net_ts = 0.0
+                # Monitor cycling
+                self.monitor_modes = ["off", "bpytop", "htop", "gtop", "btop", "stats"]
+                self.monitor_mode = "stats"  # Default to stats display
+                self.monitor_pane = None
+                self.monitor_available = {
+                    "bpytop": shutil.which('bpytop') is not None,
+                    "htop": shutil.which('htop') is not None,
+                    "gtop": shutil.which('gtop') is not None,
+                    "btop": shutil.which('btop') is not None,
+                    "stats": True,  # Always available
+                }
 
             def compose(self):
                 yield Horizontal(
                     Static("PYTEXTOS"),
                     Static("", id="enhanced-indicator"),
+                    Static("", id="monitor-indicator"),
                     id="topbar",
                 )
                 yield Horizontal(
@@ -10631,6 +10657,8 @@ def run_pytextos(return_to_classic=False):
                     Static("WX --", classes="pill", id="pill-wx"),
                     id="status-strip",
                 )
+                # Monitor pane (top pane)
+                yield Static("", id="monitor-pane", classes="monitor-pane")
                 yield Container(id="layout-root")
                 yield Footer()
 
@@ -10638,15 +10666,19 @@ def run_pytextos(return_to_classic=False):
                 self._spinner_index = 0
                 self._spinner_frames = ["PY>_", "PY>__", "PY>___", "PY>__"]
                 self._indicator = self.query_one("#enhanced-indicator", Static)
+                self._monitor_indicator = self.query_one("#monitor-indicator", Static)
                 self._clock_widget = self.query_one("#clock-digits", Digits)
+                self.monitor_pane = self.query_one("#monitor-pane", Static)
                 for pill_id in ["pill-cpu", "pill-mem", "pill-net", "pill-wx"]:
                     self._status_widgets[pill_id] = self.query_one(f"#{pill_id}", Static)
                 self._apply_style_mode()
                 self._mount_layout()
                 self._update_detail(self.selected_key)
                 self._refresh_status()
+                self._update_monitor_display()
                 self.set_interval(0.4, self._tick_spinner)
                 self.set_interval(1.0, self._refresh_dynamic)
+                self.set_interval(2.0, self._update_monitor_display)
 
             def _tick_spinner(self):
                 frame = self._spinner_frames[self._spinner_index]
@@ -10877,6 +10909,7 @@ def run_pytextos(return_to_classic=False):
 
             def _refresh_dynamic(self):
                 self._refresh_status()
+                self._update_monitor_indicator()
                 if self.layout_mode == "dashboard":
                     for key, card in self.dashboard_cards.items():
                         title = dict(self.sections).get(key, key.title())
@@ -10897,6 +10930,155 @@ def run_pytextos(return_to_classic=False):
                 _update_user_config(textual_layout_mode=self.layout_mode)
                 self._mount_layout()
                 self._update_detail(self.selected_key)
+            
+            def action_cycle_monitor(self):
+                """Cycle through available system monitors."""
+                while True:
+                    current = self.monitor_modes.index(self.monitor_mode)
+                    self.monitor_mode = self.monitor_modes[(current + 1) % len(self.monitor_modes)]
+                    # Skip unavailable monitors
+                    if self.monitor_mode == "off" or self.monitor_available.get(self.monitor_mode, False):
+                        break
+                self._update_monitor_indicator()
+                self._update_monitor_display()
+            
+            def _update_monitor_indicator(self):
+                """Update the monitor mode indicator in topbar."""
+                if self._monitor_indicator:
+                    if self.monitor_mode == "off":
+                        self._monitor_indicator.update("📊 OFF")
+                    else:
+                        icons = {
+                            "bpytop": "🚀",
+                            "htop": "🖥️",
+                            "gtop": "📊",
+                            "btop": "⚡",
+                            "stats": "📈"
+                        }
+                        icon = icons.get(self.monitor_mode, "📊")
+                        name = self.monitor_mode.upper()
+                        self._monitor_indicator.update(f"{icon} {name}")
+            
+            def _get_monitor_stats_display(self):
+                """Generate a rich stats display for the monitor pane."""
+                lines = []
+                lines.append("═" * 80)
+                lines.append("                    SYSTEM RESOURCE MONITOR (STATS MODE)".center(80))
+                lines.append("═" * 80)
+                
+                # CPU Stats
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=None, percpu=True)
+                    cpu_avg = sum(cpu_pct) / len(cpu_pct) if cpu_pct else 0
+                    lines.append(f"┌─ CPU Usage: {cpu_avg:.1f}% avg ─{'─' * 50}")
+                    cpu_line = "│ Cores: "
+                    for i, pct in enumerate(cpu_pct[:8]):  # Show first 8 cores
+                        cpu_line += f"[{i}:{pct:4.1f}%] "
+                    lines.append(cpu_line)
+                    if len(cpu_pct) > 8:
+                        lines.append(f"│ ... and {len(cpu_pct) - 8} more cores")
+                except:
+                    lines.append("│ CPU: N/A")
+                
+                # Memory Stats
+                try:
+                    mem = psutil.virtual_memory()
+                    mem_bar = "█" * int(mem.percent / 5) + "░" * (20 - int(mem.percent / 5))
+                    lines.append(f"├─ Memory: {mem.percent:.1f}% of {mem.total / (1024**3):.1f} GB ─{'─' * 30}")
+                    lines.append(f"│ [{mem_bar}] Used: {mem.used / (1024**3):.1f} GB | Free: {mem.available / (1024**3):.1f} GB")
+                except:
+                    lines.append("│ Memory: N/A")
+                
+                # Disk Stats
+                try:
+                    disk = psutil.disk_usage('/')
+                    disk_bar = "█" * int(disk.percent / 5) + "░" * (20 - int(disk.percent / 5))
+                    lines.append(f"├─ Disk: {disk.percent:.1f}% of {disk.total / (1024**3):.1f} GB ─{'─' * 30}")
+                    lines.append(f"│ [{disk_bar}] Used: {disk.used / (1024**3):.1f} GB | Free: {disk.free / (1024**3):.1f} GB")
+                except:
+                    lines.append("│ Disk: N/A")
+                
+                # Network Stats
+                try:
+                    net = psutil.net_io_counters()
+                    lines.append(f"├─ Network ─{'─' * 65}")
+                    lines.append(f"│ TX: {net.bytes_sent / (1024**3):.2f} GB | RX: {net.bytes_recv / (1024**3):.2f} GB")
+                    lines.append(f"│ Packets: Sent {net.packets_sent:,} | Recv {net.packets_recv:,}")
+                except:
+                    lines.append("│ Network: N/A")
+                
+                # Top Processes
+                try:
+                    procs = []
+                    for p in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent']):
+                        try:
+                            procs.append(p.info)
+                        except:
+                            pass
+                    procs.sort(key=lambda x: x.get('cpu_percent', 0) or 0, reverse=True)
+                    lines.append(f"└─ Top 5 Processes (by CPU) ─{'─' * 50}")
+                    for i, p in enumerate(procs[:5], 1):
+                        name = (p.get('name', 'Unknown')[:20]).ljust(20)
+                        pid = str(p.get('pid', 0)).rjust(6)
+                        cpu = f"{p.get('cpu_percent', 0):.1f}%".rjust(7)
+                        mem = f"{p.get('memory_percent', 0):.1f}%".rjust(7)
+                        lines.append(f"  {i}. {name} PID:{pid} CPU:{cpu} MEM:{mem}")
+                except:
+                    lines.append("  Processes: N/A")
+                
+                lines.append("═" * 80)
+                lines.append("Press 'M' to cycle monitors | Available: Bpytop, Htop, Gtop, Btop, Stats".center(80))
+                return "\n".join(lines)
+            
+            def _get_monitor_command_display(self, monitor_name):
+                """Generate instructions for launching external monitor."""
+                lines = []
+                lines.append("═" * 80)
+                lines.append(f"                     {monitor_name.upper()} MONITOR MODE".center(80))
+                lines.append("═" * 80)
+                lines.append("")
+                lines.append(f"  {monitor_name.upper()} is available but requires full terminal control.")
+                lines.append(f"  Press 'Q' to exit PyTextOS, then select option [1-4] from Enhanced Display.")
+                lines.append("")
+                lines.append(f"  OR run directly from terminal:")
+                lines.append(f"    $ {monitor_name}")
+                lines.append("")
+                lines.append("  This integrated view shows real-time stats in STATS mode.")
+                lines.append("  Press 'M' to cycle back to STATS mode for inline monitoring.")
+                lines.append("")
+                lines.append("═" * 80)
+                
+                # Show mini stats even in command mode
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    lines.append(f"  Quick Stats: CPU {cpu_pct:.1f}% | MEM {mem.percent:.1f}% | DISK {psutil.disk_usage('/').percent:.1f}%")
+                    lines.append("═" * 80)
+                except:
+                    pass
+                
+                return "\n".join(lines)
+            
+            def _update_monitor_display(self):
+                """Update the monitor pane content based on current mode."""
+                if not self.monitor_pane:
+                    return
+                
+                if self.monitor_mode == "off":
+                    self.monitor_pane.update("[Monitor Off - Press 'M' to enable]")
+                    return
+                
+                if self.monitor_mode == "stats":
+                    # Show inline stats display
+                    content = self._get_monitor_stats_display()
+                    self.monitor_pane.update(content)
+                elif self.monitor_mode in ["bpytop", "htop", "gtop", "btop"]:
+                    if self.monitor_available.get(self.monitor_mode, False):
+                        # Show instructions to launch
+                        content = self._get_monitor_command_display(self.monitor_mode)
+                        self.monitor_pane.update(content)
+                    else:
+                        self.monitor_pane.update(f"[{self.monitor_mode.upper()} not installed - Press 'M' to cycle]")
 
             def action_run_selected(self):
                 if self.selected_key in dict(self.sections):
@@ -11758,6 +11940,7 @@ ctx = {
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
+# added enchanced display stats to upper screen
 # Version 14 - Enhanced Display Mode layout work and font rendering improvements
 # Added Enhnaced Display Mode with improved font rendering and color accuracy for terminals that support advanced ANSI codes. This mode optimizes the visual experience by utilizing 24-bit color and enhanced character sets, providing a richer and more vibrant interface. Users can toggle this mode from the Command Center using option U, allowing for a more immersive pythonOS experience on compatible terminals.
 # Version 15 - Text & Document Center
