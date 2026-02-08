@@ -10443,7 +10443,7 @@ def _select_color_scheme():
         user_has_chosen = False
         _update_user_config(user_has_chosen=user_has_chosen)
 
-TEXTUAL_INLINE_CSS = f"""
+TEXTUAL_INLINE_CSS = """
 Screen {
     background: #0f131a;
     color: #e5e7eb;
@@ -10549,6 +10549,7 @@ Screen {
     text-align: center;
 }
 """
+TEXTUAL_INLINE_CSS = TEXTUAL_INLINE_CSS.replace("{TEXTUAL_MONITOR_WIDTH}", str(TEXTUAL_MONITOR_WIDTH))
 # ============================================================================
 # File Manager Suite
 # ============================================================================
