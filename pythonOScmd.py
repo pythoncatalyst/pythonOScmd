@@ -10518,6 +10518,377 @@ Screen {
     text-align: center;
 }
 """
+# ============================================================================
+# File Manager Suite
+# ============================================================================
+
+def feature_curses_file_browser():
+    """Native Python curses-based file browser"""
+
+    class FileBrowser:
+        def __init__(self, start_path="."):
+            self.current_path = os.path.abspath(start_path)
+            self.selected_index = 0
+            self.scroll_offset = 0
+            self.clipboard = []
+            self.clipboard_operation = None  # 'copy' or 'cut'
+
+        def get_files(self):
+            """Get sorted list of files and directories"""
+            try:
+                items = os.listdir(self.current_path)
+                dirs = sorted([d for d in items if os.path.isdir(os.path.join(self.current_path, d))])
+                files = sorted([f for f in items if os.path.isfile(os.path.join(self.current_path, f))])
+                return ['..'] + dirs + files
+            except PermissionError:
+                return ['..']
+
+        def get_file_size(self, path):
+            """Get human-readable file size"""
+            try:
+                size = os.path.getsize(path)
+                for unit in ['B', 'KB', 'MB', 'GB']:
+                    if size < 1024.0:
+                        return f"{size:.1f}{unit}"
+                    size /= 1024.0
+                return f"{size:.1f}TB"
+            except:
+                return "N/A"
+
+        def run(self, stdscr):
+            """Main browser loop"""
+            try:
+                curses.curs_set(0)
+            except:
+                pass
+
+            curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+            curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+            curses.init_pair(3, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+            curses.init_pair(4, curses.COLOR_WHITE, curses.COLOR_BLUE)
+            curses.init_pair(5, curses.COLOR_RED, curses.COLOR_BLACK)
+            curses.init_pair(6, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+
+            while True:
+                stdscr.clear()
+                height, width = stdscr.getmaxyx()
+
+                # Header
+                header = f" File Browser: {self.current_path}"
+                stdscr.addstr(0, 0, header[:width-1], curses.color_pair(1) | curses.A_BOLD)
+                stdscr.addstr(1, 0, "─" * (width-1), curses.color_pair(1))
+
+                # Clipboard status
+                if self.clipboard:
+                    clip_text = f" Clipboard: {len(self.clipboard)} item(s) [{self.clipboard_operation}]"
+                    stdscr.addstr(2, 0, clip_text[:width-1], curses.color_pair(6))
+
+                # Get files
+                files = self.get_files()
+                display_height = height - 6
+
+                # Adjust scroll
+                if self.selected_index < self.scroll_offset:
+                    self.scroll_offset = self.selected_index
+                elif self.selected_index >= self.scroll_offset + display_height:
+                    self.scroll_offset = self.selected_index - display_height + 1
+
+                # Display files
+                start_line = 3 if self.clipboard else 3
+                for i in range(display_height):
+                    file_index = i + self.scroll_offset
+                    if file_index >= len(files):
+                        break
+
+                    file_name = files[file_index]
+                    full_path = os.path.join(self.current_path, file_name)
+
+                    # Determine icon and color
+                    if file_name == '..':
+                        icon = "↑ "
+                        color = curses.color_pair(3)
+                        size_str = "<UP>"
+                    elif os.path.isdir(full_path):
+                        icon = "📁 " if sys.platform != "win32" else "[D] "
+                        color = curses.color_pair(2)
+                        size_str = "<DIR>"
+                    else:
+                        icon = "📄 " if sys.platform != "win32" else "[F] "
+                        color = curses.color_pair(1)
+                        size_str = self.get_file_size(full_path)
+
+                    # Highlight selected
+                    if file_index == self.selected_index:
+                        color = curses.color_pair(4) | curses.A_BOLD
+
+                    # Truncate filename if too long
+                    max_name_len = width - 20
+                    display_name = file_name[:max_name_len] if len(file_name) > max_name_len else file_name
+                    display_line = f" {icon}{display_name:<{max_name_len}} {size_str:>10}"
+
+                    try:
+                        stdscr.addstr(start_line + i, 0, display_line[:width-1], color)
+                    except curses.error:
+                        pass
+
+                # Footer with controls
+                footer_line = height - 3
+                stdscr.addstr(footer_line, 0, "─" * (width-1), curses.color_pair(1))
+
+                controls = [
+                    "↑/↓:Navigate", "Enter:Open", "q:Quit", "c:Copy", "x:Cut", "v:Paste", "d:Delete", "n:New"
+                ]
+                footer = " | ".join(controls)
+
+                try:
+                    stdscr.addstr(footer_line + 1, 0, footer[:width-1], curses.color_pair(3))
+                    status = f" Items: {len(files)-1} | Selected: {self.selected_index}/{len(files)-1}"
+                    stdscr.addstr(footer_line + 2, 0, status[:width-1], curses.color_pair(1))
+                except curses.error:
+                    pass
+
+                stdscr.refresh()
+
+                # Handle input
+                key = stdscr.getch()
+
+                if key == ord('q') or key == ord('Q'):
+                    break
+                elif key == curses.KEY_UP or key == ord('k'):
+                    self.selected_index = max(0, self.selected_index - 1)
+                elif key == curses.KEY_DOWN or key == ord('j'):
+                    self.selected_index = min(len(files) - 1, self.selected_index + 1)
+                elif key == ord('\n') or key == curses.KEY_ENTER or key == 10:
+                    selected_file = files[self.selected_index]
+                    new_path = os.path.join(self.current_path, selected_file)
+
+                    if selected_file == '..':
+                        self.current_path = os.path.dirname(self.current_path)
+                        self.selected_index = 0
+                        self.scroll_offset = 0
+                    elif os.path.isdir(new_path):
+                        self.current_path = new_path
+                        self.selected_index = 0
+                        self.scroll_offset = 0
+                    else:
+                        # Open file with default editor
+                        curses.endwin()
+                        editor = os.environ.get('EDITOR', 'nano' if sys.platform != 'win32' else 'notepad')
+                        try:
+                            subprocess.run([editor, new_path])
+                        except:
+                            print(f"Could not open {new_path}")
+                            input("Press Enter...")
+                        stdscr = curses.initscr()
+
+                elif key == ord('c') or key == ord('C'):
+                    # Copy
+                    selected_file = files[self.selected_index]
+                    if selected_file != '..':
+                        self.clipboard = [os.path.join(self.current_path, selected_file)]
+                        self.clipboard_operation = 'copy'
+
+                elif key == ord('x') or key == ord('X'):
+                    # Cut
+                    selected_file = files[self.selected_index]
+                    if selected_file != '..':
+                        self.clipboard = [os.path.join(self.current_path, selected_file)]
+                        self.clipboard_operation = 'cut'
+
+                elif key == ord('v') or key == ord('V'):
+                    # Paste
+                    if self.clipboard:
+                        for item in self.clipboard:
+                            dest = os.path.join(self.current_path, os.path.basename(item))
+                            try:
+                                if self.clipboard_operation == 'copy':
+                                    if os.path.isdir(item):
+                                        shutil.copytree(item, dest)
+                                    else:
+                                        shutil.copy2(item, dest)
+                                elif self.clipboard_operation == 'cut':
+                                    shutil.move(item, dest)
+                            except Exception as e:
+                                curses.endwin()
+                                print(f"Error: {e}")
+                                input("Press Enter...")
+                                stdscr = curses.initscr()
+
+                        if self.clipboard_operation == 'cut':
+                            self.clipboard = []
+
+                elif key == ord('d') or key == ord('D'):
+                    # Delete
+                    selected_file = files[self.selected_index]
+                    if selected_file != '..':
+                        full_path = os.path.join(self.current_path, selected_file)
+                        curses.endwin()
+                        confirm = input(f"Delete '{selected_file}'? (y/n): ")
+                        if confirm.lower() == 'y':
+                            try:
+                                if os.path.isdir(full_path):
+                                    shutil.rmtree(full_path)
+                                else:
+                                    os.remove(full_path)
+                            except Exception as e:
+                                print(f"Error: {e}")
+                                input("Press Enter...")
+                        stdscr = curses.initscr()
+
+                elif key == ord('n') or key == ord('N'):
+                    # New file/folder
+                    curses.endwin()
+                    print("\n1. New File")
+                    print("2. New Folder")
+                    choice = input("Choice: ").strip()
+                    if choice == '1':
+                        name = input("File name: ").strip()
+                        if name:
+                            try:
+                                with open(os.path.join(self.current_path, name), 'w') as f:
+                                    pass
+                            except Exception as e:
+                                print(f"Error: {e}")
+                                input("Press Enter...")
+                    elif choice == '2':
+                        name = input("Folder name: ").strip()
+                        if name:
+                            try:
+                                os.makedirs(os.path.join(self.current_path, name))
+                            except Exception as e:
+                                print(f"Error: {e}")
+                                input("Press Enter...")
+                    stdscr = curses.initscr()
+
+    try:
+        browser = FileBrowser()
+        curses.wrapper(browser.run)
+    except Exception as e:
+        print(f"{get_current_color()}✗{RESET} Error: {e}")
+        input("\nPress Enter to return...")
+
+
+def feature_textual_file_manager():
+    """Modern file manager using Textual framework"""
+    try:
+        from textual.app import App, ComposeResult
+        from textual.widgets import DirectoryTree, Header, Footer, Static, Label
+        from textual.containers import Container, Vertical, Horizontal
+        from textual.binding import Binding
+        from textual import on
+    except ImportError:
+        print(f"{get_current_color()}✗{RESET} Textual not installed.")
+        print("\nInstall with: pip install textual")
+        input("\nPress Enter to return...")
+        return
+
+    class FileManagerApp(App):
+        """A Textual file manager application."""
+
+        CSS = """
+        Screen {
+            background: $background;
+        }
+
+        DirectoryTree {
+            width: 100%;
+            height: 100%;
+            border: solid $primary;
+        }
+
+        #info-panel {
+            width: 100%;
+            height: 3;
+            background: $panel;
+            border: solid $primary;
+            padding: 1;
+        }
+
+        #main-container {
+            height: 1fr;
+        }
+        """
+
+        BINDINGS = [
+            Binding("q", "quit", "Quit", priority=True),
+            Binding("d", "toggle_dark", "Toggle Dark Mode"),
+            Binding("r", "refresh", "Refresh"),
+        ]
+
+        def __init__(self):
+            super().__init__()
+            self.current_path = os.getcwd()
+
+        def compose(self) -> ComposeResult:
+            """Create child widgets for the app."""
+            yield Header()
+            with Vertical(id="main-container"):
+                yield DirectoryTree(self.current_path)
+                with Container(id="info-panel"):
+                    yield Label(f"📁 File Manager | Path: {self.current_path}")
+            yield Footer()
+
+        def action_toggle_dark(self) -> None:
+            """Toggle dark mode."""
+            self.dark = not self.dark
+
+        def action_refresh(self) -> None:
+            """Refresh the directory tree."""
+            tree = self.query_one(DirectoryTree)
+            tree.reload()
+
+        @on(DirectoryTree.FileSelected)
+        def handle_file_selected(self, event: DirectoryTree.FileSelected) -> None:
+            """Handle file selection."""
+            file_path = str(event.path)
+
+            # Update info panel
+            info_label = self.query_one("#info-panel Label")
+            size = os.path.getsize(file_path) if os.path.isfile(file_path) else "N/A"
+            info_label.update(f"📄 Selected: {os.path.basename(file_path)} | Size: {size} bytes")
+
+    try:
+        app = FileManagerApp()
+        app.run()
+    except Exception as e:
+        print(f"{get_current_color()}✗{RESET} Error: {e}")
+        import traceback
+        traceback.print_exc()
+        input("\nPress Enter to return...")
+
+
+def feature_file_manager_suite():
+    """File Manager Suite with multiple options"""
+    while True:
+        print_header("File Manager Suite", "🗂️")
+        print(f"\n{get_current_color()}Choose your file manager:{RESET}\n")
+        print("1. 🖥️  Curses File Browser (Lightweight, Native)")
+        print("   • No external dependencies")
+        print("   • Fast and simple")
+        print("   • Copy/Cut/Paste support")
+        print("")
+        print("2. ✨ Textual File Manager (Modern UI)")
+        print("   • Beautiful interface")
+        print("   • Tree view navigation")
+        print("   • Requires: pip install textual")
+        print("")
+        print("0. ← Back to Command Center")
+
+        choice = input(f"\n{get_current_color()}Select option:{RESET} ").strip()
+
+        if choice == '0':
+            break
+        elif choice == '1':
+            print(f"\n{get_current_color()}Starting Curses File Browser...{RESET}")
+            time.sleep(0.5)
+            feature_curses_file_browser()
+        elif choice == '2':
+            print(f"\n{get_current_color()}Starting Textual File Manager...{RESET}")
+            time.sleep(0.5)
+            feature_textual_file_manager()
+        else:
+            print(f"{get_current_color()}✗{RESET} Invalid option")
+            time.sleep(1)
 
 # Command Center actions presented in the Textual shell. Each entry includes
 # a key, title, summary, and the callable to launch.
@@ -10551,7 +10922,7 @@ COMMAND_CENTER_ACTIONS = [
     ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
     ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
-    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
+    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),("file-system", {"name": "File Manager Suite", "func": feature_file_manager_suite, "cat": "file"}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
@@ -12029,6 +12400,11 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
+
+
+
+
+
 
 
 def main():
