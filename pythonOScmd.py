@@ -56,6 +56,7 @@ import shlex
 import tempfile
 import importlib
 import importlib.util
+import copy
 
 # ================================================================================
 # SECTION 3: CORE SYSTEM UTILITIES
@@ -11408,10 +11409,8 @@ def feature_quick_audio_playback():
         print(f"{COLORS['1'][0]}❌ Playback failed: {exc}{RESET}")
         time.sleep(1)
 
-# Command Center actions presented in the Textual shell. Each entry includes
-# a key, title, summary, and the callable to launch.
-COMMAND_CENTER_ACTIONS = [
-    ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
+# Canonical catalog of classic Command Center apps so PyTextOS mirrors every module.
+CLASSIC_APP_ACTIONS = [
     ("browser", {"title": "Web Browser", "summary": "Launch the web browser center.", "category": "general", "operation": "Web_Browser", "func": feature_web_browser_center}),
     ("disk", {"title": "Disk I/O Report", "summary": "Disk usage and throughput report.", "category": "general", "operation": "Disk_IO_Report", "func": feature_disk_io_report}),
     ("process", {"title": "Process Search", "summary": "Find and inspect processes.", "category": "process", "operation": "Process_Search", "func": feature_process_search}),
@@ -11430,7 +11429,6 @@ COMMAND_CENTER_ACTIONS = [
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
     ("audio_quick", {"title": "Quick Audio Play", "summary": "Play a single audio file via terminal player.", "category": "media", "operation": "Quick_Audio", "func": feature_quick_audio_playback}),
-    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
     ("bluetooth", {"title": "Bluetooth Toolkit", "summary": "Bluetooth scans and actions.", "category": "network", "operation": "Bluetooth_Toolkit", "func": feature_bluetooth_toolkit}),
@@ -11442,10 +11440,42 @@ COMMAND_CENTER_ACTIONS = [
     ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
     ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
-    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),("file-system", {"name": "File Manager Suite", "func": feature_file_manager_suite, "cat": "file"}),
+]
+
+# Command Center actions presented in the Textual shell. Entries may include
+# optional metadata (category, operation, func, mode) alongside title/summary.
+COMMAND_CENTER_ACTIONS = [
+    ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
+    *CLASSIC_APP_ACTIONS,
+    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
+    ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
+    ("file_manager_suite", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
+
+# Backward compatibility for previously hyphenated key
+file_mgr_meta = COMMAND_ACTION_MAP.get("file_manager_suite")
+if file_mgr_meta:
+    # Deep copy to keep legacy key isolated from future mutations
+    COMMAND_ACTION_MAP["file-system"] = copy.deepcopy(file_mgr_meta)
+
+TEXTUAL_BAR_LENGTH = 20  # Usage bar spans 20 blocks (5% utilization per block)
+TEXTUAL_BAR_RATIO = TEXTUAL_BAR_LENGTH / 100.0  # Blocks per percent of utilization
+
+def _render_usage_bar(pct):
+    try:
+        pct = max(0, min(100, float(pct)))
+    except (TypeError, ValueError):
+        pct = 0.0
+    filled = int(pct * TEXTUAL_BAR_RATIO)
+    return "█" * filled + "░" * (TEXTUAL_BAR_LENGTH - filled)
+
+def _fmt_pct(val):
+    try:
+        return f"{float(val):.1f}%"
+    except (TypeError, ValueError):
+        return "0.0%"
 
 def feature_enhanced_display_mode():
     """Enhanced Display Mode - Launches Bpytop System Monitor."""
@@ -11671,12 +11701,17 @@ def run_pytextos(return_to_classic=False):
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage('/')
                 net = psutil.net_io_counters()
+
+                cpu_pct = psutil.cpu_percent(interval=None)
+                mem_pct = getattr(mem, "percent", 0)
+                disk_pct = getattr(disk, "percent", 0)
+
                 lines = [
                     f"OS: {platform.system()} {platform.release()}",
                     f"Node: {platform.node()}",
-                    f"CPU: {psutil.cpu_percent(interval=None)}% | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {mem.percent}% | Free: {_format_gb(mem.available)}",
-                    f"Disk: {disk.percent}% | Free: {_format_gb(disk.free)}",
+                    f"CPU: {_fmt_pct(cpu_pct)} [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
+                    f"RAM: {_fmt_pct(mem_pct)} [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                    f"Disk: {_fmt_pct(disk_pct)} [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
                     f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
                 ]
                 if weather_cache:
