@@ -9297,7 +9297,19 @@ def feature_remote_dashboard():
  
  
 def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
-    """Textual-first media hub with ASCII browser plus MP3/MP4 hooks."""
+    """Textual-first media hub with ASCII browser plus MP3/MP4 hooks.
+
+    Args:
+        start_dir: Initial directory to seed the media browser.
+        screenshot_path: Optional path to save a one-shot Textual screenshot.
+    """
+    import subprocess
+    from pathlib import Path
+    from typing import Optional
+    from urllib.parse import urlparse, urljoin
+
+    import requests
+    from bs4 import BeautifulSoup
     try:
         from textual.app import App, ComposeResult
         from textual import on
@@ -9309,26 +9321,35 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         input("\nPress Enter to return...")
         return
 
+    pygame = None  # Will be populated if import succeeds
     try:
-        environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
         import pygame  # type: ignore
         pygame.mixer.init()
         _audio_ready = True
         _audio_error = ""
+    except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover - optional dependency
+        _audio_ready = False
+        _audio_error = f"Pygame missing: {exc}"
     except Exception as exc:  # pragma: no cover - optional dependency
         _audio_ready = False
-        _audio_error = str(exc)
-        pygame = None  # type: ignore
+        _audio_error = f"Audio init failed: {exc}"
 
     try:
         from tinytag import TinyTag  # type: ignore
-    except Exception:  # pragma: no cover - optional dependency
+        _tinytag_error = ""
+    except (ImportError, ModuleNotFoundError) as exc:  # pragma: no cover - optional dependency
         TinyTag = None  # type: ignore
+        _tinytag_error = f"TinyTag missing: {exc}"
+    except Exception as exc:  # pragma: no cover - optional dependency
+        TinyTag = None  # type: ignore
+        _tinytag_error = f"TinyTag error: {exc}"
 
     audio_exts = (".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac")
     video_exts = (".mp4", ".mkv", ".avi", ".mov")
 
     class MediaLounge(App):
+        MAX_DISPLAY_LINES = 40  # Keep rendered output concise inside the terminal UI
         CSS = """
         Screen { background: $panel; }
         #main { height: 1fr; }
@@ -9347,6 +9368,8 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             self.audio_error = _audio_error
             self._paused = False
             self.video_to_play: Optional[Path] = None
+            self.converter = globals().get("convert_to_ascii")
+            self.video_player = globals().get("_asciip_play_video")
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
@@ -9364,8 +9387,8 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                     yield TextLog(id="info-log", highlight=False, markup=False)
             yield Footer()
 
-        def _update_now_playing(self, name="--"):
-            self.query_one("#now-playing", Static).update(f"Now Playing: {name}")
+        def _update_now_playing(self, track_name="--"):
+            self.query_one("#now-playing", Static).update(f"Now Playing: {track_name}")
 
         def _log(self, message: str, target: str = "#info-log", clear: bool = False):
             log = self.query_one(target, TextLog)
@@ -9375,6 +9398,8 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
 
         def _handle_audio_metadata(self, media_path: Path):
             if not TinyTag:
+                if _tinytag_error:
+                    self._log(_tinytag_error)
                 return
             try:
                 tag = TinyTag.get(str(media_path))
@@ -9387,12 +9412,12 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                     meta.append(f"Duration: {tag.duration:.0f}s")
                 if meta:
                     self._log("\n".join(meta))
-            except Exception:
-                pass
+            except Exception as exc:
+                self._log(f"Metadata unavailable: {exc}")
 
         def play_audio(self, media_path: Path):
             if not self.audio_ready:
-                self._log(f"Audio unavailable: {_audio_error}")
+                self._log(f"Audio unavailable: {self.audio_error}")
                 return
             try:
                 pygame.mixer.music.load(str(media_path))
@@ -9442,23 +9467,33 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             browser_log.clear()
             browser_log.write(f"🌐 Fetching: {url}")
             try:
+                parsed = urlparse(url)
+                if parsed.scheme not in ("http", "https"):
+                    browser_log.write("❌ Only http/https URLs are allowed.")
+                    return
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                res.raise_for_status()
+                if len(res.content) > 500_000:
+                    browser_log.write("❌ Response too large (>500KB)")
+                    return
                 soup = BeautifulSoup(res.text, 'html.parser')
                 for s in soup(["script", "style"]):
                     s.extract()
-                lines = [ln.strip() for ln in soup.get_text().splitlines() if ln.strip()]
-                for line in lines[:40]:
+                lines = [line.strip() for line in soup.get_text().splitlines() if line.strip()]
+                for line in lines[: self.MAX_DISPLAY_LINES]:
                     browser_log.write(line)
                 img = soup.find("img")
                 if img and img.get("src"):
-                    from urllib.parse import urljoin
                     src = urljoin(url, img.get("src"))
-                    try:
-                        ascii_img = convert_to_ascii(src, width=48)
-                        for ln in ascii_img[:40]:
-                            browser_log.write(ln)
-                    except Exception:
-                        pass
+                    if not self.converter:
+                        browser_log.write("[ascii converter unavailable]")
+                    else:
+                        try:
+                            ascii_img = self.converter(src, width=48)
+                            for ascii_line in ascii_img[: self.MAX_DISPLAY_LINES]:
+                                browser_log.write(ascii_line)
+                        except Exception as exc:
+                            browser_log.write(f"[image skipped: {exc}]")
             except Exception as exc:
                 browser_log.write(f"❌ {exc}")
 
@@ -9472,21 +9507,22 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
 
         @on(DirectoryTree.FileSelected)
         def handle_file(self, event: DirectoryTree.FileSelected):
-            ext = event.path.suffix.lower()
+            path = Path(event.path)
+            ext = path.suffix.lower()
             if ext in audio_exts:
-                self.play_audio(Path(event.path))
+                self.play_audio(path)
             elif ext in video_exts:
-                self.prepare_video(Path(event.path))
+                self.prepare_video(path)
             else:
-                self._log(f"Unsupported file: {event.path.name}")
+                self._log(f"Unsupported file: {path.name}")
 
         def on_unmount(self):
             if self.audio_ready:
                 try:
                     pygame.mixer.music.stop()
                     pygame.mixer.quit()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"{get_current_color()}✗{RESET} Audio cleanup warning: {exc}")
 
     try:
         app = MediaLounge(start_dir or os.getcwd())
@@ -9499,18 +9535,25 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         print(f"{get_current_color()}✗{RESET} Error: {exc}")
         selected_video = None
     finally:
-        if _audio_ready:
+        if _audio_ready and pygame:
             try:
                 pygame.mixer.quit()
-            except Exception:
-                pass
+            except Exception as exc:
+                print(f"{get_current_color()}✗{RESET} Audio cleanup warning: {exc}")
 
     if selected_video:
+        selected_video = Path(selected_video).resolve()
+        if not selected_video.exists():
+            print(f"{get_current_color()}✗{RESET} Video missing: {selected_video}")
+            return
         try:
-            if "_asciip_play_video" in globals():
-                _asciip_play_video(str(selected_video))
+            if self.video_player:
+                self.video_player(str(selected_video))
             else:
-                os.system(f'ffplay -autoexit "{selected_video}"')
+                if shutil.which("ffplay"):
+                    subprocess.run(["ffplay", "-autoexit", str(selected_video)], check=False)
+                else:
+                    print(f"{get_current_color()}✗{RESET} ffplay not found for: {selected_video}")
         except Exception as exc:
             print(f"{get_current_color()}✗{RESET} Video error: {exc}")
         input("\nPress Enter to return...")
@@ -9558,8 +9601,11 @@ def feature_media_menu():
             feature_textual_media_lounge()
         elif sel == '6':
             feature_download_center()
-        else:
+        elif sel == '7':
             break
+        else:
+            print(f"{get_current_color()}✗{RESET} Invalid option")
+            time.sleep(1)
 
 # -----------------------------
 # Inlined asciiplayer18 plugin
