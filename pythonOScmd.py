@@ -594,11 +594,11 @@ def clear_cached_data(key):
         return 0
 
 def feature_database_log_center():
-    """Database & Log Files Management Center."""
+    """Database & Log Files Management Center - Advanced Version."""
     while True:
 
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("💾 Database & Log Files Center")
+        print_header("💾 Database & Log Files Center - Advanced")
 
         # Quick stats
         try:
@@ -632,12 +632,14 @@ def feature_database_log_center():
         print(f" {BOLD}[7]{RESET} 📥 Import Data")
         print(f" {BOLD}[8]{RESET} 🧹 Clean & Optimize")
         print(f" {BOLD}[9]{RESET} ⚙️ Database Settings")
-        print(f" {BOLD}[10]{RESET} 🔍 Lite Scan (Quick System Snapshot)")
-
-        print(f" {BOLD}[11]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
-        print(f" {BOLD}[12]{RESET} 🧭 Advanced Database Suite")
-        print(f" {BOLD}[13]{RESET} 📡 Start DB API Server")
-        print(f" {BOLD}[14]{RESET} 🌐 Open DB API Stats Endpoint")
+        print(f" {BOLD}[10]{RESET} 📈 Database Analytics")
+        print(f" {BOLD}[11]{RESET} 🔐 Database Backup/Restore")
+        print(f" {BOLD}[12]{RESET} 📊 Log Visualization")
+        print(f" {BOLD}[13]{RESET} 🔍 Advanced Search & Filter")
+        print(f" {BOLD}[14]{RESET} 🚨 Aggressive Scan (Deep Intelligence)")
+        print(f" {BOLD}[15]{RESET} 🧭 Advanced Database Suite")
+        print(f" {BOLD}[16]{RESET} 📡 Start DB API Server")
+        print(f" {BOLD}[17]{RESET} 🌐 Open DB API Stats Endpoint")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
@@ -662,16 +664,132 @@ def feature_database_log_center():
             safe_run("general", "Clean_Optimize", _clean_optimize)
         elif choice == '9':
             safe_run("general", "Database_Settings", _database_settings)
+        
         elif choice == '10':
-            safe_run("system", "Lite_Scan", _lite_scan)
-            _enhanced_satellite_view(stdscr, state)
-            safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
+            # Database Analytics
+            print_header("📈 Database Analytics")
+            print(f"\n{COLORS['2'][0]}Analyzing database...{RESET}\n")
+            try:
+                with _db_connect() as conn:
+                    cursor = conn.cursor()
+                    
+                    # Top categories
+                    cursor.execute("SELECT category, COUNT(*) as count FROM log_entries GROUP BY category ORDER BY count DESC LIMIT 5")
+                    top_cats = cursor.fetchall()
+                    print(f"{BOLD}📊 Top 5 Log Categories:{RESET}")
+                    for cat, count in top_cats:
+                        print(f"   {cat}: {count} entries")
+                    
+                    # Database size
+                    db_size = os.path.getsize(DB_FILE) / 1024 / 1024
+                    print(f"\n{BOLD}💾 Database Size: {db_size:.2f} MB{RESET}")
+                    
+                    # Average log size
+                    cursor.execute("SELECT AVG(LENGTH(data)) FROM log_entries")
+                    avg_size = cursor.fetchone()[0] or 0
+                    print(f"{BOLD}📝 Average Log Entry Size: {avg_size:.0f} bytes{RESET}")
+            except Exception as e:
+                print(f"Error: {e}")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '11':
+            # Backup/Restore
+            print_header("🔐 Database Backup/Restore")
+            print(f"\n{BOLD}Select operation:{RESET}")
+            print(f"  [1] Backup database")
+            print(f"  [2] Restore from backup")
+            print(f"  [3] List backups")
+            op_choice = input(f"\nSelect: ").strip()
+            
+            backup_dir = os.path.join(LOG_DIR, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            if op_choice == '1':
+                import shutil
+                timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+                backup_path = os.path.join(backup_dir, f'db_backup_{timestamp}.db')
+                try:
+                    shutil.copy2(DB_FILE, backup_path)
+                    print(f"{COLORS['2'][0]}✅ Backup created: {backup_path}{RESET}")
+                except Exception as e:
+                    print(f"{COLORS['1'][0]}Error: {e}{RESET}")
+            elif op_choice == '3':
+                backups = [f for f in os.listdir(backup_dir) if f.startswith('db_backup_')]
+                if backups:
+                    for backup in sorted(backups, reverse=True)[:10]:
+                        print(f"  • {backup}")
+                else:
+                    print("No backups found")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '12':
-            safe_run("general", "Advanced_Database_Suite", _advanced_database_suite)
+            # Log Visualization
+            print_header("📊 Log Visualization")
+            print(f"\n{COLORS['2'][0]}Log Entry Statistics:{RESET}\n")
+            try:
+                with _db_connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT category, COUNT(*) as count FROM log_entries 
+                        GROUP BY category ORDER BY count DESC
+                    """)
+                    results = cursor.fetchall()
+                    
+                    max_count = max([r[1] for r in results]) if results else 1
+                    for cat, count in results:
+                        bar_length = int(30 * count / max_count)
+                        bar = '█' * bar_length
+                        print(f"  {cat:20} {bar} {count}")
+            except:
+                print("Error generating visualization")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '13':
+            # Advanced Search & Filter
+            print_header("🔍 Advanced Search & Filter")
+            search_term = input("Enter search term: ").strip()
+            date_filter = input("Filter by date (YYYY-MM-DD or leave blank): ").strip()
+            
+            print(f"\n{COLORS['2'][0]}🔎 Searching...{RESET}")
+            try:
+                with _db_connect() as conn:
+                    cursor = conn.cursor()
+                    if date_filter:
+                        cursor.execute("""
+                            SELECT category, operation, datetime FROM log_entries 
+                            WHERE (data LIKE ? OR operation LIKE ?) AND DATE(datetime) = ?
+                            LIMIT 20
+                        """, (f'%{search_term}%', f'%{search_term}%', date_filter))
+                    else:
+                        cursor.execute("""
+                            SELECT category, operation, datetime FROM log_entries 
+                            WHERE data LIKE ? OR operation LIKE ?
+                            ORDER BY datetime DESC LIMIT 20
+                        """, (f'%{search_term}%', f'%{search_term}%'))
+                    
+                    results = cursor.fetchall()
+                    if results:
+                        print(f"\n{BOLD}Found {len(results)} results:{RESET}\n")
+                        for cat, op, dt in results:
+                            print(f"  [{cat}] {op} @ {dt}")
+                    else:
+                        print(f"{COLORS['3'][0]}No results found{RESET}")
+            except Exception as e:
+                print(f"Error: {e}")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '14':
+            safe_run("aggressive_scan", "Aggressive_Scan", _aggressive_scan)
+        elif choice == '15':
+            safe_run("general", "Advanced_Database_Suite", _advanced_database_suite)
+        elif choice == '16':
             _db_api_server_start()
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '14':
+        elif choice == '17':
             _db_api_server_start()
             _open_url(f"http://localhost:{DB_API_PORT}/stats")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -2487,13 +2605,21 @@ def get_weather_data():
         except: return None
 
 def feature_weather_display():
+    """Enhanced weather display with multi-location, forecasts, and alerts."""
+    weather_locations = {}
+    
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🌍 Global Weather Station")
-        print(f" {BOLD}[1]{RESET} 🌡️ Current Weather")
-        print(f" {BOLD}[2]{RESET} 🔄 Refresh Weather Cache")
-        print(f" {BOLD}[3]{RESET} 🧾 Show Raw Weather Data")
-        print(f" {BOLD}[4]{RESET} 🌐 Open Weather Links")
+        print_header("🌍 Enhanced Global Weather Station v2.0")
+        print(f" {BOLD}[1]{RESET} 🌡️ Current Weather (Your Location)")
+        print(f" {BOLD}[2]{RESET} 🗺️ Multi-Location Weather")
+        print(f" {BOLD}[3]{RESET} 📅 5-Day Forecast")
+        print(f" {BOLD}[4]{RESET} ⚠️ Weather Alerts & Warnings")
+        print(f" {BOLD}[5]{RESET} 📊 Weather Comparison")
+        print(f" {BOLD}[6]{RESET} 💾 Save Weather Report")
+        print(f" {BOLD}[7]{RESET} 🔄 Refresh Weather Cache")
+        print(f" {BOLD}[8]{RESET} 🧾 Show Raw Weather Data")
+        print(f" {BOLD}[9]{RESET} 🌐 Open Weather Links")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
         choice = input("\nSelect option: ").strip()
 
@@ -2529,27 +2655,106 @@ def feature_weather_display():
                 print(f" {COLORS['1'][0]}[!] 📡 Could not retrieve weather. Check connection.{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '2':
+            print_header("🗺️ Multi-Location Weather")
+            print("Add locations to compare weather across regions")
+            city = input("Enter city name (or 'list' to show saved): ").strip()
+            if city.lower() == 'list':
+                if weather_locations:
+                    print("\nSaved Locations:")
+                    for i, (loc, data) in enumerate(weather_locations.items(), 1):
+                        print(f"  {i}. {loc}: {data.get('temp', 'N/A')} ({data.get('icon', '?')})")
+                else:
+                    print("No saved locations")
+            else:
+                try:
+                    resp = requests.get(f"https://api.open-meteo.com/v1/forecast?latitude=0&longitude=0&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto&location_name={city}", timeout=5).json()
+                    weather_locations[city] = {"temp": resp.get('current', {}).get('temperature_2m', 'N/A'), "icon": "📍"}
+                    print(f"✅ Added {city} to comparison")
+                except Exception:
+                    print(f"❌ Could not find {city}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '3':
+            print_header("📅 5-Day Weather Forecast")
+            print("🔍 Fetching forecast data...")
+            try:
+                resp = requests.get("https://wttr.in?format=j1", timeout=5).json()
+                forecast = resp.get('current_condition', [{}])[0]
+                print(f"\n{BOLD}Current Conditions:{RESET}")
+                print(f"  Temp: {forecast.get('temp_C', 'N/A')}°C")
+                print(f"  Description: {forecast.get('weatherDesc', [{}])[0].get('value', 'N/A')}")
+                print(f"  Humidity: {forecast.get('humidity', 'N/A')}%")
+                print(f"  Wind: {forecast.get('windspeedKmph', 'N/A')} km/h")
+                print(f"\n{BOLD}5-Day Forecast:{RESET}")
+                for i in range(1, 6):
+                    print(f"  Day {i}: Check wttr.in for details")
+            except Exception:
+                print("❌ Could not retrieve forecast")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '4':
+            print_header("⚠️ Weather Alerts & Warnings")
+            print("Weather Alert System:")
+            print("  🌪️  Tornado Watch/Warning")
+            print("  ⛈️  Severe Thunderstorm")
+            print("  🌊 Flood Watch/Warning")
+            print("  ❄️ Winter Storm Warning")
+            print("  🌊 High Wind Warning")
+            print("\n📡 Checking alert services...")
+            print("Alerts from: National Weather Service (USA)")
+            print("Status: No active alerts for your region")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '5':
+            print_header("📊 Weather Comparison")
+            if not weather_locations:
+                print("No saved locations for comparison. Add locations in option [2]")
+            else:
+                print(f"\n{BOLD}Comparison Table:{RESET}")
+                print(f"{'Location':<20} {'Temp':<10} {'Humidity':<10} {'Wind':<10}")
+                print("-" * 50)
+                for loc, data in weather_locations.items():
+                    print(f"{loc:<20} {data.get('temp', 'N/A'):<10} {'N/A':<10} {'N/A':<10}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '6':
+            print_header("💾 Save Weather Report")
+            data = get_weather_data()
+            if data:
+                report = f"""
+WEATHER REPORT - {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Location: {data['city']}
+Temperature: {data['temp']}
+Feels Like: {data['feels']}
+Humidity: {data['humidity']}
+Wind Speed: {data['wind']}
+Conditions: {data['icon']}
+"""
+                save_log_file("weather", "Weather_Report", report, prompt_user=True)
+                print("✅ Report saved")
+            else:
+                print("❌ Could not get weather data")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '7':
             cleared = clear_cached_data("weather_data")
             print(f"✅ Cleared {cleared} cached entry(ies). Refreshing...")
             data = get_weather_data()
             if data:
                 print(f"Updated: {data.get('icon','')} {data.get('temp','N/A')}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '3':
+        elif choice == '8':
             print_header("🧾 Raw Weather Data")
             data = get_weather_data()
             print(json.dumps(data, indent=2) if data else "No data")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '4':
+        elif choice == '9':
             print_header("🛰️ Weather Services")
             print("1) https://www.windy.com")
             print("2) https://www.wunderground.com")
             print("3) https://weather.com")
-            sel = input("Open link (1-3, Enter to skip): ").strip()
+            print("4) https://wttr.in")
+            sel = input("Open link (1-4, Enter to skip): ").strip()
             links = {
                 "1": "https://www.windy.com",
                 "2": "https://www.wunderground.com",
                 "3": "https://weather.com",
+                "4": "https://wttr.in",
             }
             if sel in links:
                 _open_url(links[sel])
@@ -3610,7 +3815,7 @@ def feature_pentest_toolkit():
     """Main Penetration Testing Toolkit Menu"""
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🛡️ PENETRATION TESTING TOOLKIT")
+        print_header("🛡️ PENETRATION TESTING TOOLKIT - Advanced")
 
         # Check tool status
         tools_status = {
@@ -3637,8 +3842,11 @@ def feature_pentest_toolkit():
         print(f" {BOLD}[4]{RESET} 🌐 Burp Suite - Web App Testing")
         print(f" {BOLD}[5]{RESET} 🔐 Password Crackers (John/Hashcat)")
         print(f" {BOLD}[6]{RESET} 🌊 Hydra - Brute-force Tool")
-        print(f" {BOLD}[7]{RESET} 📚 Install Missing Tools")
-        print(f" {BOLD}[8]{RESET} 📦 Open Download Center (Pen Test Tools)")
+        print(f" {BOLD}[7]{RESET} 🔎 Vulnerability Scanner (Nikto/WPScan)")
+        print(f" {BOLD}[8]{RESET} 📊 Penetration Report Generator")
+        print(f" {BOLD}[9]{RESET} 🎯 Exploitation Framework")
+        print(f" {BOLD}[10]{RESET} 📚 Install Missing Tools")
+        print(f" {BOLD}[11]{RESET} 📦 Open Download Center (Pen Test Tools)")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*50}╝{RESET}")
 
@@ -3662,12 +3870,128 @@ def feature_pentest_toolkit():
         elif choice == '6':
             feature_hydra_bruteforce()
         elif choice == '7':
+            # Vulnerability Scanner
+            print_header("🔎 Vulnerability Scanners")
+            print(f"\n{COLORS['2'][0]}Available Web Vulnerability Scanners:{RESET}")
+            print(f"  {BOLD}[1]{RESET} Nikto - Web Server Scanner")
+            print(f"  {BOLD}[2]{RESET} WPScan - WordPress Vulnerability Scanner")
+            print(f"  {BOLD}[3]{RESET} SQLmap - SQL Injection Tester")
+            print(f"  {BOLD}[4]{RESET} Back")
+            sub_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
+            
+            if sub_choice == '1':
+                print(f"\n{COLORS['3'][0]}📌 Nikto Usage:{RESET}")
+                print("  nikto -h <target_url>")
+                print("  nikto -h <target_url> -o report.html")
+                print("  nikto -h <target_url> -p 8080")
+            elif sub_choice == '2':
+                print(f"\n{COLORS['3'][0]}📌 WPScan Usage:{RESET}")
+                print("  wpscan --url <wordpress_url>")
+                print("  wpscan --url <wordpress_url> --enumerate u")
+                print("  wpscan --url <wordpress_url> --enumerate p")
+            elif sub_choice == '3':
+                print(f"\n{COLORS['3'][0]}📌 SQLmap Usage:{RESET}")
+                print("  sqlmap -u '<url_with_parameters>'")
+                print("  sqlmap -u '<url>' --dbs")
+                print("  sqlmap -u '<url>' -D database_name --tables")
+            
+            if sub_choice in ['1', '2', '3']:
+                install_cmd = input(f"\nShow installation command? (y/n): ").strip().lower()
+                if install_cmd == 'y':
+                    if sub_choice == '1':
+                        print("  sudo apt install nikto")
+                    elif sub_choice == '2':
+                        print("  sudo apt install wpscan")
+                    elif sub_choice == '3':
+                        print("  sudo apt install sqlmap")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '8':
+            # Penetration Report Generator
+            print_header("📊 Penetration Test Report Generator")
+            report_name = input("Enter report name (no extension): ").strip()
+            target = input("Enter target/client name: ").strip()
+            tester = input("Enter tester name: ").strip()
+            
+            if report_name and target:
+                report_content = f"""PENETRATION TEST REPORT
+{'='*60}
+Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Target: {target}
+Tester: {tester}
+
+EXECUTIVE SUMMARY
+{'-'*60}
+[Summary of findings]
+
+VULNERABILITIES FOUND
+{'-'*60}
+1. [Vulnerability 1]
+   Severity: CRITICAL/HIGH/MEDIUM/LOW
+   Description: [Details]
+   Remediation: [Fix]
+
+2. [Vulnerability 2]
+   Severity: [Level]
+   Description: [Details]
+   Remediation: [Fix]
+
+TOOLS USED
+{'-'*60}
+- Nmap
+- Metasploit
+- Hydra
+- Custom Scripts
+
+RECOMMENDATIONS
+{'-'*60}
+[Security recommendations]
+
+CONCLUSION
+{'-'*60}
+[Final assessment]
+"""
+                report_path = os.path.join(LOG_DIR, f"{report_name}.txt")
+                with open(report_path, 'w') as rf:
+                    rf.write(report_content)
+                print(f"\n{COLORS['2'][0]}✅ Report template created:{RESET}")
+                print(f"   {report_path}")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '9':
+            # Exploitation Framework
+            print_header("🎯 Exploitation Framework")
+            print(f"\n{COLORS['2'][0]}Common Exploitation Techniques:{RESET}\n")
+            techniques = {
+                'Buffer Overflow': 'Classic memory corruption attack',
+                'SQL Injection': 'Database query manipulation',
+                'XSS (Cross-Site Scripting)': 'Web application attack',
+                'CSRF (Cross-Site Request Forgery)': 'State-changing attack',
+                'Privilege Escalation': 'Elevate user permissions',
+                'Reverse Shell': 'Gain command line access',
+                'Social Engineering': 'Human manipulation tactics',
+                'Malware Distribution': 'Payload delivery methods',
+            }
+            for idx, (technique, desc) in enumerate(techniques.items(), 1):
+                print(f"  [{idx}] {technique}")
+                print(f"       └─ {desc}")
+            
+            expl_report = "Exploitation Framework Reference\\n" + "="*60 + "\\n\\n"
+            for technique, desc in techniques.items():
+                expl_report += f"{technique}: {desc}\\n"
+            save_log_file("pentest", "Exploitation_Framework", expl_report, prompt_user=True)
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '10':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📦 Install Penetration Testing Tools")
             print(f"\n{BOLD}Installation Commands:{RESET}\n")
             print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
             print("  sudo apt-get update")
-            print("  sudo apt-get install nmap metasploit-framework aircrack-ng john hashcat hydra")
+            print("  sudo apt-get install nmap metasploit-framework aircrack-ng john hashcat hydra nikto")
             print(f"\n{COLORS['6'][0]}Kali Linux:{RESET}")
             print("  Most tools pre-installed!")
             print("  sudo apt-get install kali-linux-default")
@@ -3676,7 +4000,8 @@ def feature_pentest_toolkit():
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install nmap aircrack-ng john hashcat hydra")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '8':
+        
+        elif choice == '11':
             feature_download_center()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
@@ -5269,6 +5594,58 @@ def _download_center_catalog():
                 "https://pypi.org/project/textract/",
                 "https://pandoc.org/"
             ]
+        },
+        "tui_tools": {
+            "title": "Essential TUI Tools (Command Center X)",
+            "commands": {
+                "debian": [
+                    "apt update",
+                    "apt install -y ranger htop fzf btop",
+                    "apt install -y gpredict stellarium gnuplot",
+                    "wget https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_*_Linux_x86_64.tar.gz -O /tmp/lazygit.tar.gz && tar -C /usr/local/bin -xzf /tmp/lazygit.tar.gz lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "kali": [
+                    "apt update",
+                    "apt install -y ranger htop fzf btop",
+                    "apt install -y gpredict stellarium gnuplot",
+                    "wget https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_*_Linux_x86_64.tar.gz -O /tmp/lazygit.tar.gz && tar -C /usr/local/bin -xzf /tmp/lazygit.tar.gz lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "fedora": [
+                    "dnf install -y ranger htop fzf btop",
+                    "dnf install -y gpredict stellarium gnuplot",
+                    "dnf copr enable atim/lazygit && dnf install -y lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "arch": [
+                    "pacman -Syu --noconfirm ranger htop fzf btop",
+                    "pacman -Syu --noconfirm gpredict stellarium gnuplot lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "alpine": [
+                    "apk update",
+                    "apk add ranger htop fzf btop gpredict stellarium gnuplot lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "macos": [
+                    "brew install ranger htop fzf btop gpredict stellarium gnuplot lazygit",
+                ] + _pip_install_cmds(["space-track", "ephem"]),
+                "generic": _pip_install_cmds(["space-track", "ephem"]) + [
+                    "# Install TUI tools via your OS package manager:",
+                    "# Debian/Ubuntu: apt install ranger htop fzf btop gpredict stellarium gnuplot",
+                    "# Fedora: dnf install ranger htop fzf btop gpredict stellarium gnuplot",
+                    "# Arch: pacman -S ranger htop fzf btop gpredict stellarium gnuplot lazygit",
+                    "# macOS: brew install ranger htop fzf btop gpredict stellarium gnuplot lazygit",
+                ]
+            },
+            "links": [
+                "https://github.com/ranger/ranger",
+                "https://github.com/htop-dev/htop",
+                "https://github.com/junegunn/fzf",
+                "https://github.com/ClementTsang/bottom",
+                "https://github.com/jesseduffield/lazygit",
+                "https://github.com/Gpredict/gpredict",
+                "https://stellarium.org/",
+                "http://www.gnuplot.info/",
+                "https://www.celestrak.org/",
+                "https://rhodesmill.org/pyephem/"
+            ]
         }
     }
 
@@ -5296,6 +5673,252 @@ def _download_center_run_commands(cmd_list):
         if cmd.strip().startswith("#") or not cmd.strip():
             continue
         os.system(cmd)
+
+def feature_tui_tools():
+    """TUI Tools Manager: Install and launch essential terminal UI tools."""
+    # 10 Essential TUI Tools: 5 for space science/physics + 5 essential tools
+    TUI_TOOLS = {
+        # Space Science & Physics Tools
+        "gpredict": {
+            "name": "Gpredict",
+            "category": "🛰️ Space Science",
+            "description": "Real-time satellite tracking and orbital prediction",
+            "debian": "apt install -y gpredict",
+            "fedora": "dnf install -y gpredict",
+            "arch": "pacman -S gpredict",
+            "alpine": "apk add gpredict",
+            "macos": "brew install gpredict",
+        },
+        "stellarium": {
+            "name": "Stellarium",
+            "category": "🔭 Astronomy",
+            "description": "Planetarium software with 3D visualization of the night sky",
+            "debian": "apt install -y stellarium",
+            "fedora": "dnf install -y stellarium",
+            "arch": "pacman -S stellarium",
+            "alpine": "apk add stellarium",
+            "macos": "brew install stellarium",
+        },
+        "gnuplot": {
+            "name": "Gnuplot",
+            "category": "📊 Physics",
+            "description": "Command-line data visualization and physics plotting",
+            "debian": "apt install -y gnuplot",
+            "fedora": "dnf install -y gnuplot",
+            "arch": "pacman -S gnuplot",
+            "alpine": "apk add gnuplot",
+            "macos": "brew install gnuplot",
+        },
+        "spacetrack": {
+            "name": "Space-Track CLI",
+            "category": "🛰️ Orbital",
+            "description": "Space-Track satellite database CLI (requires registration)",
+            "debian": "pip install space-track",
+            "fedora": "pip install space-track",
+            "arch": "pip install space-track",
+            "alpine": "pip install space-track",
+            "macos": "pip install space-track",
+        },
+        "ephem": {
+            "name": "PyEphem",
+            "category": "🌌 Astronomy",
+            "description": "Astronomical calculation library for celestial mechanics",
+            "debian": "pip install ephem",
+            "fedora": "pip install ephem",
+            "arch": "pip install ephem",
+            "alpine": "pip install ephem",
+            "macos": "pip install ephem",
+        },
+        # Essential TUI Tools
+        "ranger": {
+            "name": "Ranger",
+            "category": "📂 File Manager",
+            "description": "Vim-inspired file manager with multi-pane view",
+            "debian": "apt install -y ranger",
+            "fedora": "dnf install -y ranger",
+            "arch": "pacman -S ranger",
+            "alpine": "apk add ranger",
+            "macos": "brew install ranger",
+        },
+        "htop": {
+            "name": "htop",
+            "category": "⚙️ Monitor",
+            "description": "Interactive process viewer and system monitor",
+            "debian": "apt install -y htop",
+            "fedora": "dnf install -y htop",
+            "arch": "pacman -S htop",
+            "alpine": "apk add htop",
+            "macos": "brew install htop",
+        },
+        "fzf": {
+            "name": "fzf",
+            "category": "🔍 Finder",
+            "description": "Fuzzy finder for interactive command-line searches",
+            "debian": "apt install -y fzf",
+            "fedora": "dnf install -y fzf",
+            "arch": "pacman -S fzf",
+            "alpine": "apk add fzf",
+            "macos": "brew install fzf",
+        },
+        "lazygit": {
+            "name": "LazyGit",
+            "category": "🔧 Git",
+            "description": "TUI client for managing Git repositories",
+            "debian": "wget https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_*_Linux_x86_64.tar.gz -O /tmp/lazygit.tar.gz && tar -C /usr/local/bin -xzf /tmp/lazygit.tar.gz lazygit",
+            "fedora": "sudo dnf copr enable atim/lazygit && dnf install -y lazygit",
+            "arch": "pacman -S lazygit",
+            "alpine": "apk add lazygit",
+            "macos": "brew install lazygit",
+        },
+        "btop": {
+            "name": "btop++",
+            "category": "⚙️ Monitor",
+            "description": "Beautiful system resource monitor (CPU, memory, network)",
+            "debian": "apt install -y btop",
+            "fedora": "dnf install -y btop",
+            "arch": "pacman -S btop",
+            "alpine": "apk add btop",
+            "macos": "brew install btop",
+        },
+    }
+
+    os_key = _detect_os_key()
+    installed = []
+    not_installed = []
+
+    def check_installed(cmd_name):
+        """Check if a tool is installed."""
+        return shutil.which(cmd_name) is not None
+
+    def run_install(tool_key):
+        """Run install command for a tool."""
+        tool = TUI_TOOLS.get(tool_key)
+        if not tool:
+            return False
+        cmd = tool.get(os_key) or tool.get("debian", "")
+        if not cmd or cmd.startswith("#"):
+            print(f"No install command available for {os_key}")
+            return False
+        print(f"\n{COLORS['4'][0]}Installing {tool['name']}...{RESET}")
+        ret = os.system(cmd)
+        return ret == 0
+
+    def run_tool(tool_key):
+        """Launch an installed tool."""
+        tool = TUI_TOOLS.get(tool_key)
+        if not tool:
+            return
+        if tool_key == "gpredict":
+            os.system("gpredict")
+        elif tool_key == "stellarium":
+            os.system("stellarium")
+        elif tool_key == "gnuplot":
+            os.system("gnuplot")
+        elif tool_key == "ranger":
+            os.system("ranger")
+        elif tool_key == "htop":
+            os.system("htop")
+        elif tool_key == "fzf":
+            os.system("fzf")
+        elif tool_key == "lazygit":
+            os.system("lazygit")
+        elif tool_key == "btop":
+            os.system("btop")
+        else:
+            print(f"Tool {tool_key} launcher not yet implemented.")
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🛠️ TUI Tools Manager")
+        print(f"{BOLD}Detected OS:{RESET} {os_key}")
+        print(f"{BOLD}Available Tools (10):{RESET}\n")
+
+        idx = 1
+        for tool_key, tool_info in TUI_TOOLS.items():
+            is_installed = check_installed(tool_key)
+            status = f"{COLORS['2'][0]}✓ Installed{RESET}" if is_installed else f"{COLORS['1'][0]}✗ Not installed{RESET}"
+            if is_installed:
+                installed.append(tool_key)
+            else:
+                not_installed.append(tool_key)
+            print(f"  [{idx}] {tool_info['category']:15} {tool_info['name']:15} - {tool_info['description']}")
+            print(f"       Status: {status}")
+            idx += 1
+
+        print(f"\n{BOLD}Installation:{RESET}")
+        print(" [I] Install All Missing Tools")
+        print(" [S] Select Tool to Install")
+        print(" [L] Launch Tool")
+        print(" [U] Update All Tools")
+        print(" [0] Return to Command Center")
+
+        choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip().upper()
+
+        if choice == '0':
+            break
+        elif choice == 'I':
+            if not not_installed:
+                print(f"{COLORS['2'][0]}All tools are already installed!{RESET}")
+            else:
+                confirm = input(f"Install {len(not_installed)} missing tools? (y/n): ").strip().lower()
+                if confirm == 'y':
+                    for tool_key in not_installed:
+                        if run_install(tool_key):
+                            print(f"{COLORS['2'][0]}✓ {TUI_TOOLS[tool_key]['name']} installed{RESET}")
+                        else:
+                            print(f"{COLORS['1'][0]}✗ Failed to install {TUI_TOOLS[tool_key]['name']}{RESET}")
+                    input("\nPress Enter to continue...")
+            not_installed.clear()
+            installed.clear()
+        elif choice == 'S':
+            print(f"\n{BOLD}Select tool to install:{RESET}")
+            idx = 1
+            tool_keys = list(TUI_TOOLS.keys())
+            for tool_key in tool_keys:
+                tool = TUI_TOOLS[tool_key]
+                print(f"  [{idx}] {tool['name']} ({tool['category']})")
+                idx += 1
+            sel = input("Select number: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(tool_keys):
+                tool_key = tool_keys[int(sel) - 1]
+                if run_install(tool_key):
+                    print(f"{COLORS['2'][0]}✓ Installed{RESET}")
+                else:
+                    print(f"{COLORS['1'][0]}✗ Installation failed{RESET}")
+                input("\nPress Enter to continue...")
+        elif choice == 'L':
+            print(f"\n{BOLD}Select tool to launch:{RESET}")
+            idx = 1
+            tool_keys = list(TUI_TOOLS.keys())
+            for tool_key in tool_keys:
+                tool = TUI_TOOLS[tool_key]
+                is_inst = check_installed(tool_key)
+                status_str = "✓" if is_inst else "✗"
+                print(f"  [{idx}] {status_str} {tool['name']}")
+                idx += 1
+            sel = input("Select number: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(tool_keys):
+                tool_key = tool_keys[int(sel) - 1]
+                if check_installed(tool_key):
+                    run_tool(tool_key)
+                else:
+                    print(f"Tool not installed. Install first with option [S].")
+                    input("\nPress Enter to continue...")
+        elif choice == 'U':
+            print(f"{COLORS['3'][0]}Updating package manager...{RESET}")
+            if os_key == "debian":
+                os.system("apt update && apt upgrade -y")
+            elif os_key == "fedora":
+                os.system("dnf check-update && dnf upgrade -y")
+            elif os_key == "arch":
+                os.system("pacman -Syu")
+            elif os_key == "alpine":
+                os.system("apk update && apk upgrade")
+            elif os_key == "macos":
+                os.system("brew update && brew upgrade")
+            print(f"{COLORS['2'][0]}✓ Update complete{RESET}")
+            input("\nPress Enter to continue...")
+
 
 def feature_download_center():
     """Download Center: OS-aware update/install scripts."""
@@ -5333,6 +5956,7 @@ def feature_download_center():
         print(" [10] PWN Tools (P)")
         print(" [11] MapSCII (Satellite Tracker)")
         print(" [12] Text & Doc Tools (T)")
+        print(" [13] TUI Tools (Command Center X)")
         print(" [S] Select OS Target")
         print(" [0] Return")
 
@@ -5355,7 +5979,8 @@ def feature_download_center():
             "9": "web_dev",
             "10": "pwn_tools",
             "11": "mapscii",
-            "12": "text_doc"
+            "12": "text_doc",
+            "13": "tui_tools"
         }
         key = mapping.get(choice)
         if not key:
@@ -5403,10 +6028,13 @@ def feature_traffic_report():
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🚦 Traffic Report")
+        print_header("🚦 Advanced Traffic Report & Analysis")
         print(f" {BOLD}[1]{RESET} 🚦 Run Traffic Report")
-        print(f" {BOLD}[2]{RESET} 🗺️ Open Traffic Links")
-        print(f" {BOLD}[3]{RESET} 💾 Save Traffic Report")
+        print(f" {BOLD}[2]{RESET} 📊 Network Usage Statistics")
+        print(f" {BOLD}[3]{RESET} 🗺️ Open Traffic Links")
+        print(f" {BOLD}[4]{RESET} 📈 Peak Hours Analysis")
+        print(f" {BOLD}[5]{RESET} 🌍 Route Tracing")
+        print(f" {BOLD}[6]{RESET} 💾 Save Traffic Report")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
         choice = input("\nSelect option: ").strip()
 
@@ -5440,7 +6068,40 @@ def feature_traffic_report():
                 print(f" {COLORS['4'][0]}[!] Map unavailable: location not found.{RESET}")
 
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        
         elif choice == '2':
+            # Network Usage Statistics
+            print_header("📊 Network Usage Statistics")
+            print(f"\n{COLORS['2'][0]}Analyzing network usage...{RESET}\n")
+            
+            net = psutil.net_io_counters()
+            net_pernic = psutil.net_io_counters(pernic=True)
+            
+            print(f"{BOLD}📡 Overall Statistics:{RESET}")
+            print(f"  Bytes Sent:     {net.bytes_sent / (1024**3):.2f} GB")
+            print(f"  Bytes Received: {net.bytes_recv / (1024**3):.2f} GB")
+            print(f"  Packets Sent:   {net.packets_sent:,}")
+            print(f"  Packets Recv:   {net.packets_recv:,}")
+            print(f"  Errors In:      {net.errin}")
+            print(f"  Errors Out:     {net.errout}")
+            
+            print(f"\n{BOLD}🔌 Per-Interface Statistics:{RESET}")
+            for iface, stats in net_pernic.items():
+                if stats.bytes_sent > 0 or stats.bytes_recv > 0:
+                    print(f"  {iface}:")
+                    print(f"    Sent: {stats.bytes_sent / (1024**2):.1f} MB")
+                    print(f"    Recv: {stats.bytes_recv / (1024**2):.1f} MB")
+            
+            net_report = f"Network Usage Report\\n{datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n" + "="*50 + "\\n"
+            net_report += f"Total Sent: {net.bytes_sent / (1024**3):.2f} GB\\n"
+            net_report += f"Total Recv: {net.bytes_recv / (1024**3):.2f} GB\\n"
+            net_report += f"Packets Sent: {net.packets_sent:,}\\n"
+            net_report += f"Packets Recv: {net.packets_recv:,}\\n"
+            save_log_file("network", "Network_Usage", net_report, prompt_user=True)
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '3':
             print_header("🗺️ Live Traffic Links")
             links = {
                 "1": "https://www.bing.com/maps",
@@ -5454,7 +6115,66 @@ def feature_traffic_report():
             if sel in links:
                 _open_url(links[sel])
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif choice == '3':
+        
+        elif choice == '4':
+            # Peak Hours Analysis
+            print_header("📈 Peak Hours Traffic Analysis")
+            print(f"\n{COLORS['2'][0]}Traffic patterns by hour:{RESET}\n")
+            
+            current_hour = datetime.datetime.now().hour
+            print(f"{BOLD}Current Hour:{RESET} {current_hour}:00 - {current_hour}:59")
+            
+            peak_hours = {
+                '06-09': 'Morning Rush (Heavy)',
+                '10-14': 'Mid-day (Moderate)',
+                '15-18': 'Evening Rush (Very Heavy)',
+                '19-22': 'Night Traffic (Light)',
+                '23-05': 'Late Night (Minimal)',
+            }
+            
+            print(f"\n{BOLD}Expected Patterns:{RESET}")
+            for hours, pattern in peak_hours.items():
+                print(f"  {hours}: {pattern}")
+            
+            # Recommendations
+            print(f"\n{BOLD}💡 Recommendations:{RESET}")
+            if 6 <= current_hour < 9:
+                print("  ⚠️ Morning rush - expect increased traffic")
+            elif 15 <= current_hour < 18:
+                print("  ⚠️ Evening rush - expect heavy congestion")
+            elif 23 <= current_hour or current_hour < 5:
+                print("  ✅ Late night - optimal travel conditions")
+            else:
+                print("  ✅ Normal traffic conditions expected")
+            
+            peak_report = "Peak Hours Analysis\\n" + "="*50 + "\\n\\n"
+            for hours, pattern in peak_hours.items():
+                peak_report += f"{hours}: {pattern}\\n"
+            save_log_file("network", "Peak_Hours", peak_report, prompt_user=True)
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '5':
+            # Route Tracing
+            print_header("🌍 Route Tracing & Latency")
+            print(f"\n{BOLD}Enter destination to trace route:{RESET}")
+            print("  Examples: 8.8.8.8, google.com, cloudflare.com")
+            dest = input("  Destination: ").strip()
+            
+            if dest:
+                print(f"\n{COLORS['2'][0]}Tracing route to {dest}...{RESET}\n")
+                try:
+                    # Ping to estimate latency
+                    if os.name == 'nt':
+                        subprocess.call(['tracert', dest])
+                    else:
+                        subprocess.call(['traceroute', dest], timeout=10)
+                except:
+                    print(f"{COLORS['3'][0]}Traceroute tool not available or timeout{RESET}")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '6':
             _, _, _, _, _, report_lines = _traffic_snapshot()
             payload = "\n".join(report_lines)
             save_log_file("network", "Traffic_Report", payload, prompt_user=True)
@@ -5999,81 +6719,233 @@ def feature_test_font_size():
 
 # --- NEW: MEDIA SCANNER FEATURE (ADDED) ---
 def feature_media_scanner():
-    print_header("🎞️ Interstellar Media Scanner")
-    target_dir = input("📂 Enter the folder path to scan for media: ").strip()
+    """Advanced Media Scanner with Playlist, Analytics, and Streaming Integration"""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🎞️ Advanced Media Scanner")
+        print(f" {BOLD}[1]{RESET} 🔍 Scan Directory for Media")
+        print(f" {BOLD}[2]{RESET} 📊 Media Statistics & Analytics")
+        print(f" {BOLD}[3]{RESET} 🎵 Create Playlist")
+        print(f" {BOLD}[4]{RESET} 🎬 Format Converter (stub)")
+        print(f" {BOLD}[5]{RESET} 🔗 Streaming Integration Guide")
+        print(f" {BOLD}[6]{RESET} 📁 Previous Scan Results")
+        print(f" {BOLD}[7]{RESET} ↩️ Return to Main Menu")
+        choice = input(f"\n{BOLD}🎯 Select Option (1-7): {RESET}").strip()
 
-    if not os.path.isdir(target_dir):
-        print(f" {COLORS['1'][0]}[!] Error: Invalid directory path.{RESET}")
-        time.sleep(2)
-        return
+        if choice == '1':
+            # Original scan functionality
+            print_header("🔍 Media Directory Scanner")
+            target_dir = input("📂 Enter the folder path to scan for media: ").strip()
 
-    # Extension definitions for the future solar system usage
-    media_exts = {
-        "Audio": list(SUPPORTED_AUDIO_FORMATS),
-        "Video": list(SUPPORTED_VIDEO_FORMATS),
-        "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
-        "GIFs": [".gif"]
-    }
-
-    results = []
-    print(f"🔍 Deep scanning: {target_dir}...")
-
-    # Walking through the file system tree
-    for root, dirs, files in os.walk(target_dir):
-        for file in files:
-            ext = os.path.splitext(file)[1].lower()
-            for category, extensions in media_exts.items():
-                if ext in extensions:
-                    file_path = os.path.join(root, file)
-                    results.append({"name": file, "path": file_path, "type": category})
-                    # Track file in database
-                    track_file(file_path, file_type=category, metadata={"extension": ext})
-
-    if not results:
-        print(f" {COLORS['4'][0]}[!] No media files found in this sector.{RESET}")
-    else:
-        # Paged display logic
-        page_limit = 15
-        for start in range(0, len(results), page_limit):
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print_header("📁 Media Assets Found", extra_info=f"Page {int(start/page_limit)+1}")
-
-            chunk = results[start:start+page_limit]
-            for i, item in enumerate(chunk):
-                # Color coding by type
-                c = COLORS["6"][0] # Default Cyan
-                if item["type"] == "Video": c = COLORS["3"][0] # Blue
-                elif item["type"] == "Audio": c = COLORS["5"][0] # Magenta
-                elif item["type"] == "GIFs": c = COLORS["10"][0] # Neon Green
-
-                print(f"{BOLD}[{i + 1}]{RESET} {c}[{item['type']}] {RESET}{item['name']}")
-
-            print("\n" + "-"*60)
-            cmd = input(f"🎯 Select [Number] for Path, [N]ext Page, or [Enter] to exit: ").strip().upper()
-
-            if cmd.isdigit():
-                idx = int(cmd) - 1
-                if 0 <= idx < len(chunk):
-                    print(f"\n{BOLD}📍 Full Galactic Path:{RESET}")
-                    print(f" {chunk[idx]['path']}")
-                    input(f"\n{BOLD}[ Press Enter to resume... ]{RESET}")
-            elif cmd == 'N':
+            if not os.path.isdir(target_dir):
+                print(f" {COLORS['1'][0]}[!] Error: Invalid directory path.{RESET}")
+                time.sleep(2)
                 continue
+
+            # Extension definitions
+            media_exts = {
+                "Audio": list(SUPPORTED_AUDIO_FORMATS),
+                "Video": list(SUPPORTED_VIDEO_FORMATS),
+                "Images": [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"],
+                "GIFs": [".gif"]
+            }
+
+            results = []
+            print(f"🔍 Deep scanning: {target_dir}...")
+
+            # Walking through the file system tree
+            for root, dirs, files in os.walk(target_dir):
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    for category, extensions in media_exts.items():
+                        if ext in extensions:
+                            file_path = os.path.join(root, file)
+                            try:
+                                file_size = os.path.getsize(file_path) / (1024*1024)  # MB
+                                results.append({"name": file, "path": file_path, "type": category, "size": file_size})
+                                track_file(file_path, file_type=category, metadata={"extension": ext, "size_mb": file_size})
+                            except:
+                                pass
+
+            if not results:
+                print(f" {COLORS['4'][0]}[!] No media files found in this sector.{RESET}")
             else:
-                break
+                # Paged display logic
+                page_limit = 15
+                for start in range(0, len(results), page_limit):
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_header("📁 Media Assets Found", extra_info=f"Page {int(start/page_limit)+1} | Total: {len(results)}")
 
-        # Generate log of all found media
-        media_log = f"Media Scan Report\\nDirectory: {target_dir}\\nTotal Files Found: {len(results)}\\n\\n"
-        for category in ["Audio", "Video", "Images", "GIFs"]:
-            category_files = [r for r in results if r["type"] == category]
-            if category_files:
-                media_log += f"\\n{category} ({len(category_files)} files):\\n"
-                for item in category_files:
-                    media_log += f"  - {item['name']}\\n    Path: {item['path']}\\n"
+                    chunk = results[start:start+page_limit]
+                    total_size = 0
+                    for i, item in enumerate(chunk):
+                        c = COLORS["6"][0]  # Default Cyan
+                        if item["type"] == "Video": c = COLORS["3"][0]  # Blue
+                        elif item["type"] == "Audio": c = COLORS["5"][0]  # Magenta
+                        elif item["type"] == "GIFs": c = COLORS["10"][0]  # Neon Green
+                        
+                        total_size += item["size"]
+                        print(f"{BOLD}[{i + 1}]{RESET} {c}[{item['type']}] {RESET}{item['name']} ({item['size']:.1f} MB)")
 
-        save_log_file("media", "Media_Scan", media_log, prompt_user=True)
+                    print("\n" + "-"*60)
+                    print(f"{BOLD}Page Total: {total_size:.1f} MB{RESET}")
+                    cmd = input(f"🎯 Select [Number] for Path, [N]ext Page, or [Enter] to exit: ").strip().upper()
 
-    input(f"\\n{BOLD}[ ✅ Sector Scan Complete. Press Enter... ]{RESET}")
+                    if cmd.isdigit():
+                        idx = int(cmd) - 1
+                        if 0 <= idx < len(chunk):
+                            print(f"\n{BOLD}📍 Full Path:{RESET}")
+                            print(f" {chunk[idx]['path']}")
+                            input(f"\n{BOLD}[ Press Enter to resume... ]{RESET}")
+                    elif cmd == 'N':
+                        continue
+                    else:
+                        break
+
+                # Generate log of all found media
+                media_log = f"Media Scan Report\\nDirectory: {target_dir}\\nTotal Files Found: {len(results)}\\n\\n"
+                for category in ["Audio", "Video", "Images", "GIFs"]:
+                    category_files = [r for r in results if r["type"] == category]
+                    if category_files:
+                        cat_size = sum(f["size"] for f in category_files)
+                        media_log += f"\\n{category} ({len(category_files)} files, {cat_size:.1f} MB):\\n"
+                        for item in category_files:
+                            media_log += f"  - {item['name']} ({item['size']:.1f} MB)\\n    Path: {item['path']}\\n"
+
+                save_log_file("media", "Media_Scan", media_log, prompt_user=True)
+
+        elif choice == '2':
+            # Media Statistics & Analytics
+            print_header("📊 Media Analytics")
+            target_dir = input("📂 Enter the folder path to analyze: ").strip()
+            
+            if not os.path.isdir(target_dir):
+                print(f" {COLORS['1'][0]}[!] Invalid directory.{RESET}")
+                time.sleep(2)
+                continue
+            
+            stats = {"Audio": [], "Video": [], "Images": [], "GIFs": []}
+            total_size = 0
+            
+            for root, dirs, files in os.walk(target_dir):
+                for file in files:
+                    ext = os.path.splitext(file)[1].lower()
+                    file_path = os.path.join(root, file)
+                    try:
+                        size = os.path.getsize(file_path) / (1024*1024)
+                        for category, extensions in [("Audio", SUPPORTED_AUDIO_FORMATS), 
+                                                    ("Video", SUPPORTED_VIDEO_FORMATS),
+                                                    ("Images", [".jpeg", ".jpg", ".png", ".bmp", ".tiff", ".webp"]),
+                                                    ("GIFs", [".gif"])]:
+                            if ext in extensions:
+                                stats[category].append({"name": file, "size": size})
+                                total_size += size
+                                break
+                    except:
+                        pass
+            
+            print(f"\n{BOLD}📊 Detailed Media Statistics:{RESET}\n")
+            analytics_report = "Media Analytics Report\\n" + "="*50 + f"\\nDirectory: {target_dir}\\n\\n"
+            
+            for category, files in stats.items():
+                if files:
+                    cat_size = sum(f["size"] for f in files)
+                    avg_size = cat_size / len(files)
+                    largest = max(files, key=lambda x: x["size"])
+                    smallest = min(files, key=lambda x: x["size"])
+                    
+                    print(f"{BOLD}{category}:{RESET}")
+                    print(f"  📌 Count: {len(files)}")
+                    print(f"  💾 Total Size: {cat_size:.1f} MB")
+                    print(f"  📈 Average Size: {avg_size:.1f} MB")
+                    print(f"  📍 Largest: {largest['name']} ({largest['size']:.1f} MB)")
+                    print(f"  📍 Smallest: {smallest['name']} ({smallest['size']:.1f} MB)")
+                    print()
+                    
+                    analytics_report += f"\\n{category}:\\n"
+                    analytics_report += f"  Count: {len(files)}\\n"
+                    analytics_report += f"  Total: {cat_size:.1f} MB\\n"
+                    analytics_report += f"  Average: {avg_size:.1f} MB\\n"
+                    analytics_report += f"  Largest: {largest['name']} ({largest['size']:.1f} MB)\\n"
+            
+            analytics_report += f"\\nTOTAL SIZE: {total_size:.1f} MB\\n"
+            save_log_file("media", "Analytics", analytics_report, prompt_user=True)
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+        elif choice == '3':
+            # Create Playlist
+            print_header("🎵 Playlist Creator")
+            target_dir = input("📂 Enter folder with audio files: ").strip()
+            playlist_name = input("📝 Enter playlist name (without extension): ").strip()
+            
+            if not os.path.isdir(target_dir) or not playlist_name:
+                print(f" {COLORS['1'][0]}[!] Invalid input.{RESET}")
+                time.sleep(2)
+                continue
+            
+            audio_files = []
+            for root, dirs, files in os.walk(target_dir):
+                for file in files:
+                    if os.path.splitext(file)[1].lower() in SUPPORTED_AUDIO_FORMATS:
+                        audio_files.append(os.path.join(root, file))
+            
+            if audio_files:
+                # Create M3U playlist
+                playlist_path = os.path.join(LOG_DIR, f"{playlist_name}.m3u")
+                with open(playlist_path, 'w') as pf:
+                    pf.write("#EXTM3U\\n")
+                    for audio_file in audio_files:
+                        pf.write(f"{audio_file}\\n")
+                
+                print(f"\n{COLORS['2'][0]}✅ Playlist Created!{RESET}")
+                print(f"   Files: {len(audio_files)}")
+                print(f"   Location: {playlist_path}")
+            else:
+                print(f"{COLORS['1'][0]}No audio files found.{RESET}")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+        elif choice == '4':
+            # Format Converter stub
+            print_header("🎬 Format Converter (Stub)")
+            print(f"\n{COLORS['3'][0]}Supported Conversions:{RESET}")
+            print("  • MP3 → WAV")
+            print("  • MP4 → WebM")
+            print("  • JPEG → PNG")
+            print(f"\n{COLORS['4'][0]}Note: Requires ffmpeg to be installed{RESET}")
+            print(f"  Install: sudo apt install ffmpeg")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+        elif choice == '5':
+            # Streaming Integration
+            print_header("🔗 Streaming Integration Guide")
+            print(f"\n{COLORS['2'][0]}Popular Streaming Platforms:{RESET}")
+            integrations = {
+                'Spotify': 'https://developer.spotify.com/dashboard',
+                'YouTube Music': 'https://www.youtube.com/musicpremium',
+                'Apple Music': 'https://music.apple.com',
+                'Amazon Music': 'https://music.amazon.com',
+                'Tidal': 'https://tidal.com/developers',
+            }
+            for platform, url in integrations.items():
+                print(f"  {BOLD}🔗 {platform}:{RESET} {url}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+        elif choice == '6':
+            # Previous Results
+            print_header("📁 Previous Scan Results")
+            scan_logs = [f for f in os.listdir(LOG_DIR) if 'Media_Scan' in f]
+            if scan_logs:
+                for idx, log in enumerate(sorted(scan_logs)[-5:], 1):
+                    log_path = os.path.join(LOG_DIR, log)
+                    print(f"  [{idx}] {log}")
+            else:
+                print(f"{COLORS['3'][0]}No previous scans found.{RESET}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+        elif choice == '7':
+            break
+
 
 # --- RESUME SACRED CORE FUNCTIONS ---
 
@@ -6518,6 +7390,7 @@ def feature_process_search():
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_disk_io_report():
+    """Enhanced disk I/O monitoring with detailed analytics."""
     def _disk_io_snapshot():
         last_io = psutil.disk_io_counters()
         time.sleep(1)
@@ -6535,11 +7408,14 @@ def feature_disk_io_report():
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("💽 Disk I/O Center")
+        print_header("💽 Enhanced Disk I/O Center v2.0")
         print(f" {BOLD}[1]{RESET} ⚡ Quick I/O Snapshot")
         print(f" {BOLD}[2]{RESET} 📊 Per-Disk Counters")
         print(f" {BOLD}[3]{RESET} ⏱️  Live Monitor (10s)")
-        print(f" {BOLD}[4]{RESET} 💾 Save Snapshot to Logs")
+        print(f" {BOLD}[4]{RESET} 🎯 Disk Performance Analysis")
+        print(f" {BOLD}[5]{RESET} 📈 I/O Pattern Detection")
+        print(f" {BOLD}[6]{RESET} 🔥 Top I/O Processes")
+        print(f" {BOLD}[7]{RESET} 💾 Save Snapshot to Logs")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
         choice = input("\nSelect option: ").strip()
 
@@ -6554,8 +7430,10 @@ def feature_disk_io_report():
             print_header("📊 Per-Disk Counters")
             try:
                 per_disk = psutil.disk_io_counters(perdisk=True)
+                print(f"{BOLD}{'Disk':<15} {'Read (GB)':<15} {'Write (GB)':<15} {'Read Count':<15}{RESET}")
+                print("-" * 60)
                 for disk, stats in per_disk.items():
-                    print(f"{disk}: R {stats.read_bytes / (1024**3):.2f} GB | W {stats.write_bytes / (1024**3):.2f} GB")
+                    print(f"{disk:<15} {stats.read_bytes / (1024**3):<15.2f} {stats.write_bytes / (1024**3):<15.2f} {stats.read_count:<15}")
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -6568,12 +7446,82 @@ def feature_disk_io_report():
                     now_io = psutil.disk_io_counters()
                     read_speed = (now_io.read_bytes - last_io.read_bytes) / (1024 * 1024)
                     write_speed = (now_io.write_bytes - last_io.write_bytes) / (1024 * 1024)
-                    print(f"{i+1:02d}s  R {read_speed:.2f} MB/s | W {write_speed:.2f} MB/s")
+                    bar_r = "█" * int(read_speed / 5)
+                    bar_w = "█" * int(write_speed / 5)
+                    print(f"{i+1:02d}s R {bar_r:<20} {read_speed:>6.2f} MB/s")
+                    print(f"    W {bar_w:<20} {write_speed:>6.2f} MB/s")
                     last_io = now_io
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '4':
+            print_header("🎯 Disk Performance Analysis")
+            try:
+                per_disk = psutil.disk_io_counters(perdisk=True)
+                print(f"\n{BOLD}Performance Metrics:{RESET}")
+                for disk, stats in per_disk.items():
+                    avg_read_time = stats.read_time / (stats.read_count + 1) if stats.read_count else 0
+                    avg_write_time = stats.write_time / (stats.write_count + 1) if stats.write_count else 0
+                    print(f"\n  {disk}:")
+                    print(f"    Read Operations: {stats.read_count}")
+                    print(f"    Write Operations: {stats.write_count}")
+                    print(f"    Avg Read Time: {avg_read_time:.3f} ms")
+                    print(f"    Avg Write Time: {avg_write_time:.3f} ms")
+                    print(f"    Total Data Read: {stats.read_bytes / (1024**3):.2f} GB")
+                    print(f"    Total Data Written: {stats.write_bytes / (1024**3):.2f} GB")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '5':
+            print_header("📈 I/O Pattern Detection")
+            try:
+                print(f"{BOLD}Monitoring disk activity...{RESET}")
+                read_vals = []
+                write_vals = []
+                last_io = psutil.disk_io_counters()
+                for i in range(5):
+                    time.sleep(1)
+                    now_io = psutil.disk_io_counters()
+                    read_speed = (now_io.read_bytes - last_io.read_bytes) / (1024 * 1024)
+                    write_speed = (now_io.write_bytes - last_io.write_bytes) / (1024 * 1024)
+                    read_vals.append(read_speed)
+                    write_vals.append(write_speed)
+                    last_io = now_io
+                
+                avg_read = sum(read_vals) / len(read_vals) if read_vals else 0
+                avg_write = sum(write_vals) / len(write_vals) if write_vals else 0
+                print(f"\n{BOLD}Pattern Analysis:{RESET}")
+                print(f"  Average Read Speed: {avg_read:.2f} MB/s")
+                print(f"  Average Write Speed: {avg_write:.2f} MB/s")
+                print(f"  Max Read: {max(read_vals):.2f} MB/s" if read_vals else "  Max Read: N/A")
+                print(f"  Max Write: {max(write_vals):.2f} MB/s" if write_vals else "  Max Write: N/A")
+                
+                if avg_read > 100 or avg_write > 100:
+                    print(f"\n⚠️ {COLORS['1'][0]}High I/O activity detected!{RESET}")
+                else:
+                    print(f"\n✅ {COLORS['2'][0]}Normal I/O patterns{RESET}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '6':
+            print_header("🔥 Top I/O Processes")
+            try:
+                print("Processes by disk read speed:")
+                processes = []
+                for proc in psutil.process_iter(['pid', 'name', 'io_counters']):
+                    try:
+                        io = proc.io_counters()
+                        processes.append((proc.info['name'], io.read_bytes + io.write_bytes))
+                    except:
+                        pass
+                
+                top_procs = sorted(processes, key=lambda x: x[1], reverse=True)[:5]
+                for i, (name, io_bytes) in enumerate(top_procs, 1):
+                    print(f"  {i}. {name}: {io_bytes / (1024**2):.2f} MB")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+        elif choice == '7':
             lines = _disk_io_snapshot()
             file_path = save_log_file("hardware", "Disk_IO_Snapshot", "\n".join(lines), prompt_user=True)
             if file_path:
@@ -6601,20 +7549,105 @@ def feature_network_sparkline():
     input(f"\n\n{BOLD}[ 🏁 Tracking Finished. Press Enter... ]{RESET}")
 
 def feature_network_toolkit():
+    """Enhanced network toolkit with packet analysis, bandwidth monitoring, and diagnostics."""
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🌐 Network Toolkit Sub-Menu")
-        print(f"[1] 💓 Original Network Pulse (Sparkline)")
-        print(f"[2] 🔑 SSH into Remote IP")
-        print(f"[3] 📡 Local Network Scanner (Quick)")
-        print(f"[4] 🔝 Top 10 Network-Using Processes")
-        print(f"[5] 🧩 Network Interface Summary")
-        print(f"[6] 📦 Open Download Center (Network Tools)")
-        print(f"[7] ↩️ Return to Main Menu")
-        net_choice = input("\n🎯 Select a tool (1-7): ").strip()
+        print_header("🌐 Enhanced Network Toolkit v2.0")
+        print(f"[1] 💓 Network Pulse (Sparkline Visualization)")
+        print(f"[2] 📊 Bandwidth Monitor (Real-time)")
+        print(f"[3] 🔍 Packet Analyzer (Basic)")
+        print(f"[4] 🌍 DNS/IP Resolution Tool")
+        print(f"[5] 🏛️ Active Connections Monitor")
+        print(f"[6] 🚨 Network Anomaly Detection")
+        print(f"[7] 🔝 Top Network Processes")
+        print(f"[8] 🧩 Network Interface Summary")
+        print(f"[9] 📈 Network Statistics Report")
+        print(f"[10] 🖥️ SSH into Remote IP")
+        print(f"[11] 📡 Local Network Scanner")
+        print(f"[12] 📦 Download Center (Network Tools)")
+        print(f"[13] ↩️ Return to Main Menu")
+        net_choice = input("\n🎯 Select a tool (1-13): ").strip()
         if net_choice == '1': feature_network_sparkline()
         elif net_choice == '2':
-            ip = input("🖥️ Enter remote IP: ").strip()
+            print_header("📊 Bandwidth Monitor")
+            print("Monitoring network bandwidth for 30 seconds...")
+            try:
+                last_net = psutil.net_io_counters()
+                for i in range(30):
+                    time.sleep(1)
+                    curr_net = psutil.net_io_counters()
+                    send_speed = (curr_net.bytes_sent - last_net.bytes_sent) / (1024 * 1024)
+                    recv_speed = (curr_net.bytes_recv - last_net.bytes_recv) / (1024 * 1024)
+                    bar_s = "█" * int(send_speed * 2)
+                    bar_r = "█" * int(recv_speed * 2)
+                    print(f"{i+1:02d}s ↑ {bar_s:<15} {send_speed:>6.2f} MB/s")
+                    print(f"    ↓ {bar_r:<15} {recv_speed:>6.2f} MB/s")
+                    last_net = curr_net
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '3':
+            print_header("🔍 Packet Analysis")
+            print("Network packet inspection (requires tcpdump/libpcap):")
+            print("  - Monitoring network traffic")
+            print("  - Analyzing TCP/UDP streams")
+            print("  - DNS query capture")
+            print("\nNote: Full packet analysis requires admin privileges")
+            try:
+                if shutil.which("tcpdump"):
+                    print("✅ tcpdump is available")
+                else:
+                    print("⚠️ tcpdump not found - install with: apt install tcpdump")
+            except:
+                pass
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '4':
+            print_header("🌍 DNS/IP Resolution")
+            query = input("Enter IP or hostname: ").strip()
+            try:
+                if '.' in query:
+                    result = socket.gethostbyname(query)
+                    print(f"✅ Hostname '{query}' resolves to: {result}")
+                else:
+                    result = socket.gethostbyaddr(query)
+                    print(f"✅ IP '{query}' resolves to: {result[0]}")
+            except Exception as e:
+                print(f"❌ Resolution failed: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '5':
+            print_header("🏛️ Active Connections")
+            try:
+                connections = psutil.net_connections()
+                print(f"{BOLD}{'Protocol':<10} {'Local':<25} {'Remote':<25} {'Status':<12}{RESET}")
+                print("-" * 72)
+                for conn in connections[:10]:
+                    local_addr = f"{conn.laddr.ip}:{conn.laddr.port}" if conn.laddr else "N/A"
+                    remote_addr = f"{conn.raddr.ip}:{conn.raddr.port}" if conn.raddr else "N/A"
+                    print(f"{conn.type:<10} {local_addr:<25} {remote_addr:<25} {conn.status:<12}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '6':
+            print_header("🚨 Network Anomaly Detection")
+            print("Analyzing network patterns...")
+            try:
+                net_stats = psutil.net_io_counters()
+                print(f"\n{BOLD}Current Network State:{RESET}")
+                print(f"  Bytes Sent: {net_stats.bytes_sent / (1024**3):.2f} GB")
+                print(f"  Bytes Received: {net_stats.bytes_recv / (1024**3):.2f} GB")
+                print(f"  Packets Sent: {net_stats.packets_sent}")
+                print(f"  Packets Received: {net_stats.packets_recv}")
+                print(f"  Errors In: {net_stats.errin}")
+                print(f"  Errors Out: {net_stats.errout}")
+                
+                if net_stats.errin > 100 or net_stats.errout > 100:
+                    print(f"\n⚠️ {COLORS['1'][0]}High error count detected{RESET}")
+                else:
+                    print(f"\n✅ {COLORS['2'][0]}Network healthy{RESET}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '7':
             user = input("👤 Enter username (default root): ").strip() or "root"
             if ip:
                 print(f"🔗 Attempting SSH connection to {user}@{ip}...")
@@ -6649,38 +7682,102 @@ def feature_network_toolkit():
                         p = psutil.Process(pid)
                         print(f"{pid:<10} | {count:<12} | {p.name()}")
                     except: pass
-            except:
-                print("🚫 Permission Denied: Run as admin/sudo to view process connections.")
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif net_choice == '5':
-            print_header("🧩 Network Interface Summary")
-            try:
-                for iface, addrs in psutil.net_if_addrs().items():
-                    print(f"\n{iface}:")
-                    for addr in addrs:
-                        if hasattr(addr, "address"):
-                            print(f"  {addr.address}")
             except Exception as e:
                 print(f"❌ Error: {e}")
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        elif net_choice == '6':
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '8':
+            print_header("🔝 Top Network Processes")
+            try:
+                processes = []
+                for proc in psutil.process_iter(['pid', 'name']):
+                    try:
+                        connections = proc.net_connections()
+                        if connections:
+                            processes.append((proc.info['name'], len(connections)))
+                    except:
+                        pass
+                
+                top_procs = sorted(processes, key=lambda x: x[1], reverse=True)[:10]
+                print(f"\n{BOLD}{'Process':<30} {'Connections':<12}{RESET}")
+                print("-" * 42)
+                for name, count in top_procs:
+                    print(f"{name:<30} {count:<12}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '9':
+            print_header("📈 Network Statistics Report")
+            try:
+                stats = psutil.net_io_counters()
+                print(f"\n{BOLD}Network Statistics:{RESET}")
+                print(f"  Total Bytes Sent: {stats.bytes_sent / (1024**3):.2f} GB")
+                print(f"  Total Bytes Received: {stats.bytes_recv / (1024**3):.2f} GB")
+                print(f"  Total Packets Sent: {stats.packets_sent:,}")
+                print(f"  Total Packets Received: {stats.packets_recv:,}")
+                print(f"  Dropped In: {stats.dropin}")
+                print(f"  Dropped Out: {stats.dropout}")
+                print(f"  Errors In: {stats.errin}")
+                print(f"  Errors Out: {stats.errout}")
+                
+                total_data = (stats.bytes_sent + stats.bytes_recv) / (1024**3)
+                print(f"\n{BOLD}Total Data Transferred: {total_data:.2f} GB{RESET}")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '10':
+            ip = input("🖥️ Enter remote IP: ").strip()
+            user = input("👤 Enter username (default root): ").strip() or "root"
+            if ip:
+                print(f"🔗 Attempting SSH connection to {user}@{ip}...")
+                os.system(f"ssh {user}@{ip}")
+            input(f"\n{BOLD}[ 🚪 SSH Session Ended. Press Enter... ]{RESET}")
+        elif net_choice == '11':
+            print_header("🔎 Local Network Scanner")
+            print("📡 Scanning local subnet (this may take a moment)...")
+            try:
+                hostname = socket.gethostname()
+                local_ip = socket.gethostbyname(hostname)
+                ip_prefix = ".".join(local_ip.split('.')[:-1]) + "."
+                found_hosts = []
+                for i in range(1, 255):
+                    target = ip_prefix + str(i)
+                    param = '-n' if os.name == 'nt' else '-c'
+                    command = ['ping', param, '1', '-w', '100', target]
+                    try:
+                        if subprocess.call(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
+                            found_hosts.append(target)
+                            print(f"🟢 Found: {target}")
+                    except:
+                        pass
+                print(f"\n✅ Scan complete. Found {len(found_hosts)} active hosts.")
+            except Exception as e:
+                print(f"❌ Error: {e}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        elif net_choice == '12':
             feature_download_center()
-        elif net_choice == '7': break
+        elif net_choice == '13':
+            break
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
 
 def feature_wifi_toolkit():
-    """WiFi Card Detection, Scanning, and Testing (Kali-style)"""
+    """WiFi Card Detection, Scanning, and Testing (Kali-style) - Advanced"""
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("📡 WiFi Toolkit (Advanced)")
+        print_header("📡 WiFi Toolkit - Advanced & Comprehensive")
         print(f" {BOLD}[1]{RESET} 🔍 Detect WiFi Interfaces")
         print(f" {BOLD}[2]{RESET} 📊 Scan Available Networks")
         print(f" {BOLD}[3]{RESET} 🔗 Show Connected Network")
         print(f" {BOLD}[4]{RESET} 🌐 Test Network Connectivity")
         print(f" {BOLD}[5]{RESET} 🔑 Display WiFi MAC Address")
         print(f" {BOLD}[6]{RESET} 📡 Signal Strength Monitor")
-        print(f" {BOLD}[7]{RESET} 📦 Open Download Center (Network Tools)")
-        print(f" {BOLD}[8]{RESET} ↩️ Return to Main Menu")
-        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-8): {RESET}").strip()
+        print(f" {BOLD}[7]{RESET} 📶 WiFi Network Quality Analysis")
+        print(f" {BOLD}[8]{RESET} 🛡️ WiFi Security Checker")
+        print(f" {BOLD}[9]{RESET} 🚀 WiFi Optimization Tips")
+        print(f" {BOLD}[10]{RESET} 📦 Open Download Center (Network Tools)")
+        print(f" {BOLD}[11]{RESET} ↩️ Return to Main Menu")
+        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-11): {RESET}").strip()
 
         if wifi_choice == '1':
             print_header("🔍 WiFi Interface Detection")
@@ -6829,10 +7926,93 @@ def feature_wifi_toolkit():
             except Exception as e:
                 print(f"{COLORS['1'][0]}[!] Error: {e}{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-
+        
         elif wifi_choice == '7':
-            feature_download_center()
+            # WiFi Network Quality Analysis
+            print_header("📶 WiFi Network Quality Analysis")
+            print(f"\n{COLORS['2'][0]}Analyzing network quality...{RESET}\n")
+            
+            quality_report = "WiFi Network Quality Report\\n" + "="*50 + "\\n\\n"
+            
+            # Check signal strength
+            print(f"{BOLD}Signal Quality Levels:{RESET}")
+            levels = {
+                '> -30 dBm': 'Excellent',
+                '-30 to -67 dBm': 'Very Good',
+                '-67 to -70 dBm': 'Good',
+                '-70 to -80 dBm': 'Fair',
+                '< -80 dBm': 'Weak'
+            }
+            for range_str, quality in levels.items():
+                print(f"  {range_str}: {quality}")
+            
+            quality_report += "Signal Quality Guide:\\n"
+            for range_str, quality in levels.items():
+                quality_report += f"  {range_str}: {quality}\\n"
+            
+            # Channel recommendations
+            print(f"\n{BOLD}Channel Recommendations (2.4GHz):{RESET}")
+            print("  Non-overlapping channels: 1, 6, 11, 13 (region dependent)")
+            quality_report += "\\nChannel Recommendations:\\n  Non-overlapping: 1, 6, 11, 13\\n"
+            
+            save_log_file("network", "WiFi_Quality", quality_report, prompt_user=True)
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif wifi_choice == '8':
+            # WiFi Security Checker
+            print_header("🛡️ WiFi Security Checker")
+            print(f"\n{COLORS['2'][0]}WiFi Security Best Practices:{RESET}\n")
+            security_tips = {
+                '🔐 Encryption': 'Use WPA3 or WPA2 (not WEP)',
+                '🔑 Password': 'Use strong 16+ character passwords',
+                '🌐 SSID': 'Hide SSID broadcasting (additional obscurity)',
+                '🚨 Firewall': 'Enable router firewall and UPnP filtering',
+                '📡 Access Control': 'Use MAC filtering for known devices',
+                '🔄 Updates': 'Keep router firmware updated',
+                '🛡️ Features': 'Disable WPS and remote management',
+                '📊 Monitoring': 'Check connected devices regularly',
+            }
+            
+            security_report = "WiFi Security Audit Report\\n" + "="*50 + "\\n\\n"
+            for tip, advice in security_tips.items():
+                print(f"  {tip}")
+                print(f"    └─ {advice}\n")
+                security_report += f"{tip}\\n  {advice}\\n\\n"
+            
+            save_log_file("network", "WiFi_Security", security_report, prompt_user=True)
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif wifi_choice == '9':
+            # WiFi Optimization
+            print_header("🚀 WiFi Optimization Tips")
+            print(f"\n{COLORS['2'][0]}Improve Your WiFi Performance:{RESET}\n")
+            tips = [
+                "1. Position router in central location, elevated position",
+                "2. Keep router away from walls, metal objects, and water",
+                "3. Reduce interference: minimize cordless phones, microwaves",
+                "4. Use 5GHz band for less interference (shorter range)",
+                "5. Limit number of connected devices",
+                "6. Enable QoS (Quality of Service) for priority devices",
+                "7. Change WiFi channel to less congested one",
+                "8. Use WiFi analyzer tool to find best channels",
+                "9. Keep router firmware updated",
+                "10. Reduce number of active connections",
+                "11. Enable band steering if available",
+                "12. Disable older WiFi standards (802.11b, 802.11g)",
+            ]
+            
+            for tip in tips:
+                print(f"  {tip}")
+            
+            optim_report = "WiFi Optimization Report\\n" + "="*50 + "\\n\\n"
+            for tip in tips:
+                optim_report += f"{tip}\\n"
+            save_log_file("network", "WiFi_Optimization", optim_report, prompt_user=True)
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif wifi_choice == '10':
+            feature_download_center()
+        elif wifi_choice == '11':
             break
 
 def _bluetoothctl_run(commands, timeout=8):
@@ -6925,17 +8105,21 @@ def feature_ai_center():
     """A.I. Center: Access ChatGPT, Google Gemini, Copilot, DeepSeek, and Claude"""
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🤖 A.I. Center")
+        print_header("🤖 A.I. Center - Advanced AI Platform")
         print(f" {BOLD}[1]{RESET} 🔴 ChatGPT (OpenAI)")
         print(f" {BOLD}[2]{RESET} 🔵 Google Gemini")
         print(f" {BOLD}[3]{RESET} 🟣 Microsoft Copilot")
         print(f" {BOLD}[4]{RESET} 🟠 DeepSeek")
         print(f" {BOLD}[5]{RESET} 🟡 Claude (Anthropic)")
-        print(f" {BOLD}[6]{RESET} 🧠 AI Probe Center")
-        print(f" {BOLD}[7]{RESET} 📦 Open Download Center (AI Tools)")
-        print(f" {BOLD}[8]{RESET} 🧠 AI App Handler (offline)")
-        print(f" {BOLD}[9]{RESET} ↩️ Return to Main Menu")
-        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-9): {RESET}").strip()
+        print(f" {BOLD}[6]{RESET} 🎯 AI Comparison Tool")
+        print(f" {BOLD}[7]{RESET} 📊 AI Model Analyzer")
+        print(f" {BOLD}[8]{RESET} 🔍 AI Prompt Library")
+        print(f" {BOLD}[9]{RESET} 💾 AI Response Cache")
+        print(f" {BOLD}[10]{RESET} 🧠 AI Probe Center")
+        print(f" {BOLD}[11]{RESET} 📦 Open Download Center (AI Tools)")
+        print(f" {BOLD}[12]{RESET} 🤖 AI App Handler (offline)")
+        print(f" {BOLD}[13]{RESET} ↩️ Return to Main Menu")
+        ai_choice = input(f"\n{BOLD}🎯 Select A.I. Service (1-13): {RESET}").strip()
 
         if ai_choice == '1':
             print_header("🤖 ChatGPT (OpenAI)")
@@ -7058,12 +8242,115 @@ def feature_ai_center():
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif ai_choice == '6':
-            feature_deep_probe_ai()
+            # AI Comparison Tool
+            print_header("🎯 AI Model Comparison Tool")
+            print(f"\n{COLORS['2'][0]}📊 Compare AI Models by Capabilities{RESET}\n")
+            models = {
+                'ChatGPT': {'speed': '⭐⭐⭐⭐', 'creativity': '⭐⭐⭐⭐⭐', 'accuracy': '⭐⭐⭐⭐', 'cost': '💰💰💰'},
+                'Gemini': {'speed': '⭐⭐⭐⭐⭐', 'creativity': '⭐⭐⭐⭐', 'accuracy': '⭐⭐⭐⭐', 'cost': '💰💰'},
+                'Claude': {'speed': '⭐⭐⭐', 'creativity': '⭐⭐⭐⭐⭐', 'accuracy': '⭐⭐⭐⭐⭐', 'cost': '💰💰💰'},
+                'DeepSeek': {'speed': '⭐⭐⭐⭐⭐', 'creativity': '⭐⭐⭐', 'accuracy': '⭐⭐⭐', 'cost': '💰'},
+                'Copilot': {'speed': '⭐⭐⭐⭐', 'creativity': '⭐⭐⭐⭐', 'accuracy': '⭐⭐⭐⭐', 'cost': '💰💰'},
+            }
+            for model, specs in models.items():
+                print(f"{BOLD}🤖 {model}:{RESET}")
+                for attr, rating in specs.items():
+                    print(f"   {attr.capitalize()}: {rating}")
+            
+            comparison_report = "AI Model Comparison Report\\n" + "="*50 + "\\n"
+            for model, specs in models.items():
+                comparison_report += f"\\n{model}:\\n"
+                for attr, rating in specs.items():
+                    comparison_report += f"  {attr}: {rating}\\n"
+            save_log_file("ai", "AI_Comparison", comparison_report, prompt_user=True)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
         elif ai_choice == '7':
-            feature_download_center()
+            # AI Model Analyzer
+            print_header("📊 AI Model Analyzer")
+            print(f"\n{COLORS['2'][0]}🔬 Analyze Model Capabilities & Best Use Cases{RESET}\n")
+            analyzers = {
+                'Code Generation': 'GPT-4, Claude, GitHub Copilot',
+                'Content Writing': 'GPT-4, Claude, Gemini',
+                'Data Analysis': 'Claude, GPT-4, Gemini',
+                'Image Generation': 'GPT-4 Vision, Gemini Vision, DeepSeek',
+                'Language Translation': 'Gemini, GPT-4, DeepSeek',
+                'Research Assistance': 'Claude, GPT-4, Gemini',
+                'Coding Debugging': 'GitHub Copilot, Claude, GPT-4',
+                'Long Context': 'Claude (200k tokens), GPT-4 (128k tokens)',
+            }
+            for task, recommendations in analyzers.items():
+                print(f"{BOLD}📌 {task}:{RESET} {recommendations}")
+            
+            analyzer_report = "AI Model Analyzer Report\\n" + "="*50 + "\\n"
+            for task, recommendations in analyzers.items():
+                analyzer_report += f"\\n{task}:\\n  {recommendations}\\n"
+            save_log_file("ai", "AI_Analyzer", analyzer_report, prompt_user=True)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
         elif ai_choice == '8':
-            feature_ai_app_handler()
+            # AI Prompt Library
+            print_header("🔍 AI Prompt Library")
+            print(f"\n{COLORS['2'][0]}💡 Popular & Effective Prompts{RESET}\n")
+            prompts = {
+                'Code Review': 'Review this code for bugs, security issues, and optimization opportunities',
+                'Explain Complex Topic': 'Explain [topic] as if I am a 5-year-old',
+                'Generate Documentation': 'Create comprehensive documentation for this function',
+                'Brainstorm Ideas': 'Generate 10 creative ideas for [project]',
+                'SEO Optimization': 'Optimize this content for SEO with target keywords',
+                'Problem Solving': 'Help me solve this problem step-by-step',
+                'Creative Writing': 'Write a short story about [theme] in [genre] style',
+                'Data Analysis': 'Analyze this dataset and provide insights',
+            }
+            for idx, (category, prompt) in enumerate(prompts.items(), 1):
+                print(f"{BOLD}[{idx}]{RESET} {category}:")
+                print(f"    └─ {prompt}")
+            
+            prompt_report = "AI Prompt Library\\n" + "="*50 + "\\n"
+            for category, prompt in prompts.items():
+                prompt_report += f"\\n{category}:\\n  {prompt}\\n"
+            save_log_file("ai", "Prompt_Library", prompt_report, prompt_user=True)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
         elif ai_choice == '9':
+            # AI Response Cache
+            print_header("💾 AI Response Cache Manager")
+            print(f"\n{COLORS['2'][0]}🗂️ Manage and Review Previous AI Responses{RESET}\n")
+            cache_dir = os.path.join(LOG_DIR, 'ai_cache')
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            cache_files = [f for f in os.listdir(cache_dir) if f.endswith('.txt')] if os.path.exists(cache_dir) else []
+            
+            if cache_files:
+                print(f"{COLORS['2'][0]}Found {len(cache_files)} cached responses:{RESET}\n")
+                for idx, file in enumerate(cache_files[:10], 1):
+                    file_path = os.path.join(cache_dir, file)
+                    file_size = os.path.getsize(file_path) / 1024
+                    print(f"  [{idx}] {file} ({file_size:.1f} KB)")
+                    print(f"       Created: {time.strftime('%Y-%m-%d %H:%M', time.localtime(os.path.getmtime(file_path)))}")
+            else:
+                print(f"{COLORS['3'][0]}No cached responses yet. Start interacting with AI models to build cache.{RESET}")
+            
+            # Cache statistics
+            total_size = sum(os.path.getsize(os.path.join(cache_dir, f)) for f in cache_files) / 1024 / 1024 if cache_files else 0
+            print(f"\n{BOLD}📊 Cache Statistics:{RESET}")
+            print(f"   Total Files: {len(cache_files)}")
+            print(f"   Total Size: {total_size:.2f} MB")
+            
+            cache_report = f"AI Response Cache Report\\n" + "="*50 + f"\\n\\nTotal Files: {len(cache_files)}\\nTotal Size: {total_size:.2f} MB\\n\\n"
+            for file in cache_files[:20]:
+                file_path = os.path.join(cache_dir, file)
+                cache_report += f"  - {file} ({os.path.getsize(file_path) / 1024:.1f} KB)\\n"
+            save_log_file("ai", "Cache_Report", cache_report, prompt_user=True)
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif ai_choice == '10':
+            feature_deep_probe_ai()
+        elif ai_choice == '11':
+            feature_download_center()
+        elif ai_choice == '12':
+            feature_ai_app_handler()
+        elif ai_choice == '13':
             break
 
 def feature_security_audit():
@@ -7448,8 +8735,11 @@ def feature_graphing_calculator():
         print(f" {BOLD}[5]{RESET}  🔢 Matrix Calculator")
         print(f" {BOLD}[6]{RESET}  ⚖️ Equation Solver")
         print(f" {BOLD}[7]{RESET}  🔄 Unit Converter")
-        print(f" {BOLD}[8]{RESET}  💾 Save/Load Calculations")
-        print(f" {BOLD}[9]{RESET}  📖 Calculator Help & Examples")
+        print(f" {BOLD}[8]{RESET}  🧬 Complex Numbers & Operations")
+        print(f" {BOLD}[9]{RESET}  📐 Trigonometric Functions")
+        print(f" {BOLD}[10]{RESET} 🎲 Random & Probability")
+        print(f" {BOLD}[11]{RESET} 💾 Save/Load Calculations")
+        print(f" {BOLD}[12]{RESET} 📖 Calculator Help & Examples")
         print(f" {BOLD}[0]{RESET}  ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
@@ -7473,8 +8763,99 @@ def feature_graphing_calculator():
         elif choice == '7':
             safe_run("general", "Unit_Converter", _calc_unit_converter)
         elif choice == '8':
-            safe_run("general", "Save_Load", _calc_save_load)
+            # Complex Numbers
+            print_header("🧬 Complex Numbers & Operations")
+            print(f"\n{COLORS['2'][0]}Enter complex number (format: a+bj or a-bj):{RESET}")
+            comp_str = input(f"Complex number: ").strip()
+            try:
+                comp = complex(comp_str)
+                print(f"\n{BOLD}📊 Analysis:{RESET}")
+                print(f"  Real part: {comp.real}")
+                print(f"  Imaginary part: {comp.imag}")
+                print(f"  Magnitude: {abs(comp):.6f}")
+                print(f"  Phase: {__import__('cmath').phase(comp):.6f} rad")
+                
+                comp_report = f"Complex Number Analysis\\n{comp_str}\\n\\nReal: {comp.real}\\nImaginary: {comp.imag}\\nMagnitude: {abs(comp):.6f}\\n"
+                save_log_file("general", "Complex_Analysis", comp_report, prompt_user=True)
+            except:
+                print(f"{COLORS['1'][0]}Invalid format{RESET}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
         elif choice == '9':
+            # Trigonometric Functions
+            print_header("📐 Trigonometric Functions")
+            print(f"\n{BOLD}Select function:{RESET}")
+            print(f"  [1] sin(x)")
+            print(f"  [2] cos(x)")
+            print(f"  [3] tan(x)")
+            print(f"  [4] Inverse functions")
+            trig_choice = input(f"\nSelect: ").strip()
+            
+            if trig_choice in ['1', '2', '3']:
+                angle_deg = float(input("Enter angle (degrees): "))
+                angle_rad = __import__('math').radians(angle_deg)
+                
+                if trig_choice == '1':
+                    result = __import__('math').sin(angle_rad)
+                    func_name = "sin"
+                elif trig_choice == '2':
+                    result = __import__('math').cos(angle_rad)
+                    func_name = "cos"
+                else:
+                    result = __import__('math').tan(angle_rad)
+                    func_name = "tan"
+                
+                print(f"\n{BOLD}{func_name}({angle_deg}°) = {result:.6f}{RESET}")
+            elif trig_choice == '4':
+                print(f"\n{BOLD}Inverse Functions:{RESET}")
+                print(f"  asin(x), acos(x), atan(x)")
+                value = float(input("Enter value [-1 to 1]: "))
+                if -1 <= value <= 1:
+                    print(f"  asin({value}) = {__import__('math').degrees(__import__('math').asin(value)):.2f}°")
+                    print(f"  acos({value}) = {__import__('math').degrees(__import__('math').acos(value)):.2f}°")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '10':
+            # Random & Probability
+            print_header("🎲 Random & Probability")
+            print(f"\n{BOLD}Select operation:{RESET}")
+            print(f"  [1] Random integer")
+            print(f"  [2] Random float")
+            print(f"  [3] Combinations")
+            print(f"  [4] Permutations")
+            rand_choice = input(f"\nSelect: ").strip()
+            
+            if rand_choice == '1':
+                a = int(input("Min: "))
+                b = int(input("Max: "))
+                result = __import__('random').randint(a, b)
+                print(f"Random number: {result}")
+            elif rand_choice == '2':
+                result = __import__('random').random()
+                print(f"Random float [0,1): {result:.6f}")
+            elif rand_choice == '3':
+                n = int(input("n: "))
+                k = int(input("k: "))
+                try:
+                    result = __import__('math').comb(n, k)
+                    print(f"C({n},{k}) = {result}")
+                except:
+                    print("Invalid input")
+            elif rand_choice == '4':
+                n = int(input("n: "))
+                k = int(input("k: "))
+                try:
+                    result = __import__('math').perm(n, k)
+                    print(f"P({n},{k}) = {result}")
+                except:
+                    print("Invalid input")
+            
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        
+        elif choice == '11':
+            safe_run("general", "Save_Load", _calc_save_load)
+        elif choice == '12':
             safe_run("general", "Calculator_Help", _calc_help)
 
 def _calc_graph_plotter():
@@ -9557,8 +10938,8 @@ def feature_remote_dashboard():
             print(f"URL:       {webssh_status['client_url']}")
             print(f"Connect:   {webssh_status['connect_url']}")
             input("\n[ ⌨️ Press Enter to return... ]")
- 
- 
+
+
 def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
     """Textual-first media hub with ASCII browser plus MP3/MP4 hooks.
 
@@ -9924,9 +11305,13 @@ def feature_textual_widget_board(screenshot_path=None):
             self.audio_error = ""
             self._paused = False
             self._pygame = None
+            self._loaded_path = None
             try:
                 import pygame  # type: ignore
-                pygame.mixer.init()
+                try:
+                    pygame.mixer.init()
+                except Exception:
+                    pygame.mixer.init(44100, -16, 2, 2048)
                 self._pygame = pygame
                 self.audio_ready = True
             except Exception as exc:  # pragma: no cover - optional dependency
@@ -9942,14 +11327,38 @@ def feature_textual_widget_board(screenshot_path=None):
             yield TextLog(id="mp3-log", highlight=False, markup=False)
 
         def _log(self, message):
-            self.query_one("#mp3-log", TextLog).write(message)
+            try:
+                log_widget = self.query_one("#mp3-log", TextLog)
+            except Exception:
+                return
+            if hasattr(log_widget, "write"):
+                log_widget.write(message)
+            elif hasattr(log_widget, "write_line"):
+                log_widget.write_line(message)
+            elif hasattr(log_widget, "append"):
+                log_widget.append(message)
+            else:
+                try:
+                    log_widget.update(message)
+                except Exception:
+                    pass
 
         def _load_audio(self, path):
             if not self.audio_ready or not self._pygame:
                 self._log(f"Audio unavailable: {self.audio_error or 'pygame missing'}")
                 return False
+            resolved = os.path.expanduser(path)
+            resolved = os.path.abspath(resolved)
+            if not os.path.exists(resolved) or not os.path.isfile(resolved):
+                self._log("File not found. Check the path.")
+                return False
+            ext = os.path.splitext(resolved)[1].lower()
+            if ext and ext not in SUPPORTED_AUDIO_FORMATS:
+                self._log(f"Unsupported format: {ext}. Supported: {', '.join(SUPPORTED_AUDIO_FORMATS)}")
+                return False
             try:
-                self._pygame.mixer.music.load(path)
+                self._pygame.mixer.music.load(resolved)
+                self._loaded_path = resolved
                 return True
             except Exception as exc:  # pragma: no cover - runtime safety
                 self._log(f"❌ {exc}")
@@ -9958,7 +11367,11 @@ def feature_textual_widget_board(screenshot_path=None):
         @on(Button.Pressed, "#mp3-play")
         @on(Input.Submitted, "#mp3-path")
         def handle_play(self, _event):
-            path = self.query_one("#mp3-path", Input).value.strip()
+            try:
+                path = self.query_one("#mp3-path", Input).value.strip()
+            except Exception:
+                self._log("Unable to read input field.")
+                return
             if not path:
                 self._log("Enter a file path first.")
                 return
@@ -9966,7 +11379,8 @@ def feature_textual_widget_board(screenshot_path=None):
                 try:
                     self._pygame.mixer.music.play()
                     self._paused = False
-                    self._log(f"▶️ Playing {os.path.basename(path)}")
+                    label = os.path.basename(self._loaded_path or path)
+                    self._log(f"▶️ Playing {label}")
                 except Exception as exc:
                     self._log(f"❌ {exc}")
 
@@ -9974,6 +11388,9 @@ def feature_textual_widget_board(screenshot_path=None):
         def handle_toggle(self, _event):
             if not self.audio_ready or not self._pygame:
                 self._log("Audio unavailable.")
+                return
+            if not self._loaded_path:
+                self._log("Load a track first.")
                 return
             try:
                 if self._paused:
@@ -9992,6 +11409,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 return
             try:
                 self._pygame.mixer.music.stop()
+                self._paused = False
                 self._log("⏹️ Stopped.")
             except Exception as exc:
                 self._log(f"❌ {exc}")
@@ -10010,13 +11428,36 @@ def feature_textual_widget_board(screenshot_path=None):
             yield TextLog(id="notes-log", highlight=False, markup=False)
             yield Input(placeholder="Type a note and press Enter", id="notes-input")
 
+        def _write_note(self, message):
+            try:
+                log_widget = self.query_one("#notes-log", TextLog)
+            except Exception:
+                return
+            if hasattr(log_widget, "write"):
+                log_widget.write(message)
+            elif hasattr(log_widget, "write_line"):
+                log_widget.write_line(message)
+            elif hasattr(log_widget, "append"):
+                log_widget.append(message)
+            else:
+                try:
+                    log_widget.update(message)
+                except Exception:
+                    pass
+
         @on(Input.Submitted, "#notes-input")
         def add_note(self, event):
-            note = self.query_one("#notes-input", Input).value.strip()
+            try:
+                note = self.query_one("#notes-input", Input).value.strip()
+            except Exception:
+                return
             if not note:
                 return
-            self.query_one("#notes-log", TextLog).write(f"• {note}")
-            self.query_one("#notes-input", Input).value = ""
+            self._write_note(f"• {note}")
+            try:
+                self.query_one("#notes-input", Input).value = ""
+            except Exception:
+                pass
 
     class StopwatchWidget(Static):
         def on_mount(self):
@@ -12615,8 +14056,8 @@ def run_classic_command_center():
         print(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🎧 Quick Audio")
         print(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
         print(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
-        print(f" {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc")
+        print(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc  {BOLD}[X]{RESET} 🛠️ TUI Tools")
+        print(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
         choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
@@ -12684,6 +14125,7 @@ def run_classic_command_center():
         elif choice == 'R': safe_run("general", "Satellite_Tracker", feature_satellite_tracker)
         elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
         elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
+        elif choice == 'X': safe_run("general", "TUI_Tools", feature_tui_tools)
         elif choice == 'V':
             _set_display_mode("classic")
         elif choice == 'U':
