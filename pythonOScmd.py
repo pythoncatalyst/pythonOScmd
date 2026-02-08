@@ -11379,8 +11379,8 @@ def feature_quick_audio_playback():
     """Quick path-based audio launcher for common audio formats (mp3/mp2/wav/ogg/flac/m4a/aac)."""
     print_header("🎧 Quick Audio Player")
     supported = ('.mp3', '.mp2', '.wav', '.ogg', '.flac', '.m4a', '.aac')
-    prompt_ext = "/".join(ext.strip(".") for ext in supported)
-    target = input(f"📂 Enter audio file path ({prompt_ext}): ").strip()
+    prompt_ext = ", ".join(ext.strip(".") for ext in supported)
+    target = input(f"📂 Enter audio file path (Supported: {prompt_ext}): ").strip()
     if not target:
         print(f"{COLORS['4'][0]}No file selected.{RESET}")
         time.sleep(1)
@@ -11392,7 +11392,9 @@ def feature_quick_audio_playback():
         return
     ext = os.path.splitext(target)[1].lower()
     if ext not in supported:
-        print(f"{COLORS['4'][0]}⚠️ Unsupported extension detected. Attempting playback...{RESET}")
+        print(f"{COLORS['1'][0]}❌ Unsupported extension: {ext or 'none'}{RESET}")
+        time.sleep(1)
+        return
     try:
         play_audio_file(target)
     except Exception as exc:
