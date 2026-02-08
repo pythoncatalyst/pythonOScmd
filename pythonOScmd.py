@@ -9294,6 +9294,226 @@ def feature_remote_dashboard():
             print(f"URL:       {webssh_status['client_url']}")
             print(f"Connect:   {webssh_status['connect_url']}")
             input("\n[ ⌨️ Press Enter to return... ]")
+ 
+ 
+def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
+    """Textual-first media hub with ASCII browser plus MP3/MP4 hooks."""
+    try:
+        from textual.app import App, ComposeResult
+        from textual import on
+        from textual.containers import Horizontal, Vertical
+        from textual.widgets import Header, Footer, Input, TextLog, Button, DirectoryTree, Static
+    except Exception:
+        print(f"{get_current_color()}✗{RESET} Textual not installed.")
+        print("\nInstall with: pip install textual")
+        input("\nPress Enter to return...")
+        return
+
+    try:
+        environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        import pygame  # type: ignore
+        pygame.mixer.init()
+        _audio_ready = True
+        _audio_error = ""
+    except Exception as exc:  # pragma: no cover - optional dependency
+        _audio_ready = False
+        _audio_error = str(exc)
+        pygame = None  # type: ignore
+
+    try:
+        from tinytag import TinyTag  # type: ignore
+    except Exception:  # pragma: no cover - optional dependency
+        TinyTag = None  # type: ignore
+
+    audio_exts = (".mp3", ".wav", ".ogg", ".flac", ".m4a", ".aac")
+    video_exts = (".mp4", ".mkv", ".avi", ".mov")
+
+    class MediaLounge(App):
+        CSS = """
+        Screen { background: $panel; }
+        #main { height: 1fr; }
+        #media-tree { width: 32; border: solid $primary; }
+        #right { padding: 1; }
+        #browser-log, #info-log { height: 12; border: solid $secondary; }
+        #browser-bar { align: center middle; height: 3; }
+        #controls { height: 3; }
+        #now-playing { padding: 1 0; }
+        """
+
+        def __init__(self, start_path):
+            super().__init__()
+            self.start_path = Path(start_path or os.getcwd())
+            self.audio_ready = _audio_ready
+            self.audio_error = _audio_error
+            self._paused = False
+            self.video_to_play: Optional[Path] = None
+
+        def compose(self) -> ComposeResult:
+            yield Header(show_clock=True)
+            with Horizontal(id="main"):
+                yield DirectoryTree(str(self.start_path), id="media-tree")
+                with Vertical(id="right"):
+                    with Horizontal(id="browser-bar"):
+                        yield Input(placeholder="https://example.com", id="url-input")
+                        yield Button("Fetch ASCII", id="btn-fetch", variant="primary")
+                    yield TextLog(id="browser-log", highlight=False, markup=False)
+                    yield Static("Now Playing: --", id="now-playing")
+                    with Horizontal(id="controls"):
+                        yield Button("Play/Pause", id="btn-toggle")
+                        yield Button("Stop", id="btn-stop")
+                    yield TextLog(id="info-log", highlight=False, markup=False)
+            yield Footer()
+
+        def _update_now_playing(self, name="--"):
+            self.query_one("#now-playing", Static).update(f"Now Playing: {name}")
+
+        def _log(self, message: str, target: str = "#info-log", clear: bool = False):
+            log = self.query_one(target, TextLog)
+            if clear:
+                log.clear()
+            log.write(message)
+
+        def _handle_audio_metadata(self, media_path: Path):
+            if not TinyTag:
+                return
+            try:
+                tag = TinyTag.get(str(media_path))
+                meta = []
+                if tag.title:
+                    meta.append(f"Title: {tag.title}")
+                if tag.artist:
+                    meta.append(f"Artist: {tag.artist}")
+                if tag.duration:
+                    meta.append(f"Duration: {tag.duration:.0f}s")
+                if meta:
+                    self._log("\n".join(meta))
+            except Exception:
+                pass
+
+        def play_audio(self, media_path: Path):
+            if not self.audio_ready:
+                self._log(f"Audio unavailable: {_audio_error}")
+                return
+            try:
+                pygame.mixer.music.load(str(media_path))
+                pygame.mixer.music.play()
+                self._paused = False
+                self._update_now_playing(media_path.name)
+                self._log(f"▶️ Playing {media_path.name}", clear=True)
+                self._handle_audio_metadata(media_path)
+            except Exception as exc:
+                self._log(f"❌ {exc}")
+
+        def toggle_audio(self):
+            if not self.audio_ready:
+                self._log("Audio unavailable.")
+                return
+            try:
+                if self._paused:
+                    pygame.mixer.music.unpause()
+                    self._log("Resumed playback.")
+                else:
+                    pygame.mixer.music.pause()
+                    self._log("Paused playback.")
+                self._paused = not self._paused
+            except Exception as exc:
+                self._log(f"❌ {exc}")
+
+        def stop_audio(self):
+            if not self.audio_ready:
+                return
+            try:
+                pygame.mixer.music.stop()
+                self._update_now_playing("--")
+                self._log("⏹️ Stopped.", clear=True)
+            except Exception as exc:
+                self._log(f"❌ {exc}")
+
+        def prepare_video(self, media_path: Path):
+            self._log(f"🎬 Launching {media_path.name} in ASCII player...", clear=True)
+            self.video_to_play = media_path
+            self.exit()
+
+        @on(Button.Pressed, "#btn-fetch")
+        @on(Input.Submitted, "#url-input")
+        def handle_fetch(self, event):
+            url = self.query_one("#url-input", Input).value.strip() or "https://example.com"
+            browser_log = self.query_one("#browser-log", TextLog)
+            browser_log.clear()
+            browser_log.write(f"🌐 Fetching: {url}")
+            try:
+                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                soup = BeautifulSoup(res.text, 'html.parser')
+                for s in soup(["script", "style"]):
+                    s.extract()
+                lines = [ln.strip() for ln in soup.get_text().splitlines() if ln.strip()]
+                for line in lines[:40]:
+                    browser_log.write(line)
+                img = soup.find("img")
+                if img and img.get("src"):
+                    from urllib.parse import urljoin
+                    src = urljoin(url, img.get("src"))
+                    try:
+                        ascii_img = convert_to_ascii(src, width=48)
+                        for ln in ascii_img[:40]:
+                            browser_log.write(ln)
+                    except Exception:
+                        pass
+            except Exception as exc:
+                browser_log.write(f"❌ {exc}")
+
+        @on(Button.Pressed, "#btn-toggle")
+        def handle_toggle(self, _event):
+            self.toggle_audio()
+
+        @on(Button.Pressed, "#btn-stop")
+        def handle_stop(self, _event):
+            self.stop_audio()
+
+        @on(DirectoryTree.FileSelected)
+        def handle_file(self, event: DirectoryTree.FileSelected):
+            ext = event.path.suffix.lower()
+            if ext in audio_exts:
+                self.play_audio(Path(event.path))
+            elif ext in video_exts:
+                self.prepare_video(Path(event.path))
+            else:
+                self._log(f"Unsupported file: {event.path.name}")
+
+        def on_unmount(self):
+            if self.audio_ready:
+                try:
+                    pygame.mixer.music.stop()
+                    pygame.mixer.quit()
+                except Exception:
+                    pass
+
+    try:
+        app = MediaLounge(start_dir or os.getcwd())
+        if screenshot_path:
+            app.run(screenshot=screenshot_path)
+        else:
+            app.run()
+        selected_video = getattr(app, "video_to_play", None)
+    except Exception as exc:
+        print(f"{get_current_color()}✗{RESET} Error: {exc}")
+        selected_video = None
+    finally:
+        if _audio_ready:
+            try:
+                pygame.mixer.quit()
+            except Exception:
+                pass
+
+    if selected_video:
+        try:
+            if "_asciip_play_video" in globals():
+                _asciip_play_video(str(selected_video))
+            else:
+                os.system(f'ffplay -autoexit "{selected_video}"')
+        except Exception as exc:
+            print(f"{get_current_color()}✗{RESET} Video error: {exc}")
+        input("\nPress Enter to return...")
 
 
 def feature_media_menu():
@@ -9306,8 +9526,9 @@ def feature_media_menu():
         print(" [2] Integrated Media Scanner (Explorer)")
         print(" [3] Launch asciiplayer (plugins/asciiplayer18.py)")
         print(" [4] Launch External MP3 Engine (Linked Module)")
-        print(" [5] Open Download Center (Media Tools)")
-        print(" [6] Return to Main Menu")
+        print(" [5] Textual Media Lounge (ASCII Browser + Player)")
+        print(" [6] Open Download Center (Media Tools)")
+        print(" [7] Return to Main Menu")
 
         sel = input("\n🎯 Select: ").strip()
         if sel == '1':
@@ -9334,6 +9555,8 @@ def feature_media_menu():
                 print("[!] MP3 player not available.")
                 input("\n[ ⌨️ Press Enter to return... ]")
         elif sel == '5':
+            feature_textual_media_lounge()
+        elif sel == '6':
             feature_download_center()
         else:
             break
@@ -10911,6 +11134,7 @@ COMMAND_CENTER_ACTIONS = [
     ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
+    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("wifi", {"title": "WiFi Toolkit", "summary": "Wireless scans and tools.", "category": "network", "operation": "WiFi_Toolkit", "func": feature_wifi_toolkit}),
     ("ai_center", {"title": "AI Center", "summary": "AI utilities and chat tools.", "category": "ai", "operation": "AI_Center", "func": feature_ai_center}),
     ("bluetooth", {"title": "Bluetooth Toolkit", "summary": "Bluetooth scans and actions.", "category": "network", "operation": "Bluetooth_Toolkit", "func": feature_bluetooth_toolkit}),
