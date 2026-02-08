@@ -11454,10 +11454,12 @@ COMMAND_CENTER_ACTIONS = [
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
 
 # Backward compatibility for previously hyphenated key
-COMMAND_ACTION_MAP.setdefault("file-system", COMMAND_ACTION_MAP["file_manager_suite"])
+file_mgr_meta = COMMAND_ACTION_MAP.get("file_manager_suite")
+if file_mgr_meta:
+    COMMAND_ACTION_MAP.setdefault("file-system", file_mgr_meta)
 
-TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar (5% per block)
-TEXTUAL_BAR_RATIO = TEXTUAL_BAR_LENGTH / 100.0
+TEXTUAL_BAR_LENGTH = 20  # Total blocks shown in the usage bar (each block ≈5%)
+TEXTUAL_BAR_RATIO = TEXTUAL_BAR_LENGTH / 100.0  # Blocks per percent of utilization
 
 def feature_enhanced_display_mode():
     """Enhanced Display Mode - Launches Bpytop System Monitor."""
