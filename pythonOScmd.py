@@ -346,8 +346,220 @@ class ThreadPoolManager:
         """Shutdown thread pool."""
         self.pool.shutdown(wait=wait)
 
+# ================================================================================
+# COMMAND HISTORY & KEYBOARD SHORTCUTS SYSTEM
+# ================================================================================
+
+class CommandHistoryManager:
+    """Manages command history with search, recall, and statistics."""
+    def __init__(self, max_history=500):
+        self.history = deque(maxlen=max_history)
+        self.max_history = max_history
+        self.history_file = os.path.join(DB_DIR, "command_history.json")
+        self.load_history()
+    
+    def add_command(self, command, category="general"):
+        """Add command to history with timestamp and category."""
+        # Use datetime module imported at top of file
+        import datetime as dt
+        entry = {
+            "command": command,
+            "category": category,
+            "timestamp": dt.datetime.now().isoformat(),
+            "execution_count": 1
+        }
+        # Check if similar command exists
+        for hist in self.history:
+            if hist["command"] == command:
+                hist["execution_count"] += 1
+                return
+        self.history.append(entry)
+        self.save_history()
+    
+    def search(self, query, category=None, limit=20):
+        """Search command history by query string."""
+        results = []
+        query_lower = query.lower()
+        
+        for entry in reversed(list(self.history)):
+            if len(results) >= limit:
+                break
+            
+            command_match = query_lower in entry["command"].lower()
+            category_match = category is None or entry["category"] == category
+            
+            if command_match and category_match:
+                results.append(entry)
+        
+        return results
+    
+    def get_frequently_used(self, limit=20):
+        """Get most frequently used commands."""
+        sorted_hist = sorted(
+            self.history,
+            key=lambda x: x.get("execution_count", 1),
+            reverse=True
+        )
+        return sorted_hist[:limit]
+    
+    def get_by_category(self, category, limit=50):
+        """Get commands by category."""
+        results = [h for h in reversed(list(self.history)) if h["category"] == category]
+        return results[:limit]
+    
+    def get_recent(self, count=20):
+        """Get most recent commands."""
+        return list(reversed(list(self.history)))[:count]
+    
+    def clear_history(self):
+        """Clear all command history."""
+        self.history.clear()
+        self.save_history()
+    
+    def export_history(self, format="json"):
+        """Export history in different formats."""
+        hist_list = list(self.history)
+        if format == "json":
+            return json.dumps(hist_list, indent=2)
+        elif format == "csv":
+            import csv
+            from io import StringIO
+            output = StringIO()
+            if hist_list:
+                writer = csv.DictWriter(output, fieldnames=hist_list[0].keys())
+                writer.writeheader()
+                writer.writerows(hist_list)
+            return output.getvalue()
+        return str(hist_list)
+    
+    def save_history(self):
+        """Save history to file."""
+        try:
+            os.makedirs(DB_DIR, exist_ok=True)
+            with open(self.history_file, 'w', encoding='utf-8') as f:
+                json.dump(list(self.history), f, indent=2)
+        except Exception as e:
+            print(f"Warning: Could not save command history: {e}")
+    
+    def load_history(self):
+        """Load history from file."""
+        try:
+            if os.path.exists(self.history_file):
+                with open(self.history_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    for entry in data:
+                        self.history.append(entry)
+        except Exception as e:
+            print(f"Warning: Could not load command history: {e}")
+    
+    def get_stats(self):
+        """Get history statistics."""
+        categories = {}
+        total_executions = 0
+        
+        for entry in self.history:
+            cat = entry.get("category", "unknown")
+            categories[cat] = categories.get(cat, 0) + 1
+            total_executions += entry.get("execution_count", 1)
+        
+        return {
+            "total_commands": len(self.history),
+            "total_executions": total_executions,
+            "categories": categories,
+            "oldest_entry": self.history[0] if self.history else None,
+            "newest_entry": self.history[-1] if self.history else None
+        }
+
+
+class KeyboardShortcutsRegistry:
+    """Registry for keyboard shortcuts and hotkeys across pythonOS."""
+    def __init__(self):
+        self.shortcuts = {}
+        self._initialize_default_shortcuts()
+    
+    def _initialize_default_shortcuts(self):
+        """Initialize default keyboard shortcuts."""
+        self.shortcuts = {
+            "global": [
+                {"key": "Ctrl+C", "action": "Exit/Interrupt", "description": "Cancel current operation or exit menu"},
+                {"key": "Ctrl+Z", "action": "Suspend", "description": "Suspend current process"},
+                {"key": "Alt+F4", "action": "Close", "description": "Close application (Windows/Linux)"},
+                {"key": "Ctrl+D", "action": "EOF", "description": "Send EOF signal"},
+            ],
+            "command_center": [
+                {"key": "0-9", "action": "Select Option", "description": "Select numbered menu options"},
+                {"key": "A-Z", "action": "Select Feature", "description": "Select lettered features"},
+                {"key": "1", "action": "Toggle Blinking", "description": "Toggle emoji blinking effect"},
+                {"key": "2", "action": "Toggle Temperature", "description": "Toggle between Celsius/Fahrenheit"},
+                {"key": "3", "action": "Thermal Display", "description": "Toggle truncated thermal display"},
+                {"key": "4", "action": "Mini View", "description": "Toggle mini system view"},
+                {"key": "5", "action": "Save & Exit", "description": "Save configuration and exit"},
+                {"key": "6", "action": "Select Color", "description": "Choose custom display color"},
+            ],
+            "history": [
+                {"key": "Ctrl+R", "action": "Search History", "description": "Search command history"},
+                {"key": "Ctrl+P", "action": "Previous", "description": "Recall previous command (bash-like)"},
+                {"key": "Ctrl+N", "action": "Next", "description": "Recall next command"},
+                {"key": "Up Arrow", "action": "Previous", "description": "Navigate to previous command"},
+                {"key": "Down Arrow", "action": "Next", "description": "Navigate to next command"},
+            ],
+            "text_input": [
+                {"key": "Tab", "action": "Auto-complete", "description": "Auto-complete command or filename"},
+                {"key": "Ctrl+A", "action": "Select All", "description": "Select entire line"},
+                {"key": "Ctrl+E", "action": "End of Line", "description": "Move cursor to end of line"},
+                {"key": "Ctrl+U", "action": "Clear Line", "description": "Clear from start to cursor"},
+                {"key": "Ctrl+K", "action": "Clear Right", "description": "Clear from cursor to end"},
+            ],
+            "media_player": [
+                {"key": "Space", "action": "Play/Pause", "description": "Toggle playback"},
+                {"key": ">", "action": "Next Track", "description": "Skip to next track"},
+                {"key": "<", "action": "Previous Track", "description": "Skip to previous track"},
+                {"key": "V", "action": "Volume Up", "description": "Increase volume"},
+                {"key": "Shift+V", "action": "Volume Down", "description": "Decrease volume"},
+                {"key": "Q", "action": "Quit", "description": "Stop playback and exit"},
+            ],
+            "navigation": [
+                {"key": "Enter/Return", "action": "Confirm", "description": "Confirm selection or submit input"},
+                {"key": "Esc", "action": "Cancel", "description": "Cancel operation or close dialog"},
+                {"key": "0", "action": "Back/Return", "description": "Return to previous menu"},
+            ]
+        }
+    
+    def get_shortcuts(self, category=None):
+        """Get shortcuts by category, or all if category is None."""
+        if category:
+            return self.shortcuts.get(category, [])
+        return self.shortcuts
+    
+    def add_shortcut(self, category, key, action, description):
+        """Add custom keyboard shortcut."""
+        if category not in self.shortcuts:
+            self.shortcuts[category] = []
+        
+        self.shortcuts[category].append({
+            "key": key,
+            "action": action,
+            "description": description
+        })
+    
+    def get_all_shortcuts_formatted(self):
+        """Get all shortcuts in formatted display."""
+        output = []
+        for category, shortcuts in self.shortcuts.items():
+            output.append(f"\n{COLORS.get('6', [''])[0]}{category.upper()}{RESET}")
+            output.append("=" * 70)
+            for shortcut in shortcuts:
+                key_str = shortcut["key"].ljust(15)
+                action_str = shortcut["action"].ljust(20)
+                desc_str = shortcut["description"]
+                output.append(f"  {key_str} → {action_str} : {desc_str}")
+        return "\n".join(output)
+
+
 # Global performance instances
 PERFORMANCE_MONITOR = None
+COMMAND_HISTORY = None
+KEYBOARD_SHORTCUTS = None
 CACHE_SYSTEM = None
 LAZY_LOADER = None
 THREAD_POOL = None
@@ -25629,6 +25841,9 @@ def _format_classic_menu_display():
     lines.append(f" {BOLD}[N]{RESET} Logs  {BOLD}[O]{RESET} Download  {BOLD}[P]{RESET} PWN  {BOLD}[Q]{RESET} Python")
     lines.append(f" {BOLD}[R]{RESET} Satellite  {BOLD}[S]{RESET} Calculator  {BOLD}[T]{RESET} Docs  {BOLD}[X]{RESET} TUI")
     
+    # NEW: History & Shortcuts
+    lines.append(f" {BOLD}[↑]{RESET} Command History  {BOLD}[→]{RESET} Keyboard Shortcuts")
+    
     # System & Display modes
     lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health Report")
     lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced  {BOLD}[+]{RESET} 📋 Logger  {BOLD}[*]{RESET} 🔒 Sec Audit")
@@ -27041,6 +27256,226 @@ def run_pytextos(return_to_classic=False):
         _set_display_mode("classic")
         run_classic_command_center()
 
+# ================================================================================
+# NEW FEATURES: COMMAND HISTORY & KEYBOARD SHORTCUTS
+# ================================================================================
+
+def feature_command_history_search():
+    """Search and recall commands from history like bash."""
+    global COMMAND_HISTORY
+    
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🕐 Command History & Search")
+        
+        print(f"\n{BOLD}History Management:{RESET}")
+        print(f" {BOLD}[1]{RESET} 🔍 Search Commands")
+        print(f" {BOLD}[2]{RESET} 📈 Most Frequently Used")
+        print(f" {BOLD}[3]{RESET} ⏱️  Recent Commands")
+        print(f" {BOLD}[4]{RESET} 📂 Commands by Category")
+        print(f" {BOLD}[5]{RESET} 📊 History Statistics")
+        print(f" {BOLD}[6]{RESET} 💾 Export History")
+        print(f" {BOLD}[7]{RESET} 🗑️  Clear History (⚠️ Dangerous)")
+        print(f" {BOLD}[0]{RESET} ↩️  Return")
+        
+        choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            # Search history
+            query = input(f"{BOLD}🔍 Enter search term: {RESET}").strip()
+            if query:
+                results = COMMAND_HISTORY.search(query, limit=50)
+                if results:
+                    print(f"\n{COLORS['2'][0]}Found {len(results)} matching commands:{RESET}\n")
+                    for i, entry in enumerate(results, 1):
+                        timestamp = entry.get("timestamp", "N/A")[:10]
+                        exec_count = entry.get("execution_count", 1)
+                        cmd = entry.get("command", "")[:60]
+                        print(f"  [{i}] {cmd}")
+                        print(f"      ⏱️  {timestamp} | ⚙️  Runs: {exec_count}")
+                else:
+                    print(f"{COLORS['4'][0]}No matching commands found.{RESET}")
+                input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '2':
+            # Most frequently used
+            freq = COMMAND_HISTORY.get_frequently_used(limit=30)
+            if freq:
+                print(f"\n{COLORS['2'][0]}Most Frequently Used Commands:{RESET}\n")
+                for i, entry in enumerate(freq, 1):
+                    exec_count = entry.get("execution_count", 1)
+                    cmd = entry.get("command", "")[:60]
+                    print(f"  [{i:2d}] {cmd}")
+                    print(f"        ⚙️  Executed {exec_count} times")
+            else:
+                print(f"{COLORS['4'][0]}No history available.{RESET}")
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '3':
+            # Recent commands
+            recent = COMMAND_HISTORY.get_recent(count=30)
+            if recent:
+                print(f"\n{COLORS['2'][0]}Recent Commands:{RESET}\n")
+                for i, entry in enumerate(recent, 1):
+                    timestamp = entry.get("timestamp", "N/A")[-8:]
+                    cmd = entry.get("command", "")[:60]
+                    cat = entry.get("category", "general")
+                    print(f"  [{i:2d}] {cmd}")
+                    print(f"        🕐 {timestamp} | 📂 {cat}")
+            else:
+                print(f"{COLORS['4'][0]}No history available.{RESET}")
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '4':
+            # By category
+            stats = COMMAND_HISTORY.get_stats()
+            categories = stats.get("categories", {})
+            
+            print(f"\n{BOLD}Available Categories:{RESET}")
+            cat_list = list(categories.keys())
+            for i, cat in enumerate(cat_list, 1):
+                count = categories[cat]
+                print(f"  [{i}] {cat.capitalize()} ({count} commands)")
+            
+            cat_choice = input(f"\n{BOLD}Select category number: {RESET}").strip()
+            if cat_choice.isdigit() and 1 <= int(cat_choice) <= len(cat_list):
+                selected_cat = cat_list[int(cat_choice) - 1]
+                by_cat = COMMAND_HISTORY.get_by_category(selected_cat, limit=50)
+                print(f"\n{COLORS['2'][0]}Commands in '{selected_cat}':{RESET}\n")
+                for i, entry in enumerate(by_cat, 1):
+                    cmd = entry.get("command", "")[:70]
+                    print(f"  {i:2d}. {cmd}")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '5':
+            # Statistics
+            stats = COMMAND_HISTORY.get_stats()
+            print(f"\n{COLORS['2'][0]}📊 History Statistics:{RESET}\n")
+            print(f"  📝 Total Commands: {stats['total_commands']}")
+            print(f"  ⚙️  Total Executions: {stats['total_executions']}")
+            print(f"  📂 Categories: {len(stats['categories'])}")
+            
+            print(f"\n{BOLD}Commands by Category:{RESET}")
+            for cat, count in sorted(stats['categories'].items(), key=lambda x: x[1], reverse=True):
+                bar = draw_bar(count * 100 / max(stats['categories'].values(), 1) if stats['categories'] else 0)
+                print(f"  {cat.capitalize():20} {bar}")
+            
+            if stats['oldest_entry']:
+                print(f"\n{COLORS['4'][0]}Oldest Entry: {stats['oldest_entry'].get('timestamp', 'N/A')}{RESET}")
+            if stats['newest_entry']:
+                print(f"{COLORS['2'][0]}Newest Entry: {stats['newest_entry'].get('timestamp', 'N/A')}{RESET}")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '6':
+            # Export
+            print(f"\n{BOLD}Export Format:{RESET}")
+            print(f"  [1] JSON")
+            print(f"  [2] CSV")
+            
+            export_choice = input(f"\n{BOLD}Select format: {RESET}").strip()
+            if export_choice in ('1', '2'):
+                fmt = 'json' if export_choice == '1' else 'csv'
+                exported = COMMAND_HISTORY.export_history(format=fmt)
+                
+                export_file = os.path.join(DB_DIR, f"command_history_export.{fmt}")
+                try:
+                    with open(export_file, 'w', encoding='utf-8') as f:
+                        f.write(exported)
+                    print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
+                except Exception as e:
+                    print(f"\n{COLORS['1'][0]}❌ Export failed: {e}{RESET}")
+                
+                input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '7':
+            # Clear history (dangerous)
+            confirm = input(f"\n{COLORS['1'][0]}⚠️  WARNING: This will delete ALL command history!{RESET}\n{BOLD}Type 'DELETE' to confirm: {RESET}").strip()
+            if confirm == "DELETE":
+                COMMAND_HISTORY.clear_history()
+                print(f"{COLORS['2'][0]}✅ History cleared.{RESET}")
+                time.sleep(1)
+
+
+def feature_keyboard_shortcuts_cheatsheet():
+    """Display comprehensive keyboard shortcuts cheat sheet."""
+    global KEYBOARD_SHORTCUTS
+    
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("⌨️ Keyboard Shortcuts Cheat Sheet")
+        
+        if KEYBOARD_SHORTCUTS is None:
+            print(f"{COLORS['1'][0]}Keyboard shortcuts registry not initialized.{RESET}")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+            break
+        
+        shortcuts = KEYBOARD_SHORTCUTS.get_shortcuts()
+        categories = list(shortcuts.keys())
+        
+        print(f"\n{BOLD}Available Categories:{RESET}")
+        for i, cat in enumerate(categories, 1):
+            count = len(shortcuts[cat])
+            print(f"  [{i}] {cat.upper()} ({count} shortcuts)")
+        
+        print(f"  [A] Show All")
+        print(f"  [S] Search Shortcuts")
+        print(f"  [0] Return")
+        
+        choice = input(f"\n{BOLD}Select category or option: {RESET}").strip().upper()
+        
+        if choice == '0':
+            break
+        elif choice == 'A':
+            # Show all shortcuts
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("⌨️ All Keyboard Shortcuts")
+            print(KEYBOARD_SHORTCUTS.get_all_shortcuts_formatted())
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == 'S':
+            # Search shortcuts
+            search_term = input(f"{BOLD}🔍 Search for shortcut: {RESET}").strip().lower()
+            found = False
+            
+            for category, shortcut_list in shortcuts.items():
+                for shortcut in shortcut_list:
+                    if search_term in shortcut["key"].lower() or \
+                       search_term in shortcut["action"].lower() or \
+                       search_term in shortcut["description"].lower():
+                        if not found:
+                            print(f"\n{COLORS['2'][0]}Found shortcuts:{RESET}\n")
+                            found = True
+                        
+                        key = shortcut["key"].ljust(15)
+                        action = shortcut["action"].ljust(20)
+                        print(f"  [{category:15}] {key} → {action} : {shortcut['description']}")
+            
+            if not found:
+                print(f"\n{COLORS['4'][0]}No matching shortcuts found.{RESET}")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice.isdigit() and 1 <= int(choice) <= len(categories):
+            # Show specific category
+            category = categories[int(choice) - 1]
+            shortcut_list = shortcuts[category]
+            
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header(f"⌨️ {category.upper()} Shortcuts")
+            
+            print(f"\n{BOLD}Available Shortcuts:{RESET}\n")
+            for i, shortcut in enumerate(shortcut_list, 1):
+                key = shortcut["key"].ljust(15)
+                action = shortcut["action"].ljust(20)
+                desc = shortcut["description"]
+                print(f"  {i:2d}. {key} → {action} : {desc}")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+
 # --- MAIN OPERATING SYSTEM LOOP ---
 
 def run_classic_command_center():
@@ -27184,6 +27619,11 @@ def run_classic_command_center():
 
         choice = input(f"{BOLD}🎯 Select an option (0-Z, 14): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
+        
+        # Record command to history (skip settings/navigation commands)
+        if COMMAND_HISTORY and choice not in ('1', '2', '3', '4', '5', '6', 'V', 'U'):
+            COMMAND_HISTORY.add_command(choice, category="command_center")
+        
         stop_clock = True
 
         if choice == '1':
@@ -27254,12 +27694,14 @@ def run_classic_command_center():
         elif choice == 'U':
             _set_display_mode("enhanced")
             feature_enhanced_display_mode()
-        elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
-        elif choice == 'Z': safe_run("general", "Performance_Stats", display_performance_stats)
+        elif choice == 'Y': safe_run("general", "Ram_Drive", feature_ram_drive)
+        elif choice == 'Z': safe_run("system", "Perf_Stats", display_performance_stats)
         elif choice == '~': safe_run("system", "System_Health", display_system_health)
         elif choice == '+': safe_run("logging", "Logging_System", display_logging_menu)
         elif choice == '*': safe_run("security", "Security_Audit_Menu", display_security_audit_menu)
         elif choice == '14': safe_run("network", "Server_Client_Switch", feature_server_client_switch)
+        elif choice == '↑': safe_run("history", "Command_History", feature_command_history_search)
+        elif choice == '→': safe_run("general", "Keyboard_Shortcuts", feature_keyboard_shortcuts_cheatsheet)
 
 #version 21
 
@@ -27493,10 +27935,20 @@ def apply_heuristic_intelligence():
 
 def _bootstrap_classic_stack():
     """Run interactive/bootstrap routines once before entering classic UI."""
-    global _classic_bootstrap_done
+    global _classic_bootstrap_done, COMMAND_HISTORY, KEYBOARD_SHORTCUTS
     if _classic_bootstrap_done:
         return
     _classic_bootstrap_done = True
+    
+    # Initialize command history and keyboard shortcuts
+    try:
+        if COMMAND_HISTORY is None:
+            COMMAND_HISTORY = CommandHistoryManager(max_history=500)
+        if KEYBOARD_SHORTCUTS is None:
+            KEYBOARD_SHORTCUTS = KeyboardShortcutsRegistry()
+    except Exception as e:
+        print(f"Warning: Failed to initialize command history/shortcuts: {e}")
+    
     try:
         start_autonomous_monitor()
     except Exception:
@@ -27846,6 +28298,16 @@ ctx = {
     "RESET": RESET,
     "BOLD": BOLD
 }
+
+def main():
+    """Launch Textual-first Command Center, falling back to classic if needed."""
+    run_pytextos(return_to_classic=False)
+
+
+if __name__ == "__main__":
+    main()
+
+
 # version pythonOScmd103 base pythonOS70
 # ==========================================================
 # CHANGELOG / UPDATE LOG
@@ -27939,17 +28401,5 @@ ctx = {
 # 2-5-20 Added Defence Center and Pentest Toolkit
 # 2-5-19 Added Remote Dashboard and Plugin Center
 # 2-5-18 Added Media Scanner and Display FX Test
-
-
-
-
-
-
-
-def main():
-    """Launch Textual-first Command Center, falling back to classic if needed."""
-    run_pytextos(return_to_classic=False)
-
-
-if __name__ == "__main__":
-    main()
+# 2-5-17 Added Graphing Calculator and ASCII Plotting
+# 2-5-16 Added Earth & Moon Animation
