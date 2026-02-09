@@ -153,6 +153,7 @@ import getpass
 import uuid
 import datetime
 import threading
+from concurrent.futures import ThreadPoolExecutor
 import random
 import math
 import cmath
@@ -167,13 +168,1552 @@ import GPUtil
 from collections import deque
 from pathlib import Path
 import re # Added for Visual FX Regex
-
 import shutil # Added for check_pentest_tool
 import sqlite3 # Added for Database/Log system
 import json # Added for JSON logging
 from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
+
+# ================================================================================
+# PERFORMANCE OPTIMIZATION SYSTEM
+# ================================================================================
+
+class PerformanceMonitor:
+    """Monitor memory, CPU, and performance metrics."""
+    def __init__(self):
+        self.process = psutil.Process()
+        self.start_time = time.time()
+        self.memory_snapshots = deque(maxlen=100)  # Keep last 100 snapshots
+        self.peak_memory = 0
+        
+    def get_memory_usage(self):
+        """Get current memory usage in MB."""
+        return self.process.memory_info().rss / 1024 / 1024
+    
+    def get_cpu_percent(self):
+        """Get current CPU usage percentage."""
+        return self.process.cpu_percent(interval=0.1)
+    
+    def record_snapshot(self):
+        """Record memory snapshot."""
+        mem = self.get_memory_usage()
+        self.memory_snapshots.append(mem)
+        if mem > self.peak_memory:
+            self.peak_memory = mem
+        return mem
+    
+    def get_stats(self):
+        """Get performance statistics."""
+        if not self.memory_snapshots:
+            return {}
+        return {
+            'current_mb': self.memory_snapshots[-1],
+            'peak_mb': self.peak_memory,
+            'avg_mb': sum(self.memory_snapshots) / len(self.memory_snapshots),
+            'cpu_percent': self.get_cpu_percent(),
+            'uptime_seconds': time.time() - self.start_time
+        }
+
+class CacheSystem:
+    """Intelligent caching system for expensive computations."""
+    def __init__(self, default_ttl=3600):
+        self.cache = {}  # {key: (value, expiry_time)}
+        self.default_ttl = default_ttl
+        self.hits = 0
+        self.misses = 0
+        
+    def get(self, key):
+        """Get cached value if not expired."""
+        if key in self.cache:
+            value, expiry = self.cache[key]
+            if time.time() < expiry:
+                self.hits += 1
+                return value
+            else:
+                del self.cache[key]
+        self.misses += 1
+        return None
+    
+    def set(self, key, value, ttl=None):
+        """Set cached value with TTL."""
+        ttl = ttl or self.default_ttl
+        self.cache[key] = (value, time.time() + ttl)
+    
+    def clear(self, key=None):
+        """Clear cache entry or entire cache."""
+        if key:
+            self.cache.pop(key, None)
+        else:
+            self.cache.clear()
+    
+    def get_stats(self):
+        """Get cache statistics."""
+        total = self.hits + self.misses
+        hit_rate = (self.hits / total * 100) if total > 0 else 0
+        return {
+            'hits': self.hits,
+            'misses': self.misses,
+            'hit_rate': hit_rate,
+            'cached_items': len(self.cache)
+        }
+
+class LazyLoader:
+    """Lazy-load heavy modules only when needed."""
+    def __init__(self):
+        self.modules = {}
+        self.import_map = {
+            'textual': ['textual.app', 'textual.widgets', 'textual.containers', 'textual.reactive'],
+            'PIL': ['PIL.Image', 'PIL.ImageDraw'],
+            'pygame': ['pygame'],
+            'tinytag': ['tinytag'],
+            'matplotlib': ['matplotlib.pyplot'],
+            'cv2': ['cv2'],
+            'sklearn': ['sklearn'],
+        }
+    
+    def load(self, module_name):
+        """Load module lazily on demand."""
+        if module_name in self.modules:
+            return self.modules[module_name]
+        
+        try:
+            mod = __import__(module_name)
+            self.modules[module_name] = mod
+            return mod
+        except ImportError as e:
+            print(f"{COLORS.get('1', [''])[0]}[!] Failed to lazy-load {module_name}: {e}{COLORS.get('0', [''])[0] if 'COLORS' in globals() else ''}")
+            return None
+    
+    def load_submodule(self, full_path):
+        """Load a specific submodule lazily."""
+        parts = full_path.split('.')
+        mod = self.load(parts[0])
+        
+        if mod:
+            for part in parts[1:]:
+                try:
+                    mod = getattr(mod, part)
+                except AttributeError:
+                    mod = __import__(full_path, fromlist=[part])
+        return mod
+
+class ThreadPoolManager:
+    """Centralized thread pool management to prevent thread explosion."""
+    def __init__(self, max_workers=8):
+        self.pool = ThreadPoolExecutor(max_workers=max_workers)
+        self.active_tasks = {}
+        self.max_workers = max_workers
+        
+    def submit_task(self, task_id, func, *args, **kwargs):
+        """Submit task to pool with tracking."""
+        future = self.pool.submit(func, *args, **kwargs)
+        self.active_tasks[task_id] = future
+        return future
+    
+    def wait_task(self, task_id, timeout=None):
+        """Wait for task completion."""
+        if task_id in self.active_tasks:
+            return self.active_tasks[task_id].result(timeout=timeout)
+        return None
+    
+    def get_active_count(self):
+        """Get number of active tasks."""
+        # Clean up completed tasks
+        completed = [k for k, v in self.active_tasks.items() if v.done()]
+        for k in completed:
+            del self.active_tasks[k]
+        return len(self.active_tasks)
+    
+    def shutdown(self, wait=True):
+        """Shutdown thread pool."""
+        self.pool.shutdown(wait=wait)
+
+# Global performance instances
+PERFORMANCE_MONITOR = None
+CACHE_SYSTEM = None
+LAZY_LOADER = None
+THREAD_POOL = None
+
+def init_performance_system():
+    """Initialize performance optimization system."""
+    global PERFORMANCE_MONITOR, CACHE_SYSTEM, LAZY_LOADER, THREAD_POOL
+    PERFORMANCE_MONITOR = PerformanceMonitor()
+    CACHE_SYSTEM = CacheSystem(default_ttl=3600)  # 1 hour cache by default
+    LAZY_LOADER = LazyLoader()
+    THREAD_POOL = ThreadPoolManager(max_workers=8)
+    return True
+
+# Initialize on module load
+init_performance_system()
+
+def submit_async_task(task_id, func, *args, **kwargs):
+    """Submit a task to thread pool instead of creating new thread."""
+    if THREAD_POOL:
+        return THREAD_POOL.submit_task(task_id, func, *args, **kwargs)
+    else:
+        # Fallback: run synchronously if pool not available
+        return func(*args, **kwargs)
+
+def get_cached_or_compute(cache_key, compute_func, ttl=None, *args, **kwargs):
+    """Get value from cache or compute it."""
+    if CACHE_SYSTEM:
+        cached = CACHE_SYSTEM.get(cache_key)
+        if cached is not None:
+            return cached
+        result = compute_func(*args, **kwargs)
+        CACHE_SYSTEM.set(cache_key, result, ttl=ttl)
+        return result
+    else:
+        return compute_func(*args, **kwargs)
+
+def record_memory_checkpoint(label=""):
+    """Record memory usage for monitoring."""
+    if PERFORMANCE_MONITOR:
+        mem = PERFORMANCE_MONITOR.record_snapshot()
+        if label and mem > 500:  # Alert if over 500MB
+            print(f"\n⚠️  Memory checkpoint [{label}]: {mem:.1f}MB (peak: {PERFORMANCE_MONITOR.peak_memory:.1f}MB)")
+
+def get_performance_stats():
+    """Get current performance statistics."""
+    stats = {}
+    if PERFORMANCE_MONITOR:
+        stats['monitor'] = PERFORMANCE_MONITOR.get_stats()
+    if CACHE_SYSTEM:
+        stats['cache'] = CACHE_SYSTEM.get_stats()
+    if THREAD_POOL:
+        stats['active_threads'] = THREAD_POOL.get_active_count()
+    return stats
+
+def display_performance_stats():
+    """Display real-time performance monitoring dashboard."""
+    global PERFORMANCE_MONITOR, CACHE_SYSTEM, THREAD_POOL
+    
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("⚡ PERFORMANCE MONITORING DASHBOARD")
+        
+        c = get_current_color()
+        stats = get_performance_stats()
+        
+        # Memory Statistics
+        print(f"\n{BOLD}{c}📊 MEMORY STATISTICS{RESET}")
+        if PERFORMANCE_MONITOR and stats.get('monitor'):
+            mem_stats = stats['monitor']
+            print(f"   Current Memory:     {mem_stats.get('current_memory', 0):.1f} MB")
+            print(f"   Peak Memory:        {mem_stats.get('peak_memory', 0):.1f} MB")
+            print(f"   Average Memory:     {mem_stats.get('avg_memory', 0):.1f} MB")
+            print(f"   Snapshots Taken:    {mem_stats.get('snapshot_count', 0)}")
+            print(f"   {draw_bar(mem_stats.get('current_memory', 0) / max(mem_stats.get('peak_memory', 1), 1) * 100)}")
+        else:
+            print(f"   {COLORS['3'][0]}ℹ️  Performance monitor not initialized{RESET}")
+        
+        # CPU Statistics
+        print(f"\n{BOLD}{c}🖥️  CPU STATISTICS{RESET}")
+        try:
+            cpu_percent = psutil.cpu_percent(interval=0.5)
+            print(f"   Current CPU Usage:  {cpu_percent:.1f}%")
+            print(f"   {draw_bar(cpu_percent)}")
+            print(f"   Process Count:      {len(psutil.pids())}")
+        except Exception as e:
+            print(f"   {COLORS['1'][0]}Error reading CPU stats: {e}{RESET}")
+        
+        # Cache Statistics
+        print(f"\n{BOLD}{c}💾 CACHE STATISTICS{RESET}")
+        if CACHE_SYSTEM and stats.get('cache'):
+            cache_stats = stats['cache']
+            total_hits = cache_stats.get('hits', 0)
+            total_misses = cache_stats.get('misses', 0)
+            hit_rate = total_hits / max(total_hits + total_misses, 1) * 100
+            print(f"   Cache Hits:         {total_hits}")
+            print(f"   Cache Misses:       {total_misses}")
+            print(f"   Hit Rate:           {hit_rate:.1f}%")
+            print(f"   {draw_bar(hit_rate)}")
+            print(f"   Active Keys:        {cache_stats.get('entry_count', 0)}")
+        else:
+            print(f"   {COLORS['3'][0]}ℹ️  Cache system not initialized{RESET}")
+        
+        # Threading Statistics
+        print(f"\n{BOLD}{c}🔀 THREADING STATISTICS{RESET}")
+        if THREAD_POOL and stats.get('active_threads') is not None:
+            active_threads = stats['active_threads']
+            print(f"   Active Threads:     {active_threads} / 8 (Max)")
+            print(f"   Utilization:        {active_threads / 8 * 100:.1f}%")
+            print(f"   {draw_bar(active_threads / 8 * 100)}")
+        else:
+            print(f"   {COLORS['3'][0]}ℹ️  Thread pool not initialized{RESET}")
+        
+        # System Uptime
+        print(f"\n{BOLD}{c}⏱️  SYSTEM UPTIME{RESET}")
+        boot_str, uptime_str = _format_boot_info(psutil.boot_time())
+        print(f"   Boot Time:          {boot_str}")
+        print(f"   Uptime:             {uptime_str}")
+        
+        # Performance Recommendations
+        print(f"\n{BOLD}{c}💡 PERFORMANCE RECOMMENDATIONS{RESET}")
+        recommendations = []
+        
+        if PERFORMANCE_MONITOR and stats.get('monitor'):
+            mem_stats = stats['monitor']
+            if mem_stats.get('current_memory', 0) > 500:
+                recommendations.append(f"   ⚠️  Memory usage ({mem_stats.get('current_memory', 0):.0f}MB) is elevated")
+        
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        if cpu_percent > 80:
+            recommendations.append(f"   ⚠️  CPU usage ({cpu_percent:.1f}%) is high")
+        
+        if CACHE_SYSTEM and stats.get('cache'):
+            cache_stats = stats['cache']
+            hit_rate = cache_stats.get('hits', 0) / max(cache_stats.get('hits', 0) + cache_stats.get('misses', 1), 1) * 100
+            if hit_rate < 50:
+                recommendations.append(f"   ⚠️  Cache hit rate ({hit_rate:.1f}%) is low - consider longer TTL")
+        
+        if THREAD_POOL and stats.get('active_threads') is not None:
+            if stats['active_threads'] >= 7:
+                recommendations.append(f"   ⚠️  Thread pool near capacity ({stats['active_threads']}/8)")
+        
+        if recommendations:
+            for rec in recommendations:
+                print(rec)
+        else:
+            print(f"   {COLORS['2'][0]}✅ System performance is optimal{RESET}")
+        
+        # Footer
+        print(f"\n{BOLD}{c}Options:{RESET}")
+        print(f"   [R] Refresh Stats")
+        print(f"   [0] Return to Command Center")
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
+        
+        if choice == '0':
+            break
+        # Any other choice or R refreshes the display
+
+# ================================================================================
+# ERROR HANDLING & RESILIENCE SYSTEM
+# ================================================================================
+
+import logging
+from functools import wraps
+from enum import Enum
+import traceback
+
+class ErrorLevel(Enum):
+    """Error severity levels for logging and handling."""
+    CRITICAL = "🔴 CRITICAL"
+    ERROR = "❌ ERROR"
+    WARNING = "⚠️  WARNING"
+    INFO = "ℹ️  INFO"
+    DEBUG = "🐛 DEBUG"
+
+class ResilienceLogger:
+    """Centralized logging system for error tracking and resilience metrics."""
+    
+    def __init__(self, log_dir="/tmp/pythonoslog", max_entries=10000):
+        self.log_dir = log_dir
+        self.max_entries = max_entries
+        self.error_counts = {}  # Track error frequency by type
+        self.recovery_attempts = {}  # Track retry attempts
+        self.failed_features = set()  # Features that failed gracefully
+        
+        # Create log directory if it doesn't exist
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except Exception:
+            self.log_dir = None  # Fallback to console-only logging
+        
+        # Configure Python logging
+        try:
+            self.logger = logging.getLogger("pythonOS")
+            if self.log_dir:
+                handler = logging.FileHandler(f"{log_dir}/pythonos.log")
+                formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+                handler.setFormatter(formatter)
+                self.logger.addHandler(handler)
+                self.logger.setLevel(logging.DEBUG)
+        except Exception:
+            self.logger = None
+    
+    def log(self, level, message, feature="System", error=None):
+        """Log an event with context."""
+        timestamp = datetime.now().isoformat()
+        log_entry = f"[{timestamp}] {level.value} [{feature}] {message}"
+        
+        if error:
+            log_entry += f"\n  Error: {str(error)}"
+            # Track error frequency
+            error_type = type(error).__name__
+            self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
+        
+        # Log to file if available
+        if self.logger:
+            try:
+                if level == ErrorLevel.CRITICAL:
+                    self.logger.critical(log_entry)
+                elif level == ErrorLevel.ERROR:
+                    self.logger.error(log_entry)
+                elif level == ErrorLevel.WARNING:
+                    self.logger.warning(log_entry)
+                elif level == ErrorLevel.INFO:
+                    self.logger.info(log_entry)
+                else:
+                    self.logger.debug(log_entry)
+            except Exception:
+                pass  # Silent fail for logging failures
+        
+        # Also log to console for visibility
+        if level in [ErrorLevel.CRITICAL, ErrorLevel.ERROR, ErrorLevel.WARNING]:
+            print(f"{COLORS['1'][0]}{log_entry}{RESET}" if level != ErrorLevel.WARNING else f"{COLORS['4'][0]}{log_entry}{RESET}")
+    
+    def record_recovery(self, feature, attempt_num, success=False):
+        """Track retry/recovery attempts."""
+        if feature not in self.recovery_attempts:
+            self.recovery_attempts[feature] = {"attempts": 0, "successes": 0}
+        self.recovery_attempts[feature]["attempts"] += 1
+        if success:
+            self.recovery_attempts[feature]["successes"] += 1
+    
+    def mark_feature_failed(self, feature, error=None):
+        """Mark a feature as failed but operating in degraded mode."""
+        self.failed_features.add(feature)
+        if error:
+            self.log(ErrorLevel.WARNING, f"Feature '{feature}' in degraded mode", error=error)
+    
+    def get_health_report(self):
+        """Get current error/recovery statistics."""
+        report = {
+            "total_errors": sum(self.error_counts.values()),
+            "error_types": self.error_counts,
+            "recovery_stats": self.recovery_attempts,
+            "failed_features": list(self.failed_features),
+            "timestamp": datetime.now().isoformat()
+        }
+        return report
+
+# Global resilience logger instance
+RESILIENCE_LOGGER = ResilienceLogger()
+
+def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2, 
+                       allowed_exceptions=(Exception,), feature_name="Unknown"):
+    """
+    Decorator for implementing exponential backoff retry logic.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts
+        initial_delay: Initial delay in seconds
+        backoff_factor: Multiplier for delay between attempts (exponential backoff)
+        allowed_exceptions: Tuple of exception types to catch and retry on
+        feature_name: Name of the feature for logging
+    
+    Returns: Decorated function with retry logic
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            last_error = None
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    result = func(*args, **kwargs)
+                    if attempt > 1:
+                        RESILIENCE_LOGGER.record_recovery(feature_name, attempt, success=True)
+                    return result
+                except allowed_exceptions as e:
+                    last_error = e
+                    RESILIENCE_LOGGER.log(
+                        ErrorLevel.WARNING,
+                        f"Attempt {attempt}/{max_attempts} failed for {func.__name__}",
+                        feature=feature_name,
+                        error=e
+                    )
+                    
+                    if attempt < max_attempts:
+                        time.sleep(delay)
+                        delay *= backoff_factor
+                    else:
+                        RESILIENCE_LOGGER.record_recovery(feature_name, attempt, success=False)
+            
+            # All retries exhausted
+            RESILIENCE_LOGGER.log(
+                ErrorLevel.ERROR,
+                f"{func.__name__} failed after {max_attempts} attempts",
+                feature=feature_name,
+                error=last_error
+            )
+            raise last_error
+        
+        return wrapper
+    return decorator
+
+def graceful_degradation(fallback=None, feature_name="Unknown", log_errors=True):
+    """
+    Decorator for graceful feature degradation.
+    Catches exceptions and returns fallback value instead of crashing.
+    
+    Args:
+        fallback: Value to return if function fails (None, empty dict, etc.)
+        feature_name: Name of the feature for logging
+        log_errors: Whether to log the error
+    
+    Returns: Decorated function with graceful degradation
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                if log_errors:
+                    RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
+                return fallback
+        
+        return wrapper
+    return decorator
+
+def safe_connection(timeout=5, retry_on_timeout=True, feature_name="Network"):
+    """
+    Decorator for network connections with timeout and retry logic.
+    Implements exponential backoff for connection failures.
+    
+    Args:
+        timeout: Connection timeout in seconds
+        retry_on_timeout: Whether to retry on timeout
+        feature_name: Name of the feature for logging
+    
+    Returns: Decorated function with connection resilience
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            from urllib.error import URLError
+            from socket import timeout as socket_timeout
+            
+            delay = 1
+            max_attempts = 3 if retry_on_timeout else 1
+            
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    # Add timeout to kwargs if function accepts it
+                    if 'timeout' not in kwargs:
+                        kwargs['timeout'] = timeout
+                    
+                    result = func(*args, **kwargs)
+                    if attempt > 1:
+                        RESILIENCE_LOGGER.log(
+                            ErrorLevel.INFO,
+                            f"Connection recovered after {attempt} attempts",
+                            feature=feature_name
+                        )
+                    return result
+                    
+                except (socket_timeout, URLError, ConnectionError) as e:
+                    RESILIENCE_LOGGER.log(
+                        ErrorLevel.WARNING,
+                        f"Connection attempt {attempt}/{max_attempts} failed",
+                        feature=feature_name,
+                        error=e
+                    )
+                    
+                    if attempt < max_attempts:
+                        time.sleep(delay)
+                        delay *= 2
+                    else:
+                        RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
+                        return None  # Return None for failed connections
+            
+        return wrapper
+    return decorator
+
+def track_feature_health(feature_name):
+    """
+    Decorator to track which features are working vs degraded.
+    Provides visibility into system health.
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            try:
+                result = func(*args, **kwargs)
+                # Remove from failed features if it was there
+                RESILIENCE_LOGGER.failed_features.discard(feature_name)
+                return result
+            except Exception as e:
+                RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
+                raise
+        
+        return wrapper
+    return decorator
+
+# Context manager for exception handling
+class SafeFeatureContext:
+    """
+    Context manager for executing code with safe error handling.
+    Automatically logs errors and marks features as degraded.
+    """
+    def __init__(self, feature_name, fallback_value=None, log_trace=False):
+        self.feature_name = feature_name
+        self.fallback_value = fallback_value
+        self.log_trace = log_trace
+        self.result = fallback_value
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            RESILIENCE_LOGGER.mark_feature_failed(self.feature_name, error=exc_val)
+            if self.log_trace:
+                traceback.print_exc()
+            return True  # Suppress exception
+        return False
+
+def display_system_health():
+    """Display system health report including errors, recovery stats, and feature status."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🏥 SYSTEM HEALTH & RESILIENCE REPORT")
+        
+        c = get_current_color()
+        health = RESILIENCE_LOGGER.get_health_report()
+        
+        # Overall Health Status
+        print(f"\n{BOLD}{c}🔍 OVERALL HEALTH{RESET}")
+        total_errors = health['total_errors']
+        health_status = "🟢 Excellent" if total_errors == 0 else "🟡 Good" if total_errors < 5 else "🟠 Fair" if total_errors < 15 else "🔴 Poor"
+        print(f"   Status:             {health_status}")
+        print(f"   Total Errors:       {total_errors}")
+        print(f"   Failed Features:    {len(health['failed_features'])}")
+        print(f"   Recovery Rate:      {sum(h.get('successes', 0) for h in health['recovery_stats'].values())} successful recoveries")
+        
+        # Error Statistics
+        print(f"\n{BOLD}{c}❌ ERROR STATISTICS{RESET}")
+        if health['error_types']:
+            # Sort by frequency
+            sorted_errors = sorted(health['error_types'].items(), key=lambda x: x[1], reverse=True)
+            for error_type, count in sorted_errors[:10]:  # Top 10 error types
+                print(f"   {error_type:.<30} {count} occurrences")
+        else:
+            print(f"   {COLORS['2'][0]}✅ No errors recorded{RESET}")
+        
+        # Feature Health Status
+        print(f"\n{BOLD}{c}🎯 FEATURE STATUS{RESET}")
+        if health['failed_features']:
+            print(f"   {COLORS['1'][0]}Degraded Features ({len(health['failed_features'])}):{RESET}")
+            for feature in sorted(health['failed_features']):
+                print(f"      • {feature}")
+        else:
+            print(f"   {COLORS['2'][0]}✅ All features operational{RESET}")
+        
+        # Recovery Attempts
+        print(f"\n{BOLD}{c}🔄 RECOVERY STATISTICS{RESET}")
+        if health['recovery_stats']:
+            for feature, stats in sorted(health['recovery_stats'].items()):
+                attempts = stats.get('attempts', 0)
+                successes = stats.get('successes', 0)
+                rate = (successes / attempts * 100) if attempts > 0 else 0
+                status = f"{COLORS['2'][0]}✅{RESET}" if rate >= 80 else f"{COLORS['4'][0]}⚠️ {RESET}" if rate >= 50 else f"{COLORS['1'][0]}❌{RESET}"
+                print(f"   {feature:.<25} {status} {successes}/{attempts} ({rate:.0f}%)")
+        else:
+            print(f"   {COLORS['3'][0]}ℹ️  No recovery attempts recorded{RESET}")
+        
+        # Recommendations
+        print(f"\n{BOLD}{c}💡 RECOMMENDATIONS{RESET}")
+        recommendations = []
+        
+        if total_errors > 20:
+            recommendations.append(f"   • High error rate - Consider system maintenance or feature reload")
+        if len(health['failed_features']) > 3:
+            recommendations.append(f"   • Multiple features degraded - Check system resources and logs")
+        
+        # Check specific error patterns
+        if 'ConnectionError' in health['error_types'] and health['error_types']['ConnectionError'] > 3:
+            recommendations.append(f"   • Network connectivity issues detected - Check network configuration")
+        if 'TimeoutError' in health['error_types'] and health['error_types']['TimeoutError'] > 2:
+            recommendations.append(f"   • Timeout errors increasing - May indicate resource contention")
+        
+        # Recovery success check
+        recovery_success = sum(h.get('successes', 0) for h in health['recovery_stats'].values())
+        if recovery_success > 0:
+            recommendations.append(f"   ✅ System auto-recovery working - {recovery_success} successful recovery attempts")
+        
+        if recommendations:
+            for rec in recommendations:
+                print(rec)
+        else:
+            print(f"   {COLORS['2'][0]}✅ No issues detected - System operating normally{RESET}")
+        
+        # Log Location
+        if RESILIENCE_LOGGER.log_dir:
+            print(f"\n{BOLD}{c}📁 LOGS{RESET}")
+            print(f"   Location:           {RESILIENCE_LOGGER.log_dir}/pythonos.log")
+        
+        # Timestamp
+        print(f"\n{COLORS['6'][0]}Last Updated: {health['timestamp']}{RESET}")
+        
+        # Footer
+        print(f"\n{BOLD}{c}Options:{RESET}")
+        print(f"   [R] Refresh Report")
+        print(f"   [C] Clear Error Log (Reset Counters)")
+        print(f"   [0] Return to Command Center")
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
+        
+        if choice == '0':
+            break
+        elif choice == 'C':
+            RESILIENCE_LOGGER.error_counts.clear()
+            RESILIENCE_LOGGER.recovery_attempts.clear()
+            RESILIENCE_LOGGER.failed_features.clear()
+            print(f"\n{COLORS['2'][0]}✅ Error log cleared{RESET}")
+            time.sleep(1)
+        # Any other choice or R refreshes the display
+
+def display_security_audit():
+    """Display security audit log viewer."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔒 SECURITY AUDIT LOG")
+        
+        c = get_current_color()
+        
+        # Get recent security events
+        recent_events = AUDIT_LOGGER.get_recent_events(count=30)
+        failed_events = AUDIT_LOGGER.get_failed_attempts()
+        
+        # Overall Security Status
+        print(f"\n{BOLD}{c}🔐 SECURITY STATUS{RESET}")
+        security_status = "🟢 Secure" if len(failed_events) == 0 else "🟡 Caution" if len(failed_events) < 5 else "🔴 Alert"
+        print(f"   Status:                  {security_status}")
+        print(f"   Total Audit Events:      {len(AUDIT_LOGGER.events)}")
+        print(f"   Failed Attempts:         {len(failed_events)}")
+        print(f"   Rate-Limited Events:     {sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'RATE_LIMIT_EXCEEDED')}")
+        
+        # Event Type Summary
+        print(f"\n{BOLD}{c}📊 EVENT SUMMARY{RESET}")
+        event_types = {}
+        for event in AUDIT_LOGGER.events:
+            event_type = event['type']
+            event_types[event_type] = event_types.get(event_type, 0) + 1
+        
+        for event_type in sorted(event_types.keys()):
+            count = event_types[event_type]
+            print(f"   {event_type:.<30} {count} events")
+        
+        # Recent Failed Attempts
+        if failed_events:
+            print(f"\n{BOLD}{c}⚠️  FAILED ATTEMPTS (Last 10){RESET}")
+            for event in failed_events[-10:]:
+                timestamp = event['timestamp'].split('T')[1][:8]  # Just time
+                print(f"   [{timestamp}] {event['user']:15} | {event['action']:20} | {event['resource']}")
+        
+        # Recent Security Events
+        print(f"\n{BOLD}{c}📝 RECENT EVENTS (Last 15){RESET}")
+        for event in recent_events[-15:]:
+            timestamp = event['timestamp'].split('T')[1][:8]  # Just time
+            status_icon = f"{COLORS['2'][0]}✓{RESET}" if event['status'] == 'SUCCESS' else f"{COLORS['1'][0]}✗{RESET}"
+            print(f"   [{timestamp}] {status_icon} {event['type']:20} | {event['user']:10} | {event['action']}")
+        
+        # Recommendations
+        print(f"\n{BOLD}{c}💡 SECURITY RECOMMENDATIONS{RESET}")
+        recommendations = []
+        
+        if len(failed_events) > 5:
+            recommendations.append(f"   ⚠️  Multiple failed attempts detected")
+        
+        rate_limit_events = sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'RATE_LIMIT_EXCEEDED')
+        if rate_limit_events > 3:
+            recommendations.append(f"   ⚠️  Rate limiting triggered {rate_limit_events} times - possible attack")
+        
+        invalid_input = sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'INVALID_INPUT')
+        if invalid_input > 10:
+            recommendations.append(f"   ⚠️  Many invalid inputs - check for injection attempts")
+        
+        if not recommendations:
+            recommendations.append(f"   {COLORS['2'][0]}✅ No security issues detected{RESET}")
+        
+        for rec in recommendations:
+            print(rec)
+        
+        # Audit Log Location
+        print(f"\n{BOLD}{c}📁 AUDIT LOG{RESET}")
+        print(f"   Location:           {AUDIT_LOGGER.audit_log_file}")
+        
+        # Footer
+        print(f"\n{BOLD}{c}Options:{RESET}")
+        print(f"   [F] Show Failed Attempts")
+        print(f"   [R] Show Recent Events")
+        print(f"   [0] Return to Command Center")
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
+        
+        if choice == '0':
+            break
+        elif choice == 'F':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("⚠️  FAILED SECURITY ATTEMPTS")
+            failed = AUDIT_LOGGER.get_failed_attempts()
+            if not failed:
+                print(f"\n{COLORS['2'][0]}✅ No failed attempts recorded{RESET}")
+            else:
+                print(f"\n{BOLD}Total Failed Attempts: {len(failed)}{RESET}\n")
+                for event in failed[-50:]:
+                    print(f"[{event['timestamp']}] {event['user']:15} | {event['action']:20} | {event['details']}")
+            input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        elif choice == 'R':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📝 RECENT SECURITY EVENTS")
+            recent = AUDIT_LOGGER.get_recent_events(count=100)
+            print(f"\n{BOLD}Total Events: {len(AUDIT_LOGGER.events)}{RESET}\n")
+            for event in recent[-50:]:
+                status_icon = f"{COLORS['2'][0]}✓{RESET}" if event['status'] == 'SUCCESS' else f"{COLORS['1'][0]}✗{RESET}"
+                print(f"[{event['timestamp']}] {status_icon} {event['type']:20} | {event['user']:10} | {event['action']}")
+            input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def display_security_audit_menu():
+    """Display security audit menu with comprehensive options."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔒 SECURITY AUDIT CENTER")
+        
+        c = get_current_color()
+        
+        print(f"\n{BOLD}{c}Security Management Options:{RESET}")
+        print(f" {BOLD}[1]{RESET} 📊 View Audit Log")
+        print(f" {BOLD}[2]{RESET} 🔐 Encrypt Credentials File")
+        print(f" {BOLD}[3]{RESET} 🔓 Decrypt Credentials File")
+        print(f" {BOLD}[4]{RESET} 🚫 Rate Limit Status")
+        print(f" {BOLD}[5]{RESET} ⚠️  Failed Attempts Report")
+        print(f" {BOLD}[6]{RESET} 🔄 Reset Rate Limiters")
+        print(f" {BOLD}[7]{RESET} 🧹 Purge Old Logs (30+ days)")
+        print(f" {BOLD}[8]{RESET} 🔑 Generate Encryption Key")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            display_security_audit()
+        elif choice == '2':
+            encrypt_credentials_file()
+        elif choice == '3':
+            decrypt_credentials_file()
+        elif choice == '4':
+            show_rate_limiter_status()
+        elif choice == '5':
+            show_failed_attempts()
+        elif choice == '6':
+            reset_rate_limiters()
+        elif choice == '7':
+            purge_old_logs()
+        elif choice == '8':
+            generate_new_encryption_key()
+        else:
+            print(f"\n{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+def encrypt_credentials_file():
+    """Encrypt the credentials.json file."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔐 ENCRYPT CREDENTIALS FILE")
+    
+    creds_file = os.path.expanduser("~/.pythonosrc/credentials.json")
+    key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
+    
+    if not os.path.exists(creds_file):
+        print(f"\n{COLORS['1'][0]}❌ Credentials file not found: {creds_file}{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    try:
+        # Generate or load encryption key
+        if not os.path.exists(key_file):
+            key = Fernet.generate_key()
+            with open(key_file, 'wb') as f:
+                f.write(key)
+            os.chmod(key_file, 0o600)
+            print(f"\n{COLORS['3'][0]}[i] Generated new encryption key{RESET}")
+        else:
+            with open(key_file, 'rb') as f:
+                key = f.read()
+        
+        # Read and encrypt credentials
+        with open(creds_file, 'rb') as f:
+            data = f.read()
+        
+        cipher = Fernet(key)
+        encrypted_data = cipher.encrypt(data)
+        
+        # Backup original
+        backup_file = f"{creds_file}.backup"
+        shutil.copy2(creds_file, backup_file)
+        os.chmod(backup_file, 0o600)
+        
+        # Write encrypted file
+        encrypted_file = f"{creds_file}.encrypted"
+        with open(encrypted_file, 'wb') as f:
+            f.write(encrypted_data)
+        os.chmod(encrypted_file, 0o600)
+        
+        # Log event
+        AUDIT_LOGGER.log_event(
+            "CREDENTIALS_ENCRYPTED",
+            "system",
+            "encrypt_credentials_file",
+            creds_file,
+            "SUCCESS",
+            f"Encrypted credentials file, backup at {backup_file}"
+        )
+        
+        print(f"\n{COLORS['2'][0]}✅ Credentials file encrypted successfully{RESET}")
+        print(f"   Encrypted file:  {encrypted_file}")
+        print(f"   Backup file:     {backup_file}")
+        print(f"   Key file:        {key_file}")
+        print(f"\n{COLORS['3'][0]}⚠️  Keep the encryption key safe!{RESET}")
+        
+    except Exception as e:
+        AUDIT_LOGGER.log_event(
+            "CREDENTIALS_ENCRYPTION_FAILED",
+            "system",
+            "encrypt_credentials_file",
+            creds_file,
+            "FAILURE",
+            str(e)
+        )
+        print(f"\n{COLORS['1'][0]}❌ Encryption failed: {e}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def decrypt_credentials_file():
+    """Decrypt the credentials.json file."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔓 DECRYPT CREDENTIALS FILE")
+    
+    creds_encrypted = os.path.expanduser("~/.pythonosrc/credentials.json.encrypted")
+    key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
+    
+    if not os.path.exists(creds_encrypted):
+        print(f"\n{COLORS['1'][0]}❌ Encrypted credentials file not found: {creds_encrypted}{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    if not os.path.exists(key_file):
+        print(f"\n{COLORS['1'][0]}❌ Encryption key not found: {key_file}{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    try:
+        # Load key and decrypt
+        with open(key_file, 'rb') as f:
+            key = f.read()
+        
+        with open(creds_encrypted, 'rb') as f:
+            encrypted_data = f.read()
+        
+        cipher = Fernet(key)
+        decrypted_data = cipher.decrypt(encrypted_data)
+        
+        # Write decrypted file
+        creds_file = os.path.expanduser("~/.pythonosrc/credentials.json")
+        with open(creds_file, 'wb') as f:
+            f.write(decrypted_data)
+        os.chmod(creds_file, 0o600)
+        
+        # Log event
+        AUDIT_LOGGER.log_event(
+            "CREDENTIALS_DECRYPTED",
+            "system",
+            "decrypt_credentials_file",
+            creds_encrypted,
+            "SUCCESS",
+            "Decrypted credentials file"
+        )
+        
+        print(f"\n{COLORS['2'][0]}✅ Credentials file decrypted successfully{RESET}")
+        print(f"   Decrypted file: {creds_file}")
+        
+    except Exception as e:
+        AUDIT_LOGGER.log_event(
+            "CREDENTIALS_DECRYPTION_FAILED",
+            "system",
+            "decrypt_credentials_file",
+            creds_encrypted,
+            "FAILURE",
+            str(e)
+        )
+        print(f"\n{COLORS['1'][0]}❌ Decryption failed: {e}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def show_rate_limiter_status():
+    """Show current rate limiter status."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🚫 RATE LIMITER STATUS")
+    
+    c = get_current_color()
+    
+    print(f"\n{BOLD}{c}Active Rate Limiters:{RESET}\n")
+    
+    if not RATE_LIMITER.limiters:
+        print(f"{COLORS['3'][0]}No rate limiters active{RESET}")
+    else:
+        for operation, limiter in RATE_LIMITER.limiters.items():
+            limit = limiter['limit']
+            window = limiter['window']
+            timestamps = limiter['timestamps']
+            current_count = len(timestamps)
+            capacity = limit - current_count
+            
+            status_icon = f"{COLORS['2'][0]}✓{RESET}" if capacity > 0 else f"{COLORS['1'][0]}✗{RESET}"
+            bar_length = 20
+            filled = min(int((current_count / limit) * bar_length), bar_length)
+            bar = "█" * filled + "░" * (bar_length - filled)
+            
+            print(f"{status_icon} {operation:25} | {bar} | {current_count}/{limit} ({capacity} available)")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def show_failed_attempts():
+    """Show failed security attempts."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("⚠️  FAILED SECURITY ATTEMPTS")
+    
+    c = get_current_color()
+    
+    failed_events = AUDIT_LOGGER.get_failed_attempts()
+    
+    if not failed_events:
+        print(f"\n{COLORS['2'][0]}✅ No failed attempts recorded{RESET}")
+    else:
+        print(f"\n{BOLD}{c}Total Failed Attempts: {len(failed_events)}{RESET}\n")
+        
+        for event in failed_events[-50:]:
+            timestamp = event['timestamp'].split('T')[1][:8]  # Just time
+            print(f"[{timestamp}] {event['user']:15} | {event['action']:25} | {event['details']}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def reset_rate_limiters():
+    """Reset all rate limiters."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔄 RESET RATE LIMITERS")
+    
+    confirm = input(f"\n{BOLD}⚠️  Reset all rate limiters? (yes/no): {RESET}").strip().lower()
+    
+    if confirm == 'yes':
+        RATE_LIMITER.limiters.clear()
+        AUDIT_LOGGER.log_event(
+            "RATE_LIMITERS_RESET",
+            "system",
+            "reset_rate_limiters",
+            "all",
+            "SUCCESS",
+            "All rate limiters reset"
+        )
+        print(f"\n{COLORS['2'][0]}✅ Rate limiters reset successfully{RESET}")
+    else:
+        print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
+    
+    time.sleep(1)
+
+def purge_old_logs():
+    """Purge logs older than 30 days."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧹 PURGE OLD LOGS")
+    
+    log_dir = os.path.expanduser("~/.pythonosrc/logs")
+    
+    if not os.path.exists(log_dir):
+        print(f"\n{COLORS['3'][0]}Log directory not found: {log_dir}{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    try:
+        cutoff_time = time.time() - (30 * 24 * 60 * 60)  # 30 days ago
+        purged_count = 0
+        total_size = 0
+        
+        for filename in os.listdir(log_dir):
+            filepath = os.path.join(log_dir, filename)
+            
+            if os.path.isfile(filepath):
+                file_mtime = os.path.getmtime(filepath)
+                
+                if file_mtime < cutoff_time:
+                    file_size = os.path.getsize(filepath)
+                    os.remove(filepath)
+                    purged_count += 1
+                    total_size += file_size
+        
+        AUDIT_LOGGER.log_event(
+            "LOGS_PURGED",
+            "system",
+            "purge_old_logs",
+            log_dir,
+            "SUCCESS",
+            f"Purged {purged_count} files, freed {total_size / 1024 / 1024:.2f} MB"
+        )
+        
+        print(f"\n{COLORS['2'][0]}✅ Purge completed{RESET}")
+        print(f"   Files deleted:  {purged_count}")
+        print(f"   Space freed:    {total_size / 1024 / 1024:.2f} MB")
+        
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}❌ Purge failed: {e}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def generate_new_encryption_key():
+    """Generate a new encryption key."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔑 GENERATE ENCRYPTION KEY")
+    
+    key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
+    
+    try:
+        # Create directory if needed
+        os.makedirs(os.path.dirname(key_file), exist_ok=True)
+        
+        # Check if key already exists
+        if os.path.exists(key_file):
+            confirm = input(f"\n{BOLD}⚠️  Encryption key already exists. Overwrite? (yes/no): {RESET}").strip().lower()
+            if confirm != 'yes':
+                print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
+                time.sleep(1)
+                return
+        
+        # Generate new key
+        key = Fernet.generate_key()
+        
+        with open(key_file, 'wb') as f:
+            f.write(key)
+        os.chmod(key_file, 0o600)
+        
+        AUDIT_LOGGER.log_event(
+            "ENCRYPTION_KEY_GENERATED",
+            "system",
+            "generate_new_encryption_key",
+            key_file,
+            "SUCCESS",
+            "New encryption key generated"
+        )
+        
+        print(f"\n{COLORS['2'][0]}✅ New encryption key generated{RESET}")
+        print(f"   Key file:  {key_file}")
+        print(f"   Permissions:  600 (read/write for owner only)")
+        
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}❌ Key generation failed: {e}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+# ================================================================================
+# RESILIENCE UTILITY FUNCTIONS
+# ================================================================================
+
+def is_feature_degraded(feature_name):
+    """Check if a specific feature is operating in degraded mode."""
+    return feature_name in RESILIENCE_LOGGER.failed_features
+
+def get_system_health_status():
+    """Get overall system health status."""
+    health = RESILIENCE_LOGGER.get_health_report()
+    total_errors = health['total_errors']
+    
+    if total_errors == 0:
+        return "🟢 Excellent"
+    elif total_errors < 5:
+        return "🟡 Good"
+    elif total_errors < 15:
+        return "🟠 Fair"
+    else:
+        return "🔴 Poor"
+
+def get_degraded_features():
+    """Get list of features currently operating in degraded mode."""
+    return list(RESILIENCE_LOGGER.failed_features)
+
+def is_system_in_critical_state():
+    """Check if system is in critical state (>50 errors or >5 failed features)."""
+    health = RESILIENCE_LOGGER.get_health_report()
+    return health['total_errors'] > 50 or len(health['failed_features']) > 5
+
+def get_recovery_rate(feature_name):
+    """Get recovery success rate for a specific feature."""
+    recovery_stats = RESILIENCE_LOGGER.recovery_attempts.get(feature_name, {})
+    attempts = recovery_stats.get('attempts', 0)
+    successes = recovery_stats.get('successes', 0)
+    
+    if attempts == 0:
+        return 0
+    return (successes / attempts) * 100
+
+def should_use_degraded_mode(feature_name):
+    """Determine if feature should use degraded operation (cached data, reduced features)."""
+    health = RESILIENCE_LOGGER.get_health_report()
+    
+    # Use degraded mode if:
+    # 1. Feature has failed > 2 times
+    # 2. Feature recovery rate < 50%
+    # 3. System has >20 total errors
+    
+    error_count = health['error_types'].get(f"{feature_name}_Error", 0)
+    recovery_rate = get_recovery_rate(feature_name)
+    
+    return error_count > 2 or recovery_rate < 50 or health['total_errors'] > 20
+
+# ================================================================================
+# SECURITY SYSTEM - ENCRYPTION, RATE LIMITING, AUDIT LOGGING
+# ================================================================================
+
+from cryptography.fernet import Fernet
+from collections import defaultdict, deque
+import hashlib
+
+class SecurityAuditLogger:
+    """Comprehensive audit logging for security-critical operations."""
+    
+    def __init__(self, log_dir="/tmp/pythonoslog", audit_log_name="security_audit.log"):
+        self.log_dir = log_dir
+        self.audit_log_file = os.path.join(log_dir, audit_log_name)
+        self.events = deque(maxlen=1000)  # Keep last 1000 events
+        
+        try:
+            os.makedirs(log_dir, exist_ok=True)
+        except Exception:
+            pass
+    
+    def log_event(self, event_type, user, action, resource="", status="SUCCESS", details=""):
+        """Log security event with full context."""
+        timestamp = datetime.now().isoformat()
+        
+        event = {
+            "timestamp": timestamp,
+            "type": event_type,  # "LOGIN", "PASSWORD_CHANGE", "FILE_ACCESS", etc
+            "user": user,
+            "action": action,  # What was attempted
+            "resource": resource,  # What was accessed
+            "status": status,  # SUCCESS or FAILED
+            "details": details  # Additional context
+        }
+        
+        self.events.append(event)
+        
+        # Write to file
+        try:
+            log_entry = f"[{timestamp}] {event_type:15} | {user:15} | {action:20} | {resource:25} | {status:8} | {details}\n"
+            with open(self.audit_log_file, 'a') as f:
+                f.write(log_entry)
+        except Exception as e:
+            RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Audit log write failed: {e}", 
+                                 feature="SecurityAudit", error=e)
+    
+    def get_recent_events(self, count=50, event_type=None):
+        """Get recent security events, optionally filtered by type."""
+        events = list(self.events)
+        if event_type:
+            events = [e for e in events if e['type'] == event_type]
+        return events[-count:]
+    
+    def get_failed_attempts(self, user=None):
+        """Get failed security attempts."""
+        failed = [e for e in self.events if e['status'] == 'FAILED']
+        if user:
+            failed = [e for e in failed if e['user'] == user]
+        return failed
+    
+    def get_file_access_log(self, resource):
+        """Get all access logs for a specific resource."""
+        return [e for e in self.events if e['resource'] == resource and e['type'] == 'FILE_ACCESS']
+
+class RateLimiter:
+    """Rate limiting for sensitive operations to prevent abuse."""
+    
+    def __init__(self, max_attempts=5, time_window=300):  # 5 attempts per 5 minutes
+        self.max_attempts = max_attempts
+        self.time_window = time_window
+        self.attempts = defaultdict(deque)  # {identifier: deque of timestamps}
+    
+    def is_allowed(self, identifier):
+        """Check if operation is allowed for this identifier."""
+        now = time.time()
+        attempts = self.attempts[identifier]
+        
+        # Remove old attempts outside the time window
+        while attempts and attempts[0] < now - self.time_window:
+            attempts.popleft()
+        
+        # Check if under limit
+        if len(attempts) < self.max_attempts:
+            attempts.append(now)
+            return True, len(attempts)
+        
+        return False, self.max_attempts
+    
+    def get_remaining(self, identifier):
+        """Get remaining attempts for this identifier."""
+        now = time.time()
+        attempts = self.attempts[identifier]
+        
+        # Clean old attempts
+        while attempts and attempts[0] < now - self.time_window:
+            attempts.popleft()
+        
+        return self.max_attempts - len(attempts)
+    
+    def reset(self, identifier):
+        """Reset rate limit for identifier (after successful operation)."""
+        self.attempts[identifier].clear()
+    
+    def reset_all(self):
+        """Reset all rate limits."""
+        self.attempts.clear()
+
+class CredentialEncryptor:
+    """Encrypts and decrypts credentials for secure storage."""
+    
+    def __init__(self, key_file=None):
+        self.key_file = key_file or os.path.expanduser("~/.pythonOS/.enc_key")
+        self.cipher = None
+        self._load_or_create_key()
+    
+    def _load_or_create_key(self):
+        """Load encryption key or create new one."""
+        try:
+            if os.path.exists(self.key_file):
+                with open(self.key_file, 'rb') as f:
+                    key = f.read()
+            else:
+                # Create new key
+                key = Fernet.generate_key()
+                os.makedirs(os.path.dirname(self.key_file), exist_ok=True)
+                with open(self.key_file, 'wb') as f:
+                    f.write(key)
+                os.chmod(self.key_file, 0o600)  # Secure permissions
+            
+            self.cipher = Fernet(key)
+        except Exception as e:
+            RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Failed to initialize encryption: {e}",
+                                 feature="Encryption", error=e)
+            self.cipher = None
+    
+    def encrypt(self, data):
+        """Encrypt data (string or dict)."""
+        try:
+            if isinstance(data, dict):
+                data = json.dumps(data)
+            if isinstance(data, str):
+                data = data.encode()
+            
+            if self.cipher:
+                encrypted = self.cipher.encrypt(data)
+                return encrypted.decode()
+            return data.decode() if isinstance(data, bytes) else data
+        except Exception as e:
+            RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Encryption failed: {e}",
+                                 feature="Encryption", error=e)
+            return None
+    
+    def decrypt(self, encrypted_data):
+        """Decrypt data back to original format."""
+        try:
+            if isinstance(encrypted_data, str):
+                encrypted_data = encrypted_data.encode()
+            
+            if self.cipher:
+                decrypted = self.cipher.decrypt(encrypted_data)
+                return decrypted.decode()
+            return encrypted_data.decode() if isinstance(encrypted_data, bytes) else encrypted_data
+        except Exception as e:
+            RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Decryption failed: {e}",
+                                 feature="Encryption", error=e)
+            return None
+
+class InputValidator:
+    """Comprehensive input validation to prevent injection attacks."""
+    
+    # Safe characters for different contexts
+    SAFE_ALPHANUMERIC = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
+    SAFE_FILENAME = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/")
+    SAFE_URL = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/:?&=")
+    
+    @staticmethod
+    def validate_username(username, min_length=3, max_length=32):
+        """Validate username format."""
+        if not username or len(username) < min_length or len(username) > max_length:
+            return False, f"Username must be {min_length}-{max_length} characters"
+        
+        if not all(c in InputValidator.SAFE_ALPHANUMERIC or c == '@' for c in username):
+            return False, "Username contains invalid characters"
+        
+        return True, "Valid"
+    
+    @staticmethod
+    def validate_password(password, min_length=8):
+        """Validate password strength."""
+        if not password or len(password) < min_length:
+            return False, f"Password must be at least {min_length} characters"
+        
+        has_upper = any(c.isupper() for c in password)
+        has_lower = any(c.islower() for c in password)
+        has_digit = any(c.isdigit() for c in password)
+        
+        if not (has_upper and has_lower and has_digit):
+            return False, "Password must contain uppercase, lowercase, and digits"
+        
+        return True, "Valid"
+    
+    @staticmethod
+    def validate_filename(filename, max_length=255):
+        """Validate filename to prevent directory traversal."""
+        if not filename or len(filename) > max_length:
+            return False, f"Filename invalid or too long (max {max_length})"
+        
+        # Prevent directory traversal
+        if ".." in filename or filename.startswith("/"):
+            return False, "Filename contains invalid path sequences"
+        
+        if not all(c in InputValidator.SAFE_FILENAME for c in filename):
+            return False, "Filename contains invalid characters"
+        
+        return True, "Valid"
+    
+    @staticmethod
+    def validate_url(url, max_length=2048):
+        """Validate URL format."""
+        if not url or len(url) > max_length:
+            return False, "URL invalid or too long"
+        
+        if not url.startswith(('http://', 'https://')):
+            return False, "URL must start with http:// or https://"
+        
+        return True, "Valid"
+    
+    @staticmethod
+    def validate_email(email, max_length=254):
+        """Validate email format."""
+        import re
+        if not email or len(email) > max_length:
+            return False, "Email invalid or too long"
+        
+        pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(pattern, email):
+            return False, "Email format invalid"
+        
+        return True, "Valid"
+    
+    @staticmethod
+    def sanitize_path(path):
+        """Remove potentially dangerous characters from file path."""
+        # Remove null bytes and other dangerous characters
+        dangerous_chars = ['\x00', '|', ';', '&', '$', '`', '\n', '\r']
+        for char in dangerous_chars:
+            path = path.replace(char, '')
+        return path
+    
+    @staticmethod
+    def sanitize_command(command):
+        """Sanitize command to prevent shell injection."""
+        # Remove shell metacharacters
+        dangerous_chars = ['|', ';', '&', '$', '`', '(', ')', '<', '>', '\n', '\r']
+        for char in dangerous_chars:
+            command = command.replace(char, '')
+        return command
+
+# Global security instances
+AUDIT_LOGGER = SecurityAuditLogger()
+RATE_LIMITER_LOGIN = RateLimiter(max_attempts=5, time_window=300)  # 5 attempts per 5 min
+RATE_LIMITER_API = RateLimiter(max_attempts=100, time_window=60)  # 100 per minute
+RATE_LIMITER = RateLimiter(max_attempts=50, time_window=60)  # General rate limiter
+CREDENTIAL_ENCRYPTOR = CredentialEncryptor()
+
+def require_rate_limit(limiter, identifier):
+    """Decorator to enforce rate limiting."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            allowed, attempts = limiter.is_allowed(identifier)
+            
+            if not allowed:
+                remaining = limiter.get_remaining(identifier)
+                AUDIT_LOGGER.log_event(
+                    "RATE_LIMIT_EXCEEDED",
+                    identifier,
+                    func.__name__,
+                    status="FAILED",
+                    details=f"Max attempts exceeded"
+                )
+                raise Exception(f"Rate limit exceeded. Try again in a moment. ({remaining} remaining)")
+            
+            try:
+                result = func(*args, **kwargs)
+                limiter.reset(identifier)
+                return result
+            except Exception as e:
+                AUDIT_LOGGER.log_event(
+                    "OPERATION_FAILED",
+                    identifier,
+                    func.__name__,
+                    status="FAILED",
+                    details=str(e)
+                )
+                raise
+        
+        return wrapper
+    return decorator
+
+def require_input_validation(*validators):
+    """Decorator to validate all function inputs."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            # Apply validators to kwargs
+            for key, validator_func in validators:
+                if key in kwargs:
+                    is_valid, message = validator_func(kwargs[key])
+                    if not is_valid:
+                        AUDIT_LOGGER.log_event(
+                            "INVALID_INPUT",
+                            "system",
+                            func.__name__,
+                            resource=key,
+                            status="FAILED",
+                            details=message
+                        )
+                        raise ValueError(f"Invalid {key}: {message}")
+            
+            return func(*args, **kwargs)
+        
+        return wrapper
+    return decorator
+
+def log_security_event(event_type, resource=""):
+    """Decorator to automatically log security events."""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            user = os.getenv("USER", "unknown")
+            try:
+                result = func(*args, **kwargs)
+                AUDIT_LOGGER.log_event(
+                    event_type,
+                    user,
+                    func.__name__,
+                    resource=resource,
+                    status="SUCCESS"
+                )
+                return result
+            except Exception as e:
+                AUDIT_LOGGER.log_event(
+                    event_type,
+                    user,
+                    func.__name__,
+                    resource=resource,
+                    status="FAILED",
+                    details=str(e)
+                )
+                raise
+        
+        return wrapper
+    return decorator
 
 # Textual imports are loaded lazily to keep classic mode fast and avoid hard dependency at startup.
 App = ComposeResult = Container = Horizontal = Vertical = Grid = None
@@ -232,39 +1772,94 @@ MAX_DISPLAYED_FORMATS = len(SUPPORTED_AUDIO_FORMATS)
 # ================================================================================
 
 class GlobalCredentialManager:
-    """Manages and caches login credentials for all downloads in Download Center."""
+    """Manages and caches login credentials with encryption for all downloads."""
     
     def __init__(self):
-        self.credentials = {}  # {service: {"username": "...", "password": "..."}}
+        self.credentials = {}  # {service: {"username": "...", "password": "...", "timestamp": "..."}}
         self.cred_file = os.path.expanduser("~/.pythonOS/credentials.json")
         self.logged_in_services = set()
         self._load_credentials()
         
+    @log_security_event("CREDENTIAL_LOAD", "credentials.json")
     def _load_credentials(self):
-        """Load cached credentials from disk."""
+        """Load and decrypt credentials from disk."""
         try:
             if os.path.exists(self.cred_file):
                 with open(self.cred_file, 'r') as f:
-                    self.credentials = json.load(f)
+                    encrypted_data = f.read()
+                
+                # Decrypt credentials
+                decrypted = CREDENTIAL_ENCRYPTOR.decrypt(encrypted_data)
+                if decrypted:
+                    self.credentials = json.loads(decrypted)
                     self.logged_in_services = set(self.credentials.keys())
+                    AUDIT_LOGGER.log_event(
+                        "CREDENTIAL_LOAD",
+                        os.getenv("USER", "unknown"),
+                        "load_credentials",
+                        resource="credentials.json",
+                        status="SUCCESS",
+                        details=f"Loaded {len(self.credentials)} credentials"
+                    )
         except Exception as e:
-            print(f"Warning: Could not load credentials: {e}")
+            RESILIENCE_LOGGER.mark_feature_failed("CredentialManager", error=e)
+            AUDIT_LOGGER.log_event(
+                "CREDENTIAL_LOAD",
+                os.getenv("USER", "unknown"),
+                "load_credentials",
+                resource="credentials.json",
+                status="FAILED",
+                details=str(e)
+            )
             self.credentials = {}
     
+    @log_security_event("CREDENTIAL_SAVE", "credentials.json")
     def _save_credentials(self):
-        """Save credentials to disk."""
+        """Encrypt and save credentials to disk."""
         try:
             os.makedirs(os.path.dirname(self.cred_file), exist_ok=True)
-            with open(self.cred_file, 'w') as f:
-                json.dump(self.credentials, f, indent=2)
+            
+            # Encrypt credentials
+            encrypted = CREDENTIAL_ENCRYPTOR.encrypt(self.credentials)
+            if encrypted:
+                with open(self.cred_file, 'w') as f:
+                    f.write(encrypted)
                 os.chmod(self.cred_file, 0o600)  # Secure permissions
+                
+                AUDIT_LOGGER.log_event(
+                    "CREDENTIAL_SAVE",
+                    os.getenv("USER", "unknown"),
+                    "save_credentials",
+                    resource="credentials.json",
+                    status="SUCCESS"
+                )
         except Exception as e:
-            print(f"Warning: Could not save credentials: {e}")
+            AUDIT_LOGGER.log_event(
+                "CREDENTIAL_SAVE",
+                os.getenv("USER", "unknown"),
+                "save_credentials",
+                resource="credentials.json",
+                status="FAILED",
+                details=str(e)
+            )
     
+    @require_rate_limit(RATE_LIMITER_LOGIN, "credential_add")
+    @require_input_validation(("username", InputValidator.validate_username))
+    @log_security_event("CREDENTIAL_ADD")
     def add_credentials(self, service, username, password=None):
-        """Add or update credentials for a service."""
+        """Add or update credentials for a service with rate limiting and validation."""
+        # Validate inputs
+        service = InputValidator.sanitize_path(service)
+        is_valid, msg = InputValidator.validate_username(username)
+        if not is_valid:
+            raise ValueError(f"Invalid username: {msg}")
+        
         if password is None:
             password = getpass.getpass(f"Enter password for {service}: ")
+        
+        is_valid, msg = InputValidator.validate_password(password)
+        if not is_valid:
+            raise ValueError(f"Invalid password: {msg}")
         
         import time
         self.credentials[service] = {
@@ -274,25 +1869,59 @@ class GlobalCredentialManager:
         }
         self.logged_in_services.add(service)
         self._save_credentials()
+        
+        AUDIT_LOGGER.log_event(
+            "CREDENTIAL_ADD",
+            os.getenv("USER", "unknown"),
+            "add_credentials",
+            resource=service,
+            status="SUCCESS"
+        )
         return True
     
+    @log_security_event("CREDENTIAL_RETRIEVE")
     def get_credentials(self, service):
         """Retrieve credentials for a service."""
-        return self.credentials.get(service)
+        creds = self.credentials.get(service)
+        if creds:
+            AUDIT_LOGGER.log_event(
+                "CREDENTIAL_RETRIEVE",
+                os.getenv("USER", "unknown"),
+                "get_credentials",
+                resource=service,
+                status="SUCCESS"
+            )
+        return creds
     
     def is_logged_in(self, service):
         """Check if logged into a service."""
         return service in self.logged_in_services
     
+    @log_security_event("CREDENTIAL_CLEAR")
     def clear_credentials(self, service=None):
         """Clear credentials for a service or all services."""
         if service:
             if service in self.credentials:
                 del self.credentials[service]
                 self.logged_in_services.discard(service)
+                AUDIT_LOGGER.log_event(
+                    "CREDENTIAL_CLEAR",
+                    os.getenv("USER", "unknown"),
+                    "clear_credentials",
+                    resource=service,
+                    status="SUCCESS"
+                )
         else:
+            count = len(self.credentials)
             self.credentials.clear()
             self.logged_in_services.clear()
+            AUDIT_LOGGER.log_event(
+                "CREDENTIAL_CLEAR_ALL",
+                os.getenv("USER", "unknown"),
+                "clear_credentials",
+                status="SUCCESS",
+                details=f"Cleared {count} credentials"
+            )
         self._save_credentials()
     
     def list_logged_in(self):
@@ -311,14 +1940,15 @@ class GlobalCredentialManager:
     
     def show_credential_status(self):
         """Display current login status."""
-        print(f"\n{BOLD}📋 Logged-In Services:{RESET}")
+        print(f"\n{BOLD}📋 Logged-In Services (Encrypted):{RESET}")
         if not self.logged_in_services:
             print(f"  {COLORS['1'][0]}No services logged in{RESET}")
         else:
             for service in sorted(self.logged_in_services):
                 creds = self.credentials.get(service, {})
                 user = creds.get('username', 'unknown')
-                print(f"  {COLORS['2'][0]}✓{RESET} {service:20} (User: {user})")
+                timestamp = creds.get('timestamp', 'unknown')
+                print(f"  {COLORS['2'][0]}✓{RESET} {service:20} (User: {user}, Saved: {timestamp})")
 
 # ================================================================================
 # UNIVERSAL INSTALL MANAGER: AI-DRIVEN CROSS-PLATFORM PACKAGE MANAGEMENT
@@ -692,27 +2322,43 @@ _db_scheduled_tasks = []
 # - Advanced query tools
 # ================================================================================
 
+@retry_with_backoff(max_attempts=3, initial_delay=0.5, backoff_factor=1.5, feature_name="Database")
 def _db_connect():
+    """Connect to database with retry logic and resilience."""
     conn = sqlite3.connect(DB_FILE, timeout=10)
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
-    except Exception:
-
-        pass
+    except Exception as e:
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "PRAGMA busy_timeout failed", 
+                             feature="Database", error=e)
     return conn
 
 def safe_run(category, operation, func, *args, **kwargs):
+    """Execute operation with comprehensive error handling and resilience logging."""
     try:
         return func(*args, **kwargs)
     except Exception as e:
-
         tb = traceback.format_exc()
+        
+        # Log to resilience system
+        RESILIENCE_LOGGER.log(
+            ErrorLevel.ERROR,
+            f"Operation failed: {operation}",
+            feature=category,
+            error=e
+        )
+        RESILIENCE_LOGGER.mark_feature_failed(operation, error=e)
+        
+        # Display error to user
         print(f"{COLORS['1'][0]}❌ Error in {operation}: {e}{RESET}")
+        
+        # Try to save error log
         try:
             file_path = save_log_file(category, f"{operation}_Error", tb, prompt_user=False)
             log_to_database(category, operation, tb, file_path=file_path, status="error")
-        except Exception:
-            pass
+        except Exception as log_error:
+            RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Failed to save error log",
+                                 feature="Logging", error=log_error)
         return None
 
 def _load_user_config():
@@ -1969,7 +3615,7 @@ def _db_schedule_tasks_menu():
         print("✅ Scheduler stopped.")
     if not _db_scheduler_running and _db_scheduled_tasks:
         _db_scheduler_running = True
-        threading.Thread(target=_db_run_scheduled_tasks, daemon=True).start()
+        submit_async_task("db_scheduler", _db_run_scheduled_tasks)
     input("\nPress Enter to continue...")
 
 def _db_analysis_dashboard():
@@ -2062,7 +3708,7 @@ def _db_api_server_start():
         global _db_api_server
         _db_api_server = HTTPServer(("0.0.0.0", DB_API_PORT), _DBApiHandler)
         _db_api_server.serve_forever()
-    threading.Thread(target=run_server, daemon=True).start()
+    submit_async_task("db_api_server", run_server)
     print(f"✅ DB API running on port {DB_API_PORT} (path: /stats)")
 
 def _db_orm_view():
@@ -3193,7 +4839,7 @@ class EncryptedMessagingServer:
                     self.connected_clients.append(client_addr)
                     print(f"{COLORS['2'][0]}✓ Client connected: {client_addr[0]}:{client_addr[1]}{RESET}")
                     
-                    threading.Thread(target=self._handle_client, args=(client_socket, client_addr), daemon=True).start()
+                    submit_async_task(f"client_{client_addr[0]}_{client_addr[1]}", self._handle_client, client_socket, client_addr)
                 except socket.timeout:
                     continue
                 except Exception as e:
@@ -3680,17 +5326,26 @@ def print_header(title, extra_info=""):
 # --- ENHANCED: WEATHER SYSTEM WITH OPEN-METEO & NWS INTEGRATION ---
 
 def get_weather_data():
-    global weather_cache
+    """Fetch weather data with intelligent caching (5 minute TTL)."""
+    # Try to get cached data first using performance cache system (5 minute cache = 300 seconds)
+    cached = get_cached_or_compute(
+        "weather_data_live",
+        _fetch_weather_live,
+        ttl=300  # 5 minutes
+    )
+    return cached
 
-    # Try to get cached data first (5 minute cache)
-    cached = get_cached_data("weather_data")
-    if cached:
-        weather_cache = cached
-        return weather_cache
-
+@retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2, feature_name="Weather_API")
+@graceful_degradation(fallback={"temp": "N/A", "icon": "❓", "city": "Unknown"}, feature_name="Weather_Display")
+def _fetch_weather_live():
+    """Actually fetch weather data from APIs with resilience."""
     try:
-        # 1. Get location via IP
-        geo = requests.get("http://ip-api.com/json/", timeout=3).json()
+        # 1. Get location via IP (cached for 1 hour)
+        geo = get_cached_or_compute(
+            "geo_location",
+            _fetch_geo_location,
+            ttl=3600
+        )
         lat, lon = geo.get('lat'), geo.get('lon')
         city = geo.get('city', 'Unknown')
 
@@ -3712,7 +5367,7 @@ def get_weather_data():
         elif code in [71, 73, 75]: icon = "❄️"
         elif code in [95, 96, 99]: icon = "⛈️"
 
-        weather_cache = {
+        weather_data = {
             "temp": f"{temp_raw:.1f}°{temp_unit}",
             "icon": icon,
             "city": city,
@@ -3720,19 +5375,24 @@ def get_weather_data():
             "wind": f"{current['wind_speed_10m']} mph",
             "feels": f"{current['apparent_temperature']:.1f}°{temp_unit}"
         }
-
-        # Cache the weather data for 5 minutes
-        cache_data("weather_data", weather_cache, expire_minutes=5)
-
-        return weather_cache
-    except:
+        record_memory_checkpoint("weather_fetch")
+        return weather_data
+    except Exception as e:
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Primary weather API failed, trying fallback", 
+                             feature="Weather_API", error=e)
         # Fallback to wttr.in if Open-Meteo fails
         try:
             res = requests.get("https://wttr.in/?format=%C+%t", timeout=5).text.strip()
-            weather_cache["temp"] = res.split()[-1]
-            cache_data("weather_data", weather_cache, expire_minutes=5)
-            return weather_cache
-        except: return None
+            return {"temp": res.split()[-1], "icon": "⚠️", "city": "Fallback"}
+        except Exception as e2:
+            RESILIENCE_LOGGER.mark_feature_failed("Weather_Display", error=e2)
+            return {"temp": "N/A", "icon": "❓", "city": "Unknown"}
+
+@safe_connection(timeout=3, retry_on_timeout=True, feature_name="GeoLocation_API")
+def _fetch_geo_location():
+    """Fetch geolocation with connection resilience."""
+    response = requests.get("http://ip-api.com/json/", timeout=3)
+    return response.json()
 
 def feature_weather_display():
     """
@@ -23302,8 +24962,8 @@ def _format_classic_menu_display():
     lines.append(f" {BOLD}[R]{RESET} Satellite  {BOLD}[S]{RESET} Calculator  {BOLD}[T]{RESET} Docs  {BOLD}[X]{RESET} TUI")
     
     # System & Display modes
-    lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} Dynamic Folder")
-    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced")
+    lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health Report")
+    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced  {BOLD}[*]{RESET} 🔒 Sec Audit")
     
     return "\n".join(lines)
 
@@ -24913,7 +26573,9 @@ def run_classic_command_center():
             _set_display_mode("enhanced")
             feature_enhanced_display_mode()
         elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
-        elif choice == 'Z': safe_run("system", "Dynamic_Folder", feature_dynamic_folder_center)
+        elif choice == 'Z': safe_run("general", "Performance_Stats", display_performance_stats)
+        elif choice == '~': safe_run("system", "System_Health", display_system_health)
+        elif choice == '*': safe_run("security", "Security_Audit_Menu", display_security_audit_menu)
         elif choice == '14': safe_run("network", "Server_Client_Switch", feature_server_client_switch)
 
 #version 21
@@ -24969,8 +26631,8 @@ def autonomous_optimizer_daemon():
 
         time.sleep(10) # Run audit every 10 seconds
 
-# Start the Shadow Auditor in a daemon thread
-threading.Thread(target=autonomous_optimizer_daemon, daemon=True).start()
+# Start the Shadow Auditor in a daemon thread via thread pool
+submit_async_task("autonomous_optimizer", autonomous_optimizer_daemon)
 
 print(f"\n{COLORS['10'][0]}[+] Autonomous Optimizer V21.1 Linked Successfully.{RESET}")
 
