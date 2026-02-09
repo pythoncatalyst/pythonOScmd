@@ -227,6 +227,362 @@ SUPPORTED_PLAYBACK_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS
 SUPPORTED_MEDIA_PLUGIN_FORMATS = SUPPORTED_AUDIO_FORMATS + SUPPORTED_VIDEO_FORMATS + ('.py',)
 MAX_DISPLAYED_FORMATS = len(SUPPORTED_AUDIO_FORMATS)
 
+# ================================================================================
+# GLOBAL CREDENTIAL MANAGER: SECURE CREDENTIAL STORAGE FOR DOWNLOADS
+# ================================================================================
+
+class GlobalCredentialManager:
+    """Manages and caches login credentials for all downloads in Download Center."""
+    
+    def __init__(self):
+        self.credentials = {}  # {service: {"username": "...", "password": "..."}}
+        self.cred_file = os.path.expanduser("~/.pythonOS/credentials.json")
+        self.logged_in_services = set()
+        self._load_credentials()
+        
+    def _load_credentials(self):
+        """Load cached credentials from disk."""
+        try:
+            if os.path.exists(self.cred_file):
+                with open(self.cred_file, 'r') as f:
+                    self.credentials = json.load(f)
+                    self.logged_in_services = set(self.credentials.keys())
+        except Exception as e:
+            print(f"Warning: Could not load credentials: {e}")
+            self.credentials = {}
+    
+    def _save_credentials(self):
+        """Save credentials to disk."""
+        try:
+            os.makedirs(os.path.dirname(self.cred_file), exist_ok=True)
+            with open(self.cred_file, 'w') as f:
+                json.dump(self.credentials, f, indent=2)
+                os.chmod(self.cred_file, 0o600)  # Secure permissions
+        except Exception as e:
+            print(f"Warning: Could not save credentials: {e}")
+    
+    def add_credentials(self, service, username, password=None):
+        """Add or update credentials for a service."""
+        if password is None:
+            password = getpass.getpass(f"Enter password for {service}: ")
+        
+        import time
+        self.credentials[service] = {
+            "username": username,
+            "password": password,
+            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+        }
+        self.logged_in_services.add(service)
+        self._save_credentials()
+        return True
+    
+    def get_credentials(self, service):
+        """Retrieve credentials for a service."""
+        return self.credentials.get(service)
+    
+    def is_logged_in(self, service):
+        """Check if logged into a service."""
+        return service in self.logged_in_services
+    
+    def clear_credentials(self, service=None):
+        """Clear credentials for a service or all services."""
+        if service:
+            if service in self.credentials:
+                del self.credentials[service]
+                self.logged_in_services.discard(service)
+        else:
+            self.credentials.clear()
+            self.logged_in_services.clear()
+        self._save_credentials()
+    
+    def list_logged_in(self):
+        """List all services with stored credentials."""
+        return list(self.logged_in_services)
+    
+    def get_auth_header(self, service):
+        """Get HTTP Authorization header for a service."""
+        creds = self.get_credentials(service)
+        if creds:
+            import base64
+            user_pass = f"{creds['username']}:{creds['password']}"
+            encoded = base64.b64encode(user_pass.encode()).decode()
+            return {"Authorization": f"Basic {encoded}"}
+        return {}
+    
+    def show_credential_status(self):
+        """Display current login status."""
+        print(f"\n{BOLD}📋 Logged-In Services:{RESET}")
+        if not self.logged_in_services:
+            print(f"  {COLORS['1'][0]}No services logged in{RESET}")
+        else:
+            for service in sorted(self.logged_in_services):
+                creds = self.credentials.get(service, {})
+                user = creds.get('username', 'unknown')
+                print(f"  {COLORS['2'][0]}✓{RESET} {service:20} (User: {user})")
+
+# ================================================================================
+# UNIVERSAL INSTALL MANAGER: AI-DRIVEN CROSS-PLATFORM PACKAGE MANAGEMENT
+# ================================================================================
+
+class UniversalInstallManager:
+    """AI-powered install manager supporting all known operating systems."""
+    
+    def __init__(self):
+        self.install_log = []
+        self.os_info = self._detect_system()
+        self.privilege_level = self._check_privileges()
+        
+    def _detect_system(self):
+        """Comprehensive OS and architecture detection."""
+        info = {
+            "platform": platform.system(),
+            "architecture": platform.machine().lower(),
+            "python_version": platform.python_version(),
+            "release": platform.release(),
+            "processor": platform.processor(),
+        }
+        
+        # Arch detection
+        arch = info["architecture"]
+        if arch in ["x86_64", "amd64"]:
+            info["arch_type"] = "x86_64"
+            info["bits"] = 64
+        elif arch in ["i386", "i686"]:
+            info["arch_type"] = "x86"
+            info["bits"] = 32
+        elif arch in ["aarch64", "arm64"]:
+            info["arch_type"] = "arm64"
+            info["bits"] = 64
+        elif arch in ["armv7l", "armv8l", "armv6l", "arm"]:
+            info["arch_type"] = "arm32"
+            info["bits"] = 32
+        elif arch == "riscv64":
+            info["arch_type"] = "riscv64"
+            info["bits"] = 64
+        elif arch == "riscv32":
+            info["arch_type"] = "riscv32"
+            info["bits"] = 32
+        else:
+            info["arch_type"] = arch
+            info["bits"] = 64
+        
+        # OS-specific detection
+        if info["platform"] == "Windows":
+            info["os_key"] = "windows"
+            info["os_family"] = "windows"
+        elif info["platform"] == "Darwin":
+            info["os_key"] = "macos"
+            info["os_family"] = "unix"
+        elif info["platform"] == "Linux":
+            info["os_family"] = "linux"
+            # Check for special Linux variants
+            if os.environ.get("TERMUX_VERSION") or os.environ.get("ANDROID_ROOT"):
+                info["os_key"] = "android"
+                info["os_family"] = "android"
+            else:
+                osr = self._read_os_release()
+                os_id = (osr.get("ID") or "").lower()
+                like = (osr.get("ID_LIKE") or "").lower()
+                
+                if "kali" in os_id or "kali" in like:
+                    info["os_key"] = "kali"
+                elif os_id in ["ubuntu", "debian", "linuxmint", "pop"] or "debian" in like:
+                    info["os_key"] = "debian"
+                elif os_id in ["fedora", "rhel", "centos", "rocky", "almalinux"] or "rhel" in like or "fedora" in like:
+                    info["os_key"] = "fedora"
+                elif os_id in ["arch", "manjaro", "endeavouros"] or "arch" in like:
+                    info["os_key"] = "arch"
+                elif os_id in ["alpine"]:
+                    info["os_key"] = "alpine"
+                elif os_id in ["opensuse", "suse"] or "suse" in like:
+                    info["os_key"] = "opensuse"
+                elif os_id in ["nixos"]:
+                    info["os_key"] = "nix"
+                elif os_id in ["freebsd"]:
+                    info["os_key"] = "freebsd"
+                else:
+                    info["os_key"] = "linux"
+        else:
+            info["os_key"] = info["platform"].lower()
+            info["os_family"] = "unknown"
+        
+        # Check for IoT/Embedded systems
+        if "esp" in info.get("os_key", "").lower() or "esp32" in info.get("architecture", "").lower():
+            info["device_type"] = "esp32"
+        elif "arm" in info["arch_type"] and info["bits"] == 32:
+            info["device_type"] = "arm_embedded"
+        elif "riscv" in info["arch_type"]:
+            info["device_type"] = "riscv"
+        else:
+            info["device_type"] = "standard"
+        
+        return info
+    
+    def _read_os_release(self):
+        """Read /etc/os-release for Linux system identification."""
+        data = {}
+        try:
+            with open("/etc/os-release", "r") as f:
+                for line in f:
+                    if "=" in line:
+                        k, v = line.strip().split("=", 1)
+                        data[k] = v.strip().strip('"')
+        except Exception:
+            pass
+        return data
+    
+    def _check_privileges(self):
+        """Check current privilege level."""
+        if platform.system() == "Windows":
+            try:
+                import ctypes
+                return "admin" if ctypes.windll.shell.IsUserAnAdmin() else "user"
+            except Exception:
+                return "user"
+        else:
+            return "root" if os.geteuid() == 0 else "user"
+    
+    def _get_sudo_prefix(self, require_root=False):
+        """Get sudo prefix and handle privilege escalation."""
+        if require_root:
+            if self.privilege_level == "root":
+                return ""
+            elif self.privilege_level == "admin":
+                return ""
+            else:
+                # Prompt for password
+                password = getpass.getpass("\033[93m[!] This operation requires elevated privileges.\033[0m\nEnter password: ")
+                if platform.system() == "Windows":
+                    return ""  # Windows UAC handled differently
+                else:
+                    return f"echo '{password}' | sudo -S " if password else "sudo "
+        return ""
+    
+    def install_package(self, package_info, tool_name=""):
+        """Universal package installer with AI decision logic."""
+        os_key = self.os_info["os_key"]
+        arch_type = self.os_info["arch_type"]
+        
+        # Get best install method based on OS and package
+        install_cmd = self._select_best_install_method(package_info, os_key, arch_type)
+        
+        if not install_cmd:
+            msg = f"[✗] No compatible install method for {os_key}/{arch_type}"
+            self._log_install(tool_name, install_cmd, False, msg)
+            return False
+        
+        # Check if needs privilege escalation
+        needs_root = any(x in install_cmd for x in ["sudo", "apt", "dnf", "pacman", "apk"])
+        if needs_root:
+            install_cmd = self._get_sudo_prefix(require_root=True) + install_cmd
+        
+        print(f"\033[96m[→] Installing {tool_name}: {install_cmd[:80]}...\033[0m")
+
+        
+        try:
+            result = os.system(install_cmd)
+            success = result == 0
+            msg = f"Installation {'succeeded' if success else 'failed with code ' + str(result)}"
+            self._log_install(tool_name, install_cmd, success, msg)
+            return success
+        except Exception as e:
+            msg = f"Installation error: {str(e)}"
+            self._log_install(tool_name, install_cmd, False, msg)
+            return False
+    
+    def _select_best_install_method(self, package_info, os_key, arch_type):
+        """AI logic to select best install method."""
+        # Priority order: native package manager > language-specific > binary download > source build
+        
+        # Check for OS-specific command
+        if isinstance(package_info, dict):
+            if f"{os_key}_{arch_type}" in package_info:
+                return package_info[f"{os_key}_{arch_type}"]
+            if os_key in package_info:
+                return package_info[os_key]
+            if arch_type in package_info:
+                return package_info[arch_type]
+            if "generic" in package_info:
+                return package_info["generic"]
+            if "linux" in package_info and self.os_info["os_family"] == "linux":
+                return package_info["linux"]
+        elif isinstance(package_info, str):
+            return package_info
+        
+        return None
+    
+    def _log_install(self, tool_name, command, success, message):
+        """Log installation attempt."""
+        entry = {
+            "timestamp": datetime.datetime.now().isoformat(),
+            "tool": tool_name,
+            "command": command,
+            "success": success,
+            "message": message,
+            "os": self.os_info["os_key"],
+            "arch": self.os_info["arch_type"],
+        }
+        self.install_log.append(entry)
+        
+        # Save to log file
+        try:
+            log_dir = os.path.expanduser("~/.pythonOS/install_logs")
+            os.makedirs(log_dir, exist_ok=True)
+            log_file = os.path.join(log_dir, "install_history.json")
+            with open(log_file, "a") as f:
+                f.write(json.dumps(entry) + "\n")
+        except Exception:
+            pass
+    
+    def get_system_report(self):
+        """Generate comprehensive system report."""
+        report = f"""
+╔═══════════════════════════════════════════════════════════════╗
+║           UNIVERSAL INSTALL MANAGER - SYSTEM REPORT          ║
+╚═══════════════════════════════════════════════════════════════╝
+
+🖥️  PLATFORM INFORMATION:
+   Operating System: {self.os_info['os_key'].upper()}
+   Platform: {self.os_info['platform']}
+   Architecture: {self.os_info['arch_type']} ({self.os_info['bits']}-bit)
+   Release: {self.os_info['release']}
+   Processor: {self.os_info['processor']}
+   Device Type: {self.os_info['device_type']}
+
+🔐 PRIVILEGE LEVEL:
+   Current: {self.privilege_level.upper()}
+   Root Access: {'✓ Yes' if self.privilege_level == 'root' else '✗ No'}
+
+🔧 DEVELOPMENT TOOLS:
+   Python: {self.os_info['python_version']}
+   Node.js: {'✓ Available' if shutil.which('node') else '✗ Not found'}
+   Git: {'✓ Available' if shutil.which('git') else '✗ Not found'}
+   Docker: {'✓ Available' if shutil.which('docker') else '✗ Not found'}
+   Cargo: {'✓ Available' if shutil.which('cargo') else '✗ Not found'}
+
+📦 PACKAGE MANAGERS:
+   apt/apt-get: {'✓ Available' if shutil.which('apt') or shutil.which('apt-get') else '✗ Not found'}
+   dnf: {'✓ Available' if shutil.which('dnf') else '✗ Not found'}
+   pacman: {'✓ Available' if shutil.which('pacman') else '✗ Not found'}
+   apk: {'✓ Available' if shutil.which('apk') else '✗ Not found'}
+   brew: {'✓ Available' if shutil.which('brew') else '✗ Not found'}
+   pip/pip3: {'✓ Available' if shutil.which('pip') or shutil.which('pip3') else '✗ Not found'}
+
+📊 INSTALLATION LOG ENTRIES: {len(self.install_log)}
+"""
+        return report
+
+# Initialize global install manager
+try:
+    INSTALL_MANAGER = UniversalInstallManager()
+except Exception:
+    INSTALL_MANAGER = None
+
+# Initialize global credential manager for Download Center
+try:
+    CREDENTIAL_MANAGER = GlobalCredentialManager()
+except Exception:
+    CREDENTIAL_MANAGER = None
 
 def _ensure_textual_imports():
     """Lazy-load Textual widgets the first time enhanced mode is launched."""
@@ -9446,7 +9802,15 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
             pass
 
 def feature_tui_tools():
-    """TUI Tools Manager: Install and launch essential terminal UI tools."""
+    """TUI Tools Manager: AI-powered universal install with full OS compatibility."""
+    global INSTALL_MANAGER
+    
+    # Show system report first
+    if INSTALL_MANAGER:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(INSTALL_MANAGER.get_system_report())
+        input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+    
     # Expanded TUI Tools: Space science + essential + community TUI apps
     TUI_TOOLS = {
         # Space Science & Physics Tools
@@ -9454,291 +9818,390 @@ def feature_tui_tools():
             "name": "Gpredict",
             "category": "🛰️ Space Science",
             "description": "Real-time satellite tracking and orbital prediction",
+            "binary": "gpredict",
+            "links": ["https://github.com/csete/gpredict"],
             "debian": "apt install -y gpredict",
             "fedora": "dnf install -y gpredict",
             "arch": "pacman -S gpredict",
             "alpine": "apk add gpredict",
             "macos": "brew install gpredict",
+            "android": "pkg install -y gpredict",
+            "linux": "bash -c 'git clone https://github.com/csete/gpredict.git --depth=1 && cd gpredict && ./autogen.sh && ./configure && make && sudo make install'",
         },
         "stellarium": {
             "name": "Stellarium",
             "category": "🔭 Astronomy",
             "description": "Planetarium software with 3D visualization of the night sky",
+            "binary": "stellarium",
+            "links": ["https://stellarium.org/"],
             "debian": "apt install -y stellarium",
             "fedora": "dnf install -y stellarium",
             "arch": "pacman -S stellarium",
             "alpine": "apk add stellarium",
             "macos": "brew install stellarium",
+            "android": "pkg install -y stellarium",
+            "linux": "sudo apt-get install -y stellarium",
         },
         "gnuplot": {
             "name": "Gnuplot",
             "category": "📊 Physics",
             "description": "Command-line data visualization and physics plotting",
+            "binary": "gnuplot",
+            "links": ["http://www.gnuplot.info/"],
             "debian": "apt install -y gnuplot",
             "fedora": "dnf install -y gnuplot",
             "arch": "pacman -S gnuplot",
             "alpine": "apk add gnuplot",
             "macos": "brew install gnuplot",
+            "android": "pkg install -y gnuplot",
+            "linux": "sudo apt-get install -y gnuplot",
         },
         "spacetrack": {
             "name": "Space-Track CLI",
             "category": "🛰️ Orbital",
             "description": "Space-Track satellite database CLI (requires registration)",
+            "binary": "spacetrack",
+            "links": ["https://github.com/python-astrodynamics/space-track"],
             "debian": "pip install space-track",
             "fedora": "pip install space-track",
             "arch": "pip install space-track",
             "alpine": "pip install space-track",
             "macos": "pip install space-track",
+            "android": "pip install space-track",
+            "linux": "pip install space-track",
         },
         "ephem": {
             "name": "PyEphem",
             "category": "🌌 Astronomy",
             "description": "Astronomical calculation library for celestial mechanics",
+            "binary": "ephem",
+            "links": ["https://rhodesmill.org/pyephem/"],
             "debian": "pip install ephem",
             "fedora": "pip install ephem",
             "arch": "pip install ephem",
             "alpine": "pip install ephem",
             "macos": "pip install ephem",
+            "android": "pip install ephem",
+            "linux": "pip install ephem",
         },
         # Essential TUI Tools
         "ranger": {
             "name": "Ranger",
             "category": "📂 File Manager",
             "description": "Vim-inspired file manager with multi-pane view",
+            "binary": "ranger",
+            "links": ["https://github.com/ranger/ranger"],
             "debian": "apt install -y ranger",
             "fedora": "dnf install -y ranger",
             "arch": "pacman -S ranger",
             "alpine": "apk add ranger",
             "macos": "brew install ranger",
+            "android": "pkg install -y ranger",
+            "linux": "sudo apt-get install -y ranger",
         },
         "htop": {
             "name": "htop",
             "category": "⚙️ Monitor",
             "description": "Interactive process viewer and system monitor",
+            "binary": "htop",
+            "links": ["https://github.com/htop-dev/htop"],
             "debian": "apt install -y htop",
             "fedora": "dnf install -y htop",
             "arch": "pacman -S htop",
             "alpine": "apk add htop",
             "macos": "brew install htop",
+            "android": "pkg install -y htop",
+            "linux": "sudo apt-get install -y htop",
         },
         "fzf": {
             "name": "fzf",
             "category": "🔍 Finder",
             "description": "Fuzzy finder for interactive command-line searches",
+            "binary": "fzf",
+            "links": ["https://github.com/junegunn/fzf"],
             "debian": "apt install -y fzf",
             "fedora": "dnf install -y fzf",
             "arch": "pacman -S fzf",
             "alpine": "apk add fzf",
             "macos": "brew install fzf",
+            "android": "pkg install -y fzf",
+            "linux": "sudo apt-get install -y fzf",
+            "windows": "winget install fzf",
         },
         "lazygit": {
             "name": "LazyGit",
             "category": "🔧 Git",
             "description": "TUI client for managing Git repositories",
-            "debian": "wget https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_*_Linux_x86_64.tar.gz -O /tmp/lazygit.tar.gz && tar -C /usr/local/bin -xzf /tmp/lazygit.tar.gz lazygit",
-            "fedora": "sudo dnf copr enable atim/lazygit && dnf install -y lazygit",
+            "binary": "lazygit",
+            "links": ["https://github.com/jesseduffield/lazygit"],
+            "debian": 'bash -c "LAZYGIT_VERSION=$(curl -s https://api.github.com/repos/jesseduffield/lazygit/releases/latest | python3 -c \\\"import sys, json; print(json.load(sys.stdin)[\\\\\\\"tag_name\\\\\\\"][1:])\\\") && curl -Lo lazygit.tar.gz \\\"https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz\\\" && tar xf lazygit.tar.gz lazygit && install -Dm 755 lazygit \\\"$HOME/.local/bin/lazygit\\\""',
+            "fedora": "sudo dnf copr enable dejan/lazygit && sudo dnf install -y lazygit",
             "arch": "pacman -S lazygit",
             "alpine": "apk add lazygit",
             "macos": "brew install lazygit",
+            "android": "pkg install -y lazygit",
+            "linux": 'bash -c "LAZYGIT_VERSION=$(curl -s https://api.github.com/repos/jesseduffield/lazygit/releases/latest | python3 -c \\\"import sys, json; print(json.load(sys.stdin)[\\\\\\\"tag_name\\\\\\\"][1:])\\\") && curl -Lo lazygit.tar.gz \\\"https://github.com/jesseduffield/lazygit/releases/download/v${LAZYGIT_VERSION}/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz\\\" && tar xf lazygit.tar.gz lazygit && install -Dm 755 lazygit \\\"$HOME/.local/bin/lazygit\\\""',
+            "windows": "winget install -e --id=JesseDuffield.lazygit",
         },
         "btop": {
             "name": "btop++",
             "category": "⚙️ Monitor",
             "description": "Beautiful system resource monitor (CPU, memory, network)",
+            "binary": "btop",
+            "links": ["https://github.com/aristocratos/btop"],
             "debian": "apt install -y btop",
             "fedora": "dnf install -y btop",
             "arch": "pacman -S btop",
             "alpine": "apk add btop",
             "macos": "brew install btop",
+            "android": "pkg install -y btop",
+            "linux": "sudo apt-get install -y btop",
         },
         "posting": {
             "name": "Posting",
             "category": "🌐 API Client",
             "description": "Terminal HTTP client (Textual-based)",
-            "debian": "pipx install posting",
-            "fedora": "pipx install posting",
-            "arch": "pipx install posting",
-            "alpine": "pipx install posting",
-            "macos": "pipx install posting",
+            "binary": "posting",
+            "links": ["https://github.com/darrenburns/posting"],
+            "debian": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "fedora": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "arch": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "alpine": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "macos": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "android": "pip install posting",
+            "linux": "bash -c 'curl -LsSf https://astral.sh/uv/install.sh | sh && ~/.local/bin/uv tool install --python 3.13 posting'",
+            "windows": "powershell -ExecutionPolicy Bypass -Command \"iwr https://astral.sh/uv/install.ps1 -useb | iex; uv tool install --python 3.13 posting\"",
         },
         "oxker": {
             "name": "Oxker",
             "category": "🐳 Docker",
             "description": "TUI to view and control Docker containers",
+            "binary": "oxker",
+            "links": ["https://github.com/mrjackwills/oxker"],
             "debian": "cargo install oxker",
             "fedora": "cargo install oxker",
             "arch": "paru -S oxker",
             "alpine": "cargo install oxker",
             "macos": "brew install oxker",
+            "android": "cargo install oxker",
+            "linux": "cargo install oxker",
+            "windows": "cargo install oxker",
         },
         "durdraw": {
             "name": "Durdraw",
             "category": "🎨 Art",
             "description": "ASCII/ANSI art editor",
-            "debian": "python3 -m pip install --upgrade durdraw",
-            "fedora": "python3 -m pip install --upgrade durdraw",
-            "arch": "python3 -m pip install --upgrade durdraw",
-            "alpine": "python3 -m pip install --upgrade durdraw",
-            "macos": "python3 -m pip install --upgrade durdraw",
+            "binary": "durdraw",
+            "links": ["https://github.com/cmang/durdraw"],
+            "debian": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
+            "fedora": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
+            "arch": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
+            "alpine": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
+            "macos": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
+            "android": "pip install --upgrade git+https://github.com/cmang/durdraw",
+            "linux": "python3 -m pip install --upgrade git+https://github.com/cmang/durdraw",
         },
         "spf": {
             "name": "Superfile",
             "category": "📂 File Manager",
             "description": "Modern terminal file manager",
+            "binary": "spf",
+            "links": ["https://superfile.dev/"],
             "debian": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
             "fedora": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
             "arch": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
             "alpine": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
             "macos": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "android": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "linux": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "windows": "powershell -ExecutionPolicy Bypass -Command \"Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://superfile.dev/install.ps1'))\"",
         },
         "chess-tui": {
             "name": "Chess TUI",
             "category": "♟️ Games",
             "description": "Play chess in the terminal",
-            "debian": "cargo install chess-tui",
+            "binary": "chess-tui",
+            "links": ["https://github.com/thomas-mauran/chess-tui"],
+            "debian": 'bash -c "DEB_URL=$(curl -s https://api.github.com/repos/thomas-mauran/chess-tui/releases/latest | python3 -c \\\"import sys, json; data=json.load(sys.stdin); print([a[\\\\\\\"browser_download_url\\\\\\\"] for a in data[\\\\\\\"assets\\\\\\\"] if a[\\\\\\\"name\\\\\\\"].endswith(\\\\\\\".deb\\\\\\\")][0])\\\") && curl -LO \\\"$DEB_URL\\\" && sudo dpkg -i \\\"$(basename \\\"$DEB_URL\\\")\\\" && sudo apt-get install -f"',
             "fedora": "cargo install chess-tui",
             "arch": "cargo install chess-tui",
             "alpine": "cargo install chess-tui",
             "macos": "brew install thomas-mauran/tap/chess-tui",
+            "android": "cargo install chess-tui",
+            "linux": "cargo install chess-tui",
         },
         "gum": {
             "name": "Gum",
             "category": "🧰 CLI UX",
             "description": "Glamorous CLI prompts for scripts",
+            "binary": "gum",
+            "links": ["https://github.com/charmbracelet/gum"],
             "debian": "apt install -y gum",
             "fedora": "dnf install -y gum",
             "arch": "pacman -S gum",
             "alpine": "apk add gum",
             "macos": "brew install gum",
+            "android": "pkg install -y gum",
+            "linux": "sudo apt-get install -y gum",
+            "windows": "winget install charmbracelet.gum",
         },
         "gurk": {
             "name": "Gurk",
             "category": "💬 Chat",
             "description": "Signal client for terminal",
+            "binary": "gurk",
+            "links": ["https://github.com/boxdot/gurk-rs"],
             "debian": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
             "fedora": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
             "arch": "pacman -S gurk",
             "alpine": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
             "macos": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+            "android": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+            "linux": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
         },
         "caligula": {
             "name": "Caligula",
             "category": "💽 Imaging",
             "description": "User-friendly disk imaging",
+            "binary": "caligula",
+            "links": ["https://github.com/ifd3f/caligula"],
             "debian": "cargo install caligula",
             "fedora": "cargo install caligula",
             "arch": "pacman -S caligula",
             "alpine": "cargo install caligula",
             "macos": "brew tap philocalyst/tap && brew install caligula",
+            "android": "cargo install caligula",
+            "linux": "cargo install caligula",
         },
         "gophertube": {
             "name": "GopherTube",
             "category": "🎬 Media",
             "description": "Terminal YouTube client",
+            "binary": "gophertube",
+            "links": ["https://github.com/KrishnaSSH/GopherTube"],
             "debian": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
             "fedora": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
             "arch": "yay -S gophertube",
             "alpine": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
-            "macos": "brew install mpv fzf chafa yt-dlp",
+            "macos": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
+            "android": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
+            "linux": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
         },
         "sc-im": {
             "name": "sc-im",
             "category": "📊 Spreadsheet",
             "description": "Vim-like spreadsheet TUI",
+            "binary": "sc-im",
+            "links": ["https://github.com/andmarti1424/sc-im"],
             "debian": "apt install -y sc-im",
             "fedora": "dnf install -y sc-im",
             "arch": "pacman -S sc-im",
             "alpine": "apk add sc-im",
             "macos": "brew install sc-im",
+            "android": "pkg install -y sc-im",
+            "linux": "sudo apt-get install -y sc-im",
         },
         "browsh": {
             "name": "Browsh",
             "category": "🌐 Browser",
             "description": "Modern text-based browser (needs Firefox)",
+            "binary": "browsh",
+            "links": ["https://github.com/browsh-org/browsh"],
             "debian": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
             "fedora": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
             "arch": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
             "alpine": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
             "macos": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "android": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "linux": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "windows": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
         },
     }
 
-    os_key = _detect_os_key()
+    # Use universal install manager
     installed = []
     not_installed = []
 
-    def check_installed(cmd_name):
+    def check_installed(cmd_name, tool=None):
         """Check if a tool is installed."""
-        return shutil.which(cmd_name) is not None
+        binary = cmd_name
+        if isinstance(tool, dict):
+            binary = tool.get("binary", cmd_name)
+        if shutil.which(binary) is not None:
+            return True
+        # Fallback: common user-local bin
+        local_bin = os.path.join(os.path.expanduser("~"), ".local", "bin", binary)
+        return os.path.exists(local_bin)
 
     def run_install(tool_key):
-        """Run install command for a tool."""
+        """Run install with AI-powered universal manager."""
         tool = TUI_TOOLS.get(tool_key)
         if not tool:
             return False
-        cmd = tool.get(os_key) or tool.get("debian", "")
-        if not cmd or cmd.startswith("#"):
-            print(f"No install command available for {os_key}")
-            return False
-        print(f"\n{COLORS['4'][0]}Installing {tool['name']}...{RESET}")
-        ret = os.system(cmd)
-        return ret == 0
+        
+        if check_installed(tool_key, tool):
+            print(f"{COLORS['2'][0]}✓ {tool.get('name', tool_key)} already installed{RESET}")
+            return True
+        
+        # Use universal install manager if available
+        if INSTALL_MANAGER:
+            success = INSTALL_MANAGER.install_package(tool, tool.get('name', tool_key))
+        else:
+            # Fallback to direct execution
+            os_key = INSTALL_MANAGER.os_info["os_key"] if INSTALL_MANAGER else _detect_os_key()
+            cmd = tool.get(os_key) or tool.get("linux") or tool.get("debian", "")
+            if not cmd or cmd.startswith("#"):
+                print(f"No install command available for {os_key}")
+                return False
+            print(f"\n{COLORS['4'][0]}Installing {tool['name']}...{RESET}")
+            success = os.system(cmd) == 0
+        
+        if success:
+            try:
+                os_key = INSTALL_MANAGER.os_info["os_key"] if INSTALL_MANAGER else _detect_os_key()
+                entry = {
+                    "title": tool.get("name", tool_key),
+                    "category": tool.get("category", "tui"),
+                    "links": tool.get("links", []),
+                    "commands": {"generic": [tool.get(os_key, "")] if tool.get(os_key) else []},
+                    "binaries": [tool.get("binary", tool_key)],
+                }
+                _register_dynamic_app(tool_key, entry, os_key)
+            except Exception:
+                pass
+        
+        return success
 
     def run_tool(tool_key):
         """Launch an installed tool."""
         tool = TUI_TOOLS.get(tool_key)
         if not tool:
             return
-        if tool_key == "gpredict":
-            os.system("gpredict")
-        elif tool_key == "stellarium":
-            os.system("stellarium")
-        elif tool_key == "gnuplot":
-            os.system("gnuplot")
-        elif tool_key == "ranger":
-            os.system("ranger")
-        elif tool_key == "htop":
-            os.system("htop")
-        elif tool_key == "fzf":
-            os.system("fzf")
-        elif tool_key == "lazygit":
-            os.system("lazygit")
-        elif tool_key == "btop":
-            os.system("btop")
-        elif tool_key == "posting":
-            os.system("posting")
-        elif tool_key == "oxker":
-            os.system("oxker")
-        elif tool_key == "durdraw":
-            os.system("durdraw")
-        elif tool_key == "spf":
-            os.system("spf")
-        elif tool_key == "chess-tui":
-            os.system("chess-tui")
-        elif tool_key == "gum":
-            os.system("gum")
-        elif tool_key == "gurk":
-            os.system("gurk")
-        elif tool_key == "caligula":
-            os.system("caligula")
-        elif tool_key == "gophertube":
-            os.system("gophertube")
-        elif tool_key == "sc-im":
-            os.system("sc-im")
-        elif tool_key == "browsh":
-            os.system("browsh")
-        else:
+        launch_cmd = tool.get("launch") or tool.get("binary", tool_key)
+        if not launch_cmd:
             print(f"Tool {tool_key} launcher not yet implemented.")
+            return
+        os.system(launch_cmd)
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("🛠️ TUI Tools Manager")
-        print(f"{BOLD}Detected OS:{RESET} {os_key}")
+        print_header("🛠️ TUI Tools Manager - AI Universal Install")
+        if INSTALL_MANAGER:
+            os_info = f"{INSTALL_MANAGER.os_info['os_key'].upper()} ({INSTALL_MANAGER.os_info['arch_type']})"
+            priv = f"Privilege: {INSTALL_MANAGER.privilege_level.upper()}"
+        else:
+            os_info = _detect_os_key()
+            priv = "Privilege: UNKNOWN"
+        
+        print(f"{BOLD}System:{RESET} {os_info}  |  {BOLD}{priv}{RESET}")
         print(f"{BOLD}Available Tools ({len(TUI_TOOLS)}):{RESET}\n")
 
         idx = 1
+        installed.clear()
+        not_installed.clear()
+        
         for tool_key, tool_info in TUI_TOOLS.items():
-            is_installed = check_installed(tool_key)
+            is_installed = check_installed(tool_key, tool_info)
             status = f"{COLORS['2'][0]}✓ Installed{RESET}" if is_installed else f"{COLORS['1'][0]}✗ Not installed{RESET}"
             if is_installed:
                 installed.append(tool_key)
@@ -9748,31 +10211,87 @@ def feature_tui_tools():
             print(f"       Status: {status}")
             idx += 1
 
-        print(f"\n{BOLD}Installation:{RESET}")
-        print(" [I] Install All Missing Tools")
-        print(" [S] Select Tool to Install")
+        print(f"\n{BOLD}Installation Menu:{RESET}")
+        print(" [I] Install All Missing Tools (with AI routing)")
+        print(" [S] Select Single Tool to Install")
         print(" [L] Launch Tool")
-        print(" [U] Update All Tools")
+        print(" [R] System Report (AI Detection)")
+        print(" [V] View Installation Log")
+        print(" [U] Update Package Manager")
+        print(" [K] Show Tool Links")
         print(" [0] Return to Command Center")
 
         choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip().upper()
 
         if choice == '0':
             break
+        elif choice == 'R':
+            if INSTALL_MANAGER:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print(INSTALL_MANAGER.get_system_report())
+                input(f"\n{BOLD}[ Press Enter... ]{RESET}")
+            else:
+                print(f"{COLORS['1'][0]}[!] Install manager not initialized{RESET}")
+                input("\nPress Enter to continue...")
+        elif choice == 'V':
+            if INSTALL_MANAGER and INSTALL_MANAGER.install_log:
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("📊 Installation History")
+                for i, entry in enumerate(INSTALL_MANAGER.install_log[-20:], 1):
+                    status = f"{COLORS['2'][0]}✓{RESET}" if entry['success'] else f"{COLORS['1'][0]}✗{RESET}"
+                    print(f"{i}. {status} {entry['tool']:20} | {entry['os']:10} | {entry['message']}")
+                input(f"\n{BOLD}[ Press Enter... ]{RESET}")
+            else:
+                print(f"{COLORS['1'][0]}No installation history{RESET}")
+                input("\nPress Enter to continue...")
+        elif choice.isdigit():
+            tool_keys = list(TUI_TOOLS.keys())
+            idx = int(choice)
+            if 1 <= idx <= len(tool_keys):
+                tool_key = tool_keys[idx - 1]
+                tool = TUI_TOOLS[tool_key]
+                if check_installed(tool_key, tool):
+                    run_tool(tool_key)
+                else:
+                    prompt = input("Tool not installed. Install now? (y/n): ").strip().lower()
+                    if prompt == 'y':
+                        if run_install(tool_key):
+                            print(f"{COLORS['2'][0]}✓ Installed successfully{RESET}")
+                            run_tool(tool_key)
+                        else:
+                            print(f"{COLORS['1'][0]}✗ Installation failed{RESET}")
+                        input("\nPress Enter to continue...")
+            continue
         elif choice == 'I':
             if not not_installed:
                 print(f"{COLORS['2'][0]}All tools are already installed!{RESET}")
             else:
-                confirm = input(f"Install {len(not_installed)} missing tools? (y/n): ").strip().lower()
+                confirm = input(f"Install {len(not_installed)} missing tools with AI routing? (y/n): ").strip().lower()
                 if confirm == 'y':
+
                     for tool_key in not_installed:
+                        print(f"\n{BOLD}Installing {TUI_TOOLS[tool_key]['name']}...{RESET}")
                         if run_install(tool_key):
                             print(f"{COLORS['2'][0]}✓ {TUI_TOOLS[tool_key]['name']} installed{RESET}")
                         else:
                             print(f"{COLORS['1'][0]}✗ Failed to install {TUI_TOOLS[tool_key]['name']}{RESET}")
                     input("\nPress Enter to continue...")
+
             not_installed.clear()
             installed.clear()
+        elif choice == 'K':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📚 Tool Repository Links")
+            for i, (tool_key, tool) in enumerate(TUI_TOOLS.items(), 1):
+                print(f"\n{BOLD}{i}. {tool['name']} ({tool['category']}){RESET}")
+                links = tool.get("links", {})
+                if isinstance(links, dict):
+                    for link_type, url in links.items():
+                        print(f"   {link_type}: {url}")
+                else:
+                    print(f"   {links}")
+            input(f"\n{BOLD}[ Press Enter... ]{RESET}")
+
         elif choice == 'S':
             print(f"\n{BOLD}Select tool to install:{RESET}")
             idx = 1
@@ -9795,7 +10314,7 @@ def feature_tui_tools():
             tool_keys = list(TUI_TOOLS.keys())
             for tool_key in tool_keys:
                 tool = TUI_TOOLS[tool_key]
-                is_inst = check_installed(tool_key)
+                is_inst = check_installed(tool_key, tool)
                 status_str = "✓" if is_inst else "✗"
                 print(f"  [{idx}] {status_str} {tool['name']}")
                 idx += 1
@@ -9808,19 +10327,31 @@ def feature_tui_tools():
                     print(f"Tool not installed. Install first with option [S].")
                     input("\nPress Enter to continue...")
         elif choice == 'U':
-            print(f"{COLORS['3'][0]}Updating package manager...{RESET}")
+            print(f"\n{COLORS['3'][0]}🔄 Updating package manager and all tools...{RESET}")
+            if INSTALL_MANAGER:
+                os_key = INSTALL_MANAGER.os_info.get('os_key', 'linux')
+            else:
+                os_key = _detect_os_key()
+            
             if os_key == "debian":
-                os.system("apt update && apt upgrade -y")
+                os.system("sudo apt update && sudo apt upgrade -y")
             elif os_key == "fedora":
-                os.system("dnf check-update && dnf upgrade -y")
+                os.system("sudo dnf check-update && sudo dnf upgrade -y")
             elif os_key == "arch":
-                os.system("pacman -Syu")
+                os.system("sudo pacman -Syu")
             elif os_key == "alpine":
-                os.system("apk update && apk upgrade")
+                os.system("sudo apk update && sudo apk upgrade")
             elif os_key == "macos":
                 os.system("brew update && brew upgrade")
+            elif os_key == "windows":
+                os.system("winget upgrade --all")
+            
+            if INSTALL_MANAGER:
+                INSTALL_MANAGER._log_install("system", "upgrade_all", f"All tools/packages upgraded", success=True)
+            
             print(f"{COLORS['2'][0]}✓ Update complete{RESET}")
             input("\nPress Enter to continue...")
+
 
 
 def feature_download_center():
@@ -10025,6 +10556,150 @@ def feature_download_center():
         
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
+    def manage_credentials():
+        """Interactive credential manager for all downloads."""
+        while True:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔐 Global Credential Manager")
+            
+            if not CREDENTIAL_MANAGER:
+                print(f"{COLORS['1'][0]}Credential manager not initialized{RESET}")
+                input("Press Enter to continue...")
+                break
+            
+            print(f"\n{BOLD}📋 Current Status:{RESET}")
+            CREDENTIAL_MANAGER.show_credential_status()
+            
+            print(f"\n{BOLD}🔑 Credential Management:{RESET}")
+            print(" [1] 🔓 Add/Update Credentials for Service")
+            print(" [2] 🗑️  Delete Credentials")
+            print(" [3] 🧹 Clear All Credentials")
+            print(" [4] 📝 View Stored Services")
+            print(" [0] ↩️  Back")
+            
+            cred_choice = input(f"\n{BOLD}Select option: {RESET}").strip().upper()
+            
+            if cred_choice == '0':
+                break
+            elif cred_choice == '1':
+                print(f"\n{BOLD}Available Services:{RESET}")
+                services = [
+                    "github", "gitlab", "bitbucket", "npm", "pypi", "docker",
+                    "jfrog", "nexus", "artifactory", "aws", "azure", "gcp",
+                    "heroku", "digitalocean", "linode", "custom"
+                ]
+                for i, svc in enumerate(services, 1):
+                    print(f"  [{i}] {svc}")
+                
+                svc_choice = input("\nSelect service number (or enter custom name): ").strip()
+                if svc_choice.isdigit() and 1 <= int(svc_choice) <= len(services):
+                    service = services[int(svc_choice) - 1]
+                elif svc_choice:
+                    service = svc_choice
+                else:
+                    print("Invalid choice")
+                    input("Press Enter to continue...")
+                    continue
+                
+                username = input(f"Enter username for {service}: ").strip()
+                if username:
+                    CREDENTIAL_MANAGER.add_credentials(service, username)
+                    print(f"{COLORS['2'][0]}✓ Credentials saved for {service}{RESET}")
+                    input("Press Enter to continue...")
+            
+            elif cred_choice == '2':
+                services = CREDENTIAL_MANAGER.list_logged_in()
+                if not services:
+                    print(f"{COLORS['1'][0]}No credentials stored{RESET}")
+                    input("Press Enter to continue...")
+                    continue
+                
+                print(f"\n{BOLD}Stored Services:{RESET}")
+                for i, svc in enumerate(services, 1):
+                    print(f"  [{i}] {svc}")
+                
+                del_choice = input("\nSelect service number to delete: ").strip()
+                if del_choice.isdigit() and 1 <= int(del_choice) <= len(services):
+                    service = services[int(del_choice) - 1]
+                    CREDENTIAL_MANAGER.clear_credentials(service)
+                    print(f"{COLORS['2'][0]}✓ Credentials deleted for {service}{RESET}")
+                    input("Press Enter to continue...")
+            
+            elif cred_choice == '3':
+                confirm = input("Delete ALL credentials? (yes/no): ").strip().lower()
+                if confirm == 'yes':
+                    CREDENTIAL_MANAGER.clear_credentials()
+                    print(f"{COLORS['2'][0]}✓ All credentials cleared{RESET}")
+                else:
+                    print("Cancelled")
+                input("Press Enter to continue...")
+            
+            elif cred_choice == '4':
+                services = CREDENTIAL_MANAGER.list_logged_in()
+                print(f"\n{BOLD}Services with Stored Credentials:{RESET}")
+                if services:
+                    for svc in sorted(services):
+                        creds = CREDENTIAL_MANAGER.get_credentials(svc)
+                        user = creds.get('username', 'unknown')
+                        timestamp = creds.get('timestamp', 'unknown')
+                        print(f"  • {svc:20} | User: {user:15} | Added: {timestamp}")
+                else:
+                    print(f"  {COLORS['1'][0]}No credentials stored{RESET}")
+                input("\nPress Enter to continue...")
+
+    def download_with_credentials(package_key, os_target):
+        """Download package using stored credentials if available."""
+        entry = catalog.get(package_key, {})
+        commands = entry.get("commands", {})
+        install_cmd = commands.get(os_target) or commands.get("generic")
+        
+        if not install_cmd:
+            print(f"{COLORS['1'][0]}No installation command available for {os_target}{RESET}")
+            return False
+        
+        # Check if credentials are needed
+        needs_auth = any(x in install_cmd.lower() for x in ["--user", "--password", "--token", "--auth"])
+        
+        if needs_auth:
+            print(f"\n{BOLD}🔐 Authentication Required for {package_key}{RESET}")
+            CREDENTIAL_MANAGER.show_credential_status()
+            
+            # Auto-detect service from package or let user choose
+            use_stored = input("\nUse stored credentials? (y/n): ").strip().lower()
+            
+            if use_stored == 'y':
+                services = CREDENTIAL_MANAGER.list_logged_in()
+                if services:
+                    print(f"\n{BOLD}Available Credentials:{RESET}")
+                    for i, svc in enumerate(services, 1):
+                        print(f"  [{i}] {svc}")
+                    
+                    svc_choice = input("\nSelect service: ").strip()
+                    if svc_choice.isdigit() and 1 <= int(svc_choice) <= len(services):
+                        service = services[int(svc_choice) - 1]
+                        creds = CREDENTIAL_MANAGER.get_credentials(service)
+                        
+                        # Inject credentials into command
+                        if creds:
+                            username = creds['username']
+                            password = creds['password']
+                            install_cmd = install_cmd.replace("--user placeholder", f"--user {username}")
+                            install_cmd = install_cmd.replace("--password placeholder", f"--password {password}")
+                            print(f"{COLORS['2'][0]}✓ Using credentials for {service}{RESET}")
+                else:
+                    print(f"{COLORS['1'][0]}No credentials stored. Add them in Credential Manager first.{RESET}")
+        
+        # Execute install command
+        print(f"\n{BOLD}📥 Executing:{RESET} {install_cmd[:80]}...")
+        result = os.system(install_cmd)
+        
+        if result == 0:
+            print(f"{COLORS['2'][0]}✓ Installation succeeded{RESET}")
+            return True
+        else:
+            print(f"{COLORS['1'][0]}✗ Installation failed{RESET}")
+            return False
+
     sys_info = _detect_system_info()
     
     while True:
@@ -10086,6 +10761,7 @@ def feature_download_center():
         print(" [C] 🔍 Dependency Checker")
         print(" [I] ℹ️  Package Information Viewer")
         print(" [S] 📍 Select OS Target")
+        print(" [K] 🔐 Credential Manager (Global Login)")
         print(" [0] ↩️  Return to Command Center")
 
         choice = input("\nSelect option: ").strip().upper()
@@ -10122,6 +10798,9 @@ def feature_download_center():
         if choice == 'S':
             sys_info['os'] = select_os(sys_info['os'])
             os_key = sys_info['os']
+            continue
+        if choice == 'K':
+            manage_credentials()
             continue
 
         mapping = {
@@ -11141,6 +11820,101 @@ def _ai_cns_config_audit():
     lines.append(f"ram_drive: {_get_ram_drive_status().get('enabled')}")
     return lines
 
+def _pyai_manifest_info():
+    mod = _load_pyai_plugin()
+    if not mod:
+        return ["pyAI not linked."]
+    try:
+        info = mod.manifest()
+        lines = [f"pyAI version: {info.get('version', 'n/a')}"]
+        lines.append(f"Tasks: {len(info.get('tasks', []))}")
+        lines.append(f"NumPy: {info.get('numpy')}")
+        lines.append(f"SciPy: {info.get('scipy')}")
+        lines.append(f"SymPy: {info.get('sympy')}")
+        return lines
+    except Exception:
+        return ["pyAI manifest unavailable."]
+
+def _pyai_efficiency_lab():
+    samples = []
+    for _ in range(5):
+        try:
+            cpu = psutil.cpu_percent(interval=0.2)
+            mem = psutil.virtual_memory().percent
+            disk = psutil.disk_usage('/').percent
+            samples.append((cpu, mem, disk))
+        except Exception:
+            pass
+    if not samples:
+        return ["Efficiency sampling failed."], None
+    avg_cpu = sum(s[0] for s in samples) / len(samples)
+    avg_mem = sum(s[1] for s in samples) / len(samples)
+    avg_disk = sum(s[2] for s in samples) / len(samples)
+    try:
+        freq = psutil.cpu_freq()
+        clock = freq.current if freq else 0.0
+    except Exception:
+        clock = 0.0
+    try:
+        stats = psutil.cpu_stats()
+        ctx = getattr(stats, "ctx_switches", 0)
+        intr = getattr(stats, "interrupts", 0)
+    except Exception:
+        ctx = 0
+        intr = 0
+    try:
+        io = psutil.disk_io_counters()
+        busy = getattr(io, "busy_time", 0)
+    except Exception:
+        busy = 0
+    efficiency = max(0.0, 100.0 - (avg_cpu * 0.4 + avg_mem * 0.3 + avg_disk * 0.3))
+    lines = [
+        f"CPU avg: {avg_cpu:.1f}%",
+        f"MEM avg: {avg_mem:.1f}%",
+        f"DISK avg: {avg_disk:.1f}%",
+        f"CPU clock: {clock:.1f} MHz",
+        f"Context switches: {ctx}",
+        f"Interrupts: {intr}",
+        f"Disk busy time: {busy} ms",
+        f"Efficiency score: {efficiency:.1f}/100",
+    ]
+    return lines, {
+        "cpu_util": avg_cpu,
+        "mem_util": avg_mem,
+        "disk_util": avg_disk,
+        "cpu_clock_mhz": clock,
+        "ctx_switches": ctx,
+        "interrupts": intr,
+        "disk_busy_ms": busy,
+        "efficiency": efficiency,
+    }
+
+def _pyai_file_organizer_plan(path):
+    categories = {
+        "images": {".png", ".jpg", ".jpeg", ".gif", ".bmp", ".tif", ".tiff", ".webp"},
+        "video": {".mp4", ".mkv", ".mov", ".avi", ".wmv", ".flv"},
+        "audio": {".mp3", ".wav", ".flac", ".m4a", ".aac", ".ogg"},
+        "docs": {".pdf", ".doc", ".docx", ".txt", ".md", ".rtf"},
+        "archives": {".zip", ".tar", ".gz", ".bz2", ".xz", ".7z", ".rar"},
+        "code": {".py", ".js", ".ts", ".java", ".c", ".cpp", ".rs", ".go"},
+        "data": {".csv", ".json", ".xml", ".yaml", ".yml"},
+    }
+    plan = []
+    try:
+        for root, _, files in os.walk(path):
+            for name in files:
+                src = os.path.join(root, name)
+                ext = os.path.splitext(name)[1].lower()
+                dest_category = "other"
+                for cat, exts in categories.items():
+                    if ext in exts:
+                        dest_category = cat
+                        break
+                plan.append((src, dest_category))
+    except Exception:
+        return []
+    return plan
+
 
 def feature_deep_probe_ai():
     def _ai_language_interpreter():
@@ -11309,6 +12083,9 @@ def feature_deep_probe_ai():
         print(" [17] Resource Balancer")
         print(" [18] Network Watch")
         print(" [19] Disk/IO Heatmap")
+        print(" [20] pyAI Manifest")
+        print(" [21] pyAI Efficiency Lab")
+        print(" [22] pyAI File Organizer")
         print(" [0] Return")
 
         choice = input("\nSelect option: ").strip()
@@ -11361,6 +12138,41 @@ def feature_deep_probe_ai():
             _simple_report("🌐 Network Watch", _ai_cns_network_watch())
         elif choice == '19':
             _simple_report("💽 Disk/IO Heatmap", _ai_cns_io_heatmap())
+        elif choice == '20':
+            _simple_report("🧾 pyAI Manifest", _pyai_manifest_info())
+        elif choice == '21':
+            lines, payload = _pyai_efficiency_lab()
+            if _is_pyai_linked():
+                mod = _load_pyai_plugin()
+                if mod and hasattr(mod, "run_task") and payload:
+                    try:
+                        result = mod.run_task("efficiency_index", **payload)
+                        lines.append(f"pyAI efficiency_index: {result.get('result')}")
+                    except Exception:
+                        lines.append("pyAI efficiency_index unavailable.")
+            _simple_report("⚙️ pyAI Efficiency Lab", lines)
+        elif choice == '22':
+            target = input("Target folder to organize: ").strip() or os.path.expanduser("~")
+            plan = _pyai_file_organizer_plan(target)
+            if not plan:
+                _simple_report("🗂️ pyAI File Organizer", ["No files found or unable to scan."])
+            else:
+                preview = [f"{src} -> {cat}" for src, cat in plan[:20]]
+                preview.append(f"Total files: {len(plan)}")
+                _simple_report("🗂️ pyAI File Organizer Plan", preview)
+                apply_move = input("Apply organization? (y/n): ").strip().lower()
+                if apply_move in ("y", "yes"):
+                    base_out = os.path.join(target, "AI_Organized")
+                    moved = 0
+                    for src, cat in plan:
+                        dest_dir = os.path.join(base_out, cat)
+                        try:
+                            os.makedirs(dest_dir, exist_ok=True)
+                            shutil.move(src, os.path.join(dest_dir, os.path.basename(src)))
+                            moved += 1
+                        except Exception:
+                            continue
+                    _simple_report("🗂️ Organization Complete", [f"Moved {moved} files.", f"Output: {base_out}"])
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
