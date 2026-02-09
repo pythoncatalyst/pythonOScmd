@@ -2322,6 +2322,89 @@ def _set_display_mode(mode):
     display_mode = mode
     _update_user_config(display_mode=display_mode)
 
+def _detect_ram_drive_base():
+    candidates = ["/dev/shm", "/run/shm", "/tmp"]
+    for cand in candidates:
+        try:
+            if os.path.isdir(cand) and os.access(cand, os.W_OK):
+                return cand
+        except Exception:
+            continue
+    return None
+
+def _sync_tree(src, dst):
+    if not os.path.isdir(src):
+        return
+    for root, dirs, files in os.walk(src):
+        rel = os.path.relpath(root, src)
+        target_root = dst if rel == "." else os.path.join(dst, rel)
+        os.makedirs(target_root, exist_ok=True)
+        for d in dirs:
+            os.makedirs(os.path.join(target_root, d), exist_ok=True)
+        for f in files:
+            s_path = os.path.join(root, f)
+            d_path = os.path.join(target_root, f)
+            try:
+                shutil.copy2(s_path, d_path)
+            except Exception:
+                try:
+                    shutil.copy(s_path, d_path)
+                except Exception:
+                    pass
+
+def _set_pythonos_data_root(new_root):
+    global DB_DIR, LOG_DIR, DB_FILE, SWAP_CACHE_DIR, CONFIG_FILE, DOC_LIBRARY_DIR
+    DB_DIR = new_root
+    LOG_DIR = os.path.join(DB_DIR, "logs")
+    DB_FILE = os.path.join(DB_DIR, "pythonOS.db")
+    SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
+    CONFIG_FILE = os.path.join(DB_DIR, "config.json")
+    DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
+
+def _get_ram_drive_status():
+    status = {"enabled": False, "path": None}
+    try:
+        if isinstance(_user_config, dict):
+            status["enabled"] = bool(_user_config.get("ram_drive_enabled"))
+            status["path"] = _user_config.get("ram_drive_path")
+    except Exception:
+        pass
+    if not status["path"] and DB_DIR:
+        if DB_DIR.startswith("/dev/shm") or DB_DIR.startswith("/run/shm"):
+            status["enabled"] = True
+            status["path"] = DB_DIR
+    return status
+
+def feature_ram_drive():
+    """Enable RAM drive for pythonOS_data to speed up IO-heavy operations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🧠 Ram Drive Branch")
+    print("Branch? Offload pythonOS_data to RAM for faster IO.")
+    branch = input("Branch? (y/n): ").strip().lower()
+    if branch not in ("y", "yes"):
+        print(f"{COLORS['4'][0]}INLINE? Running with disk-backed data.{RESET}")
+        input("\nPress Enter to continue...")
+        return
+
+    base = _detect_ram_drive_base()
+    if not base:
+        print(f"{COLORS['1'][0]}No RAM-backed filesystem detected.{RESET}")
+        input("\nPress Enter to continue...")
+        return
+
+    target_dir = os.path.join(base, "pythonOS_data")
+    try:
+        os.makedirs(target_dir, exist_ok=True)
+        _sync_tree(DB_DIR, target_dir)
+        _set_pythonos_data_root(target_dir)
+        init_database_system()
+        _update_user_config(create_if_missing=True, ram_drive_enabled=True, ram_drive_path=target_dir)
+        print(f"{COLORS['2'][0]}✓ Ram Drive enabled at: {target_dir}{RESET}")
+        print("Data directory is now RAM-backed for this session.")
+    except Exception as exc:
+        print(f"{COLORS['1'][0]}Failed to enable Ram Drive: {exc}{RESET}")
+    input("\nPress Enter to continue...")
+
 # --- NEW: VISUAL FX STREAM FILTER ---
 class VisualFXFilter:
     def __init__(self, original_stdout):
@@ -8515,7 +8598,7 @@ def _download_center_run_commands(cmd_list):
 
 def feature_tui_tools():
     """TUI Tools Manager: Install and launch essential terminal UI tools."""
-    # 10 Essential TUI Tools: 5 for space science/physics + 5 essential tools
+    # Expanded TUI Tools: Space science + essential + community TUI apps
     TUI_TOOLS = {
         # Space Science & Physics Tools
         "gpredict": {
@@ -8619,6 +8702,116 @@ def feature_tui_tools():
             "alpine": "apk add btop",
             "macos": "brew install btop",
         },
+        "posting": {
+            "name": "Posting",
+            "category": "🌐 API Client",
+            "description": "Terminal HTTP client (Textual-based)",
+            "debian": "pipx install posting",
+            "fedora": "pipx install posting",
+            "arch": "pipx install posting",
+            "alpine": "pipx install posting",
+            "macos": "pipx install posting",
+        },
+        "oxker": {
+            "name": "Oxker",
+            "category": "🐳 Docker",
+            "description": "TUI to view and control Docker containers",
+            "debian": "cargo install oxker",
+            "fedora": "cargo install oxker",
+            "arch": "paru -S oxker",
+            "alpine": "cargo install oxker",
+            "macos": "brew install oxker",
+        },
+        "durdraw": {
+            "name": "Durdraw",
+            "category": "🎨 Art",
+            "description": "ASCII/ANSI art editor",
+            "debian": "python3 -m pip install --upgrade durdraw",
+            "fedora": "python3 -m pip install --upgrade durdraw",
+            "arch": "python3 -m pip install --upgrade durdraw",
+            "alpine": "python3 -m pip install --upgrade durdraw",
+            "macos": "python3 -m pip install --upgrade durdraw",
+        },
+        "spf": {
+            "name": "Superfile",
+            "category": "📂 File Manager",
+            "description": "Modern terminal file manager",
+            "debian": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "fedora": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "arch": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "alpine": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+            "macos": "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"",
+        },
+        "chess-tui": {
+            "name": "Chess TUI",
+            "category": "♟️ Games",
+            "description": "Play chess in the terminal",
+            "debian": "cargo install chess-tui",
+            "fedora": "cargo install chess-tui",
+            "arch": "cargo install chess-tui",
+            "alpine": "cargo install chess-tui",
+            "macos": "brew install thomas-mauran/tap/chess-tui",
+        },
+        "gum": {
+            "name": "Gum",
+            "category": "🧰 CLI UX",
+            "description": "Glamorous CLI prompts for scripts",
+            "debian": "apt install -y gum",
+            "fedora": "dnf install -y gum",
+            "arch": "pacman -S gum",
+            "alpine": "apk add gum",
+            "macos": "brew install gum",
+        },
+        "gurk": {
+            "name": "Gurk",
+            "category": "💬 Chat",
+            "description": "Signal client for terminal",
+            "debian": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+            "fedora": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+            "arch": "pacman -S gurk",
+            "alpine": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+            "macos": "cargo install --git https://github.com/boxdot/gurk-rs gurk",
+        },
+        "caligula": {
+            "name": "Caligula",
+            "category": "💽 Imaging",
+            "description": "User-friendly disk imaging",
+            "debian": "cargo install caligula",
+            "fedora": "cargo install caligula",
+            "arch": "pacman -S caligula",
+            "alpine": "cargo install caligula",
+            "macos": "brew tap philocalyst/tap && brew install caligula",
+        },
+        "gophertube": {
+            "name": "GopherTube",
+            "category": "🎬 Media",
+            "description": "Terminal YouTube client",
+            "debian": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
+            "fedora": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
+            "arch": "yay -S gophertube",
+            "alpine": "curl -sSL https://raw.githubusercontent.com/KrishnaSSH/GopherTube/main/install.sh | bash",
+            "macos": "brew install mpv fzf chafa yt-dlp",
+        },
+        "sc-im": {
+            "name": "sc-im",
+            "category": "📊 Spreadsheet",
+            "description": "Vim-like spreadsheet TUI",
+            "debian": "apt install -y sc-im",
+            "fedora": "dnf install -y sc-im",
+            "arch": "pacman -S sc-im",
+            "alpine": "apk add sc-im",
+            "macos": "brew install sc-im",
+        },
+        "browsh": {
+            "name": "Browsh",
+            "category": "🌐 Browser",
+            "description": "Modern text-based browser (needs Firefox)",
+            "debian": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "fedora": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "arch": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "alpine": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+            "macos": "echo 'Download from https://github.com/browsh-org/browsh/releases'",
+        },
     }
 
     os_key = _detect_os_key()
@@ -8663,6 +8856,28 @@ def feature_tui_tools():
             os.system("lazygit")
         elif tool_key == "btop":
             os.system("btop")
+        elif tool_key == "posting":
+            os.system("posting")
+        elif tool_key == "oxker":
+            os.system("oxker")
+        elif tool_key == "durdraw":
+            os.system("durdraw")
+        elif tool_key == "spf":
+            os.system("spf")
+        elif tool_key == "chess-tui":
+            os.system("chess-tui")
+        elif tool_key == "gum":
+            os.system("gum")
+        elif tool_key == "gurk":
+            os.system("gurk")
+        elif tool_key == "caligula":
+            os.system("caligula")
+        elif tool_key == "gophertube":
+            os.system("gophertube")
+        elif tool_key == "sc-im":
+            os.system("sc-im")
+        elif tool_key == "browsh":
+            os.system("browsh")
         else:
             print(f"Tool {tool_key} launcher not yet implemented.")
 
@@ -8670,7 +8885,7 @@ def feature_tui_tools():
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🛠️ TUI Tools Manager")
         print(f"{BOLD}Detected OS:{RESET} {os_key}")
-        print(f"{BOLD}Available Tools (10):{RESET}\n")
+        print(f"{BOLD}Available Tools ({len(TUI_TOOLS)}):{RESET}\n")
 
         idx = 1
         for tool_key, tool_info in TUI_TOOLS.items():
@@ -17829,6 +18044,7 @@ TEXTUAL_INLINE_CSS = """
 Screen {
     background: #0f131a;
     color: #e5e7eb;
+    layers: base overlay;
 }
 #layout-root {
     height: 1fr;
@@ -17922,6 +18138,22 @@ Screen {
     width: 18;
     border: round #2a2f3a;
     text-align: center;
+}
+#float-panel {
+    layer: overlay;
+    width: 60;
+    height: 14;
+    offset: 4 2;
+    background: #0b1220;
+    border: round #8ec6ff;
+    padding: 1 2;
+}
+#float-panel.hidden {
+    display: none;
+}
+#float-panel-title {
+    text-style: bold;
+    color: #8ec6ff;
 }
 """
 # ============================================================================
@@ -20602,6 +20834,7 @@ CLASSIC_APP_ACTIONS = [
     ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
     ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
+    ("ram_drive", {"title": "Ram Drive", "summary": "Branch pythonOS_data into RAM for faster IO.", "category": "system", "operation": "Ram_Drive", "func": feature_ram_drive}),
 ]
 
 # Command Center actions presented in the Textual shell. Entries may include
@@ -20642,7 +20875,7 @@ def _build_classic_app_menu_options():
         'media': 'I', 'pybeacon': 'W', 'wifi': 'J', 'ai_center': 'K',
         'bluetooth': 'L', 'traffic': 'M', 'logs': 'N', 'download': 'O',
         'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
-        'docs': 'T'
+        'docs': 'T', 'ram_drive': 'Y'
     }
     
     for key, meta in CLASSIC_APP_ACTIONS:
@@ -20702,6 +20935,7 @@ def _format_classic_menu_display():
     
     # Display modes
     lines.append(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
+    lines.append(f" {BOLD}[Y]{RESET} 🧠 Ram Drive (Branch/Inline)")
     
     return "\n".join(lines)
 
@@ -20723,9 +20957,9 @@ def _fmt_pct(val):
         return "0.0%"
 
 def feature_enhanced_display_mode():
-    """Enhanced Display Mode - Launches Bpytop System Monitor."""
+    """Enhanced Display Mode - 600% enhancement with live dashboards and app suite."""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_header("🎨 Enhanced Display Mode - Bpytop Monitor")
+    print_header("🎨 Enhanced Display Mode - 600% Suite")
 
     print(f"\n{BOLD}System Resource Monitor Options:{RESET}")
     print(f" {BOLD}[1]{RESET} 🚀 Launch Bpytop (if installed)")
@@ -20733,6 +20967,8 @@ def feature_enhanced_display_mode():
     print(f" {BOLD}[3]{RESET} 📊 Launch Gtop (if installed)")
     print(f" {BOLD}[4]{RESET} ⚡ Launch Btop++ (if installed)")
     print(f" {BOLD}[5]{RESET} 🎨 Launch Textual Interface (PyTextOS)")
+    print(f" {BOLD}[6]{RESET} 💫 Enhanced Display Suite (Textual Dashboard)")
+    print(f" {BOLD}[7]{RESET} 🔧 Display FX Lab (fonts & ANSI test)")
     print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
     choice = input(f"\n{BOLD}Select monitor: {RESET}").strip()
@@ -20749,10 +20985,747 @@ def feature_enhanced_display_mode():
         launch_btop_monitor()
     elif choice == '5':
         return run_pytextos(return_to_classic=True)
+    elif choice == '6':
+        return feature_enhanced_display_suite()
+    elif choice == '7':
+        return feature_test_font_size()
     else:
         print(f"{COLORS['1'][0]}Invalid option{RESET}")
         time.sleep(1)
         feature_enhanced_display_mode()
+
+def feature_enhanced_display_suite():
+    """Textual Enhanced Display Suite with 15+ live apps."""
+    try:
+        from textual.app import App, ComposeResult
+        from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab, Button, Digits, Input
+        from textual.containers import Horizontal, Vertical, Container
+        from textual.reactive import reactive, var
+        from textual import on
+        from textual.css.query import NoMatches
+        from textual import events
+    except ImportError:
+        print(f"{get_current_color()}✗{RESET} Textual not installed.")
+        print("\nInstall with: pip install textual")
+        input("\nPress Enter to return...")
+        return
+
+    import asyncio
+    import platform
+    import socket
+    import threading
+    from datetime import datetime
+
+    def feature_textual_calculator():
+        """Embedded Textual calculator app."""
+        from decimal import Decimal
+
+        class CalculatorApp(App):
+            """A working desktop calculator."""
+
+            CSS = """
+            #calculator { width: 60; height: auto; border: solid $primary; padding: 1; }
+            #numbers { height: 3; margin-bottom: 1; }
+            Button { width: 9; height: 3; margin: 0 1 1 0; }
+            .number { background: $panel; }
+            """
+
+            numbers = var("0")
+            show_ac = var(True)
+            left = var(Decimal("0"))
+            right = var(Decimal("0"))
+            value = var("")
+            operator = var("plus")
+
+            NAME_MAP = {
+                "asterisk": "multiply",
+                "slash": "divide",
+                "underscore": "plus-minus",
+                "full_stop": "point",
+                "plus_minus_sign": "plus-minus",
+                "percent_sign": "percent",
+                "equals_sign": "equals",
+                "minus": "minus",
+                "plus": "plus",
+            }
+
+            def watch_numbers(self, value: str) -> None:
+                self.query_one("#numbers", Digits).update(value)
+
+            def compute_show_ac(self) -> bool:
+                return self.value in ("", "0") and self.numbers == "0"
+
+            def watch_show_ac(self, show_ac: bool) -> None:
+                self.query_one("#c").display = not show_ac
+                self.query_one("#ac").display = show_ac
+
+            def compose(self) -> ComposeResult:
+                with Container(id="calculator"):
+                    yield Digits(id="numbers")
+                    yield Button("AC", id="ac", variant="primary")
+                    yield Button("C", id="c", variant="primary")
+                    yield Button("+/-", id="plus-minus", variant="primary")
+                    yield Button("%", id="percent", variant="primary")
+                    yield Button("÷", id="divide", variant="warning")
+                    yield Button("7", id="number-7", classes="number")
+                    yield Button("8", id="number-8", classes="number")
+                    yield Button("9", id="number-9", classes="number")
+                    yield Button("×", id="multiply", variant="warning")
+                    yield Button("4", id="number-4", classes="number")
+                    yield Button("5", id="number-5", classes="number")
+                    yield Button("6", id="number-6", classes="number")
+                    yield Button("-", id="minus", variant="warning")
+                    yield Button("1", id="number-1", classes="number")
+                    yield Button("2", id="number-2", classes="number")
+                    yield Button("3", id="number-3", classes="number")
+                    yield Button("+", id="plus", variant="warning")
+                    yield Button("0", id="number-0", classes="number")
+                    yield Button(".", id="point")
+                    yield Button("=", id="equals", variant="warning")
+
+            def on_key(self, event: events.Key) -> None:
+                def press(button_id: str) -> None:
+                    try:
+                        self.query_one(f"#{button_id}", Button).press()
+                    except NoMatches:
+                        pass
+
+                key = event.key
+                if key.isdecimal():
+                    press(f"number-{key}")
+                elif key == "c":
+                    press("c")
+                    press("ac")
+                else:
+                    button_id = self.NAME_MAP.get(key)
+                    if button_id is not None:
+                        press(self.NAME_MAP.get(key, key))
+
+            @on(Button.Pressed, ".number")
+            def number_pressed(self, event: Button.Pressed) -> None:
+                assert event.button.id is not None
+                number = event.button.id.partition("-")[-1]
+                self.numbers = self.value = self.value.lstrip("0") + number
+
+            @on(Button.Pressed, "#plus-minus")
+            def plus_minus_pressed(self) -> None:
+                self.numbers = self.value = str(Decimal(self.value or "0") * -1)
+
+            @on(Button.Pressed, "#percent")
+            def percent_pressed(self) -> None:
+                self.numbers = self.value = str(Decimal(self.value or "0") / Decimal(100))
+
+            @on(Button.Pressed, "#point")
+            def pressed_point(self) -> None:
+                if "." not in self.value:
+                    self.numbers = self.value = (self.value or "0") + "."
+
+            @on(Button.Pressed, "#ac")
+            def pressed_ac(self) -> None:
+                self.value = ""
+                self.left = self.right = Decimal(0)
+                self.operator = "plus"
+                self.numbers = "0"
+
+            @on(Button.Pressed, "#c")
+            def pressed_c(self) -> None:
+                self.value = ""
+                self.numbers = "0"
+
+            def _do_math(self) -> None:
+                try:
+                    if self.operator == "plus":
+                        self.left += self.right
+                    elif self.operator == "minus":
+                        self.left -= self.right
+                    elif self.operator == "divide":
+                        self.left /= self.right
+                    elif self.operator == "multiply":
+                        self.left *= self.right
+                    self.numbers = str(self.left)
+                    self.value = ""
+                except Exception:
+                    self.numbers = "Error"
+
+            @on(Button.Pressed, "#plus,#minus,#divide,#multiply")
+            def pressed_op(self, event: Button.Pressed) -> None:
+                self.right = Decimal(self.value or "0")
+                self._do_math()
+                assert event.button.id is not None
+                self.operator = event.button.id
+
+            @on(Button.Pressed, "#equals")
+            def pressed_equals(self) -> None:
+                if self.value:
+                    self.right = Decimal(self.value)
+                self._do_math()
+
+        CalculatorApp().run(inline=True)
+
+    class EnhancedDisplaySuite(App):
+        """High-density display suite with live stats and 15+ apps."""
+
+        BINDINGS = [
+            ("enter", "run_selected", "Run"),
+            ("r", "run_selected", "Run"),
+            ("q", "quit", "Quit"),
+        ]
+
+        CSS = """
+        Screen { background: $background; }
+        #suite-header { height: 3; border: solid $primary; padding: 1; }
+        #status-bar { height: 3; border: solid $primary; padding: 1; }
+        #app-list { width: 34%; border: solid $primary; }
+        #detail-panel { width: 66%; border: solid $primary; padding: 1; }
+        #detail-body { height: 1fr; overflow-y: auto; }
+        #tool-panel { height: auto; border-top: solid $primary; padding: 1; }
+        #tabs { height: 3; }
+        """
+
+        status_text = reactive("Initializing...")
+        active_category = reactive("System")
+
+        def __init__(self):
+            super().__init__()
+            self._apps = self._build_apps()
+            self._list_items = {}
+            self._selected_launch = None
+
+        def compose(self) -> ComposeResult:
+            yield Header(show_clock=True)
+            yield Container(
+                Label("💫 Enhanced Display Suite | 600% Mode", id="suite-header"),
+                id="suite-header",
+            )
+            yield Tabs(
+                Tab("System", id="tab-system"),
+                Tab("Network", id="tab-network"),
+                Tab("Security", id="tab-security"),
+                Tab("AI", id="tab-ai"),
+                Tab("Files", id="tab-files"),
+                Tab("UX", id="tab-ux"),
+                id="tabs",
+            )
+            with Horizontal():
+                with Vertical(id="app-list"):
+                    yield ListView(id="apps")
+                with Vertical(id="detail-panel"):
+                    yield Static("Select an app", id="detail-title")
+                    yield Static("", id="detail-body")
+                    yield Container(id="tool-panel")
+            yield Label("", id="status-bar")
+            yield Footer()
+
+        def on_mount(self) -> None:
+            self._populate_list()
+            try:
+                self.workers._new_worker(self._status_worker, self, name="status", group="status", exclusive=True)
+            except Exception:
+                self.set_interval(1.0, self._update_status)
+
+        async def _status_worker(self) -> None:
+            while True:
+                self._update_status()
+                await asyncio.sleep(1.0)
+
+        def _update_status(self) -> None:
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage("/")
+                net = psutil.net_io_counters()
+                status = (
+                    f"CPU {_render_usage_bar(cpu)} {_fmt_pct(cpu)} | "
+                    f"RAM {_render_usage_bar(mem.percent)} {_fmt_pct(mem.percent)} | "
+                    f"Disk {_render_usage_bar(disk.percent)} {_fmt_pct(disk.percent)} | "
+                    f"Net ⬇ {net.bytes_recv//1024}KB ⬆ {net.bytes_sent//1024}KB"
+                )
+            except Exception:
+                status = "Live stats unavailable"
+            self.status_text = status
+            try:
+                self.query_one("#status-bar", Label).update(self.status_text)
+            except Exception:
+                pass
+
+        def _build_apps(self):
+            return [
+                ("System Pulse", "System", self._app_system_pulse),
+                ("Process Lens", "System", self._app_process_lens),
+                ("Memory Map", "System", self._app_memory_map),
+                ("Oxker (Docker)", "System", self._app_oxker_widget, self._launch_oxker, self._widget_oxker),
+                ("Disk Hotspots", "Files", self._app_disk_hotspots),
+                ("Filesystem Map", "Files", self._app_filesystem_map),
+                ("Log Insight", "Files", self._app_log_insight),
+                ("Superfile", "Files", self._app_superfile_widget, self._launch_superfile, self._widget_superfile),
+                ("Network Radar", "Network", self._app_network_radar),
+                ("Port Snapshot", "Network", self._app_port_snapshot),
+                ("Traffic Pulse", "Network", self._app_traffic_pulse),
+                ("Posting (API Client)", "Network", self._app_posting_widget, self._launch_posting, self._widget_posting),
+                ("Security Pulse", "Security", self._app_security_pulse),
+                ("Permission Risks", "Security", self._app_permission_risks),
+                ("AI Ops Console", "AI", self._app_ai_ops),
+                ("Worker Watch", "AI", self._app_worker_watch),
+                ("Display FX", "UX", self._app_display_fx),
+                ("Resource Forecast", "UX", self._app_resource_forecast),
+                ("Calculator Widget", "UX", self._app_calculator_widget, feature_textual_calculator),
+                ("Durdraw", "UX", self._app_durdraw_widget, self._launch_durdraw, self._widget_durdraw),
+                ("Chess‑TUI", "UX", self._app_chess_widget, self._launch_chess_tui, self._widget_chess),
+            ]
+
+        def _populate_list(self) -> None:
+            list_view = self.query_one("#apps", ListView)
+            list_view.clear()
+            self._list_items.clear()
+            for app_entry in self._apps:
+                if len(app_entry) == 3:
+                    title, category, _handler = app_entry
+                    launch = None
+                    widget_factory = None
+                elif len(app_entry) == 4:
+                    title, category, _handler, launch = app_entry
+                    widget_factory = None
+                else:
+                    title, category, _handler, launch, widget_factory = app_entry
+                if category != self.active_category:
+                    continue
+                item = ListItem(Label(title))
+                list_view.append(item)
+                self._list_items[item] = (title, _handler, launch, widget_factory)
+
+        @on(Tabs.TabActivated)
+        def _on_tab(self, event: Tabs.TabActivated) -> None:
+            label = event.tab.label
+            self.active_category = str(label)
+            self._populate_list()
+
+        @on(ListView.Selected)
+        def _on_select(self, event: ListView.Selected) -> None:
+            item = event.item
+            if item in self._list_items:
+                title, handler, launch, widget_factory = self._list_items[item]
+                detail_title, detail_body = handler()
+                self.query_one("#detail-title", Static).update(f"📌 {title}")
+                if launch:
+                    detail_body = f"{detail_body}\n\nPress Enter to launch"
+                self.query_one("#detail-body", Static).update(detail_body)
+                self._selected_launch = launch
+                if widget_factory:
+                    self._swap_tool_widget(widget_factory())
+                else:
+                    self._swap_tool_widget(None)
+
+        def action_run_selected(self) -> None:
+            if self._selected_launch:
+                self._selected_launch()
+
+        def _swap_tool_widget(self, widget) -> None:
+            panel = self.query_one("#tool-panel", Container)
+            try:
+                panel.remove_children()
+            except Exception:
+                pass
+            if widget is not None:
+                panel.mount(widget)
+
+        def _app_system_pulse(self):
+            cpu = psutil.cpu_percent(interval=0.1)
+            mem = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+            body = (
+                f"CPU: {cpu}%\n"
+                f"Memory: {mem.used//(1024**2)}MB / {mem.total//(1024**2)}MB\n"
+                f"Disk: {disk.used//(1024**3)}GB / {disk.total//(1024**3)}GB\n"
+                f"Boot: {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M')}"
+            )
+            return "System Pulse", body
+
+        def _app_process_lens(self):
+            lines = ["Top processes by memory:"]
+            try:
+                procs = []
+                for p in psutil.process_iter(["pid", "name", "memory_percent"]):
+                    procs.append(p.info)
+                for p in sorted(procs, key=lambda x: x.get("memory_percent", 0), reverse=True)[:10]:
+                    lines.append(f"{p['pid']:>6} {p['name']:<20} {p['memory_percent']:.1f}%")
+            except Exception:
+                lines.append("Unable to read process table")
+            return "Process Lens", "\n".join(lines)
+
+        def _app_memory_map(self):
+            mem = psutil.virtual_memory()
+            swap = psutil.swap_memory()
+            body = (
+                f"RAM: {mem.percent}%\n"
+                f"Available: {mem.available//(1024**2)}MB\n"
+                f"Swap: {swap.used//(1024**2)}MB / {swap.total//(1024**2)}MB"
+            )
+            return "Memory Map", body
+
+        def _app_disk_hotspots(self):
+            try:
+                usage = {}
+                for dirpath, _, filenames in os.walk(self.app.cwd or "."):
+                    for filename in filenames:
+                        filepath = os.path.join(dirpath, filename)
+                        try:
+                            ext = os.path.splitext(filename)[1] or "no_ext"
+                            usage[ext] = usage.get(ext, 0) + os.path.getsize(filepath)
+                        except Exception:
+                            pass
+                top = sorted(usage.items(), key=lambda x: x[1], reverse=True)[:10]
+                lines = ["Top file types by size:"]
+                for ext, size in top:
+                    lines.append(f"{ext:>8} {size//(1024**2)}MB")
+            except Exception:
+                lines = ["Disk hotspots unavailable"]
+            return "Disk Hotspots", "\n".join(lines)
+
+        def _app_filesystem_map(self):
+            lines = ["Mounted partitions:"]
+            try:
+                for part in psutil.disk_partitions():
+                    usage = psutil.disk_usage(part.mountpoint)
+                    lines.append(f"{part.mountpoint:<12} {usage.percent:>5.1f}% {part.fstype}")
+            except Exception:
+                lines.append("Unable to read partitions")
+            return "Filesystem Map", "\n".join(lines)
+
+        def _app_log_insight(self):
+            paths = ["/var/log/syslog", "/var/log/messages"]
+            target = next((p for p in paths if os.path.exists(p)), None)
+            if not target:
+                return "Log Insight", "No system log found"
+            try:
+                with open(target, "r", errors="ignore") as f:
+                    lines = f.readlines()[-20:]
+                return "Log Insight", "".join(lines)
+            except Exception:
+                return "Log Insight", "Unable to read log"
+
+        def _app_network_radar(self):
+            lines = ["Active connections:"]
+            try:
+                conns = psutil.net_connections(kind="inet")[:15]
+                for c in conns:
+                    laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "-"
+                    raddr = f"{c.raddr.ip}:{c.raddr.port}" if c.raddr else "-"
+                    lines.append(f"{c.status:<12} {laddr:<22} -> {raddr}")
+            except Exception:
+                lines.append("Unable to read connections")
+            return "Network Radar", "\n".join(lines)
+
+        def _app_port_snapshot(self):
+            lines = ["Listening ports:"]
+            try:
+                conns = [c for c in psutil.net_connections(kind="inet") if c.status == "LISTEN"]
+                for c in conns[:20]:
+                    laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "-"
+                    lines.append(laddr)
+            except Exception:
+                lines.append("Unable to read ports")
+            return "Port Snapshot", "\n".join(lines)
+
+        def _app_traffic_pulse(self):
+            try:
+                net = psutil.net_io_counters()
+                body = f"Bytes Sent: {net.bytes_sent}\nBytes Recv: {net.bytes_recv}\nPackets Sent: {net.packets_sent}\nPackets Recv: {net.packets_recv}"
+            except Exception:
+                body = "Network counters unavailable"
+            return "Traffic Pulse", body
+
+        def _app_security_pulse(self):
+            host = socket.gethostname()
+            body = f"Host: {host}\nIP: {socket.gethostbyname(host)}\nUsers: {len(psutil.users())}"
+            return "Security Pulse", body
+
+        def _app_permission_risks(self):
+            risky = []
+            try:
+                for dirpath, _, filenames in os.walk(self.app.cwd or "."):
+                    for filename in filenames:
+                        filepath = os.path.join(dirpath, filename)
+                        try:
+                            if os.stat(filepath).st_mode & 0o002:
+                                risky.append(filepath)
+                                if len(risky) >= 10:
+                                    break
+                        except Exception:
+                            pass
+                    if len(risky) >= 10:
+                        break
+                body = "\n".join(risky) if risky else "No world-writable files found"
+            except Exception:
+                body = "Permission scan unavailable"
+            return "Permission Risks", body
+
+        def _app_ai_ops(self):
+            body = "AI Center available in main menu.\nSuggested ops:\n• Run AI Probe\n• Launch AI Center\n• Review AI logs"
+            return "AI Ops Console", body
+
+        def _app_worker_watch(self):
+            try:
+                workers = list(self.workers)
+                lines = [f"Active workers: {len(workers)}"]
+                for w in workers[:15]:
+                    lines.append(f"{w.name} | {w.state.name} | {w.group}")
+            except Exception:
+                lines = ["Worker manager unavailable"]
+            return "Worker Watch", "\n".join(lines)
+
+        def _app_display_fx(self):
+            body = """ANSI Test:\n█ ▓ ▒ ░\nColors: \x1b[31mRed\x1b[0m \x1b[32mGreen\x1b[0m \x1b[34mBlue\x1b[0m\nUnicode: ⚡ 🎨 🚀 ✅"""
+            return "Display FX", body
+
+        def _app_resource_forecast(self):
+            try:
+                disk = psutil.disk_usage("/")
+                forecast = int(disk.used * 1.05)
+                body = f"Current: {disk.used//(1024**3)}GB\nForecast (5%): {forecast//(1024**3)}GB"
+            except Exception:
+                body = "Forecast unavailable"
+            return "Resource Forecast", body
+
+        def _app_calculator_widget(self):
+            body = "Interactive calculator widget using Textual buttons and keyboard input."
+            return "Calculator Widget", body
+
+        def _external_tool_detail(self, name: str, binary: str, install_hint: str) -> str:
+            installed = shutil.which(binary) is not None
+            status = "✅ Installed" if installed else "❌ Not installed"
+            return f"{name}\nStatus: {status}\nRun: {binary}\nInstall: {install_hint}"
+
+        def _app_posting_widget(self):
+            body = self._external_tool_detail("Posting", "posting", "pipx install posting")
+            return "Posting (API Client)", body
+
+        def _app_oxker_widget(self):
+            body = self._external_tool_detail("Oxker", "oxker", "cargo install oxker")
+            return "Oxker (Docker)", body
+
+        def _app_durdraw_widget(self):
+            body = self._external_tool_detail("Durdraw", "durdraw", "python3 -m pip install --upgrade durdraw")
+            return "Durdraw", body
+
+        def _app_superfile_widget(self):
+            body = self._external_tool_detail("Superfile", "spf", "bash -c \"$(curl -sLo- https://superfile.dev/install.sh)\"")
+            return "Superfile", body
+
+        def _app_chess_widget(self):
+            body = self._external_tool_detail("Chess‑TUI", "chess-tui", "cargo install chess-tui")
+            return "Chess‑TUI", body
+
+        def _launch_posting(self) -> None:
+            os.system("posting")
+
+        def _launch_oxker(self) -> None:
+            os.system("oxker")
+
+        def _launch_durdraw(self) -> None:
+            os.system("durdraw")
+
+        def _launch_superfile(self) -> None:
+            os.system("spf")
+
+        def _launch_chess_tui(self) -> None:
+            os.system("chess-tui")
+
+        # --- Embedded widgets for first 5 external tools ---
+        def _widget_posting(self):
+            app = self
+
+            class PostingWidget(Container):
+                def compose(self) -> ComposeResult:
+                    yield Label("URL:")
+                    yield Input("https://httpbin.org/get", id="posting-url")
+                    yield Label("Method (GET/POST):")
+                    yield Input("GET", id="posting-method")
+                    yield Label("JSON Body (optional):")
+                    yield Input("{}", id="posting-body")
+                    yield Button("Send", id="posting-send")
+                    yield Static("", id="posting-result")
+
+                @on(Button.Pressed, "#posting-send")
+                def _send(self) -> None:
+                    url = self.query_one("#posting-url", Input).value.strip()
+                    method = self.query_one("#posting-method", Input).value.strip().upper()
+                    body = self.query_one("#posting-body", Input).value.strip()
+                    self.query_one("#posting-result", Static).update("Sending...")
+
+                    def task():
+                        try:
+                            import requests
+                            data = None
+                            if body:
+                                try:
+                                    data = json.loads(body)
+                                except Exception:
+                                    data = None
+                            resp = requests.request(method, url, json=data, timeout=10)
+                            text = resp.text[:2000]
+                            result = f"Status: {resp.status_code}\n{text}"
+                        except Exception as exc:
+                            result = f"Request failed: {exc}"
+                        app.call_from_thread(self.query_one("#posting-result", Static).update, result)
+
+                    threading.Thread(target=task, daemon=True).start()
+
+            return PostingWidget()
+
+        def _widget_oxker(self):
+            app = self
+
+            class OxkerWidget(Container):
+                def compose(self) -> ComposeResult:
+                    yield Button("Refresh Docker List", id="oxker-refresh")
+                    yield Static("", id="oxker-result")
+
+                @on(Button.Pressed, "#oxker-refresh")
+                def _refresh(self) -> None:
+                    self.query_one("#oxker-result", Static).update("Loading...")
+
+                    def task():
+                        try:
+                            if shutil.which("docker") is None:
+                                result = "Docker not found in PATH."
+                            else:
+                                cmd = "docker ps --format \"{{.ID}}\t{{.Image}}\t{{.Status}}\t{{.Names}}\""
+                                output = os.popen(cmd).read().strip()
+                                result = output or "No running containers."
+                        except Exception as exc:
+                            result = f"Docker error: {exc}"
+                        app.call_from_thread(self.query_one("#oxker-result", Static).update, result)
+
+                    threading.Thread(target=task, daemon=True).start()
+
+            return OxkerWidget()
+
+        def _widget_durdraw(self):
+            app = self
+
+            class DurdrawWidget(Container):
+                def compose(self) -> ComposeResult:
+                    yield Label("Open ANSI/ASCII file:")
+                    yield Input("", id="durdraw-path")
+                    yield Button("Preview", id="durdraw-preview")
+                    yield Static("", id="durdraw-result")
+
+                @on(Button.Pressed, "#durdraw-preview")
+                def _preview(self) -> None:
+                    path = self.query_one("#durdraw-path", Input).value.strip()
+                    if not path:
+                        self.query_one("#durdraw-result", Static).update("Provide a file path.")
+                        return
+                    try:
+                        with open(os.path.expanduser(path), "r", errors="ignore") as f:
+                            data = f.read(2000)
+                        self.query_one("#durdraw-result", Static).update(data)
+                    except Exception as exc:
+                        self.query_one("#durdraw-result", Static).update(f"Error: {exc}")
+
+            return DurdrawWidget()
+
+        def _widget_superfile(self):
+            app = self
+
+            class SuperfileWidget(Container):
+                def compose(self) -> ComposeResult:
+                    yield Label("Directory path:")
+                    yield Input(os.getcwd(), id="superfile-path")
+                    yield Button("List", id="superfile-list")
+                    yield Static("", id="superfile-result")
+
+                @on(Button.Pressed, "#superfile-list")
+                def _list(self) -> None:
+                    path = self.query_one("#superfile-path", Input).value.strip() or "."
+                    try:
+                        entries = sorted(os.listdir(os.path.expanduser(path)))
+                        lines = []
+                        for entry in entries[:40]:
+                            full = os.path.join(path, entry)
+                            icon = "📁" if os.path.isdir(full) else "📄"
+                            size = ""
+                            if os.path.isfile(full):
+                                try:
+                                    size = f" ({os.path.getsize(full):,} bytes)"
+                                except Exception:
+                                    size = ""
+                            lines.append(f"{icon} {entry}{size}")
+                        if len(entries) > 40:
+                            lines.append(f"... and {len(entries) - 40} more")
+                        self.query_one("#superfile-result", Static).update("\n".join(lines))
+                    except Exception as exc:
+                        self.query_one("#superfile-result", Static).update(f"Error: {exc}")
+
+            return SuperfileWidget()
+
+        def _widget_chess(self):
+            app = self
+
+            class ChessWidget(Container):
+                def __init__(self):
+                    super().__init__()
+                    self.board = self._initial_board()
+
+                def compose(self) -> ComposeResult:
+                    yield Static(self._render_board(), id="chess-board")
+                    yield Label("Move (e2e4):")
+                    yield Input("", id="chess-move")
+                    yield Button("Apply", id="chess-apply")
+                    yield Button("Reset", id="chess-reset")
+                    yield Static("", id="chess-status")
+
+                def _initial_board(self):
+                    return [
+                        list("rnbqkbnr"),
+                        list("pppppppp"),
+                        list("........"),
+                        list("........"),
+                        list("........"),
+                        list("........"),
+                        list("PPPPPPPP"),
+                        list("RNBQKBNR"),
+                    ]
+
+                def _render_board(self):
+                    lines = []
+                    for r in range(8):
+                        rank = 8 - r
+                        lines.append(f"{rank} " + " ".join(self.board[r]))
+                    lines.append("  a b c d e f g h")
+                    return "\n".join(lines)
+
+                @on(Button.Pressed, "#chess-apply")
+                def _apply(self) -> None:
+                    move = self.query_one("#chess-move", Input).value.strip().lower()
+                    if len(move) != 4:
+                        self.query_one("#chess-status", Static).update("Invalid move format.")
+                        return
+                    try:
+                        src_file = ord(move[0]) - ord("a")
+                        src_rank = 8 - int(move[1])
+                        dst_file = ord(move[2]) - ord("a")
+                        dst_rank = 8 - int(move[3])
+                        piece = self.board[src_rank][src_file]
+                        if piece == ".":
+                            self.query_one("#chess-status", Static).update("No piece at source.")
+                            return
+                        self.board[src_rank][src_file] = "."
+                        self.board[dst_rank][dst_file] = piece
+                        self.query_one("#chess-board", Static).update(self._render_board())
+                        self.query_one("#chess-status", Static).update("Move applied.")
+                    except Exception:
+                        self.query_one("#chess-status", Static).update("Move error.")
+
+                @on(Button.Pressed, "#chess-reset")
+                def _reset(self) -> None:
+                    self.board = self._initial_board()
+                    self.query_one("#chess-board", Static).update(self._render_board())
+                    self.query_one("#chess-status", Static).update("Board reset.")
+
+            return ChessWidget()
+
+    EnhancedDisplaySuite().run()
 
 def run_pytextos(return_to_classic=False):
     if not _ensure_textual_imports():
@@ -20773,6 +21746,7 @@ def run_pytextos(return_to_classic=False):
                 ("m", "cycle_monitor", "Monitor"),
                 ("enter", "run_selected", "Run"),
                 ("r", "run_selected", "Run"),
+                ("f1", "toggle_float", "Toggle Float"),
                 ("q", "quit", "Quit"),
             ]
 
@@ -20826,6 +21800,12 @@ def run_pytextos(return_to_classic=False):
                 # Monitor pane (top pane)
                 yield Static("", id="monitor-pane", classes="monitor-pane")
                 yield Container(id="layout-root")
+                yield Container(
+                    Static("🧠 RAM Drive Panel", id="float-panel-title"),
+                    Static("", id="float-panel-body"),
+                    id="float-panel",
+                    classes="hidden",
+                )
                 yield Footer()
 
             def on_mount(self):
@@ -20835,12 +21815,17 @@ def run_pytextos(return_to_classic=False):
                 self._monitor_indicator = self.query_one("#monitor-indicator", Static)
                 self._clock_widget = self.query_one("#clock-digits", Digits)
                 self.monitor_pane = self.query_one("#monitor-pane", Static)
+                try:
+                    self.query_one("#float-panel", Container).add_class("hidden")
+                except Exception:
+                    pass
                 for pill_id in ["pill-cpu", "pill-mem", "pill-net", "pill-wx"]:
                     self._status_widgets[pill_id] = self.query_one(f"#{pill_id}", Static)
                 self._apply_style_mode()
                 self._mount_layout()
                 self._update_detail(self.selected_key)
                 self._refresh_status()
+                self._refresh_float_panel()
                 self._update_monitor_display()
                 self.set_interval(0.4, self._tick_spinner)
                 self.set_interval(1.0, self._refresh_dynamic)
@@ -20935,6 +21920,28 @@ def run_pytextos(return_to_classic=False):
                 except Exception:
                     pass
                 self._pill("pill-wx", wx_text)
+
+            def _refresh_float_panel(self):
+                try:
+                    status = _get_ram_drive_status()
+                    enabled = "ENABLED" if status.get("enabled") else "INLINE"
+                    path = status.get("path") or DB_DIR
+                    body = (
+                        f"Status: {enabled}\n"
+                        f"Data Dir: {path}\n"
+                        "Toggle from Command Center [Y] to branch into RAM."
+                    )
+                    self.query_one("#float-panel-body", Static).update(body)
+                except Exception:
+                    pass
+
+            def action_toggle_float(self):
+                try:
+                    self._refresh_float_panel()
+                    panel = self.query_one("#float-panel", Container)
+                    panel.toggle_class("hidden")
+                except Exception:
+                    pass
 
             def _apply_style_mode(self):
                 if self.style_mode == "file" and os.path.exists(TEXTUAL_CSS_PATH):
@@ -21445,7 +22452,7 @@ def run_classic_command_center():
         print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-        choice = input(f"{BOLD}🎯 Select an option (0-U): {RESET}").strip().upper()
+        choice = input(f"{BOLD}🎯 Select an option (0-Y): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
         stop_clock = True
 
@@ -21516,6 +22523,7 @@ def run_classic_command_center():
         elif choice == 'U':
             _set_display_mode("enhanced")
             feature_enhanced_display_mode()
+        elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
 
 #version 21
 
