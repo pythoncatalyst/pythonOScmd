@@ -51,6 +51,7 @@ import time
 import ctypes # Added for Admin/Root probing
 import calendar # Added for AI/Calendar expansion
 import csv
+import hashlib
 import textwrap
 import shlex
 import tempfile
@@ -295,6 +296,7 @@ DB_FILE = os.path.join(DB_DIR, "pythonOS.db")
 SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
 CONFIG_FILE = os.path.join(DB_DIR, "config.json")
 DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
+DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
 
 # Log Categories
 LOG_CATEGORIES = {
@@ -2360,6 +2362,341 @@ def _set_pythonos_data_root(new_root):
     SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
     CONFIG_FILE = os.path.join(DB_DIR, "config.json")
     DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
+    global DYNAMIC_APPS_DIR
+    DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
+
+def _get_dynamic_apps_dir():
+    try:
+        os.makedirs(DYNAMIC_APPS_DIR, exist_ok=True)
+    except Exception:
+        pass
+    return DYNAMIC_APPS_DIR
+
+def _dynamic_registry_path():
+    return os.path.join(_get_dynamic_apps_dir(), "registry.json")
+
+def _load_dynamic_registry():
+    path = _dynamic_registry_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data if isinstance(data, dict) else {}
+    except Exception:
+        return {}
+
+def _save_dynamic_registry(registry):
+    try:
+        os.makedirs(_get_dynamic_apps_dir(), exist_ok=True)
+        with open(_dynamic_registry_path(), "w", encoding="utf-8") as f:
+            json.dump(registry, f, indent=2)
+    except Exception:
+        pass
+
+def _ai_guess_binaries(app_key, title=""):
+    key = (app_key or "").lower().replace(" ", "").replace("-", "")
+    title_key = (title or "").lower().replace(" ", "").replace("-", "")
+    known = {
+        "roon": ["roon", "roonserver", "roonbridge"],
+        "audirvana": ["audirvana"],
+        "foobar2000": ["foobar2000", "foobar"],
+        "aimp": ["aimp"],
+        "winamp": ["winamp"],
+        "vlc": ["vlc"],
+        "mpv": ["mpv"],
+        "potplayer": ["potplayer"],
+        "mpc-hc": ["mpc-hc", "mpc"],
+        "kodi": ["kodi"],
+        "plex": ["plexmediaserver", "plex"],
+        "jellyfin": ["jellyfin"],
+        "subsonic": ["subsonic"],
+        "mediamonkey": ["mediamonkey"],
+        "kaleidescape": ["kaleidescape"],
+        "equalizerapo": ["equalizerapo"],
+        "soundbyte": ["soundbyte"],
+        "sonicstudio": ["sonicstudio"],
+        "peace": ["peace"],
+        "equalizerpro": ["equalizerpro"],
+        "davinciresolve": ["resolve", "davinci-resolve"],
+        "ffmpeg": ["ffmpeg"],
+        "handbrake": ["handbrake", "HandBrakeCLI", "handbrakecli"],
+        "obs": ["obs", "obs-studio"],
+        "shotcut": ["shotcut"],
+        "imagemagick": ["magick", "convert"],
+        "krita": ["krita"],
+        "gimp": ["gimp"],
+        "irfanview": ["i_view64", "i_view32", "irfanview"],
+        "darktable": ["darktable"],
+        "streamlabs": ["streamlabs"],
+        "ndi": ["ndi"],
+        "xmediarecode": ["xmedia", "xmediarecode"],
+        "mediacoder": ["mediacoder"],
+        "anyvideo": ["anyvideo"],
+    }
+    if key in known:
+        return known[key]
+    if title_key in known:
+        return known[title_key]
+    return [key] if key else []
+
+def _ai_categorize_dynamic_item(path):
+    name = os.path.basename(path).lower()
+    ext = os.path.splitext(name)[1]
+    if ext in (".py",):
+        return "python/textual"
+    if ext in (".sh", ".bash", ".zsh"):
+        return "shell"
+    if ext in (".exe", ".bat", ".cmd"):
+        return "windows"
+    if ext in (".appimage",):
+        return "linux-appimage"
+    if ext in (".desktop",):
+        return "linux-desktop"
+    if any(k in name for k in ["vlc", "mpv", "kodi", "player", "media"]):
+        return "media"
+    if any(k in name for k in ["audio", "sound", "eq", "mixer"]):
+        return "audio"
+    if any(k in name for k in ["video", "obs", "stream"]):
+        return "video"
+    if any(k in name for k in ["editor", "edit", "cut", "shot"]):
+        return "editing"
+    return "general"
+
+def _is_dynamic_launchable(path):
+    if not os.path.isfile(path):
+        return False
+    ext = os.path.splitext(path)[1].lower()
+    if ext in (".py", ".sh", ".bash", ".zsh", ".exe", ".bat", ".cmd", ".appimage", ".desktop"):
+        return True
+    return os.access(path, os.X_OK)
+
+def _gather_dynamic_launchables():
+    base = _get_dynamic_apps_dir()
+    launchables = []
+    for root, _, files in os.walk(base):
+        for name in files:
+            path = os.path.join(root, name)
+            if not _is_dynamic_launchable(path):
+                continue
+            rel = os.path.relpath(path, base)
+            launchables.append({
+                "path": path,
+                "label": rel,
+                "category": _ai_categorize_dynamic_item(path),
+            })
+    launchables.sort(key=lambda x: (x["category"], x["label"]))
+    return launchables
+
+def _link_binaries_to_folder(app_dir, binaries):
+    linked = []
+    if not binaries:
+        return linked
+    for binary in binaries:
+        try:
+            path = shutil.which(binary)
+            if not path:
+                continue
+            link_name = os.path.join(app_dir, os.path.basename(path))
+            if os.path.exists(link_name):
+                continue
+            try:
+                os.symlink(path, link_name)
+            except Exception:
+                shutil.copy2(path, link_name)
+            linked.append(link_name)
+        except Exception:
+            continue
+    return linked
+
+def _register_dynamic_app(app_key, entry, os_key):
+    if not app_key or not isinstance(entry, dict):
+        return
+    registry = _load_dynamic_registry()
+    title = entry.get("title", app_key)
+    category = entry.get("category", "media")
+    links = entry.get("links", [])
+    commands = entry.get("commands", {}).get(os_key) or entry.get("commands", {}).get("generic", [])
+    binaries = entry.get("binaries") or _ai_guess_binaries(app_key, title)
+    app_dir = os.path.join(_get_dynamic_apps_dir(), app_key)
+    try:
+        os.makedirs(app_dir, exist_ok=True)
+    except Exception:
+        pass
+    linked = _link_binaries_to_folder(app_dir, binaries)
+    registry[app_key] = {
+        "title": title,
+        "category": category,
+        "links": links,
+        "commands": commands,
+        "binaries": binaries,
+        "linked": linked,
+        "installed_on": datetime.datetime.now().isoformat(),
+    }
+    _save_dynamic_registry(registry)
+
+def _sync_dynamic_from_files():
+    base = _get_dynamic_apps_dir()
+    registry = _load_dynamic_registry()
+    try:
+        for name in os.listdir(base):
+            app_dir = os.path.join(base, name)
+            if not os.path.isdir(app_dir):
+                continue
+            if name not in registry:
+                registry[name] = {
+                    "title": name.replace("-", " ").title(),
+                    "category": "dynamic",
+                    "links": [],
+                    "commands": [],
+                    "binaries": [],
+                    "linked": [],
+                    "installed_on": datetime.datetime.now().isoformat(),
+                }
+            linked = registry[name].get("linked") or []
+            items = []
+            for root, _, files in os.walk(app_dir):
+                for file_name in files:
+                    file_path = os.path.join(root, file_name)
+                    if os.path.isfile(file_path) and file_path not in linked:
+                        linked.append(file_path)
+                    items.append({
+                        "path": file_path,
+                        "category": _ai_categorize_dynamic_item(file_path),
+                    })
+            registry[name]["linked"] = linked
+            registry[name]["items"] = items
+    except Exception:
+        pass
+    _save_dynamic_registry(registry)
+    return registry
+
+def _launch_dynamic_target(path):
+    if not path:
+        return False
+    try:
+        ext = os.path.splitext(path)[1].lower()
+        if ext == ".py":
+            subprocess.Popen([sys.executable, path])
+            return True
+        if ext in (".sh", ".bash", ".zsh"):
+            subprocess.Popen(["/bin/sh", path])
+            return True
+        if os.name == 'nt':
+            os.system(f'start "" "{path}"')
+        elif platform.system() == "Darwin":
+            os.system(f'open "{path}"')
+        else:
+            if os.access(path, os.X_OK):
+                os.system(f'"{path}" &')
+            else:
+                os.system(f'xdg-open "{path}" >/dev/null 2>&1 &')
+        return True
+    except Exception:
+        return False
+
+def feature_dynamic_apps_launcher():
+    """Launch apps/widgets discovered in pythonOS_data/dynamic_apps."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧩 Dynamic Apps Launcher")
+        launchables = _gather_dynamic_launchables()
+        if not launchables:
+            print("No launchable files found.")
+            input("\nPress Enter to return...")
+            return
+        for idx, item in enumerate(launchables, 1):
+            print(f" [{idx}] {item['label']} ({item['category']})")
+        print(" [0] Return")
+        sel = input("\nSelect app: ").strip()
+        if sel == '0':
+            return
+        if sel.isdigit() and 1 <= int(sel) <= len(launchables):
+            item = launchables[int(sel) - 1]
+            ok = _launch_dynamic_target(item["path"])
+            if not ok:
+                print(f"{COLORS['1'][0]}Launch failed.{RESET}")
+                time.sleep(1)
+        else:
+            print(f"{COLORS['1'][0]}Invalid selection{RESET}")
+            time.sleep(1)
+
+def feature_dynamic_folder_center():
+    """Dynamic Folder manager for auto-linked installs."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧩 Dynamic Folder Center")
+        registry = _sync_dynamic_from_files()
+        print(f"{BOLD}Dynamic Base:{RESET} {os.path.abspath(_get_dynamic_apps_dir())}")
+        if not registry:
+            print(f"\n{COLORS['4'][0]}No dynamic apps registered yet.{RESET}")
+        else:
+            print(f"\n{BOLD}Registered Apps:{RESET}")
+            for i, (key, meta) in enumerate(sorted(registry.items()), 1):
+                title = meta.get("title", key)
+                category = meta.get("category", "-")
+                print(f" [{i}] {title} ({category})")
+        launch_items = _gather_dynamic_launchables()
+        if launch_items:
+            print(f"\n{BOLD}Launchable Targets:{RESET}")
+            for idx, item in enumerate(launch_items, 1):
+                print(f" ({idx}) {item['label']} ({item['category']})")
+        print("\nOptions:")
+        print(" [O] Open Dynamic Folder")
+        print(" [R] Rescan & Relink Binaries")
+        print(" [A] Add Custom App")
+        print(" [L] Launch Target")
+        print(" [0] Return to Command Center")
+        choice = input("\nSelect: ").strip().upper()
+        if choice == '0':
+            break
+        if choice == 'O':
+            path = os.path.abspath(_get_dynamic_apps_dir())
+            if os.name == 'nt':
+                os.system(f'start "" "{path}"')
+            elif platform.system() == "Darwin":
+                os.system(f'open "{path}"')
+            else:
+                os.system(f'xdg-open "{path}" >/dev/null 2>&1 &')
+            time.sleep(1)
+            continue
+        if choice == 'R':
+            for key, meta in registry.items():
+                app_dir = os.path.join(_get_dynamic_apps_dir(), key)
+                bins = meta.get("binaries", [])
+                linked = _link_binaries_to_folder(app_dir, bins)
+                if linked:
+                    meta["linked"] = list(set((meta.get("linked") or []) + linked))
+            _save_dynamic_registry(registry)
+            print(f"{COLORS['2'][0]}✓ Rescan complete.{RESET}")
+            time.sleep(1)
+            continue
+        if choice == 'A':
+            key = input("App key (no spaces): ").strip().lower().replace(" ", "-")
+            title = input("Title: ").strip() or key
+            category = input("Category: ").strip() or "media"
+            links_raw = input("Links (comma-separated URLs): ").strip()
+            links = [l.strip() for l in links_raw.split(",") if l.strip()]
+            binaries_raw = input("Binary names (comma-separated): ").strip()
+            binaries = [b.strip() for b in binaries_raw.split(",") if b.strip()]
+            entry = {"title": title, "category": category, "links": links, "commands": {"generic": []}, "binaries": binaries}
+            _register_dynamic_app(key, entry, _detect_os_key())
+            print(f"{COLORS['2'][0]}✓ Added.{RESET}")
+            time.sleep(1)
+            continue
+        if choice == 'L':
+            if not launch_items:
+                print(f"{COLORS['4'][0]}No launchable targets found.{RESET}")
+                time.sleep(1)
+                continue
+            sel = input("Enter target number: ").strip()
+            if sel.isdigit() and 1 <= int(sel) <= len(launch_items):
+                item = launch_items[int(sel) - 1]
+                ok = _launch_dynamic_target(item["path"])
+                if not ok:
+                    print(f"{COLORS['1'][0]}Launch failed.{RESET}")
+                    time.sleep(1)
+            continue
 
 def _get_ram_drive_status():
     status = {"enabled": False, "path": None}
@@ -7811,6 +8148,460 @@ def _download_center_catalog():
                 "https://mpv.io/"
             ]
         },
+        "audio_players": {
+            "title": "🎧 Audio Players",
+            "category": "media",
+            "binaries": ["roon", "audirvana", "foobar2000", "aimp", "winamp"],
+            "commands": {
+                "debian": [
+                    "xdg-open https://roonlabs.com/downloads",
+                    "xdg-open https://audirvana.com/",
+                    "xdg-open https://www.foobar2000.org/",
+                    "xdg-open https://www.aimp.ru/",
+                    "xdg-open https://www.winamp.com/"
+                ],
+                "fedora": [
+                    "xdg-open https://roonlabs.com/downloads",
+                    "xdg-open https://audirvana.com/",
+                    "xdg-open https://www.foobar2000.org/",
+                    "xdg-open https://www.aimp.ru/",
+                    "xdg-open https://www.winamp.com/"
+                ],
+                "arch": [
+                    "xdg-open https://roonlabs.com/downloads",
+                    "xdg-open https://audirvana.com/",
+                    "xdg-open https://www.foobar2000.org/",
+                    "xdg-open https://www.aimp.ru/",
+                    "xdg-open https://www.winamp.com/"
+                ],
+                "alpine": [
+                    "xdg-open https://roonlabs.com/downloads",
+                    "xdg-open https://audirvana.com/",
+                    "xdg-open https://www.foobar2000.org/",
+                    "xdg-open https://www.aimp.ru/",
+                    "xdg-open https://www.winamp.com/"
+                ],
+                "macos": [
+                    "open https://roonlabs.com/downloads",
+                    "open https://audirvana.com/",
+                    "open https://www.foobar2000.org/",
+                    "open https://www.aimp.ru/",
+                    "open https://www.winamp.com/"
+                ],
+                "windows": [
+                    "start https://roonlabs.com/downloads",
+                    "start https://audirvana.com/",
+                    "winget install -e --id PeterPawlowski.Foobar2000",
+                    "winget install -e --id AIMP.AIMP",
+                    "start https://www.winamp.com/"
+                ],
+                "generic": [
+                    "echo 'Open: https://roonlabs.com/downloads'",
+                    "echo 'Open: https://audirvana.com/'",
+                    "echo 'Open: https://www.foobar2000.org/'",
+                    "echo 'Open: https://www.aimp.ru/'",
+                    "echo 'Open: https://www.winamp.com/'"
+                ]
+            },
+            "links": [
+                "https://roonlabs.com/downloads",
+                "https://audirvana.com/",
+                "https://www.foobar2000.org/",
+                "https://www.aimp.ru/",
+                "https://www.winamp.com/"
+            ]
+        },
+        "video_players": {
+            "title": "🎬 Video Players",
+            "category": "media",
+            "binaries": ["vlc", "mpv", "potplayer", "mpc-hc", "kodi"],
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y vlc mpv kodi",
+                    "xdg-open https://potplayer.daum.net/",
+                    "xdg-open https://mpc-hc.org/"
+                ],
+                "fedora": [
+                    "sudo dnf install -y vlc mpv kodi",
+                    "xdg-open https://potplayer.daum.net/",
+                    "xdg-open https://mpc-hc.org/"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm vlc mpv kodi",
+                    "xdg-open https://potplayer.daum.net/",
+                    "xdg-open https://mpc-hc.org/"
+                ],
+                "alpine": [
+                    "sudo apk add vlc mpv",
+                    "xdg-open https://kodi.tv/download",
+                    "xdg-open https://potplayer.daum.net/",
+                    "xdg-open https://mpc-hc.org/"
+                ],
+                "macos": [
+                    "brew install --cask vlc",
+                    "brew install mpv",
+                    "brew install --cask kodi",
+                    "open https://potplayer.daum.net/",
+                    "open https://mpc-hc.org/"
+                ],
+                "windows": [
+                    "winget install -e --id VideoLAN.VLC",
+                    "winget install -e --id mpv.net",
+                    "winget install -e --id Daum.PotPlayer",
+                    "winget install -e --id MPC-HC.MPC-HC",
+                    "winget install -e --id XBMCFoundation.Kodi"
+                ],
+                "generic": [
+                    "echo 'Open: https://www.videolan.org/vlc/'",
+                    "echo 'Open: https://mpv.io/'",
+                    "echo 'Open: https://potplayer.daum.net/'",
+                    "echo 'Open: https://mpc-hc.org/'",
+                    "echo 'Open: https://kodi.tv/download'"
+                ]
+            },
+            "links": [
+                "https://www.videolan.org/vlc/",
+                "https://mpv.io/",
+                "https://potplayer.daum.net/",
+                "https://mpc-hc.org/",
+                "https://kodi.tv/download"
+            ]
+        },
+        "media_management": {
+            "title": "🗂️ Media Management",
+            "category": "media",
+            "binaries": ["plexmediaserver", "jellyfin", "subsonic", "mediamonkey", "kaleidescape"],
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y jellyfin",
+                    "xdg-open https://www.plex.tv/media-server-downloads/",
+                    "xdg-open https://www.subsonic.org/pages/download.jsp",
+                    "xdg-open https://www.mediamonkey.com/",
+                    "xdg-open https://www.kaleidescape.com/"
+                ],
+                "fedora": [
+                    "sudo dnf install -y jellyfin",
+                    "xdg-open https://www.plex.tv/media-server-downloads/",
+                    "xdg-open https://www.subsonic.org/pages/download.jsp",
+                    "xdg-open https://www.mediamonkey.com/",
+                    "xdg-open https://www.kaleidescape.com/"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm jellyfin",
+                    "xdg-open https://www.plex.tv/media-server-downloads/",
+                    "xdg-open https://www.subsonic.org/pages/download.jsp",
+                    "xdg-open https://www.mediamonkey.com/",
+                    "xdg-open https://www.kaleidescape.com/"
+                ],
+                "alpine": [
+                    "xdg-open https://jellyfin.org/downloads/",
+                    "xdg-open https://www.plex.tv/media-server-downloads/",
+                    "xdg-open https://www.subsonic.org/pages/download.jsp",
+                    "xdg-open https://www.mediamonkey.com/",
+                    "xdg-open https://www.kaleidescape.com/"
+                ],
+                "macos": [
+                    "open https://www.plex.tv/media-server-downloads/",
+                    "open https://jellyfin.org/downloads/",
+                    "open https://www.subsonic.org/pages/download.jsp",
+                    "open https://www.mediamonkey.com/",
+                    "open https://www.kaleidescape.com/"
+                ],
+                "windows": [
+                    "winget install -e --id Plex.Plex",
+                    "winget install -e --id Jellyfin.JellyfinMediaPlayer",
+                    "start https://www.subsonic.org/pages/download.jsp",
+                    "winget install -e --id VentisMedia.MediaMonkey",
+                    "start https://www.kaleidescape.com/"
+                ],
+                "generic": [
+                    "echo 'Open: https://www.plex.tv/media-server-downloads/'",
+                    "echo 'Open: https://jellyfin.org/downloads/'",
+                    "echo 'Open: https://www.subsonic.org/pages/download.jsp'",
+                    "echo 'Open: https://www.mediamonkey.com/'",
+                    "echo 'Open: https://www.kaleidescape.com/'"
+                ]
+            },
+            "links": [
+                "https://www.plex.tv/media-server-downloads/",
+                "https://jellyfin.org/downloads/",
+                "https://www.subsonic.org/pages/download.jsp",
+                "https://www.mediamonkey.com/",
+                "https://www.kaleidescape.com/"
+            ]
+        },
+        "audio_enhancement": {
+            "title": "🎚️ Audio Enhancement",
+            "category": "media",
+            "binaries": ["equalizerapo", "soundbyte", "sonicstudio", "peace", "equalizerpro"],
+            "commands": {
+                "debian": [
+                    "xdg-open https://equalizerapo.com/",
+                    "xdg-open https://soundbyte.io/",
+                    "xdg-open https://www.asus.com/support/",
+                    "xdg-open https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "xdg-open https://www.equalizerpro.com/"
+                ],
+                "fedora": [
+                    "xdg-open https://equalizerapo.com/",
+                    "xdg-open https://soundbyte.io/",
+                    "xdg-open https://www.asus.com/support/",
+                    "xdg-open https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "xdg-open https://www.equalizerpro.com/"
+                ],
+                "arch": [
+                    "xdg-open https://equalizerapo.com/",
+                    "xdg-open https://soundbyte.io/",
+                    "xdg-open https://www.asus.com/support/",
+                    "xdg-open https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "xdg-open https://www.equalizerpro.com/"
+                ],
+                "alpine": [
+                    "xdg-open https://equalizerapo.com/",
+                    "xdg-open https://soundbyte.io/",
+                    "xdg-open https://www.asus.com/support/",
+                    "xdg-open https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "xdg-open https://www.equalizerpro.com/"
+                ],
+                "macos": [
+                    "open https://equalizerapo.com/",
+                    "open https://soundbyte.io/",
+                    "open https://www.asus.com/support/",
+                    "open https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "open https://www.equalizerpro.com/"
+                ],
+                "windows": [
+                    "start https://equalizerapo.com/",
+                    "start https://soundbyte.io/",
+                    "start https://www.asus.com/support/",
+                    "start https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                    "start https://www.equalizerpro.com/"
+                ],
+                "generic": [
+                    "echo 'Open: https://equalizerapo.com/'",
+                    "echo 'Open: https://soundbyte.io/'",
+                    "echo 'Open: https://www.asus.com/support/'",
+                    "echo 'Open: https://sourceforge.net/projects/peace-equalizer-apo-extension/'",
+                    "echo 'Open: https://www.equalizerpro.com/'"
+                ]
+            },
+            "links": [
+                "https://equalizerapo.com/",
+                "https://soundbyte.io/",
+                "https://www.asus.com/support/",
+                "https://sourceforge.net/projects/peace-equalizer-apo-extension/",
+                "https://www.equalizerpro.com/"
+            ]
+        },
+        "video_editing": {
+            "title": "✂️ Video Editing",
+            "category": "media",
+            "binaries": ["resolve", "ffmpeg", "handbrake", "handbrakecli", "obs", "obs-studio", "shotcut"],
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y ffmpeg handbrake obs-studio shotcut",
+                    "xdg-open https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "fedora": [
+                    "sudo dnf install -y ffmpeg handbrake obs-studio shotcut",
+                    "xdg-open https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm ffmpeg handbrake obs-studio shotcut",
+                    "xdg-open https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "alpine": [
+                    "sudo apk add ffmpeg",
+                    "xdg-open https://handbrake.fr/",
+                    "xdg-open https://obsproject.com/",
+                    "xdg-open https://shotcut.org/",
+                    "xdg-open https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "macos": [
+                    "brew install ffmpeg",
+                    "brew install --cask handbrake",
+                    "brew install --cask obs",
+                    "brew install --cask shotcut",
+                    "open https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "windows": [
+                    "winget install -e --id Gyan.FFmpeg",
+                    "winget install -e --id HandBrake.HandBrake",
+                    "winget install -e --id OBSProject.OBSStudio",
+                    "winget install -e --id Meltytech.Shotcut",
+                    "start https://www.blackmagicdesign.com/products/davinciresolve/"
+                ],
+                "generic": [
+                    "echo 'Open: https://www.blackmagicdesign.com/products/davinciresolve/'",
+                    "echo 'Open: https://ffmpeg.org/'",
+                    "echo 'Open: https://handbrake.fr/'",
+                    "echo 'Open: https://obsproject.com/'",
+                    "echo 'Open: https://shotcut.org/'"
+                ]
+            },
+            "links": [
+                "https://www.blackmagicdesign.com/products/davinciresolve/",
+                "https://ffmpeg.org/",
+                "https://handbrake.fr/",
+                "https://obsproject.com/",
+                "https://shotcut.org/"
+            ]
+        },
+        "image_tools": {
+            "title": "🖼️ Image Tools",
+            "category": "media",
+            "binaries": ["magick", "convert", "krita", "gimp", "i_view64", "darktable"],
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y imagemagick krita gimp darktable",
+                    "xdg-open https://www.irfanview.com/"
+                ],
+                "fedora": [
+                    "sudo dnf install -y ImageMagick krita gimp darktable",
+                    "xdg-open https://www.irfanview.com/"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm imagemagick krita gimp darktable",
+                    "xdg-open https://www.irfanview.com/"
+                ],
+                "alpine": [
+                    "sudo apk add imagemagick gimp",
+                    "xdg-open https://krita.org/en/download/krita/",
+                    "xdg-open https://www.darktable.org/install/",
+                    "xdg-open https://www.irfanview.com/"
+                ],
+                "macos": [
+                    "brew install imagemagick",
+                    "brew install --cask krita",
+                    "brew install --cask gimp",
+                    "brew install --cask darktable",
+                    "open https://www.irfanview.com/"
+                ],
+                "windows": [
+                    "winget install -e --id ImageMagick.ImageMagick",
+                    "winget install -e --id KDE.Krita",
+                    "winget install -e --id GIMP.GIMP",
+                    "start https://www.irfanview.com/",
+                    "winget install -e --id darktable.darktable"
+                ],
+                "generic": [
+                    "echo 'Open: https://imagemagick.org/'",
+                    "echo 'Open: https://krita.org/'",
+                    "echo 'Open: https://www.gimp.org/'",
+                    "echo 'Open: https://www.irfanview.com/'",
+                    "echo 'Open: https://www.darktable.org/'"
+                ]
+            },
+            "links": [
+                "https://imagemagick.org/",
+                "https://krita.org/",
+                "https://www.gimp.org/",
+                "https://www.irfanview.com/",
+                "https://www.darktable.org/"
+            ]
+        },
+        "streaming_conversion": {
+            "title": "📡 Streaming & Conversion",
+            "category": "media",
+            "binaries": ["obs", "obs-studio", "ffmpeg", "handbrake", "handbrakecli", "streamlabs", "ndi", "xmedia", "mediacoder", "anyvideo"],
+            "commands": {
+                "debian": [
+                    "sudo apt-get update",
+                    "sudo apt-get install -y ffmpeg handbrake obs-studio",
+                    "xdg-open https://www.youtube.com/",
+                    "xdg-open https://www.twitch.tv/",
+                    "xdg-open https://streamlabs.com/",
+                    "xdg-open https://ndi.video/",
+                    "xdg-open https://www.xmedia-recode.de/en/",
+                    "xdg-open https://www.mediacoderhq.com/",
+                    "xdg-open https://www.any-video-converter.com/"
+                ],
+                "fedora": [
+                    "sudo dnf install -y ffmpeg handbrake obs-studio",
+                    "xdg-open https://www.youtube.com/",
+                    "xdg-open https://www.twitch.tv/",
+                    "xdg-open https://streamlabs.com/",
+                    "xdg-open https://ndi.video/",
+                    "xdg-open https://www.xmedia-recode.de/en/",
+                    "xdg-open https://www.mediacoderhq.com/",
+                    "xdg-open https://www.any-video-converter.com/"
+                ],
+                "arch": [
+                    "sudo pacman -Syu --noconfirm ffmpeg handbrake obs-studio",
+                    "xdg-open https://www.youtube.com/",
+                    "xdg-open https://www.twitch.tv/",
+                    "xdg-open https://streamlabs.com/",
+                    "xdg-open https://ndi.video/",
+                    "xdg-open https://www.xmedia-recode.de/en/",
+                    "xdg-open https://www.mediacoderhq.com/",
+                    "xdg-open https://www.any-video-converter.com/"
+                ],
+                "alpine": [
+                    "sudo apk add ffmpeg",
+                    "xdg-open https://handbrake.fr/",
+                    "xdg-open https://obsproject.com/",
+                    "xdg-open https://www.youtube.com/",
+                    "xdg-open https://www.twitch.tv/",
+                    "xdg-open https://streamlabs.com/",
+                    "xdg-open https://ndi.video/",
+                    "xdg-open https://www.xmedia-recode.de/en/",
+                    "xdg-open https://www.mediacoderhq.com/",
+                    "xdg-open https://www.any-video-converter.com/"
+                ],
+                "macos": [
+                    "brew install ffmpeg",
+                    "brew install --cask handbrake",
+                    "brew install --cask obs",
+                    "open https://www.youtube.com/",
+                    "open https://www.twitch.tv/",
+                    "open https://streamlabs.com/",
+                    "open https://ndi.video/",
+                    "open https://www.xmedia-recode.de/en/",
+                    "open https://www.mediacoderhq.com/",
+                    "open https://www.any-video-converter.com/"
+                ],
+                "windows": [
+                    "start https://www.youtube.com/",
+                    "start https://www.twitch.tv/",
+                    "winget install -e --id OBSProject.OBSStudio",
+                    "start https://streamlabs.com/",
+                    "start https://ndi.video/",
+                    "winget install -e --id Gyan.FFmpeg",
+                    "winget install -e --id HandBrake.HandBrake",
+                    "start https://www.xmedia-recode.de/en/",
+                    "start https://www.mediacoderhq.com/",
+                    "start https://www.any-video-converter.com/"
+                ],
+                "generic": [
+                    "echo 'Open: https://www.youtube.com/'",
+                    "echo 'Open: https://www.twitch.tv/'",
+                    "echo 'Open: https://obsproject.com/'",
+                    "echo 'Open: https://streamlabs.com/'",
+                    "echo 'Open: https://ndi.video/'",
+                    "echo 'Open: https://ffmpeg.org/'",
+                    "echo 'Open: https://handbrake.fr/'",
+                    "echo 'Open: https://www.xmedia-recode.de/en/'",
+                    "echo 'Open: https://www.mediacoderhq.com/'",
+                    "echo 'Open: https://www.any-video-converter.com/'"
+                ]
+            },
+            "links": [
+                "https://www.youtube.com/",
+                "https://www.twitch.tv/",
+                "https://obsproject.com/",
+                "https://streamlabs.com/",
+                "https://ndi.video/",
+                "https://ffmpeg.org/",
+                "https://handbrake.fr/",
+                "https://www.xmedia-recode.de/en/",
+                "https://www.mediacoderhq.com/",
+                "https://www.any-video-converter.com/"
+            ]
+        },
                 "ai": {
             "title": "AI Center Tools (Command Center K)",
             "commands": {
@@ -8590,11 +9381,16 @@ def _download_center_print_commands(os_key, entry):
             print(f"  {link}")
     return cmd_list
 
-def _download_center_run_commands(cmd_list):
+def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=None):
     for cmd in cmd_list:
         if cmd.strip().startswith("#") or not cmd.strip():
             continue
         os.system(cmd)
+    if app_key and isinstance(entry, dict) and os_key:
+        try:
+            _register_dynamic_app(app_key, entry, os_key)
+        except Exception:
+            pass
 
 def feature_tui_tools():
     """TUI Tools Manager: Install and launch essential terminal UI tools."""
@@ -9180,7 +9976,7 @@ def feature_download_center():
     
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("📦 Enhanced Download Center (27 Features)")
+        print_header("📦 Enhanced Download Center (34 Features)")
         arch_type, _ = _detect_architecture()
         print(f"{BOLD}System:{RESET} {sys_info['os']} | {BOLD}Architecture:{RESET} {arch_type} | {BOLD}Python:{RESET} {sys_info['python_version']}")
         print(f"\n{BOLD}CATEGORY 1: SECURITY & TESTING (5 options){RESET}")
@@ -9221,6 +10017,15 @@ def feature_download_center():
         print(" [25] 🗂️  File Management & Storage")
         print(" [26] 🔄 System Maintenance & Cleanup")
         print(" [27] 🚀 Advanced Installation & Build Tools")
+
+        print(f"\n{BOLD}CATEGORY 7: MEDIA & CREATIVE SUITE (7 options){RESET}")
+        print(" [28] 🎧 Audio Players")
+        print(" [29] 🎬 Video Players")
+        print(" [30] 🗂️  Media Management")
+        print(" [31] 🎚️  Audio Enhancement")
+        print(" [32] ✂️  Video Editing")
+        print(" [33] 🖼️  Image Tools")
+        print(" [34] 📡 Streaming & Conversion")
         
         print(f"\n{BOLD}SYSTEM & INFO OPTIONS:{RESET}")
         print(" [D] 🖥️  System Detection & Compatibility")
@@ -9252,7 +10057,9 @@ def feature_download_center():
                 "11": "core_python", "12": "general_python", "13": "web_dev", "14": "database_orm", "15": "devops",
                 "16": "data_science", "17": "ml_ai", "18": "scientific", "19": "research",
                 "20": "media", "21": "graphics", "22": "audio", "23": "text_doc",
-                "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build"
+                "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build",
+                "28": "audio_players", "29": "video_players", "30": "media_management",
+                "31": "audio_enhancement", "32": "video_editing", "33": "image_tools", "34": "streaming_conversion"
             }
             print("Enter package number to view info (or 0 to skip): ")
             pkg_choice = input().strip()
@@ -9270,7 +10077,9 @@ def feature_download_center():
             "11": "core_python", "12": "general_python", "13": "web_dev", "14": "database_orm", "15": "devops",
             "16": "data_science", "17": "ml_ai", "18": "scientific", "19": "research",
             "20": "media", "21": "graphics", "22": "audio", "23": "text_doc",
-            "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build"
+            "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build",
+            "28": "audio_players", "29": "video_players", "30": "media_management",
+            "31": "audio_enhancement", "32": "video_editing", "33": "image_tools", "34": "streaming_conversion"
         }
         
         key = mapping.get(choice)
@@ -9288,7 +10097,7 @@ def feature_download_center():
         if cmd_list:
             run = input("\nRun install commands now? (y/n): ").strip().lower()
             if run == 'y':
-                _download_center_run_commands(cmd_list)
+                _download_center_run_commands(cmd_list, app_key=key, entry=entry, os_key=os_key)
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 # ============================================================================
@@ -9997,6 +10806,289 @@ def feature_ai_app_handler(snapshot=None):
             time.sleep(1)
 
 
+def _ai_cns_dir():
+    path = os.path.join(DB_DIR, "ai_cns")
+    try:
+        os.makedirs(path, exist_ok=True)
+    except Exception:
+        pass
+    return path
+
+def _ai_cns_state_path():
+    return os.path.join(_ai_cns_dir(), "cns_state.json")
+
+def _ai_cns_change_log_path():
+    return os.path.join(_ai_cns_dir(), "change_log.md")
+
+def _ai_cns_manifest_path():
+    return os.path.join(_ai_cns_dir(), "manifest.json")
+
+def _ai_cns_load_state():
+    path = _ai_cns_state_path()
+    if not os.path.exists(path):
+        return {"queue": [], "history": [], "last_run": None}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return {"queue": [], "history": [], "last_run": None}
+        data.setdefault("queue", [])
+        data.setdefault("history", [])
+        data.setdefault("last_run", None)
+        return data
+    except Exception:
+        return {"queue": [], "history": [], "last_run": None}
+
+def _ai_cns_save_state(state):
+    try:
+        with open(_ai_cns_state_path(), "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+def _ai_cns_log_change(message):
+    try:
+        ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        with open(_ai_cns_change_log_path(), "a", encoding="utf-8") as f:
+            f.write(f"- [{ts}] {message}\n")
+    except Exception:
+        pass
+
+def _ai_cns_queue_task(label, payload=None):
+    state = _ai_cns_load_state()
+    task = {
+        "label": label,
+        "payload": payload or {},
+        "queued_at": datetime.datetime.now().isoformat(),
+        "status": "queued",
+    }
+    state["queue"].append(task)
+    _ai_cns_save_state(state)
+    return task
+
+def _ai_cns_export_manifest():
+    try:
+        script_path = os.path.abspath(__file__)
+        with open(script_path, "rb") as f:
+            digest = hashlib.sha256(f.read()).hexdigest()
+    except Exception:
+        digest = "unknown"
+        script_path = os.path.abspath(__file__)
+    catalog_keys = []
+    try:
+        catalog_keys = list(_download_center_catalog().keys())
+    except Exception:
+        pass
+    manifest = {
+        "generated_at": datetime.datetime.now().isoformat(),
+        "script_path": script_path,
+        "script_sha256": digest,
+        "display_mode": display_mode,
+        "db_dir": DB_DIR,
+        "dynamic_apps_dir": _get_dynamic_apps_dir(),
+        "classic_actions": [k for k, _ in CLASSIC_APP_ACTIONS],
+        "command_actions": [k for k, _ in COMMAND_CENTER_ACTIONS],
+        "download_center_keys": catalog_keys,
+        "textual_widget_registry": list(TEXTUAL_WIDGET_REGISTRY.keys()),
+        "ai_app_manifest": get_ai_app_manifest(),
+        "dynamic_registry": _load_dynamic_registry(),
+    }
+    try:
+        with open(_ai_cns_manifest_path(), "w", encoding="utf-8") as f:
+            json.dump(manifest, f, indent=2)
+    except Exception:
+        pass
+    return _ai_cns_manifest_path()
+
+def _ai_cns_run_task(task):
+    label = task.get("label")
+    try:
+        if label == "snapshot":
+            snapshot = _ai_probe_snapshot()
+            task["result"] = {
+                "verdict": snapshot.get("verdict"),
+                "readiness": snapshot.get("ai_readiness"),
+                "stress": snapshot.get("stress_score"),
+            }
+        elif label == "manifest":
+            task["result"] = {"path": _ai_cns_export_manifest()}
+        elif label == "dynamic_sync":
+            registry = _load_dynamic_registry()
+            for key, meta in registry.items():
+                app_dir = os.path.join(_get_dynamic_apps_dir(), key)
+                bins = meta.get("binaries", [])
+                linked = _link_binaries_to_folder(app_dir, bins)
+                if linked:
+                    meta["linked"] = list(set((meta.get("linked") or []) + linked))
+            _save_dynamic_registry(registry)
+            task["result"] = {"synced": True, "count": len(registry)}
+        else:
+            task["result"] = {"note": "No handler for task"}
+        task["status"] = "done"
+    except Exception as exc:
+        task["status"] = "error"
+        task["error"] = str(exc)
+    task["completed_at"] = datetime.datetime.now().isoformat()
+    return task
+
+def _ai_cns_run_queue():
+    state = _ai_cns_load_state()
+    queue = state.get("queue", [])
+    if not queue:
+        return state
+    remaining = []
+    for task in queue:
+        if task.get("status") != "queued":
+            continue
+        completed = _ai_cns_run_task(task)
+        state["history"].append(completed)
+    state["queue"] = remaining
+    state["last_run"] = datetime.datetime.now().isoformat()
+    _ai_cns_save_state(state)
+    return state
+
+def _ai_cns_status_report():
+    state = _ai_cns_load_state()
+    queue = state.get("queue", [])
+    hist = state.get("history", [])
+    last_run = state.get("last_run") or "never"
+    return [
+        f"Queue size: {len(queue)}",
+        f"History size: {len(hist)}",
+        f"Last run: {last_run}",
+        f"CNS path: {_ai_cns_dir()}",
+    ]
+
+def _ai_cns_system_trend():
+    samples = []
+    for _ in range(5):
+        try:
+            cpu = psutil.cpu_percent(interval=0.2)
+            mem = psutil.virtual_memory().percent
+            samples.append((cpu, mem))
+        except Exception:
+            pass
+    if not samples:
+        return ["No samples collected."]
+    avg_cpu = sum(s[0] for s in samples) / len(samples)
+    avg_mem = sum(s[1] for s in samples) / len(samples)
+    trend = "Stable"
+    if avg_cpu > 80 or avg_mem > 85:
+        trend = "Rising"
+    return [
+        f"Avg CPU (1s): {avg_cpu:.1f}%",
+        f"Avg MEM (1s): {avg_mem:.1f}%",
+        f"Trend: {trend}",
+    ]
+
+def _ai_cns_risk_radar():
+    risks = []
+    try:
+        zombies = [p.info for p in psutil.process_iter(["pid", "name", "status"]) if p.info.get("status") == psutil.STATUS_ZOMBIE]
+        if zombies:
+            risks.append(f"Zombie processes: {len(zombies)}")
+    except Exception:
+        pass
+    try:
+        mem = psutil.virtual_memory()
+        if mem.available < 1024**3:
+            risks.append("Low available memory (<1GB)")
+    except Exception:
+        pass
+    try:
+        disk = psutil.disk_usage('/')
+        if disk.free < 2 * 1024**3:
+            risks.append("Low disk free (<2GB)")
+    except Exception:
+        pass
+    if not risks:
+        risks.append("No critical risks detected")
+    return risks
+
+def _ai_cns_log_correlation():
+    lines = []
+    try:
+        base = LOG_DIR
+        if not os.path.isdir(base):
+            return ["Log directory not found."]
+        keywords = ["error", "failed", "warning", "critical"]
+        counts = {k: 0 for k in keywords}
+        scanned = 0
+        for root, _, files in os.walk(base):
+            for name in files:
+                if not name.lower().endswith(".log"):
+                    continue
+                path = os.path.join(root, name)
+                scanned += 1
+                try:
+                    with open(path, "r", errors="ignore") as f:
+                        for line in f:
+                            low = line.lower()
+                            for k in keywords:
+                                if k in low:
+                                    counts[k] += 1
+                except Exception:
+                    continue
+        lines.append(f"Logs scanned: {scanned}")
+        for k, v in counts.items():
+            lines.append(f"{k.title()}: {v}")
+    except Exception:
+        lines.append("Log correlation unavailable.")
+    return lines
+
+def _ai_cns_network_watch():
+    try:
+        net = psutil.net_io_counters()
+        conns = psutil.net_connections(kind="inet")
+        return [
+            f"Connections: {len(conns)}",
+            f"Bytes sent: {net.bytes_sent}",
+            f"Bytes recv: {net.bytes_recv}",
+        ]
+    except Exception:
+        return ["Network stats unavailable."]
+
+def _ai_cns_io_heatmap():
+    try:
+        io = psutil.disk_io_counters()
+        return [
+            f"Read: {io.read_bytes} bytes",
+            f"Write: {io.write_bytes} bytes",
+            f"Read count: {io.read_count}",
+            f"Write count: {io.write_count}",
+        ]
+    except Exception:
+        return ["Disk I/O stats unavailable."]
+
+def _ai_cns_resource_balancer():
+    snapshot = _ai_probe_snapshot()
+    tips = _ai_recommendations(snapshot)
+    if not tips:
+        tips = ["System looks balanced."]
+    return tips[:10]
+
+def _ai_cns_app_discovery():
+    catalog = _download_center_catalog()
+    registry = _load_dynamic_registry()
+    missing = [k for k in catalog.keys() if k not in registry]
+    lines = [f"Catalog entries: {len(catalog)}", f"Registered dynamic apps: {len(registry)}"]
+    if missing:
+        lines.append("Missing from Dynamic Folder:")
+        for k in missing[:15]:
+            lines.append(f" - {k}")
+    else:
+        lines.append("Dynamic Folder matches catalog.")
+    return lines
+
+def _ai_cns_config_audit():
+    lines = ["Config audit:"]
+    lines.append(f"display_mode: {display_mode}")
+    lines.append(f"textual_layout_mode: {textual_layout_mode}")
+    lines.append(f"textual_style_mode: {textual_style_mode}")
+    lines.append(f"ram_drive: {_get_ram_drive_status().get('enabled')}")
+    return lines
+
+
 def feature_deep_probe_ai():
     def _ai_language_interpreter():
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -10074,6 +11166,74 @@ def feature_deep_probe_ai():
         print(f"\n{COLORS['2'][0]}✅ Advanced probe exported: {file_path}{RESET}")
         input(f"\n{BOLD}[ ✅ Probe Finished. Press Enter... ]{RESET}")
 
+    def _cns_status_view():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧠 AI CNS Status")
+        for line in _ai_cns_status_report():
+            print(f" {line}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def _cns_queue_view():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧠 AI CNS Task Queue")
+        state = _ai_cns_load_state()
+        queue = state.get("queue", [])
+        if not queue:
+            print(" No queued tasks.")
+        else:
+            for i, task in enumerate(queue, 1):
+                print(f" [{i}] {task.get('label')} | {task.get('status')}")
+        print("\nQueue Actions:")
+        print(" [1] Queue Snapshot")
+        print(" [2] Queue Manifest Export")
+        print(" [3] Queue Dynamic Sync")
+        print(" [0] Return")
+        choice = input("\nSelect: ").strip()
+        if choice == '1':
+            _ai_cns_queue_task("snapshot")
+            _ai_cns_log_change("Queued CNS snapshot task")
+        elif choice == '2':
+            _ai_cns_queue_task("manifest")
+            _ai_cns_log_change("Queued CNS manifest export task")
+        elif choice == '3':
+            _ai_cns_queue_task("dynamic_sync")
+            _ai_cns_log_change("Queued CNS dynamic sync task")
+
+    def _cns_run_queue_view():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🧠 AI CNS Run Queue")
+        _ai_cns_run_queue()
+        print(f"{COLORS['2'][0]}✓ Queue processed.{RESET}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def _simple_report(title, lines):
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(title)
+        for line in lines:
+            print(f" {line}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+    def _manifest_export_view():
+        path = _ai_cns_export_manifest()
+        _ai_cns_log_change("Exported AI CNS manifest")
+        _simple_report("🧾 AI CNS Manifest", [f"Manifest exported to: {path}"])
+
+    def _change_log_view():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📓 AI CNS Change Log")
+        path = _ai_cns_change_log_path()
+        if os.path.exists(path):
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()[-30:]
+                for line in lines:
+                    print(line.rstrip())
+            except Exception:
+                print("Unable to read change log.")
+        else:
+            print("No change log entries yet.")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🤖 AI Probe Center")
@@ -10082,6 +11242,20 @@ def feature_deep_probe_ai():
         print(" [3] Advanced AI Probing")
         print(" [4] AI Data Fusion (pythonOS_data)")
         print(" [5] AI App Handler (router)")
+        print(" [6] AI CNS Status")
+        print(" [7] AI CNS Task Queue")
+        print(" [8] AI CNS Run Queue")
+        print(" [9] System Trend Forecast")
+        print(" [10] Risk Radar")
+        print(" [11] Log Correlation")
+        print(" [12] Change Log")
+        print(" [13] Manifest Export")
+        print(" [14] Dynamic Folder Sync")
+        print(" [15] App Discovery")
+        print(" [16] Config Audit")
+        print(" [17] Resource Balancer")
+        print(" [18] Network Watch")
+        print(" [19] Disk/IO Heatmap")
         print(" [0] Return")
 
         choice = input("\nSelect option: ").strip()
@@ -10104,6 +11278,36 @@ def feature_deep_probe_ai():
             _ai_data_fusion()
         elif choice == '5':
             feature_ai_app_handler(snapshot=_ai_probe_snapshot())
+        elif choice == '6':
+            _cns_status_view()
+        elif choice == '7':
+            _cns_queue_view()
+        elif choice == '8':
+            _cns_run_queue_view()
+        elif choice == '9':
+            _simple_report("📈 System Trend Forecast", _ai_cns_system_trend())
+        elif choice == '10':
+            _simple_report("🚨 Risk Radar", _ai_cns_risk_radar())
+        elif choice == '11':
+            _simple_report("🧾 Log Correlation", _ai_cns_log_correlation())
+        elif choice == '12':
+            _change_log_view()
+        elif choice == '13':
+            _manifest_export_view()
+        elif choice == '14':
+            _ai_cns_queue_task("dynamic_sync")
+            _ai_cns_run_queue()
+            _simple_report("🧩 Dynamic Folder Sync", ["Dynamic folders relinked."])
+        elif choice == '15':
+            _simple_report("🧭 App Discovery", _ai_cns_app_discovery())
+        elif choice == '16':
+            _simple_report("⚙️ Config Audit", _ai_cns_config_audit())
+        elif choice == '17':
+            _simple_report("🧠 Resource Balancer", _ai_cns_resource_balancer())
+        elif choice == '18':
+            _simple_report("🌐 Network Watch", _ai_cns_network_watch())
+        elif choice == '19':
+            _simple_report("💽 Disk/IO Heatmap", _ai_cns_io_heatmap())
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -20835,6 +22039,7 @@ CLASSIC_APP_ACTIONS = [
     ("calculator", {"title": "Graphing Calculator", "summary": "Graphing calculator with CAS.", "category": "general", "operation": "Graphing_Calculator", "func": feature_graphing_calculator}),
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
     ("ram_drive", {"title": "Ram Drive", "summary": "Branch pythonOS_data into RAM for faster IO.", "category": "system", "operation": "Ram_Drive", "func": feature_ram_drive}),
+    ("dynamic_folder", {"title": "Dynamic Folder", "summary": "Auto-linked install folder for apps.", "category": "system", "operation": "Dynamic_Folder", "func": feature_dynamic_folder_center}),
 ]
 
 # Command Center actions presented in the Textual shell. Entries may include
@@ -20842,6 +22047,7 @@ CLASSIC_APP_ACTIONS = [
 COMMAND_CENTER_ACTIONS = [
     ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
     *CLASSIC_APP_ACTIONS,
+    ("dynamic_apps", {"title": "Dynamic Apps Launcher", "summary": "Launch detected apps/widgets from dynamic_apps.", "category": "system", "operation": "Dynamic_Apps", "func": feature_dynamic_apps_launcher}),
     ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("widget_board", {"title": "Textual Widget Board", "summary": "Calculator, MP3, notes, stats, and stopwatch widgets.", "category": "general", "operation": "Widget_Board", "func": feature_textual_widget_board}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
@@ -20875,7 +22081,7 @@ def _build_classic_app_menu_options():
         'media': 'I', 'pybeacon': 'W', 'wifi': 'J', 'ai_center': 'K',
         'bluetooth': 'L', 'traffic': 'M', 'logs': 'N', 'download': 'O',
         'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
-        'docs': 'T', 'ram_drive': 'Y'
+        'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z'
     }
     
     for key, meta in CLASSIC_APP_ACTIONS:
@@ -20936,6 +22142,7 @@ def _format_classic_menu_display():
     # Display modes
     lines.append(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
     lines.append(f" {BOLD}[Y]{RESET} 🧠 Ram Drive (Branch/Inline)")
+    lines.append(f" {BOLD}[Z]{RESET} 🧩 Dynamic Folder (Auto-Linked Apps)")
     
     return "\n".join(lines)
 
@@ -22452,7 +23659,7 @@ def run_classic_command_center():
         print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-        choice = input(f"{BOLD}🎯 Select an option (0-Y): {RESET}").strip().upper()
+        choice = input(f"{BOLD}🎯 Select an option (0-Z): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
         stop_clock = True
 
@@ -22524,6 +23731,7 @@ def run_classic_command_center():
             _set_display_mode("enhanced")
             feature_enhanced_display_mode()
         elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
+        elif choice == 'Z': safe_run("system", "Dynamic_Folder", feature_dynamic_folder_center)
 
 #version 21
 
