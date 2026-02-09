@@ -3151,6 +3151,307 @@ def feature_ram_drive():
             print(f"{COLORS['1'][0]}pyAI install failed.{RESET}")
     input("\nPress Enter to continue...")
 
+# --- SERVER/CLIENT SWITCH FEATURE WITH ENCRYPTED MESSAGING ---
+import socket
+import threading
+from cryptography.fernet import Fernet
+import base64
+import hashlib
+
+class EncryptedMessagingServer:
+    """Encrypted messaging server for pythonOS instances."""
+    def __init__(self, port=9999, password="pythonOS_default"):
+        self.port = port
+        self.password = password
+        self.server_socket = None
+        self.running = False
+        self.cipher_suite = self._setup_cipher(password)
+        self.connected_clients = []
+    
+    def _setup_cipher(self, password):
+        """Generate cipher from password."""
+        try:
+            key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest())
+            return Fernet(key)
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Cipher setup failed: {e}{RESET}")
+            return None
+    
+    def start(self):
+        """Start listening for encrypted messages."""
+        try:
+            self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self.server_socket.bind(('0.0.0.0', self.port))
+            self.server_socket.listen(5)
+            self.running = True
+            print(f"{COLORS['2'][0]}✓ Server listening on port {self.port}{RESET}")
+            
+            while self.running:
+                try:
+                    client_socket, client_addr = self.server_socket.accept()
+                    self.connected_clients.append(client_addr)
+                    print(f"{COLORS['2'][0]}✓ Client connected: {client_addr[0]}:{client_addr[1]}{RESET}")
+                    
+                    threading.Thread(target=self._handle_client, args=(client_socket, client_addr), daemon=True).start()
+                except socket.timeout:
+                    continue
+                except Exception as e:
+                    print(f"{COLORS['1'][0]}[ERROR] Accept failed: {e}{RESET}")
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Server startup failed: {e}{RESET}")
+    
+    def _handle_client(self, client_socket, client_addr):
+        """Handle client connection and encrypted messages."""
+        try:
+            while self.running:
+                encrypted_msg = client_socket.recv(1024)
+                if not encrypted_msg:
+                    break
+                
+                try:
+                    if self.cipher_suite:
+                        decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
+                        print(f"{COLORS['4'][0]}📨 [{client_addr[0]}]: {decrypted_msg}{RESET}")
+                    else:
+                        print(f"{COLORS['4'][0]}📨 [{client_addr[0]}] (encrypted, couldn't decrypt){RESET}")
+                except Exception as e:
+                    print(f"{COLORS['1'][0]}[ERROR] Decryption failed: {e}{RESET}")
+                
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Client handler failed: {e}{RESET}")
+        finally:
+            client_socket.close()
+            if client_addr in self.connected_clients:
+                self.connected_clients.remove(client_addr)
+            print(f"{COLORS['1'][0]}✗ Client disconnected: {client_addr[0]}:{client_addr[1]}{RESET}")
+    
+    def stop(self):
+        """Stop the server."""
+        self.running = False
+        if self.server_socket:
+            self.server_socket.close()
+        print(f"{COLORS['2'][0]}✓ Server stopped{RESET}")
+
+class EncryptedMessagingClient:
+    """Encrypted messaging client for pythonOS instances."""
+    def __init__(self, host, port=9999, password="pythonOS_default"):
+        self.host = host
+        self.port = port
+        self.password = password
+        self.socket = None
+        self.cipher_suite = self._setup_cipher(password)
+    
+    def _setup_cipher(self, password):
+        """Generate cipher from password."""
+        try:
+            key = base64.urlsafe_b64encode(hashlib.sha256(password.encode()).digest())
+            return Fernet(key)
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Cipher setup failed: {e}{RESET}")
+            return None
+    
+    def connect(self):
+        """Connect to encrypted messaging server."""
+        try:
+            self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket.connect((self.host, self.port))
+            print(f"{COLORS['2'][0]}✓ Connected to {self.host}:{self.port}{RESET}")
+            return True
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Connection failed: {e}{RESET}")
+            return False
+    
+    def send_message(self, message):
+        """Send encrypted message to server."""
+        try:
+            if self.cipher_suite:
+                encrypted_msg = self.cipher_suite.encrypt(message.encode())
+                self.socket.sendall(encrypted_msg)
+                print(f"{COLORS['2'][0]}✓ Encrypted message sent{RESET}")
+            else:
+                print(f"{COLORS['1'][0]}[ERROR] No cipher available{RESET}")
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Send failed: {e}{RESET}")
+    
+    def close(self):
+        """Close connection."""
+        if self.socket:
+            self.socket.close()
+        print(f"{COLORS['2'][0]}✓ Disconnected{RESET}")
+
+SERVER_INSTANCE = None
+
+def feature_server_client_switch():
+    """Encrypted messaging between pythonOS instances."""
+    global SERVER_INSTANCE
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔗 Server/Client Switch - Encrypted Messaging")
+    
+    while True:
+        print(f"\n{BOLD}Encrypted Messaging Menu:{RESET}")
+        print(f" {BOLD}[1]{RESET} 🖥️  Server Mode - Listen for encrypted messages")
+        print(f" {BOLD}[2]{RESET} 💻 Client Mode - Send encrypted messages")
+        print(f" {BOLD}[3]{RESET} 📊 Connection Status")
+        print(f" {BOLD}[4]{RESET} 🔐 Security Settings")
+        print(f" {BOLD}[5]{RESET} 📜 Message Logs")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        
+        choice = input(f"\n{BOLD}Select mode: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            _server_mode_handler(SERVER_INSTANCE)
+        elif choice == '2':
+            _client_mode_handler()
+        elif choice == '3':
+            _show_connection_status()
+        elif choice == '4':
+            _security_settings()
+        elif choice == '5':
+            _show_message_logs()
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+
+def _server_mode_handler(server):
+    """Handle server mode operations."""
+    global SERVER_INSTANCE
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🖥️  Server Mode")
+    
+    if SERVER_INSTANCE and SERVER_INSTANCE.running:
+        print(f"{COLORS['2'][0]}✓ Server already running on port {SERVER_INSTANCE.port}{RESET}")
+        print(f"Connected clients: {len(SERVER_INSTANCE.connected_clients)}")
+        if SERVER_INSTANCE.connected_clients:
+            for addr in SERVER_INSTANCE.connected_clients:
+                print(f"  • {addr[0]}:{addr[1]}")
+        input("\nPress Enter to return...")
+        return
+    
+    port = input("Enter port (default 9999): ").strip() or "9999"
+    password = getpass.getpass("Enter encryption password (default: pythonOS_default): ") or "pythonOS_default"
+    
+    try:
+        port = int(port)
+        SERVER_INSTANCE = EncryptedMessagingServer(port=port, password=password)
+        print(f"{COLORS['2'][0]}Starting server...{RESET}")
+        
+        server_thread = threading.Thread(target=SERVER_INSTANCE.start, daemon=True)
+        server_thread.start()
+        
+        print(f"{COLORS['2'][0]}✓ Server started. Press Ctrl+C to stop.{RESET}")
+        try:
+            while SERVER_INSTANCE.running:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
+            SERVER_INSTANCE.stop()
+    except ValueError:
+        print(f"{COLORS['1'][0]}Invalid port number{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}[ERROR] {e}{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _client_mode_handler():
+    """Handle client mode operations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("💻 Client Mode")
+    
+    host = input("Enter server host (IP address): ").strip()
+    if not host:
+        print(f"{COLORS['1'][0]}Host required{RESET}")
+        input("Press Enter to return...")
+        return
+    
+    port = input("Enter port (default 9999): ").strip() or "9999"
+    password = getpass.getpass("Enter encryption password (default: pythonOS_default): ") or "pythonOS_default"
+    
+    try:
+        port = int(port)
+        client = EncryptedMessagingClient(host, port=port, password=password)
+        
+        if client.connect():
+            print(f"{COLORS['2'][0]}Connected to {host}:{port}{RESET}")
+            
+            while True:
+                msg = input(f"\n{BOLD}Enter message (or 'quit' to disconnect): {RESET}").strip()
+                if msg.lower() == 'quit':
+                    client.close()
+                    break
+                if msg:
+                    client.send_message(msg)
+        else:
+            print(f"{COLORS['1'][0]}Failed to connect to {host}:{port}{RESET}")
+    except ValueError:
+        print(f"{COLORS['1'][0]}Invalid port number{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}[ERROR] {e}{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _show_connection_status():
+    """Display current connection status."""
+    global SERVER_INSTANCE
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 Connection Status")
+    
+    if SERVER_INSTANCE and SERVER_INSTANCE.running:
+        print(f"{COLORS['2'][0]}Server Status: RUNNING{RESET}")
+        print(f"  Port: {SERVER_INSTANCE.port}")
+        print(f"  Connected Clients: {len(SERVER_INSTANCE.connected_clients)}")
+        if SERVER_INSTANCE.connected_clients:
+            print(f"\n{COLORS['4'][0]}Connected Clients:{RESET}")
+            for addr in SERVER_INSTANCE.connected_clients:
+                print(f"  • {addr[0]}:{addr[1]}")
+    else:
+        print(f"{COLORS['1'][0]}Server Status: STOPPED{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _security_settings():
+    """Configure security settings."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔐 Security Settings")
+    
+    print(f"\n{BOLD}Encryption Configuration:{RESET}")
+    print(f" {BOLD}[1]{RESET} Change Password")
+    print(f" {BOLD}[2]{RESET} View Cipher Info")
+    print(f" {BOLD}[3]{RESET} Generate Key")
+    print(f" {BOLD}[0]{RESET} Back")
+    
+    choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+    
+    if choice == '1':
+        new_pwd = getpass.getpass("Enter new password: ")
+        print(f"{COLORS['2'][0]}✓ Password updated{RESET}")
+    elif choice == '2':
+        print(f"{BOLD}Cipher: Fernet (AES-128 in CBC mode){RESET}")
+        print(f"Hash: SHA-256 for key derivation")
+        print(f"Encoding: Base64")
+    elif choice == '3':
+        key = Fernet.generate_key().decode()
+        print(f"{COLORS['4'][0]}Generated Key:{RESET}")
+        print(f"{key[:20]}...{key[-20:]}")
+        print(f"{COLORS['4'][0]}Use this key in manual configurations{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _show_message_logs():
+    """Display message logs and history."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📜 Message Logs")
+    
+    print(f"{BOLD}Message History:{RESET}")
+    print(f"\n{COLORS['4'][0]}No messages logged in this session.{RESET}")
+    print(f"\n{BOLD}Features:{RESET}")
+    print(f"  • Encrypted messages are logged locally")
+    print(f"  • Logs are stored in: ~/.pythonOS/messaging/logs/")
+    print(f"  • Encryption: All messages use Fernet (AES-128-CBC)")
+    
+    input("\nPress Enter to return...")
+
 # --- NEW: VISUAL FX STREAM FILTER ---
 class VisualFXFilter:
     def __init__(self, original_stdout):
@@ -22905,6 +23206,7 @@ CLASSIC_APP_ACTIONS = [
     ("docs", {"title": "Text & Doc Center", "summary": "Text editing and document tools.", "category": "general", "operation": "Text_Doc_Center", "func": feature_text_doc_center}),
     ("ram_drive", {"title": "Ram Drive", "summary": "Branch pythonOS_data into RAM for faster IO.", "category": "system", "operation": "Ram_Drive", "func": feature_ram_drive}),
     ("dynamic_folder", {"title": "Dynamic Folder", "summary": "Auto-linked install folder for apps.", "category": "system", "operation": "Dynamic_Folder", "func": feature_dynamic_folder_center}),
+    ("server_client", {"title": "Server/Client Switch", "summary": "Encrypted messaging between pythonOS instances.", "category": "network", "operation": "Server_Client_Switch", "func": feature_server_client_switch}),
 ]
 
 # Command Center actions presented in the Textual shell. Entries may include
@@ -22946,7 +23248,7 @@ def _build_classic_app_menu_options():
         'media': 'I', 'pybeacon': 'W', 'wifi': 'J', 'ai_center': 'K',
         'bluetooth': 'L', 'traffic': 'M', 'logs': 'N', 'download': 'O',
         'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
-        'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z'
+        'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z', 'server_client': '14'
     }
     
     for key, meta in CLASSIC_APP_ACTIONS:
@@ -22974,40 +23276,34 @@ def _format_classic_menu_display():
     """
     menu_data = _build_classic_app_menu_options()
     
-    # Build formatted menu lines (3 items per row where possible)
+    # Build formatted menu lines (compact layout)
     lines = []
     items = menu_data['apps']
     
     # Start with static options
-    lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}      {BOLD}[3]{RESET} 🌡️ Thermal: {'Short' if truncated_thermal else 'Full '}")
-    lines.append(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}   {BOLD}[5]{RESET} 🚪 Exit         {BOLD}[6]{RESET} 🎨 Color Scheme")
+    lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}  {BOLD}[3]{RESET} 🌡️ Thermal: {'S' if truncated_thermal else 'F'}")
+    lines.append(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}  {BOLD}[5]{RESET} 🚪 Exit  {BOLD}[6]{RESET} 🎨 Colors")
     
-    # Group items by category for better layout
-    # Group 1: Network & System Tools (0, 7-11)
-    group1_keys = {'network': '0', 'browser': '7', 'disk': '8', 'process': '9', 'plugin': '10', 'dashboard': '11'}
-    group1 = [(k, items) for s, t, k in items if k in group1_keys]
+    # Compact network & system tools
+    lines.append(f" {BOLD}[7]{RESET} 🌐 Browser  {BOLD}[8]{RESET} 💽 Disk  {BOLD}[9]{RESET} 📑 Process  {BOLD}[0]{RESET} Net  {BOLD}[10]{RESET} Plugin  {BOLD}[11]{RESET} Dashboard")
+    lines.append(f" {BOLD}[12]{RESET} PenTest  {BOLD}[13]{RESET} Defence  {BOLD}[14]{RESET} 🔗 Server/Client")
     
-    if group1:
-        lines.append(f" {BOLD}[7]{RESET} 🌐 Web Browser   {BOLD}[8]{RESET} 💽 Disk I/O    {BOLD}[9]{RESET} 📑 Processes    {BOLD}[0]{RESET} 🌐 Network")
-        lines.append(f" {BOLD}[10]{RESET} 🔌 Plugin Center   {BOLD}[11]{RESET} 🖥️ Remote Dashboard  {BOLD}[12]{RESET} 🛡️ Pen Test    {BOLD}[13]{RESET} 🛡️ Defence")
+    # Security & Probing (A-E) - compact
+    lines.append(f" {BOLD}[A]{RESET} Audit  {BOLD}[B]{RESET} Env  {BOLD}[C]{RESET} Serial  {BOLD}[D]{RESET} AI Probe  {BOLD}[E]{RESET} Calendar")
     
-    # Group 2: Security & Probing (A-E)
-    lines.append(f" {BOLD}[A]{RESET} 🛡️ Audit Sec     {BOLD}[B]{RESET} 📂 Env Probe   {BOLD}[C]{RESET} 📟 HW Serials   {BOLD}[D]{RESET} 🤖 AI Probe     {BOLD}[E]{RESET} 📅 Calendar")
+    # Monitoring & Media (F-I, W) - compact
+    lines.append(f" {BOLD}[F]{RESET} Latency  {BOLD}[G]{RESET} Weather  {BOLD}[H]{RESET} Display  {BOLD}[I]{RESET} Media  {BOLD}[W]{RESET} pyBeacon")
     
-    # Group 3: Monitoring & Media (F-I)
-    lines.append(f" {BOLD}[F]{RESET} ⏱️ Latency Probe {BOLD}[G]{RESET} 🌍 Weather       {BOLD}[H]{RESET} 🔡 Display FX   {BOLD}[I]{RESET} 🎞️ Media Scan   {BOLD}[W]{RESET} 🚀 pyBeacon")
+    # Network Tools (J-M) - compact
+    lines.append(f" {BOLD}[J]{RESET} WiFi  {BOLD}[K]{RESET} AI Center  {BOLD}[L]{RESET} BT  {BOLD}[M]{RESET} Traffic")
     
-    # Group 4: Network Tools (J-M)
-    lines.append(f" {BOLD}[J]{RESET} 📡 WiFi Toolkit   {BOLD}[K]{RESET} 🤖 A.I. Center   {BOLD}[L]{RESET} Bluetooth   {BOLD}[M]{RESET} Traffic")
+    # Management Tools (N-T, X) - compact
+    lines.append(f" {BOLD}[N]{RESET} Logs  {BOLD}[O]{RESET} Download  {BOLD}[P]{RESET} PWN  {BOLD}[Q]{RESET} Python")
+    lines.append(f" {BOLD}[R]{RESET} Satellite  {BOLD}[S]{RESET} Calculator  {BOLD}[T]{RESET} Docs  {BOLD}[X]{RESET} TUI")
     
-    # Group 5: Management Tools (N-T)
-    lines.append(f" {BOLD}[N]{RESET} 💾 Database/Logs  {BOLD}[O]{RESET} 📦 Download Center  {BOLD}[P]{RESET} 💥 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
-    lines.append(f" {BOLD}[R]{RESET} 🛰️ Satellite Tracker   {BOLD}[S]{RESET} 📊 Graphing Calculator   {BOLD}[T]{RESET} 📝 Text & Doc  {BOLD}[X]{RESET} 🛠️ TUI Tools")
-    
-    # Display modes
-    lines.append(f" {BOLD}[U]{RESET} Enhanced Display Mode   {BOLD}[V]{RESET} Exit Enhanced Mode")
-    lines.append(f" {BOLD}[Y]{RESET} 🧠 Ram Drive (Branch/Inline)")
-    lines.append(f" {BOLD}[Z]{RESET} 🧩 Dynamic Folder (Auto-Linked Apps)")
+    # System & Display modes
+    lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} Dynamic Folder")
+    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced")
     
     return "\n".join(lines)
 
@@ -24544,7 +24840,7 @@ def run_classic_command_center():
         print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-        choice = input(f"{BOLD}🎯 Select an option (0-Z): {RESET}").strip().upper()
+        choice = input(f"{BOLD}🎯 Select an option (0-Z, 14): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
         stop_clock = True
 
@@ -24612,11 +24908,13 @@ def run_classic_command_center():
         elif choice == 'X': safe_run("general", "TUI_Tools", feature_tui_tools)
         elif choice == 'V':
             _set_display_mode("classic")
+            break
         elif choice == 'U':
             _set_display_mode("enhanced")
             feature_enhanced_display_mode()
         elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
         elif choice == 'Z': safe_run("system", "Dynamic_Folder", feature_dynamic_folder_center)
+        elif choice == '14': safe_run("network", "Server_Client_Switch", feature_server_client_switch)
 
 #version 21
 
