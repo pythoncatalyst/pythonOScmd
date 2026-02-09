@@ -297,6 +297,8 @@ SWAP_CACHE_DIR = os.path.join(DB_DIR, "swap_cache")
 CONFIG_FILE = os.path.join(DB_DIR, "config.json")
 DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
 DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
+PYAI_SWAP_DIR = os.path.join(DB_DIR, "swap")
+PYAI_PLUGIN_PATH = os.path.join(PYAI_SWAP_DIR, "pyAI.py")
 
 # Log Categories
 LOG_CATEGORIES = {
@@ -388,6 +390,7 @@ def init_database_system():
 
         os.makedirs(LOG_DIR, exist_ok=True)
         os.makedirs(SWAP_CACHE_DIR, exist_ok=True)
+        os.makedirs(PYAI_SWAP_DIR, exist_ok=True)
 
         # Create category subdirectories
         for category in LOG_CATEGORIES.keys():
@@ -2364,6 +2367,9 @@ def _set_pythonos_data_root(new_root):
     DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
     global DYNAMIC_APPS_DIR
     DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
+    global PYAI_SWAP_DIR, PYAI_PLUGIN_PATH
+    PYAI_SWAP_DIR = os.path.join(DB_DIR, "swap")
+    PYAI_PLUGIN_PATH = os.path.join(PYAI_SWAP_DIR, "pyAI.py")
 
 def _get_dynamic_apps_dir():
     try:
@@ -2371,6 +2377,48 @@ def _get_dynamic_apps_dir():
     except Exception:
         pass
     return DYNAMIC_APPS_DIR
+
+def _get_pyai_template():
+    local_path = os.path.join(SCRIPT_DIR, "pyAI.py")
+    if os.path.exists(local_path):
+        try:
+            with open(local_path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            pass
+    return "# pyAI plugin template missing."
+
+def _install_pyai_plugin():
+    try:
+        os.makedirs(PYAI_SWAP_DIR, exist_ok=True)
+        template = _get_pyai_template()
+        with open(PYAI_PLUGIN_PATH, "w", encoding="utf-8") as f:
+            f.write(template)
+        return PYAI_PLUGIN_PATH
+    except Exception:
+        return None
+
+_PYAI_CACHE = {"module": None, "path": None}
+
+def _load_pyai_plugin():
+    if not os.path.exists(PYAI_PLUGIN_PATH):
+        return None
+    if _PYAI_CACHE.get("module") and _PYAI_CACHE.get("path") == PYAI_PLUGIN_PATH:
+        return _PYAI_CACHE.get("module")
+    try:
+        spec = importlib.util.spec_from_file_location("pyAI", PYAI_PLUGIN_PATH)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _PYAI_CACHE["module"] = mod
+            _PYAI_CACHE["path"] = PYAI_PLUGIN_PATH
+            return mod
+    except Exception:
+        return None
+    return None
+
+def _is_pyai_linked():
+    return os.path.exists(PYAI_PLUGIN_PATH)
 
 def _dynamic_registry_path():
     return os.path.join(_get_dynamic_apps_dir(), "registry.json")
@@ -2718,28 +2766,33 @@ def feature_ram_drive():
     print_header("🧠 Ram Drive Branch")
     print("Branch? Offload pythonOS_data to RAM for faster IO.")
     branch = input("Branch? (y/n): ").strip().lower()
-    if branch not in ("y", "yes"):
+    if branch in ("y", "yes"):
+        base = _detect_ram_drive_base()
+        if not base:
+            print(f"{COLORS['1'][0]}No RAM-backed filesystem detected.{RESET}")
+        else:
+            target_dir = os.path.join(base, "pythonOS_data")
+            try:
+                os.makedirs(target_dir, exist_ok=True)
+                _sync_tree(DB_DIR, target_dir)
+                _set_pythonos_data_root(target_dir)
+                init_database_system()
+                _update_user_config(create_if_missing=True, ram_drive_enabled=True, ram_drive_path=target_dir)
+                print(f"{COLORS['2'][0]}✓ Ram Drive enabled at: {target_dir}{RESET}")
+                print("Data directory is now RAM-backed for this session.")
+            except Exception as exc:
+                print(f"{COLORS['1'][0]}Failed to enable Ram Drive: {exc}{RESET}")
+    else:
         print(f"{COLORS['4'][0]}INLINE? Running with disk-backed data.{RESET}")
-        input("\nPress Enter to continue...")
-        return
 
-    base = _detect_ram_drive_base()
-    if not base:
-        print(f"{COLORS['1'][0]}No RAM-backed filesystem detected.{RESET}")
-        input("\nPress Enter to continue...")
-        return
-
-    target_dir = os.path.join(base, "pythonOS_data")
-    try:
-        os.makedirs(target_dir, exist_ok=True)
-        _sync_tree(DB_DIR, target_dir)
-        _set_pythonos_data_root(target_dir)
-        init_database_system()
-        _update_user_config(create_if_missing=True, ram_drive_enabled=True, ram_drive_path=target_dir)
-        print(f"{COLORS['2'][0]}✓ Ram Drive enabled at: {target_dir}{RESET}")
-        print("Data directory is now RAM-backed for this session.")
-    except Exception as exc:
-        print(f"{COLORS['1'][0]}Failed to enable Ram Drive: {exc}{RESET}")
+    print("\nCan pythonOS install an A.I. Physics & Math Accelerator?")
+    install_ai = input("Install pyAI.py accelerator? (y/n): ").strip().lower()
+    if install_ai in ("y", "yes"):
+        path = _install_pyai_plugin()
+        if path:
+            print(f"{COLORS['2'][0]}✓ pyAI installed at: {path}{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}pyAI install failed.{RESET}")
     input("\nPress Enter to continue...")
 
 # --- NEW: VISUAL FX STREAM FILTER ---
@@ -22998,6 +23051,7 @@ def run_pytextos(return_to_classic=False):
                 )
                 yield Horizontal(
                     Digits("", id="clock-digits"),
+                    Static("pyA.I. --", classes="pill", id="pill-pyai"),
                     Static("CPU --", classes="pill", id="pill-cpu"),
                     Static("MEM --", classes="pill", id="pill-mem"),
                     Static("NET --", classes="pill", id="pill-net"),
@@ -23026,7 +23080,8 @@ def run_pytextos(return_to_classic=False):
                     self.query_one("#float-panel", Container).add_class("hidden")
                 except Exception:
                     pass
-                for pill_id in ["pill-cpu", "pill-mem", "pill-net", "pill-wx"]:
+                self._pyai_anim = 0
+                for pill_id in ["pill-pyai", "pill-cpu", "pill-mem", "pill-net", "pill-wx"]:
                     self._status_widgets[pill_id] = self.query_one(f"#{pill_id}", Static)
                 self._apply_style_mode()
                 self._mount_layout()
@@ -23043,6 +23098,7 @@ def run_pytextos(return_to_classic=False):
                 self._spinner_index = (self._spinner_index + 1) % len(self._spinner_frames)
                 if self._indicator:
                     self._indicator.update(f"ENHANCED MODE {frame}")
+                self._update_pyai_indicator()
 
             def _update_clock(self):
                 if self._clock_widget:
@@ -23127,6 +23183,19 @@ def run_pytextos(return_to_classic=False):
                 except Exception:
                     pass
                 self._pill("pill-wx", wx_text)
+
+            def _update_pyai_indicator(self):
+                pill = self._status_widgets.get("pill-pyai")
+                if not pill:
+                    return
+                if _is_pyai_linked():
+                    dots = ["", ".", "..", "..."]
+                    self._pyai_anim = (self._pyai_anim + 1) % len(dots)
+                    pill.update(f"pyA.I. Linked{dots[self._pyai_anim]}")
+                    pill.add_class("ok")
+                else:
+                    pill.update("pyA.I. --")
+                    pill.set_class(False, "ok")
 
             def _refresh_float_panel(self):
                 try:
@@ -23642,7 +23711,11 @@ def run_classic_command_center():
                     print(f"🔋 Battery:           {battery.percent}% ({status})")
                 except Exception:
                     print("🔋 Battery:           N/A")
-            print(f"\n{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
+            if _is_pyai_linked():
+                pyai_tag = f"{BOLD}{COLORS['2'][1]}pyA.I.{RESET}{BOLD}{COLORS['7'][0]} Linked{RESET} "
+            else:
+                pyai_tag = ""
+            print(f"\n{pyai_tag}{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
 
         if display_mode == "enhanced":
             stop_clock = True
