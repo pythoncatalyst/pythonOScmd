@@ -175,6 +175,23 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
 
+# Import centralized logging system
+try:
+    from logger_system import LOGGER, LogLevel, log_info, log_error, log_warning, log_debug, LogAnalyzer
+except ImportError:
+    print("⚠️  Warning: logger_system module not found. Using basic logging.")
+    LOGGER = None
+
+# Import enhanced plugin system
+try:
+    from plugin_system import (
+        PluginManager, PluginStatus, PluginMetadata, PluginValidator,
+        initialize_plugin_system, get_plugin_manager
+    )
+except ImportError:
+    print("⚠️  Warning: plugin_system module not found.")
+    PluginManager = None
+
 # ================================================================================
 # PERFORMANCE OPTIMIZATION SYSTEM
 # ================================================================================
@@ -966,6 +983,281 @@ def display_security_audit():
                 status_icon = f"{COLORS['2'][0]}✓{RESET}" if event['status'] == 'SUCCESS' else f"{COLORS['1'][0]}✗{RESET}"
                 print(f"[{event['timestamp']}] {status_icon} {event['type']:20} | {event['user']:10} | {event['action']}")
             input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def display_logging_menu():
+    """Display centralized logging management menu."""
+    if not LOGGER:
+        print(f"\n{COLORS['1'][0]}❌ Logging system not available{RESET}")
+        return
+    
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📋 CENTRALIZED LOGGING SYSTEM")
+        
+        c = get_current_color()
+        
+        # Get statistics
+        stats = LOGGER.get_statistics()
+        
+        print(f"\n{BOLD}{c}Logging Management:{RESET}")
+        print(f" {BOLD}[1]{RESET} 📊 View Recent Logs (last 50)")
+        print(f" {BOLD}[2]{RESET} ❌ View Error Logs")
+        print(f" {BOLD}[3]{RESET} 🏢 View Logs by Component")
+        print(f" {BOLD}[4]{RESET} 📈 Logging Statistics")
+        print(f" {BOLD}[5]{RESET} 💾 Log Files Information")
+        print(f" {BOLD}[6]{RESET} 🔍 Search Logs")
+        print(f" {BOLD}[7]{RESET} 📤 Export Logs to JSON")
+        print(f" {BOLD}[8]{RESET} 🗑️  Clear Log Buffer")
+        print(f" {BOLD}[9]{RESET} 🏥 Component Health Report")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        
+        print(f"\n{BOLD}{c}Current Stats:{RESET}")
+        print(f"  Total Logs:        {stats['total_logs']}")
+        print(f"  Buffer Size:       {stats['buffer_size']}")
+        print(f"  Debug:  {stats['by_level']['DEBUG']:5}  Info:  {stats['by_level']['INFO']:5}  Warn:  {stats['by_level']['WARNING']:5}")
+        print(f"  Error:  {stats['by_level']['ERROR']:5}  Critical: {stats['by_level']['CRITICAL']:5}")
+        
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            _view_recent_logs()
+        elif choice == '2':
+            _view_error_logs()
+        elif choice == '3':
+            _view_logs_by_component()
+        elif choice == '4':
+            _show_log_statistics()
+        elif choice == '5':
+            _show_log_files_info()
+        elif choice == '6':
+            _search_logs()
+        elif choice == '7':
+            _export_logs_to_json()
+        elif choice == '8':
+            _clear_log_buffer()
+        elif choice == '9':
+            _show_component_health()
+        else:
+            print(f"\n{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+def _view_recent_logs():
+    """View recent logs."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 RECENT LOGS")
+    
+    logs = LOGGER.get_recent_logs(count=50)
+    
+    print(f"\n{BOLD}Last 50 log entries:{RESET}\n")
+    for log in logs[-30:]:  # Show last 30 for readability
+        level_color = {
+            'DEBUG': COLORS['3'][0],
+            'INFO': COLORS['2'][0],
+            'WARNING': COLORS['4'][0],
+            'ERROR': COLORS['1'][0],
+            'CRITICAL': COLORS['1'][0]
+        }.get(log['level'], RESET)
+        
+        print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} [{log['component']}] {log['message'][:60]}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _view_error_logs():
+    """View error and critical logs."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("❌ ERROR LOGS")
+    
+    logs = LOGGER.get_error_logs(count=50)
+    
+    print(f"\n{BOLD}Error and Critical Logs:{RESET}\n")
+    if not logs:
+        print(f"{COLORS['2'][0]}✅ No errors logged{RESET}")
+    else:
+        for log in logs[-20:]:
+            icon = f"{COLORS['1'][0]}🔴" if log['level'] == 'CRITICAL' else f"{COLORS['1'][0]}❌"
+            print(f"{icon} {RESET}[{log['timestamp']}] [{log['component']}]")
+            print(f"   Message: {log['message']}")
+            if log.get('context', {}).get('exception'):
+                print(f"   Exception: {log['context']['exception']}")
+            print()
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _view_logs_by_component():
+    """View logs by component."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🏢 LOGS BY COMPONENT")
+    
+    stats = LOGGER.get_statistics()
+    
+    print(f"\n{BOLD}Components:{RESET}\n")
+    for i, (component, count) in enumerate(stats['by_component'].items(), 1):
+        print(f" {BOLD}[{i}]{RESET} {component:20} {count:5} logs")
+    
+    component_idx = input(f"\n{BOLD}Select component number (0 to cancel): {RESET}").strip()
+    
+    try:
+        idx = int(component_idx)
+        if idx == 0:
+            return
+        component = list(stats['by_component'].keys())[idx - 1]
+        
+        logs = LOGGER.get_logs_by_component(component, count=30)
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"LOGS: {component}")
+        print(f"\n{BOLD}Showing {len(logs)} recent logs for {component}:{RESET}\n")
+        
+        for log in logs:
+            level_color = {
+                'DEBUG': COLORS['3'][0],
+                'INFO': COLORS['2'][0],
+                'WARNING': COLORS['4'][0],
+                'ERROR': COLORS['1'][0],
+                'CRITICAL': COLORS['1'][0]
+            }.get(log['level'], RESET)
+            print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} {log['message'][:70]}")
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_log_statistics():
+    """Show logging statistics."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📈 LOGGING STATISTICS")
+    
+    stats = LOGGER.get_statistics()
+    
+    print(f"\n{BOLD}Statistics:{RESET}\n")
+    print(f"  Total Logs:        {stats['total_logs']}")
+    print(f"  Buffer Size:       {stats['buffer_size']}")
+    print(f"  Start Time:        {stats['start_time']}")
+    print(f"  Current Time:      {stats['current_time']}")
+    
+    print(f"\n{BOLD}Logs by Level:{RESET}")
+    for level, count in stats['by_level'].items():
+        bar = "█" * (count // 5) if count > 0 else ""
+        print(f"  {level:8} {count:6}  {bar}")
+    
+    print(f"\n{BOLD}Top Components:{RESET}")
+    sorted_components = sorted(stats['by_component'].items(), key=lambda x: x[1], reverse=True)
+    for component, count in sorted_components[:10]:
+        bar = "█" * (count // 10) if count > 0 else ""
+        print(f"  {component:20} {count:6}  {bar}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_log_files_info():
+    """Show log files information."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("💾 LOG FILES INFORMATION")
+    
+    info = LOGGER.get_log_files_info()
+    
+    print(f"\n{BOLD}Log Directory:{RESET} {info['log_dir']}\n")
+    print(f"{BOLD}Files:{RESET}\n")
+    
+    if not info['files']:
+        print(f"{COLORS['3'][0]}No log files found{RESET}")
+    else:
+        for file_info in sorted(info['files'], key=lambda x: x['modified'], reverse=True):
+            print(f"  {file_info['name']:30} {file_info['size_mb']:8.2f} MB  {file_info['modified']}")
+    
+    print(f"\n{BOLD}Total Size:{RESET} {info['total_size_mb']:.2f} MB")
+    print(f"{BOLD}Max Size per File:{RESET} {LOGGER.max_bytes / (1024*1024):.2f} MB")
+    print(f"{BOLD}Backup Files Kept:{RESET} {LOGGER.backup_count}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _search_logs():
+    """Search logs for pattern."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔍 SEARCH LOGS")
+    
+    pattern = input(f"\n{BOLD}Enter search pattern: {RESET}").strip()
+    if not pattern:
+        return
+    
+    analyzer = LogAnalyzer(LOGGER)
+    results = analyzer.find_logs(pattern, count=50)
+    
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header(f"SEARCH RESULTS: {pattern}")
+    print(f"\n{BOLD}Found {len(results)} matching logs:{RESET}\n")
+    
+    for log in results[-20:]:
+        level_color = {
+            'DEBUG': COLORS['3'][0],
+            'INFO': COLORS['2'][0],
+            'WARNING': COLORS['4'][0],
+            'ERROR': COLORS['1'][0],
+            'CRITICAL': COLORS['1'][0]
+        }.get(log['level'], RESET)
+        print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} [{log['component']}] {log['message'][:60]}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _export_logs_to_json():
+    """Export logs to JSON file."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📤 EXPORT LOGS TO JSON")
+    
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    export_path = os.path.expanduser(f"~/.pythonosrc/logs_export_{timestamp}.json")
+    
+    try:
+        LOGGER.export_logs(export_path, format="json")
+        print(f"\n{COLORS['2'][0]}✅ Logs exported successfully{RESET}")
+        print(f"   File: {export_path}")
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}❌ Export failed: {e}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _clear_log_buffer():
+    """Clear in-memory log buffer."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🗑️  CLEAR LOG BUFFER")
+    
+    confirm = input(f"\n{BOLD}Clear all logs in memory? (yes/no): {RESET}").strip().lower()
+    
+    if confirm == 'yes':
+        LOGGER.clear_buffer()
+        print(f"\n{COLORS['2'][0]}✅ Log buffer cleared{RESET}")
+    else:
+        print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_component_health():
+    """Show component health report."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🏥 COMPONENT HEALTH REPORT")
+    
+    analyzer = LogAnalyzer(LOGGER)
+    health = analyzer.get_component_health()
+    
+    print(f"\n{BOLD}Component Health:{RESET}\n")
+    print(f"{'Component':<25} {'Logs':>8} {'Errors':>8} {'Error Rate':>10}")
+    print("-" * 55)
+    
+    for component, stats in sorted(health.items(), key=lambda x: x[1]['error_rate'], reverse=True):
+        rate = stats['error_rate']
+        if rate == 0:
+            color = COLORS['2'][0]  # Green
+        elif rate < 5:
+            color = COLORS['3'][0]  # Blue
+        elif rate < 15:
+            color = COLORS['4'][0]  # Yellow
+        else:
+            color = COLORS['1'][0]  # Red
+        
+        print(f"{component:<25} {stats['total_logs']:>8} {stats['errors']:>8} {color}{rate:>9.1f}%{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def display_security_audit_menu():
     """Display security audit menu with comprehensive options."""
@@ -2285,6 +2577,7 @@ DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
 DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
 PYAI_SWAP_DIR = os.path.join(DB_DIR, "swap")
 PYAI_PLUGIN_PATH = os.path.join(PYAI_SWAP_DIR, "pyAI.py")
+PLUGINS_DIR = os.path.join(DB_DIR, "plugins")  # Centralized plugin location
 
 # Log Categories
 LOG_CATEGORIES = {
@@ -2323,7 +2616,7 @@ _db_scheduled_tasks = []
 # ================================================================================
 
 @retry_with_backoff(max_attempts=3, initial_delay=0.5, backoff_factor=1.5, feature_name="Database")
-def _db_connect():
+def _db_connect(*args, **kwargs):
     """Connect to database with retry logic and resilience."""
     conn = sqlite3.connect(DB_FILE, timeout=10)
     try:
@@ -5337,7 +5630,7 @@ def get_weather_data():
 
 @retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2, feature_name="Weather_API")
 @graceful_degradation(fallback={"temp": "N/A", "icon": "❓", "city": "Unknown"}, feature_name="Weather_Display")
-def _fetch_weather_live():
+def _fetch_weather_live(*args, **kwargs):
     """Actually fetch weather data from APIs with resilience."""
     try:
         # 1. Get location via IP (cached for 1 hour)
@@ -5389,7 +5682,7 @@ def _fetch_weather_live():
             return {"temp": "N/A", "icon": "❓", "city": "Unknown"}
 
 @safe_connection(timeout=3, retry_on_timeout=True, feature_name="GeoLocation_API")
-def _fetch_geo_location():
+def _fetch_geo_location(*args, **kwargs):
     """Fetch geolocation with connection resilience."""
     response = requests.get("http://ip-api.com/json/", timeout=3)
     return response.json()
@@ -5399,6 +5692,7 @@ def feature_weather_display():
     Enhanced Weather System with professional meteorological tools, forecasting,
     algorithms, and analytics. 24 comprehensive features with real-world applications.
     """
+    global temp_unit, weather_cache
     import math
     from datetime import datetime, timedelta
     
@@ -7715,42 +8009,42 @@ def feature_pentest_toolkit():
         
         print(f"\n{BOLD}CATEGORY 1: Reconnaissance & Information Gathering (5 options){RESET}")
         print(f" {BOLD}[1]{RESET}  🔎 OSINT & Passive Intelligence (NEW)")
-        print(f" {BOLD}[2]{RESET}  🗺️  Network Mapping & Asset Discovery (NEW)")
-        print(f" {BOLD}[3]{RESET}  📊 Active Scanning & Service Enumeration (enhanced)")
-        print(f" {BOLD}[4]{RESET}  🌐 Web Application Reconnaissance (NEW)")
-        print(f" {BOLD}[5]{RESET}  📱 Social Engineering Intelligence (NEW)")
+        print(f" {BOLD}[2]{RESET}  🗺️  Network Mapping & Asset Discovery ")
+        print(f" {BOLD}[3]{RESET}  📊 Active Scanning & Service Enumeration ")
+        print(f" {BOLD}[4]{RESET}  🌐 Web Application Reconnaissance ")
+        print(f" {BOLD}[5]{RESET}  📱 Social Engineering Intelligence ")
         
         print(f"\n{BOLD}CATEGORY 2: Vulnerability Assessment (5 options){RESET}")
-        print(f" {BOLD}[6]{RESET}  🔍 Vulnerability Scanner & Analyzer (enhanced)")
-        print(f" {BOLD}[7]{RESET}  🎯 CVE & Exploit Database Lookup (NEW)")
-        print(f" {BOLD}[8]{RESET}  🔐 Cryptographic Weakness Detection (NEW)")
-        print(f" {BOLD}[9]{RESET}  🌉 Wireless Security Auditor (enhanced)")
-        print(f" {BOLD}[10]{RESET} 💻 Configuration & Misconfiguration Checker (NEW)")
+        print(f" {BOLD}[6]{RESET}  🔍 Vulnerability Scanner & Analyzer ")
+        print(f" {BOLD}[7]{RESET}  🎯 CVE & Exploit Database Lookup ")
+        print(f" {BOLD}[8]{RESET}  🔐 Cryptographic Weakness Detection ")
+        print(f" {BOLD}[9]{RESET}  🌉 Wireless Security Auditor ")
+        print(f" {BOLD}[10]{RESET} 💻 Configuration & Misconfiguration Checker ")
         
         print(f"\n{BOLD}CATEGORY 3: Exploitation & Payload Tools (5 options){RESET}")
         print(f" {BOLD}[11]{RESET} 💣 Metasploit Framework Console (enhanced)")
         print(f" {BOLD}[12]{RESET} 🌊 Brute Force & Credential Attack (enhanced)")
-        print(f" {BOLD}[13]{RESET} 🔓 SQL Injection & Web Attack Tools (NEW)")
-        print(f" {BOLD}[14]{RESET} 🎭 Payload Generator & Encoder (NEW)")
-        print(f" {BOLD}[15]{RESET} 🚀 Reverse Shell & Remote Access (NEW)")
+        print(f" {BOLD}[13]{RESET} 🔓 SQL Injection & Web Attack Tools ")
+        print(f" {BOLD}[14]{RESET} 🎭 Payload Generator & Encoder ")
+        print(f" {BOLD}[15]{RESET} 🚀 Reverse Shell & Remote Access ")
         
         print(f"\n{BOLD}CATEGORY 4: Post-Exploitation (5 options){RESET}")
-        print(f" {BOLD}[16]{RESET} 🔑 Privilege Escalation Framework (NEW)")
+        print(f" {BOLD}[16]{RESET} 🔑 Privilege Escalation Framework ")
         print(f" {BOLD}[17]{RESET} 👥 Credential Harvesting & Hash Cracking (enhanced)")
-        print(f" {BOLD}[18]{RESET} 🕵️ Lateral Movement & Pivot Tools (NEW)")
-        print(f" {BOLD}[19]{RESET} 📡 Persistence & Backdoor Installation (NEW)")
-        print(f" {BOLD}[20]{RESET} 🚪 Windows/Linux Privilege Abuse (NEW)")
+        print(f" {BOLD}[18]{RESET} 🕵️ Lateral Movement & Pivot Tools ")
+        print(f" {BOLD}[19]{RESET} 📡 Persistence & Backdoor Installation ")
+        print(f" {BOLD}[20]{RESET} 🚪 Windows/Linux Privilege Abuse ")
         
         print(f"\n{BOLD}CATEGORY 5: Analysis & Reporting (4 options){RESET}")
-        print(f" {BOLD}[21]{RESET} 📊 Attack Chain Analyzer & Visualizer (NEW)")
+        print(f" {BOLD}[21]{RESET} 📊 Attack Chain Analyzer & Visualizer ")
         print(f" {BOLD}[22]{RESET} 📋 Report Generator & Documentation (enhanced)")
-        print(f" {BOLD}[23]{RESET} 📈 Compliance & Framework Checker (NEW)")
-        print(f" {BOLD}[24]{RESET} 🎓 Training & Knowledge Base (NEW)")
+        print(f" {BOLD}[23]{RESET} 📈 Compliance & Framework Checker ")
+        print(f" {BOLD}[24]{RESET} 🎓 Training & Knowledge Base ")
         
         print(f"\n{BOLD}CATEGORY 6: System & Infrastructure (3 options){RESET}")
         print(f" {BOLD}[25]{RESET} 🛠️ Installation & Tool Manager")
         print(f" {BOLD}[26]{RESET} 📦 Download Center (Pen Test Tools)")
-        print(f" {BOLD}[27]{RESET} ⚙️ Tool Benchmarking & Optimization (NEW)")
+        print(f" {BOLD}[27]{RESET} ⚙️ Tool Benchmarking & Optimization ")
         
         print(f"\n{BOLD}SYSTEM INFO OPTIONS:{RESET}")
         print(f" {BOLD}[D]{RESET} 🖥️ System Profile & Tool Availability")
@@ -19689,9 +19983,383 @@ def _build_plugin_context(sandboxed):
         })
     return context
 
+def display_enhanced_plugin_menu():
+    """Display enhanced plugin management menu."""
+    if not PluginManager:
+        print(f"\n{COLORS['1'][0]}❌ Plugin system not available{RESET}")
+        return
+    
+    pm = get_plugin_manager()
+    
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔌 ENHANCED PLUGIN MANAGEMENT")
+        
+        c = get_current_color()
+        stats = pm.get_statistics()
+        
+        print(f"\n{BOLD}{c}Plugin Management Options:{RESET}")
+        print(f" {BOLD}[1]{RESET} 🔍 Discover Plugins")
+        print(f" {BOLD}[2]{RESET} ✅ Validate Plugin")
+        print(f" {BOLD}[3]{RESET} 📦 Load Plugin")
+        print(f" {BOLD}[4]{RESET} 🔓 Unload Plugin")
+        print(f" {BOLD}[5]{RESET} ⚙️  Call Plugin Function")
+        print(f" {BOLD}[6]{RESET} 📋 Plugin Information")
+        print(f" {BOLD}[7]{RESET} 🔗 Dependencies")
+        print(f" {BOLD}[8]{RESET} 📊 System Statistics")
+        print(f" {BOLD}[9]{RESET} 📜 Event Log")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        
+        print(f"\n{BOLD}{c}Current Status:{RESET}")
+        print(f"  Discovered: {stats['total_discovered']}  Loaded: {stats['total_loaded']}")
+        
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            _discover_plugins(pm)
+        elif choice == '2':
+            _validate_plugin(pm)
+        elif choice == '3':
+            _load_plugin(pm)
+        elif choice == '4':
+            _unload_plugin(pm)
+        elif choice == '5':
+            _call_plugin(pm)
+        elif choice == '6':
+            _show_plugin_info(pm)
+        elif choice == '7':
+            _show_dependencies(pm)
+        elif choice == '8':
+            _show_statistics(pm)
+        elif choice == '9':
+            _show_event_log(pm)
+        else:
+            print(f"\n{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+def _discover_plugins(pm):
+    """Discover all plugins."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔍 DISCOVER PLUGINS")
+    
+    print(f"\n{BOLD}Scanning for plugins...{RESET}\n")
+    discovered = pm.discover_plugins()
+    
+    print(f"{COLORS['2'][0]}✅ Discovery complete{RESET}\n")
+    print(f"Found {len(discovered)} plugins:\n")
+    
+    for plugin_name in discovered:
+        file_path, metadata = pm.discovered_plugins[plugin_name]
+        print(f"  {COLORS['3'][0]}📦{RESET} {metadata.name:20} v{metadata.version:8} - {metadata.description[:40]}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _validate_plugin(pm):
+    """Validate a plugin."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("✅ VALIDATE PLUGIN")
+    
+    stats = pm.get_statistics()
+    if not stats['plugins']:
+        print(f"\n{COLORS['1'][0]}❌ No plugins discovered{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}Available plugins:{RESET}\n")
+    for i, name in enumerate(stats['plugins'], 1):
+        print(f" {BOLD}[{i}]{RESET} {name}")
+    
+    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    
+    try:
+        idx = int(choice) - 1
+        plugin_name = stats['plugins'][idx]
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"VALIDATING: {plugin_name}")
+        
+        valid, msg = pm.validate_plugin(plugin_name)
+        
+        if valid:
+            print(f"\n{COLORS['2'][0]}✅ Plugin is valid{RESET}")
+            info = pm.get_plugin_info(plugin_name)
+            print(f"\n{BOLD}Details:{RESET}")
+            print(f"  Name: {info['name']}")
+            print(f"  Version: {info['version']}")
+            print(f"  Author: {info['author']}")
+            print(f"  Description: {info['description']}")
+            if info.get('dependencies'):
+                print(f"  Dependencies: {', '.join(info['dependencies'])}")
+        else:
+            print(f"\n{COLORS['1'][0]}❌ Validation failed{RESET}")
+            print(f"  Error: {msg}")
+        
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _load_plugin(pm):
+    """Load a plugin."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📦 LOAD PLUGIN")
+    
+    stats = pm.get_statistics()
+    available = [p for p in stats['plugins'] if p not in stats['loaded']]
+    
+    if not available:
+        print(f"\n{COLORS['3'][0]}ℹ️  All plugins are loaded{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}Available plugins to load:{RESET}\n")
+    for i, name in enumerate(available, 1):
+        print(f" {BOLD}[{i}]{RESET} {name}")
+    
+    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    
+    try:
+        idx = int(choice) - 1
+        plugin_name = available[idx]
+        
+        sandbox = input(f"\n{BOLD}Load in sandbox? (y/n): {RESET}").strip().lower() == 'y'
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"LOADING: {plugin_name}")
+        
+        success, msg = pm.load_plugin(plugin_name, sandboxed=sandbox)
+        
+        if success:
+            print(f"\n{COLORS['2'][0]}✅ {msg}{RESET}")
+        else:
+            print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
+        
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _unload_plugin(pm):
+    """Unload a plugin."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔓 UNLOAD PLUGIN")
+    
+    stats = pm.get_statistics()
+    if not stats['loaded']:
+        print(f"\n{COLORS['3'][0]}ℹ️  No plugins loaded{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}Loaded plugins:{RESET}\n")
+    for i, name in enumerate(stats['loaded'], 1):
+        print(f" {BOLD}[{i}]{RESET} {name}")
+    
+    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    
+    try:
+        idx = int(choice) - 1
+        plugin_name = stats['loaded'][idx]
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"UNLOADING: {plugin_name}")
+        
+        success, msg = pm.unload_plugin(plugin_name)
+        
+        if success:
+            print(f"\n{COLORS['2'][0]}✅ {msg}{RESET}")
+        else:
+            print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
+        
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _call_plugin(pm):
+    """Call a plugin function."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("⚙️  CALL PLUGIN FUNCTION")
+    
+    stats = pm.get_statistics()
+    if not stats['loaded']:
+        print(f"\n{COLORS['3'][0]}ℹ️  No plugins loaded{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}Loaded plugins:{RESET}\n")
+    for i, name in enumerate(stats['loaded'], 1):
+        info = pm.get_plugin_info(name)
+        entry_point = info.get('entry_point', 'run') if isinstance(info, dict) else 'run'
+        print(f" {BOLD}[{i}]{RESET} {name}")
+    
+    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    
+    try:
+        idx = int(choice) - 1
+        plugin_name = stats['loaded'][idx]
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"CALLING: {plugin_name}")
+        
+        result = pm.call_plugin(plugin_name)
+        print(f"\n{COLORS['2'][0]}✅ Plugin executed successfully{RESET}")
+        
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}❌ Error: {str(e)}{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_plugin_info(pm):
+    """Show plugin information."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📋 PLUGIN INFORMATION")
+    
+    all_plugins = pm.get_all_plugins_info()
+    if not all_plugins:
+        print(f"\n{COLORS['3'][0]}ℹ️  No plugins found{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}All Plugins:{RESET}\n")
+    for i, name in enumerate(all_plugins.keys(), 1):
+        print(f" {BOLD}[{i}]{RESET} {name}")
+    
+    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    
+    try:
+        idx = int(choice) - 1
+        plugin_names = list(all_plugins.keys())
+        plugin_name = plugin_names[idx]
+        info = all_plugins[plugin_name]
+        
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header(f"PLUGIN: {plugin_name}")
+        
+        print(f"\n{BOLD}Details:{RESET}")
+        print(f"  Name:        {info.get('name', 'N/A')}")
+        print(f"  Version:     {info.get('version', 'N/A')}")
+        print(f"  Author:      {info.get('author', 'N/A')}")
+        print(f"  Description: {info.get('description', 'N/A')}")
+        print(f"  Status:      {info.get('status', 'N/A')}")
+        print(f"  File:        {info.get('file_path', 'N/A')}")
+        
+        if info.get('dependencies'):
+            print(f"  Dependencies: {', '.join(info['dependencies'])}")
+        
+        if info.get('loaded_at'):
+            print(f"  Loaded at:   {info['loaded_at']}")
+        
+        if info.get('checksum'):
+            print(f"  Checksum:    {info['checksum'][:16]}...")
+        
+    except (ValueError, IndexError):
+        print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_dependencies(pm):
+    """Show plugin dependencies."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔗 DEPENDENCIES")
+    
+    stats = pm.get_statistics()
+    if not stats['plugins']:
+        print(f"\n{COLORS['3'][0]}ℹ️  No plugins found{RESET}")
+        input(f"\n{BOLD}Press Enter to continue...{RESET}")
+        return
+    
+    print(f"\n{BOLD}Dependency Graph:{RESET}\n")
+    
+    for plugin_name in stats['plugins']:
+        deps = pm.get_dependencies_for(plugin_name)
+        status = "✅" if plugin_name in stats['loaded'] else "⏸️ "
+        if deps:
+            print(f"{status} {plugin_name}:")
+            for dep in deps:
+                dep_status = "✅" if dep in stats['loaded'] else "❌"
+                print(f"    └─ {dep_status} {dep}")
+        else:
+            print(f"{status} {plugin_name}: (no dependencies)")
+    
+    print(f"\n{BOLD}Load Order:{RESET}")
+    load_order = pm.get_load_order()
+    for i, plugin_name in enumerate(load_order, 1):
+        print(f"  {i}. {plugin_name}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_statistics(pm):
+    """Show plugin system statistics."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📊 PLUGIN STATISTICS")
+    
+    stats = pm.get_statistics()
+    
+    print(f"\n{BOLD}Overview:{RESET}")
+    print(f"  Discovered Plugins: {stats['total_discovered']}")
+    print(f"  Loaded Plugins:     {stats['total_loaded']}")
+    print(f"  Total Events:       {stats['total_events']}")
+    
+    print(f"\n{BOLD}Discovered:{RESET}")
+    for name in stats['plugins']:
+        status = "✅" if name in stats['loaded'] else "⏸️ "
+        print(f"  {status} {name}")
+    
+    print(f"\n{BOLD}System Health:{RESET}")
+    success_count = 0
+    error_count = 0
+    for event in pm.get_event_log(count=1000):
+        if event['status'] == 'success':
+            success_count += 1
+        elif event['status'] == 'error':
+            error_count += 1
+    
+    total = success_count + error_count
+    if total > 0:
+        success_rate = (success_count / total) * 100
+        print(f"  Success Rate: {success_rate:.1f}%")
+        print(f"  Successful: {success_count}  Failed: {error_count}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
+def _show_event_log(pm):
+    """Show plugin event log."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📜 EVENT LOG")
+    
+    events = pm.get_event_log(count=50)
+    
+    print(f"\n{BOLD}Recent Events (last 30):{RESET}\n")
+    
+    if not events:
+        print(f"{COLORS['3'][0]}No events yet{RESET}")
+    else:
+        for event in events[-30:]:
+            if event['status'] == 'success':
+                icon = f"{COLORS['2'][0]}✅"
+            elif event['status'] == 'error':
+                icon = f"{COLORS['1'][0]}❌"
+            else:
+                icon = f"{COLORS['3'][0]}ℹ️ "
+            
+            print(f"{icon}{RESET} [{event['timestamp']}] {event['type']:8} {event['plugin']:20} {event['message'][:50]}")
+    
+    input(f"\n{BOLD}Press Enter to continue...{RESET}")
+
 def feature_plugin_center():
+    """Enhanced plugin center with discovery, validation, and sandboxing."""
+    # Use enhanced system if available
+    if PluginManager:
+        display_enhanced_plugin_menu()
+        return
+    
+    # Fallback to legacy system
     load_plugins()
-    print_header("🔌 Plugin Center")
+    print_header("🔌 Plugin Center (Legacy)")
 
     if not PLUGINS:
         print("📂 No plugins found. Create a 'plugins' folder and add .py files with a run(context) function.")
@@ -24963,7 +25631,7 @@ def _format_classic_menu_display():
     
     # System & Display modes
     lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health Report")
-    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced  {BOLD}[*]{RESET} 🔒 Sec Audit")
+    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced  {BOLD}[+]{RESET} 📋 Logger  {BOLD}[*]{RESET} 🔒 Sec Audit")
     
     return "\n".join(lines)
 
@@ -25766,6 +26434,13 @@ def run_pytextos(return_to_classic=False):
         time.sleep(2)
         _set_display_mode("classic")
         return run_classic_command_center()
+    
+    # Initialize plugin system with centralized pythonOS_data location
+    if PluginManager:
+        try:
+            initialize_plugin_system(PLUGINS_DIR)
+        except Exception as e:
+            print(f"⚠️ Plugin system initialization error: {e}")
 
     try:
         class PyTextOS(App):
@@ -26372,6 +27047,13 @@ def run_classic_command_center():
     global stop_clock, mini_view, truncated_thermal, is_blinking, temp_unit, active_color_key, user_has_chosen, display_mode
 
     _bootstrap_classic_stack()
+    
+    # Initialize plugin system with centralized pythonOS_data location
+    if PluginManager:
+        try:
+            initialize_plugin_system(PLUGINS_DIR)
+        except Exception as e:
+            print(f"⚠️ Plugin system initialization error: {e}")
 
     while True:
         stop_clock = True
@@ -26575,6 +27257,7 @@ def run_classic_command_center():
         elif choice == 'Y': safe_run("system", "Ram_Drive", feature_ram_drive)
         elif choice == 'Z': safe_run("general", "Performance_Stats", display_performance_stats)
         elif choice == '~': safe_run("system", "System_Health", display_system_health)
+        elif choice == '+': safe_run("logging", "Logging_System", display_logging_menu)
         elif choice == '*': safe_run("security", "Security_Audit_Menu", display_security_audit_menu)
         elif choice == '14': safe_run("network", "Server_Client_Switch", feature_server_client_switch)
 
