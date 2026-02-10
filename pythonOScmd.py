@@ -38,6 +38,30 @@
 # - Runs video in terminal with full color ASCII support
 # - Option 3 and 13 are most like a T.V.
 # - Fix needed: Command Center Option 9, selection 2 (Ctrl+C handling)
+#
+# ╔═══════════════════════════════════════════════════════════════════════════╗
+# ║                   SELF-EXTRACTING MODULE SYSTEM                           ║
+# ╚═══════════════════════════════════════════════════════════════════════════╝
+# This pythonOScmd.py is COMPLETELY SELF-CONTAINED and automatically extracts:
+#   1. logger_system.py    - Advanced centralized logging system
+#   2. pyAI.py             - Physics & Math accelerator plugin
+#   3. plugin_system.py    - Plugin management and sandboxing
+#
+# ✅ HOW IT WORKS:
+#   • On first run, boot_loader() calls extract_embedded_files()
+#   • Files are extracted to the SAME DIRECTORY as pythonOScmd.py
+#   • Subsequently, normal imports automatically use extracted files
+#   • If files already exist, extraction is skipped (fast startup)
+#
+# ✅ USAGE:
+#   Simply run: python pythonOScmd.py
+#   All dependencies are automatically managed!
+#
+# ✅ FILES CREATED:
+#   • Same directory as pythonOScmd.py:
+#     - logger_system.py
+#     - pyAI.py
+#     - plugin_system.py
 ################################################################################
 # ================================================================================
 # SECTION 1: IMPORTS & CORE DEPENDENCIES
@@ -63,24 +87,1342 @@ import copy
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 
 # ================================================================================
+# GLOBAL DISPLAY MODE CONFIGURATION
+# ================================================================================
+
+# Global variable to track display mode (textual, rich, or classic)
+DISPLAY_MODE = "classic"  # Default fallback mode
+DISPLAY_INITIALIZED = False
+
+def detect_display_capabilities():
+    """Detect available display modes and capabilities.
+    
+    Returns:
+        str: One of 'textual', 'rich', or 'classic'
+    """
+    try:
+        # Try Textual first (most advanced)
+        __import__('textual')
+        __import__('rich')
+        return "textual"
+    except (ImportError, AttributeError):
+        try:
+            # Fall back to Rich if Textual fails
+            __import__('rich')
+            return "rich"
+        except ImportError:
+            # Ultimate fallback to classic mode
+            return "classic"
+
+# ================================================================================
+# EMBEDDED MODULE EXTRACTION & FILE INITIALIZATION SYSTEM
+# ================================================================================
+# This system automatically extracts embedded files on first run:
+# - logger_system.py & plugin_system.py -> Same directory as pythonOScmd.py
+# - Rest of scripts -> pythonOS_data/swap directory
+# Makes pythonOScmd.py completely self-contained.
+
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+SCRIPT_DIR_FOR_EXTRACTION = os.path.join(SCRIPT_DIR, "pythonOS_data", "swap")
+
+# Define embedded module content as constants
+EMBEDDED_LOGGER_SYSTEM = '''"""
+🔍 Centralized Logging System for PythonOS
+==========================================
+
+Advanced logging with:
+- Multiple log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+- Automatic log rotation (prevents disk fill)
+- Structured logging with context
+- Performance tracking
+- Log filtering and queries
+"""
+
+import logging
+import logging.handlers
+import json
+import os
+from datetime import datetime
+from enum import Enum
+from pathlib import Path
+from typing import Dict, List, Optional, Any
+from collections import deque
+
+
+class LogLevel(Enum):
+    """Standard log levels with emojis."""
+    DEBUG = (logging.DEBUG, "🐛 DEBUG")
+    INFO = (logging.INFO, "ℹ️  INFO")
+    WARNING = (logging.WARNING, "⚠️  WARNING")
+    ERROR = (logging.ERROR, "❌ ERROR")
+    CRITICAL = (logging.CRITICAL, "🔴 CRITICAL")
+
+
+class CentralizedLogger:
+    """
+    Enterprise-grade centralized logging system.
+    
+    Features:
+    - Multiple output formats (console, file, JSON)
+    - Automatic log rotation
+    - Structured logging with context
+    - Performance metrics
+    - Log level filtering
+    - Query and analysis capabilities
+    """
+    
+    def __init__(
+        self,
+        name: str = "pythonOS",
+        log_dir: str = "/tmp/pythonoslog",
+        max_bytes: int = 10 * 1024 * 1024,
+        backup_count: int = 5,
+        console_level: LogLevel = LogLevel.INFO,
+        file_level: LogLevel = LogLevel.DEBUG
+    ):
+        """Initialize centralized logger."""
+        self.name = name
+        self.log_dir = log_dir
+        self.max_bytes = max_bytes
+        self.backup_count = backup_count
+        self.console_level = console_level
+        self.file_level = file_level
+        
+        Path(log_dir).mkdir(parents=True, exist_ok=True)
+        
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.handlers.clear()
+        
+        self._setup_handlers()
+        self.log_buffer = deque(maxlen=1000)
+        
+        self.stats = {
+            "total_logs": 0,
+            "by_level": {level.name: 0 for level in LogLevel},
+            "by_component": {},
+            "start_time": datetime.now().isoformat()
+        }
+    
+    def _setup_handlers(self):
+        """Setup file and console handlers with rotation."""
+        console_handler = logging.StreamHandler()
+        console_handler.setLevel(self.console_level.value[0])
+        console_formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+        console_handler.setFormatter(console_formatter)
+        self.logger.addHandler(console_handler)
+        
+        try:
+            log_file = os.path.join(self.log_dir, f"{self.name}.log")
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_file,
+                maxBytes=self.max_bytes,
+                backupCount=self.backup_count
+            )
+            file_handler.setLevel(self.file_level.value[0])
+            file_formatter = logging.Formatter(
+                '%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            file_handler.setFormatter(file_formatter)
+            self.logger.addHandler(file_handler)
+            
+            json_handler = logging.handlers.RotatingFileHandler(
+                os.path.join(self.log_dir, f"{self.name}.json"),
+                maxBytes=self.max_bytes,
+                backupCount=self.backup_count
+            )
+            json_handler.setLevel(self.file_level.value[0])
+            json_handler.setFormatter(JSONFormatter())
+            self.logger.addHandler(json_handler)
+            
+        except Exception as e:
+            print(f"⚠️  Failed to setup file handlers: {e}")
+    
+    def debug(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.DEBUG, message, component, context)
+    
+    def info(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.INFO, message, component, context)
+    
+    def warning(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.WARNING, message, component, context)
+    
+    def error(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+        if exception:
+            context['exception'] = str(exception)
+            context['exception_type'] = type(exception).__name__
+        self._log(LogLevel.ERROR, message, component, context)
+    
+    def critical(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+        if exception:
+            context['exception'] = str(exception)
+            context['exception_type'] = type(exception).__name__
+        self._log(LogLevel.CRITICAL, message, component, context)
+    
+    def _log(self, level: LogLevel, message: str, component: str, context: Dict[str, Any]):
+        extra = {
+            'component': component,
+            'timestamp': datetime.now().isoformat()
+        }
+        extra.update(context)
+        
+        self.logger.log(level.value[0], message, extra={'component': component})
+        
+        self.stats['total_logs'] += 1
+        self.stats['by_level'][level.name] += 1
+        self.stats['by_component'][component] = self.stats['by_component'].get(component, 0) + 1
+        
+        self.log_buffer.append({
+            'level': level.name,
+            'message': message,
+            'component': component,
+            'timestamp': extra['timestamp'],
+            'context': context
+        })
+    
+    def get_recent_logs(self, count: int = 50, level: Optional[LogLevel] = None) -> List[Dict]:
+        logs = list(self.log_buffer)
+        if level:
+            logs = [log for log in logs if log['level'] == level.name]
+        return logs[-count:]
+    
+    def get_logs_by_component(self, component: str, count: int = 50) -> List[Dict]:
+        logs = [log for log in self.log_buffer if log['component'] == component]
+        return logs[-count:]
+    
+    def get_error_logs(self, count: int = 50) -> List[Dict]:
+        logs = [log for log in self.log_buffer if log['level'] in ['ERROR', 'CRITICAL']]
+        return logs[-count:]
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        return {**self.stats, "buffer_size": len(self.log_buffer), "current_time": datetime.now().isoformat()}
+    
+    def get_log_files_info(self) -> Dict[str, Any]:
+        info = {'log_dir': self.log_dir, 'files': [], 'total_size_mb': 0}
+        if os.path.exists(self.log_dir):
+            for file in os.listdir(self.log_dir):
+                if file.startswith(self.name):
+                    filepath = os.path.join(self.log_dir, file)
+                    size = os.path.getsize(filepath) / (1024 * 1024)
+                    info['files'].append({
+                        'name': file,
+                        'size_mb': round(size, 2),
+                        'modified': datetime.fromtimestamp(os.path.getmtime(filepath)).isoformat()
+                    })
+                    info['total_size_mb'] += size
+        info['total_size_mb'] = round(info['total_size_mb'], 2)
+        return info
+    
+    def clear_buffer(self):
+        self.log_buffer.clear()
+    
+    def export_logs(self, filepath: str, format: str = "json"):
+        if format == "json":
+            with open(filepath, 'w') as f:
+                json.dump({
+                    'logs': list(self.log_buffer),
+                    'statistics': self.get_statistics(),
+                    'export_time': datetime.now().isoformat()
+                }, f, indent=2)
+        elif format == "txt":
+            with open(filepath, 'w') as f:
+                for log in self.log_buffer:
+                    f.write(f"[{log['timestamp']}] {log['level']:8} [{log['component']}] {log['message']}\\n")
+
+
+class JSONFormatter(logging.Formatter):
+    """JSON formatter for structured logging."""
+    def format(self, record):
+        log_data = {
+            'timestamp': datetime.fromtimestamp(record.created).isoformat(),
+            'level': record.levelname,
+            'logger': record.name,
+            'module': record.module,
+            'function': record.funcName,
+            'line': record.lineno,
+            'message': record.getMessage(),
+            'component': getattr(record, 'component', 'System')
+        }
+        if record.exc_info:
+            log_data['exception'] = self.formatException(record.exc_info)
+        return json.dumps(log_data)
+
+
+class LogAnalyzer:
+    """Analyze and query logs."""
+    def __init__(self, logger: CentralizedLogger):
+        self.logger = logger
+    
+    def get_error_summary(self) -> Dict[str, Any]:
+        errors = self.logger.get_error_logs(count=10000)
+        error_types = {}
+        for error_log in errors:
+            exc_type = error_log.get('context', {}).get('exception_type', 'Unknown')
+            error_types[exc_type] = error_types.get(exc_type, 0) + 1
+        return {'total_errors': len(errors), 'error_types': error_types, 'latest_errors': errors[-10:]}
+    
+    def get_component_health(self) -> Dict[str, Any]:
+        health = {}
+        for component, count in self.logger.stats['by_component'].items():
+            errors = len([log for log in self.logger.log_buffer if log['component'] == component and log['level'] in ['ERROR', 'CRITICAL']])
+            health[component] = {'total_logs': count, 'errors': errors, 'error_rate': round((errors / count * 100) if count > 0 else 0, 2)}
+        return health
+    
+    def find_logs(self, pattern: str, count: int = 50) -> List[Dict]:
+        results = [log for log in self.logger.log_buffer if pattern.lower() in log['message'].lower() or pattern.lower() in log['component'].lower()]
+        return results[-count:]
+
+
+LOGGER = CentralizedLogger()
+
+
+def setup_logger(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", console_level: LogLevel = LogLevel.INFO) -> CentralizedLogger:
+    global LOGGER
+    LOGGER = CentralizedLogger(name=name, log_dir=log_dir, console_level=console_level)
+    return LOGGER
+
+
+def log_debug(message: str, component: str = "System", **context):
+    LOGGER.debug(message, component, **context)
+
+
+def log_info(message: str, component: str = "System", **context):
+    LOGGER.info(message, component, **context)
+
+
+def log_warning(message: str, component: str = "System", **context):
+    LOGGER.warning(message, component, **context)
+
+
+def log_error(message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+    LOGGER.error(message, component, exception, **context)
+
+
+def log_critical(message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+    LOGGER.critical(message, component, exception, **context)
+'''
+
+EMBEDDED_PLUGIN_SYSTEM = r'''"""🔌 Enhanced Plugin System for PythonOS"""
+import os, re, sys, json, hashlib
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Tuple, Callable
+from dataclasses import dataclass, asdict
+from datetime import datetime
+from enum import Enum
+from collections import deque
+
+class PluginStatus(Enum):
+    DISCOVERED = "discovered"
+    VALIDATED = "validated"
+    LOADED = "loaded"
+    ACTIVE = "active"
+    SUSPENDED = "suspended"
+    ERROR = "error"
+    DISABLED = "disabled"
+
+@dataclass
+class PluginMetadata:
+    name: str
+    version: str
+    author: str
+    description: str
+    entry_point: str = "run"
+    dependencies: List[str] = None
+    min_python_version: str = "3.7"
+    max_python_version: str = None
+    required_modules: List[str] = None
+    permissions: List[str] = None
+    sandbox: bool = True
+    
+    def __post_init__(self):
+        if self.dependencies is None:
+            self.dependencies = []
+        if self.required_modules is None:
+            self.required_modules = []
+        if self.permissions is None:
+            self.permissions = []
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+class PluginDependency:
+    def __init__(self):
+        self.dependency_graph: Dict[str, List[str]] = {}
+        self.versions: Dict[str, str] = {}
+    
+    def add_dependency(self, plugin_name: str, dependency: str, version: str = None):
+        if plugin_name not in self.dependency_graph:
+            self.dependency_graph[plugin_name] = []
+        self.dependency_graph[plugin_name].append(dependency)
+        if version:
+            dep_key = f"{dependency}=={version}"
+            self.versions[dep_key] = version
+    
+    def get_dependencies(self, plugin_name: str) -> List[str]:
+        return self.dependency_graph.get(plugin_name, [])
+    
+    def get_load_order(self, plugins: Dict[str, Any]) -> List[str]:
+        visited, temp_visited, load_order = set(), set(), []
+        def visit(name):
+            if name in visited:
+                return
+            if name in temp_visited:
+                return
+            temp_visited.add(name)
+            for dep in self.get_dependencies(name):
+                visit(dep)
+            temp_visited.remove(name)
+            visited.add(name)
+            load_order.append(name)
+        for plugin_name in plugins:
+            if plugin_name not in visited:
+                visit(plugin_name)
+        return load_order
+    
+    def validate_dependencies(self, plugin_name: str, available_plugins: List[str]) -> Tuple[bool, str]:
+        deps = self.get_dependencies(plugin_name)
+        missing = [d for d in deps if d not in available_plugins]
+        return (False, f"Missing: {missing}") if missing else (True, "OK")
+
+class PluginValidator:
+    REQUIRED_FIELDS = ['name', 'version', 'author', 'description']
+    VERSION_REGEX = re.compile(r'^\d+\.\d+\.\d+$')
+    
+    def __init__(self):
+        self.validation_cache: Dict[str, Dict] = {}
+        self.errors: deque = deque(maxlen=100)
+    
+    def validate_file(self, file_path: str) -> Tuple[bool, str, Optional[PluginMetadata]]:
+        if file_path in self.validation_cache:
+            cached = self.validation_cache[file_path]
+            return cached['valid'], cached['message'], cached.get('metadata')
+        
+        try:
+            if not os.path.exists(file_path):
+                return False, "File not found", None
+            if not os.path.isfile(file_path):
+                return False, "Not a file", None
+            if os.path.getsize(file_path) > 5 * 1024 * 1024:
+                return False, "File too large", None
+            if not file_path.endswith('.py'):
+                return False, "Not a Python file", None
+            
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            try:
+                compile(content, file_path, 'exec')
+            except SyntaxError as e:
+                return False, f"Syntax error: {e}", None
+            
+            metadata = self._extract_metadata(content, file_path)
+            if not metadata:
+                return False, "No metadata", None
+            
+            valid, msg = self._validate_metadata(metadata)
+            if not valid:
+                return False, msg, None
+            
+            self.validation_cache[file_path] = {'valid': True, 'message': 'Valid', 'metadata': metadata}
+            return True, 'Valid', metadata
+            
+        except Exception as e:
+            error_msg = f"Validation error: {str(e)}"
+            self.errors.append(error_msg)
+            return False, error_msg, None
+    
+    def _extract_metadata(self, content: str, file_path: str) -> Optional[PluginMetadata]:
+        try:
+            if 'PLUGIN_METADATA' in content:
+                try:
+                    exec_globals = {}
+                    exec(content, exec_globals)
+                    if 'PLUGIN_METADATA' in exec_globals:
+                        return PluginMetadata(**exec_globals['PLUGIN_METADATA'])
+                except Exception:
+                    pass
+            
+            plugin_name = Path(file_path).stem
+            return PluginMetadata(name=plugin_name, version="0.1.0", author="Unknown", description="No description")
+        except Exception:
+            return None
+    
+    def _validate_metadata(self, metadata: PluginMetadata) -> Tuple[bool, str]:
+        for field in self.REQUIRED_FIELDS:
+            if not getattr(metadata, field, None):
+                return False, f"Missing field: {field}"
+        if not self.VERSION_REGEX.match(metadata.version):
+            return False, "Invalid version format"
+        if not metadata.entry_point or not isinstance(metadata.entry_point, str):
+            return False, "Invalid entry_point"
+        return True, "Valid"
+
+class PluginSandbox:
+    def __init__(self, allowed_modules: List[str] = None, permissions: List[str] = None):
+        self.allowed_modules = allowed_modules or []
+        self.permissions = permissions or []
+        self.safe_builtins = self._create_safe_builtins()
+        self.call_log: deque = deque(maxlen=1000)
+    
+    def _create_safe_builtins(self) -> Dict[str, Any]:
+        return {
+            'print': print, 'len': len, 'range': range, 'enumerate': enumerate,
+            'zip': zip, 'map': map, 'filter': filter, 'list': list, 'dict': dict,
+            'tuple': tuple, 'set': set, 'str': str, 'int': int, 'float': float,
+            'bool': bool, 'abs': abs, 'sum': sum, 'min': min, 'max': max,
+            'sorted': sorted, 'reversed': reversed, 'type': type, 'isinstance': isinstance,
+            'Exception': Exception, '__import__': self._safe_import,
+        }
+    
+    def _safe_import(self, name, *args, **kwargs):
+        if name not in self.allowed_modules and '*' not in self.allowed_modules:
+            raise ImportError(f"Module '{name}' not allowed in sandbox")
+        return __import__(name, *args, **kwargs)
+    
+    def execute(self, code: str, globals_dict: Dict = None, locals_dict: Dict = None) -> Any:
+        try:
+            globs = {'__builtins__': self.safe_builtins}
+            if globals_dict:
+                globs.update(globals_dict)
+            locs = locals_dict or {}
+            exec(code, globs, locs)
+            self.call_log.append({'timestamp': datetime.now().isoformat(), 'code_length': len(code), 'status': 'success'})
+            return locs
+        except Exception as e:
+            self.call_log.append({'timestamp': datetime.now().isoformat(), 'error': str(e), 'status': 'error'})
+            return None
+
+@dataclass
+class LoadedPlugin:
+    name: str
+    metadata: PluginMetadata
+    module: Any
+    file_path: str
+    status: PluginStatus
+    loaded_at: str
+    checksum: str = None
+    sandbox: Optional[PluginSandbox] = None
+    error: Optional[str] = None
+    
+    def call_function(self, func_name: str, *args, **kwargs) -> Any:
+        try:
+            func = getattr(self.module, func_name)
+            return func(*args, **kwargs)
+        except Exception as e:
+            return None
+
+class PluginManager:
+    def __init__(self, plugins_dir: str = None):
+        if plugins_dir is None:
+            plugins_dir = os.path.join(os.path.expanduser("~"), ".pythonos", "plugins")
+        self.plugins_dir = plugins_dir
+        Path(self.plugins_dir).mkdir(parents=True, exist_ok=True)
+        self.validator = PluginValidator()
+        self.dependency_manager = PluginDependency()
+        self.loaded_plugins: Dict[str, LoadedPlugin] = {}
+        self.discovered_plugins: Dict[str, Tuple[str, PluginMetadata]] = {}
+        self.plugin_registry: Dict[str, Any] = {}
+        self.hooks: Dict[str, List[Callable]] = {}
+        self.event_log: deque = deque(maxlen=10000)
+    
+    def discover_plugins(self) -> List[str]:
+        self.discovered_plugins = {}
+        discovered = []
+        if not os.path.exists(self.plugins_dir):
+            return discovered
+        for file_path in Path(self.plugins_dir).glob("*.py"):
+            valid, msg, metadata = self.validator.validate_file(str(file_path))
+            if valid and metadata:
+                self.discovered_plugins[metadata.name] = (str(file_path), metadata)
+                discovered.append(metadata.name)
+        return discovered
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        return {
+            'total_discovered': len(self.discovered_plugins),
+            'total_loaded': len(self.loaded_plugins),
+            'total_events': len(self.event_log),
+            'plugins': list(self.discovered_plugins.keys()),
+            'loaded': list(self.loaded_plugins.keys()),
+        }
+
+PLUGIN_MANAGER = None
+
+def initialize_plugin_system(plugins_dir: str = None) -> PluginManager:
+    global PLUGIN_MANAGER
+    PLUGIN_MANAGER = PluginManager(plugins_dir)
+    return PLUGIN_MANAGER
+
+def get_plugin_manager() -> PluginManager:
+    global PLUGIN_MANAGER
+    if PLUGIN_MANAGER is None:
+        PLUGIN_MANAGER = PluginManager()
+    return PLUGIN_MANAGER
+'''
+
+EMBEDDED_PYAI = r'''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""pyAI - Physics & Math Accelerator for pythonOS."""
+
+from __future__ import annotations
+import math, json, time
+from dataclasses import dataclass
+from typing import Callable, Dict, Any, List, Optional
+
+try:
+    import numpy as np
+except Exception:
+    np = None
+
+try:
+    import scipy as sp
+except Exception:
+    sp = None
+
+try:
+    import sympy as sym
+except Exception:
+    sym = None
+
+PHYS = {
+    "G": 6.67430e-11, "c": 299_792_458.0, "R": 8.314462618,
+    "k": 1.380649e-23, "sigma": 5.670374419e-8, "g0": 9.80665,
+}
+
+@dataclass
+class TaskResult:
+    name: str
+    ok: bool
+    result: Any
+    meta: Dict[str, Any]
+
+class PyAIBrain:
+    """Central registry and dispatcher for physics/math tasks."""
+    def __init__(self) -> None:
+        self.tasks: Dict[str, Callable[..., Any]] = {}
+        self._register_defaults()
+    
+    def register(self, name: str, func: Callable[..., Any]) -> None:
+        self.tasks[name] = func
+    
+    def list_tasks(self) -> List[str]:
+        return sorted(self.tasks.keys())
+    
+    def run(self, name: str, **kwargs: Any) -> TaskResult:
+        if name not in self.tasks:
+            return TaskResult(name, False, None, {"error": "task not found"})
+        t0 = time.time()
+        try:
+            result = self.tasks[name](**kwargs)
+            return TaskResult(name, True, result, {"elapsed_ms": round((time.time() - t0) * 1000, 2)})
+        except Exception as exc:
+            return TaskResult(name, False, None, {"error": str(exc)})
+    
+    def _register_defaults(self) -> None:
+        self.register("rocket_delta_v", rocket_delta_v)
+        self.register("orbital_elements", orbital_elements)
+        self.register("orbital_period", orbital_period)
+        self.register("ballistic_range", ballistic_range)
+        self.register("drag_force", drag_force)
+        self.register("lift_force", lift_force)
+        self.register("reynolds", reynolds_number)
+        self.register("bernoulli", bernoulli_pressure)
+        self.register("isa_density", isa_density)
+        self.register("heat_transfer", heat_transfer)
+        self.register("thermal_radiation", thermal_radiation)
+        self.register("weather_heat_index", weather_heat_index)
+        self.register("weather_wind_chill", wind_chill)
+        self.register("radar_range", radar_range_equation)
+        self.register("sonar_range", sonar_range_equation)
+        self.register("shock_mach", shock_mach_angle)
+        self.register("turbine_power", wind_turbine_power)
+        self.register("projectile_time", projectile_time_of_flight)
+        self.register("fuel_burn", fuel_burn_time)
+        self.register("orbit_escape", escape_velocity)
+        self.register("radiation_dose", radiation_dose)
+        self.register("fluid_stress", shear_stress)
+        self.register("wave_speed", wave_speed_string)
+        self.register("plasma_beta", plasma_beta)
+        self.register("efficiency_index", efficiency_index)
+
+def _to_float(val: Any, default: float = 0.0) -> float:
+    try:
+        return float(val)
+    except Exception:
+        return default
+
+def rocket_delta_v(m0: float, m1: float, isp: float, g0: float = PHYS["g0"]) -> float:
+    m0, m1, isp = _to_float(m0), _to_float(m1), _to_float(isp)
+    return isp * g0 * math.log(m0 / m1) if m1 > 0 and m0 > m1 else 0.0
+
+def orbital_elements(mu: float, r_vec: List[float], v_vec: List[float]) -> Dict[str, float]:
+    mu, r, v = _to_float(mu), _vec(r_vec), _vec(v_vec)
+    rmag, vmag = _norm(r), _norm(v)
+    h, hmag = _cross(r, v), _norm(_cross(r, v))
+    energy = vmag**2 / 2 - mu / rmag
+    a = -mu / (2 * energy) if energy != 0 else float("inf")
+    e_vec = _sub(_mul(_cross(v, h), 1 / mu), _mul(r, 1 / rmag))
+    return {"a": a, "e": _norm(e_vec), "h": hmag}
+
+def orbital_period(mu: float, semi_major_axis: float) -> float:
+    mu, a = _to_float(mu), _to_float(semi_major_axis)
+    return 2 * math.pi * math.sqrt(a**3 / mu) if a > 0 else 0.0
+
+def escape_velocity(mu: float, radius: float) -> float:
+    mu, r = _to_float(mu), _to_float(radius)
+    return math.sqrt(2 * mu / r) if r > 0 else 0.0
+
+def ballistic_range(v0: float, angle_deg: float, g: float = PHYS["g0"]) -> float:
+    v0, angle = _to_float(v0), math.radians(_to_float(angle_deg))
+    return (v0**2 * math.sin(2 * angle)) / g if g else 0.0
+
+def projectile_time_of_flight(v0: float, angle_deg: float, g: float = PHYS["g0"]) -> float:
+    v0, angle = _to_float(v0), math.radians(_to_float(angle_deg))
+    return (2 * v0 * math.sin(angle)) / g if g else 0.0
+
+def drag_force(rho: float, v: float, cd: float, area: float) -> float:
+    return 0.5 * _to_float(rho) * _to_float(v) ** 2 * _to_float(cd) * _to_float(area)
+
+def lift_force(rho: float, v: float, cl: float, area: float) -> float:
+    return 0.5 * _to_float(rho) * _to_float(v) ** 2 * _to_float(cl) * _to_float(area)
+
+def reynolds_number(rho: float, v: float, length: float, mu: float) -> float:
+    return (_to_float(rho) * _to_float(v) * _to_float(length)) / _to_float(mu)
+
+def bernoulli_pressure(rho: float, v: float, p0: float = 0.0) -> float:
+    return _to_float(p0) + 0.5 * _to_float(rho) * _to_float(v) ** 2
+
+def isa_density(alt_m: float) -> float:
+    alt = max(0.0, _to_float(alt_m))
+    t0, p0, lapse, g, R = 288.15, 101325, -0.0065, PHYS["g0"], 287.05
+    t = t0 + lapse * alt
+    return 0.0 if t <= 0 else (p0 * (t / t0) ** (-g / (lapse * R))) / (R * t)
+
+def heat_transfer(k: float, area: float, dT: float, thickness: float) -> float:
+    return (_to_float(k) * _to_float(area) * _to_float(dT)) / _to_float(thickness)
+
+def thermal_radiation(emissivity: float, area: float, temp_k: float) -> float:
+    return _to_float(emissivity) * PHYS["sigma"] * _to_float(area) * _to_float(temp_k) ** 4
+
+def weather_heat_index(temp_c: float, humidity: float) -> float:
+    t, rh = _to_float(temp_c), _to_float(humidity)
+    return t + 0.33 * rh - 0.7
+
+def wind_chill(temp_c: float, wind_kmh: float) -> float:
+    t, v = _to_float(temp_c), max(0.0, _to_float(wind_kmh))
+    return 13.12 + 0.6215 * t - 11.37 * (v ** 0.16) + 0.3965 * t * (v ** 0.16)
+
+def radar_range_equation(pt: float, g: float, wavelength: float, sigma: float, s_min: float) -> float:
+    pt, g, wl, sigma, s_min = _to_float(pt), _to_float(g), _to_float(wavelength), _to_float(sigma), _to_float(s_min)
+    return ((pt * g ** 2 * wl ** 2 * sigma) / ((4 * math.pi) ** 3 * s_min)) ** 0.25 if s_min > 0 else 0.0
+
+def sonar_range_equation(source_level: float, target_strength: float, noise_level: float, detection_threshold: float) -> float:
+    return _to_float(source_level) + _to_float(target_strength) - (_to_float(noise_level) + _to_float(detection_threshold))
+
+def shock_mach_angle(mach: float) -> float:
+    m = _to_float(mach)
+    return math.degrees(math.asin(1 / m)) if m > 1 else 0.0
+
+def wind_turbine_power(rho: float, area: float, v: float, cp: float = 0.4) -> float:
+    return 0.5 * _to_float(rho) * _to_float(area) * _to_float(v) ** 3 * _to_float(cp)
+
+def fuel_burn_time(mass: float, flow_rate: float) -> float:
+    mass, flow = _to_float(mass), _to_float(flow_rate)
+    return mass / flow if flow > 0 else 0.0
+
+def radiation_dose(energy_j: float, mass_kg: float) -> float:
+    return _to_float(energy_j) / _to_float(mass_kg) if mass_kg else 0.0
+
+def shear_stress(mu: float, du_dy: float) -> float:
+    return _to_float(mu) * _to_float(du_dy)
+
+def wave_speed_string(tension: float, linear_density: float) -> float:
+    t, mu = _to_float(tension), _to_float(linear_density)
+    return math.sqrt(t / mu) if mu > 0 else 0.0
+
+def plasma_beta(pressure: float, magnetic_field_t: float) -> float:
+    p, b = _to_float(pressure), _to_float(magnetic_field_t)
+    return (2 * 4 * math.pi * 1e-7 * p) / (b ** 2) if b != 0 else 0.0
+
+def efficiency_index(cpu_util: float, mem_util: float, disk_util: float, cpu_clock_mhz: float = 0.0, ctx_switches: float = 0.0, interrupts: float = 0.0, disk_busy_ms: float = 0.0, efficiency: float = 0.0) -> float:
+    cpu, mem, disk = _to_float(cpu_util), _to_float(mem_util), _to_float(disk_util)
+    penalty = (cpu * 0.3 + mem * 0.2 + disk * 0.2) / 100
+    bonus = min(1.0, (_to_float(cpu_clock_mhz) / 4000.0)) * 0.1
+    noise = min(1.0, (_to_float(ctx_switches) + _to_float(interrupts)) / 1_000_000.0) * 0.05
+    io_penalty = min(1.0, _to_float(disk_busy_ms) / 10000.0) * 0.1
+    score = max(0.0, min(100.0, _to_float(efficiency) + (bonus * 100) - (penalty * 100) - (noise * 100) - (io_penalty * 100)))
+    return round(score, 2)
+
+def _vec(v: List[float]) -> List[float]:
+    return [float(x) for x in v]
+
+def _norm(v: List[float]) -> float:
+    return math.sqrt(sum(x * x for x in v))
+
+def _mul(v: List[float], k: float) -> List[float]:
+    return [x * k for x in v]
+
+def _sub(a: List[float], b: List[float]) -> List[float]:
+    return [x - y for x, y in zip(a, b)]
+
+def _cross(a: List[float], b: List[float]) -> List[float]:
+    return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]
+
+def manifest() -> Dict[str, Any]:
+    brain = PyAIBrain()
+    return {"name": "pyAI", "version": "1.0", "tasks": brain.list_tasks(), "numpy": bool(np), "scipy": bool(sp), "sympy": bool(sym)}
+
+def run_task(name: str, **kwargs: Any) -> Dict[str, Any]:
+    brain = PyAIBrain()
+    result = brain.run(name, **kwargs)
+    return {"name": result.name, "ok": result.ok, "result": result.result, "meta": result.meta}
+
+def main() -> None:
+    print(json.dumps(manifest(), indent=2))
+
+if __name__ == "__main__":
+    main()
+'''
+
+# Embedded tactical.py - RF and EW control system
+EMBEDDED_TACTICAL = r'''#!/usr/bin/env python3
+# tactical_rf_nexus_v3.py - Master Electronic Warfare & RF Intelligence Plugin
+# Supports: AMC, Luff Research, Alaris Cojot, CACI, TCI/ECS, and Naval Research Labs Standards
+
+import os
+import time
+import json
+import math
+from datetime import datetime
+
+def run(context):
+    """
+    Generic plugin entry point.
+    Every plugin MUST have this function.
+    'context' is a dictionary provided by your OS.
+    """
+    pass
+
+# --- SECTION 1: LUFF RESEARCH & SYNTHESIZER CONTROL ---
+class LuffSynthesizerController:
+    """Control for Frequency Synthesizers and Phase-Locked DROs (Luff Research)."""
+    def __init__(self):
+        self.freq_range = (0.5, 40.0) # GHz
+        self.locked = False
+
+    def set_frequency(self, freq_ghz):
+        if self.freq_range[0] <= freq_ghz <= self.freq_range[1]:
+            self.locked = True
+            return f"[📡] LUFF: Phase-Locked to {freq_ghz} GHz"
+        return "[!] Error: Frequency outside Phase-Locked DRO range."
+
+# --- SECTION 2: ALARIS COJOT & STEERABLE BEAM ARRAYS ---
+class AntennaArrayManager:
+    """Direction Finding (DF) and Beamsteering via Alaris Cojot Hardware."""
+    def __init__(self):
+        self.azimuth = 0.0
+        self.elevation = 0.0
+
+    def steer_beam(self, target_azimuth):
+        """Commands steerable antennas to maximize Time-on-Target (ToT)."""
+        self.azimuth = target_azimuth
+        return f"[🎯] BEAMSTEER: Alaris Array oriented to {target_azimuth}°"
+
+# --- SECTION 3: SPECTRUM BATTLESPACE (TCI | ECS & CACI) ---
+class BattlespaceProcessor:
+    """Integration for TCI Models 953, 955, 957 and CACI Systemware."""
+    def __init__(self):
+        self.active_model = "957" # Default High-Performance Monitoring
+        self.mode = "BATTLESPACE_SURVEILLANCE"
+
+    def run_automated_monitoring(self):
+        """Automated Spectrum Monitoring (ASM) per TCI/ECS standards."""
+        return {
+            "noise_floor": "-115dBm",
+            "detected_bursts": 4,
+            "forensic_signature": "Frequency Hopping / Spread Spectrum"
+        }
+
+# --- SECTION 4: MICROWAVE & AMC (PREVIOUS MODULES) ---
+class AMCHardwareSuite:
+    def __init__(self):
+        self.components = {"switch": "OFF", "lna": "IDLE", "dlva": -60.0}
+    def protect_circuit(self):
+        return "AMC Limiters Engaged: Circuit Safe."
+
+# --- SECTION 5: THE AI NEURAL BRIDGE (UARC & NAVAL RESEARCH COMPLIANT) ---
+class TacticalAIBridge:
+    """
+    The Intelligence Layer. Communicates with your Host AI.
+    Optimized for 'Time-on-Target' expansion and Signal Forensic Analysis.
+    """
+    def __init__(self, host_ai_callback=None):
+        self.host_ai = host_ai_callback
+
+    def analyze_battlespace(self, data):
+        """Sends data to Host AI for Electronic Warfare (EW) decision making."""
+        prompt = f"Perform forensic RF analysis on this dataset: {data}"
+        if self.host_ai:
+            return self.host_ai(prompt)
+        return "Analyzing... (Heuristic: Possible radar painting detected)."
+
+# --- SECTION 6: MASTER PLUGIN INTEGRATION ---
+class TacticalNexusPlugin:
+    def __init__(self, host_ai_ref=None):
+        self.luff = LuffSynthesizerController()
+        self.antennas = AntennaArrayManager()
+        self.battlespace = BattlespaceProcessor()
+        self.amc = AMCHardwareSuite()
+        self.ai = TacticalAIBridge(host_ai_callback=host_ai_ref)
+        self.system_name = "U.S. NAVAL RESEARCH LABS - UARC INTERFACE"
+        self.version = "v3.0-SIGINT"
+
+    def execute_tactical_sweep(self):
+        """One-click automated signal forensic analysis and monitoring."""
+        print(f"[+] Initializing {self.system_name}...")
+        monitor_data = self.battlespace.run_automated_monitoring()
+        self.antennas.steer_beam(184.5)
+        self.luff.set_frequency(12.4)
+        analysis = self.ai.analyze_battlespace(monitor_data)
+        return {
+            "monitor": monitor_data,
+            "ai_insight": analysis,
+            "status": "Target Acquired / Time-on-Target Extended"
+        }
+
+def get_nexus_widget():
+    """Returns the visual monitoring dashboard for pythonOScmd."""
+    try:
+        from textual.widgets import Static, Label, Sparkline
+        class NexusDashboard(Static):
+            def compose(self):
+                yield Label("⚡ BATTLESPACE SPECTRUM MONITOR (TCI 957)")
+                yield Sparkline([10, 20, 10, 50, 80, 20, 10], id="spectrum-spark")
+                yield Label("📡 ALARIS COJOT: BEAM ACTIVE")
+                yield Label("🔒 LUFF DRO: PHASE LOCKED")
+        return NexusDashboard
+    except: return None
+
+if __name__ == "__main__":
+    def built_in_ai_logic(query):
+        return "AI ANALYST: Signal identified as NATO-standard encrypted telemetry. Maintaining lock."
+    nexus = TacticalNexusPlugin(host_ai_ref=built_in_ai_logic)
+    results = nexus.execute_tactical_sweep()
+    print(f"\\n[SYSTEM REPORT]: {results['status']}")
+    print(f"[AI FORENSICS]: {results['ai_insight']}")
+'''
+
+# Embedded integration_layer.py - Inter-script communication protocol
+EMBEDDED_INTEGRATION_LAYER = r'''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+INTEGRATION LAYER - Inter-Script Communication Protocol
+Enables communication between pythonOScmd.py, pyAI.py, and tactical.py
+"""
+
+import os
+import sys
+import json
+import time
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Callable
+from dataclasses import dataclass, asdict
+from enum import Enum
+
+class ScriptRole(Enum):
+    """Define the role of each script in the ecosystem."""
+    MAIN_OS = "pythonOScmd"
+    AI_ENGINE = "pyAI"
+    TACTICAL_CONTROL = "tactical"
+
+class CapabilityType(Enum):
+    """Types of capabilities available."""
+    CALCULATION = "calculation"
+    CONTROL = "control"
+    MONITORING = "monitoring"
+    ANALYSIS = "analysis"
+    INTEGRATION = "integration"
+    UTILITY = "utility"
+
+@dataclass
+class Capability:
+    """Description of a single capability."""
+    name: str
+    role: ScriptRole
+    type: CapabilityType
+    description: str
+    version: str
+    parameters: Dict[str, str]
+    returns: str
+    dependencies: List[str] = None
+    example: str = None
+
+@dataclass
+class SystemManifest:
+    """Complete manifest for a script system."""
+    script_name: str
+    script_role: ScriptRole
+    version: str
+    location: str
+    capabilities: List[Capability]
+    dependencies: List[str]
+    metadata: Dict[str, Any]
+    
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
+
+class CapabilityRegistry:
+    """Central registry of all capabilities across all scripts."""
+    
+    def __init__(self):
+        self.capabilities: Dict[str, Capability] = {}
+        self.manifests: Dict[ScriptRole, SystemManifest] = {}
+        self.location_map: Dict[str, Path] = {}
+        
+    def register_capability(self, capability: Capability) -> None:
+        self.capabilities[capability.name] = capability
+        
+    def register_manifest(self, manifest: SystemManifest) -> None:
+        self.manifests[manifest.script_role] = manifest
+        
+    def get_capability(self, name: str) -> Optional[Capability]:
+        return self.capabilities.get(name)
+    
+    def get_capabilities_by_type(self, cap_type: CapabilityType) -> List[Capability]:
+        return [c for c in self.capabilities.values() if c.type == cap_type]
+    
+    def list_all_capabilities(self) -> List[Dict[str, Any]]:
+        return [{"name": c.name, "role": c.role.value, "type": c.type.value, "description": c.description} for c in self.capabilities.values()]
+
+class RequestType(Enum):
+    """Types of inter-script requests."""
+    CAPABILITY_QUERY = "capability_query"
+    EXECUTE_TASK = "execute_task"
+    GET_STATUS = "get_status"
+
+@dataclass
+class CrossScriptRequest:
+    request_id: str
+    source_role: ScriptRole
+    target_role: ScriptRole
+    request_type: RequestType
+    payload: Dict[str, Any]
+    timestamp: float = None
+
+@dataclass
+class CrossScriptResponse:
+    request_id: str
+    source_role: ScriptRole
+    success: bool
+    result: Any = None
+    error: str = None
+
+class RequestQueue:
+    """Queue for inter-script communication."""
+    
+    def __init__(self):
+        self.requests: Dict[str, CrossScriptRequest] = {}
+        self.responses: Dict[str, CrossScriptResponse] = {}
+        
+    def enqueue_request(self, request: CrossScriptRequest) -> None:
+        self.requests[request.request_id] = request
+        
+    def get_request(self, request_id: str) -> Optional[CrossScriptRequest]:
+        return self.requests.get(request_id)
+
+class ResourceLocator:
+    """Locates and manages resources across scripts."""
+    
+    def __init__(self):
+        self.resources: Dict[str, Dict[str, Any]] = {}
+
+class DiscoveryService:
+    """Discovers and catalogs capabilities across all scripts."""
+    
+    def __init__(self):
+        self.discovered_at: Dict[str, float] = {}
+
+class SystemCoordinator:
+    """Coordinates communication and operation between all scripts."""
+    
+    def __init__(self):
+        self.active = False
+        self.event_handlers: Dict[str, List[Callable]] = {}
+        self.shared_state: Dict[str, Any] = {}
+
+# Global instances
+CAPABILITY_REGISTRY = CapabilityRegistry()
+REQUEST_QUEUE = RequestQueue()
+RESOURCE_LOCATOR = ResourceLocator()
+DISCOVERY_SERVICE = DiscoveryService()
+SYSTEM_COORDINATOR = SystemCoordinator()
+
+__all__ = [
+    'ScriptRole', 'CapabilityType', 'Capability', 'SystemManifest',
+    'CapabilityRegistry', 'RequestType', 'CrossScriptRequest', 'CrossScriptResponse',
+    'RequestQueue', 'ResourceLocator', 'DiscoveryService', 'SystemCoordinator',
+    'CAPABILITY_REGISTRY', 'REQUEST_QUEUE', 'RESOURCE_LOCATOR',
+    'DISCOVERY_SERVICE', 'SYSTEM_COORDINATOR'
+]
+'''
+
+# Embedded pyAI_enhanced.py - Enhanced AI with discovery
+EMBEDDED_PYAI_ENHANCED = r'''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ENHANCED pyAI.py - With Cross-Script Discovery
+Added: Comprehensive manifest, task registry with metadata, discovery API
+"""
+
+import sys
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Dict, List, Any, Callable
+import time
+
+try:
+    from integration_layer import (
+        Capability, SystemManifest, ScriptRole, CapabilityType,
+        CAPABILITY_REGISTRY
+    )
+except ImportError:
+    print("[pyAI] Warning: integration_layer not found - discovery disabled")
+
+@dataclass
+class TaskMetadata:
+    """Enhanced metadata for a task."""
+    name: str
+    description: str
+    parameters: Dict[str, str]
+    returns: str
+    version: str
+    category: str
+    dependencies: List[str] = None
+    example: str = None
+
+class EnhancedPyAIBrain:
+    """Enhanced PyAIBrain with discovery capabilities."""
+    
+    def __init__(self):
+        self.tasks: Dict[str, Callable] = {}
+        self.task_metadata: Dict[str, TaskMetadata] = {}
+        self.execution_history: List[Dict[str, Any]] = []
+        self.version = "2.0-Enhanced"
+        
+    def manifest(self) -> Dict[str, Any]:
+        return {
+            "name": "pyAI",
+            "version": self.version,
+            "role": "physics_and_math_calculations",
+            "description": "Physics and mathematical calculation engine",
+            "tasks": list(self.tasks.keys()),
+            "task_count": len(self.tasks)
+        }
+    
+    def discover(self) -> Dict[str, Any]:
+        return {
+            "module": "pyAI",
+            "version": self.version,
+            "module_role": ScriptRole.AI_ENGINE.value,
+            "manifest": self.manifest(),
+            "execution_stats": {
+                "total_executions": len(self.execution_history),
+                "successful": len([e for e in self.execution_history if e.get("success", False)]),
+                "failed": len([e for e in self.execution_history if not e.get("success", False)])
+            }
+        }
+
+pyai_brain = EnhancedPyAIBrain()
+
+def manifest() -> Dict[str, Any]:
+    return pyai_brain.manifest()
+
+def discover() -> Dict[str, Any]:
+    return pyai_brain.discover()
+
+def get_statistics() -> Dict[str, Any]:
+    return {
+        "total_tasks": len(pyai_brain.tasks),
+        "total_executions": len(pyai_brain.execution_history)
+    }
+'''
+
+# Embedded tactical_enhanced.py - Enhanced tactical with discovery
+EMBEDDED_TACTICAL_ENHANCED = r'''#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+ENHANCED tactical.py - With Cross-Script Discovery
+Added: System registry with metadata, comprehensive manifests, discovery API
+"""
+
+import sys
+from pathlib import Path
+from dataclasses import dataclass
+from typing import Dict, List, Any, Optional
+import time
+import json
+
+try:
+    from integration_layer import (
+        Capability, SystemManifest, ScriptRole, CapabilityType,
+        CAPABILITY_REGISTRY
+    )
+except ImportError:
+    print("[tactical] Warning: integration_layer not found - discovery disabled")
+
+@dataclass
+class SystemCapability:
+    """Enhanced metadata for a system capability."""
+    name: str
+    system_name: str
+    method_name: str
+    description: str
+    parameters: Dict[str, str]
+    returns: str
+    version: str
+    category: str
+    frequency_range: Optional[str] = None
+    power_range: Optional[str] = None
+    dependencies: List[str] = None
+    example: str = None
+
+class TacticalNexusPlugin:
+    """Master tactical system with comprehensive discovery."""
+    
+    def __init__(self):
+        self.systems: Dict[str, Any] = {}
+        self.execution_history: List[Dict[str, Any]] = []
+        self.version = "3.1-Enhanced"
+        
+    def manifest(self) -> Dict[str, Any]:
+        return {
+            "name": "tactical",
+            "version": self.version,
+            "description": "RF and Electronic Warfare Control System",
+            "systems": list(self.systems.keys()),
+            "system_count": len(self.systems)
+        }
+    
+    def discover(self) -> Dict[str, Any]:
+        return {
+            "module": "tactical",
+            "version": self.version,
+            "module_role": ScriptRole.TACTICAL_CONTROL.value,
+            "manifest": self.manifest(),
+            "execution_stats": {
+                "total_operations": len(self.execution_history)
+            }
+        }
+    
+    def get_all_system_status(self) -> Dict[str, Any]:
+        return {system: "operational" for system in self.systems}
+
+tactical_nexus = TacticalNexusPlugin()
+
+def manifest() -> Dict[str, Any]:
+    return tactical_nexus.manifest()
+
+def discover() -> Dict[str, Any]:
+    return tactical_nexus.discover()
+
+def get_system_status(system: str = None) -> Dict[str, Any]:
+    return tactical_nexus.get_all_system_status()
+
+def get_statistics() -> Dict[str, Any]:
+    return {
+        "systems": len(tactical_nexus.systems),
+        "total_operations": len(tactical_nexus.execution_history)
+    }
+'''
+
+def extract_embedded_files():
+    """Extract embedded modules to correct locations."""
+    try:
+        # Files that go to SCRIPT_DIR (same directory as pythonOScmd.py)
+        script_dir_files = [
+            ("logger_system.py", EMBEDDED_LOGGER_SYSTEM, SCRIPT_DIR),
+            ("plugin_system.py", EMBEDDED_PLUGIN_SYSTEM, SCRIPT_DIR),
+        ]
+        
+        # Files that go to pythonOS_data/swap directory
+        swap_dir_files = [
+            ("pyAI.py", EMBEDDED_PYAI),
+            ("tactical.py", EMBEDDED_TACTICAL),
+            ("integration_layer.py", EMBEDDED_INTEGRATION_LAYER),
+            ("pyAI_enhanced.py", EMBEDDED_PYAI_ENHANCED),
+            ("tactical_enhanced.py", EMBEDDED_TACTICAL_ENHANCED),
+        ]
+        
+        extracted_count = 0
+        
+        # Extract files to SCRIPT_DIR
+        for filename, content, target_dir in script_dir_files:
+            file_path = os.path.join(target_dir, filename)
+            if not os.path.exists(file_path):
+                print(f"📝 Extracting {filename} to script directory...")
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"✅ Created: {file_path}")
+                extracted_count += 1
+            else:
+                print(f"ℹ️  {filename} already exists in script dir, skipping...")
+        
+        # Create pythonOS_data/swap directory structure
+        os.makedirs(SCRIPT_DIR_FOR_EXTRACTION, exist_ok=True)
+        
+        # Extract files to swap directory
+        for filename, content in swap_dir_files:
+            file_path = os.path.join(SCRIPT_DIR_FOR_EXTRACTION, filename)
+            if not os.path.exists(file_path):
+                print(f"📝 Extracting {filename} to swap directory...")
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"✅ Created: {file_path}")
+                extracted_count += 1
+            else:
+                print(f"ℹ️  {filename} already exists in swap dir, skipping...")
+        
+        if extracted_count > 0:
+            print(f"\n📦 Extracted {extracted_count} modules successfully\n")
+        else:
+            print(f"\n📦 All modules already exist\n")
+    except Exception as e:
+        print(f"⚠️  Could not extract embedded files: {e}")
+
+
+# ================================================================================
 # SECTION 3: CORE SYSTEM UTILITIES
 # ================================================================================
 
 def boot_loader():
+    """Boot loader with enhanced display mode detection and installation logic."""
+    global DISPLAY_MODE, DISPLAY_INITIALIZED
+    
     # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
     if sys.stdout.encoding != 'utf-8':
         import io
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    
+    # 0. Extract embedded modules first
+    print("🔧 Initializing pythonOS...\n")
+    extract_embedded_files()
 
     # 1. Define required libraries
     required = {
         'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil', 'numpy',
         'textual', 'rich', 'pygments', 'pygame', 'tinytag'
     }
+    
+    # Core display libraries (required for enhanced UI)
+    display_libraries = {'textual', 'rich'}
     missing = set()
+    missing_display = set()
 
     # 2. Check what is actually installed without using pkg_resources
-
     for lib in required:
         try:
             # Map pip package names to actual python import names
@@ -92,8 +1434,38 @@ def boot_loader():
             __import__(import_name)
         except ImportError:
             missing.add(lib)
+            if lib in display_libraries:
+                missing_display.add(lib)
 
-    # 3. If anything is missing, ask the user
+    # 3. Check if display libraries are missing
+    if missing_display:
+        print(f"\033[93m[!] 📦 Missing Display Libraries: {', '.join(missing_display)}\033[0m")
+        print(f"\033[93m[!] This will affect the UI mode (Textual/Rich).\033[0m\n")
+        
+        choice = input("📥 Do you want to install display libraries now? (y/n): ").strip().lower()
+        if choice == 'y':
+            print(f"🚀 Installing display libraries: {missing_display}...")
+            try:
+                subprocess.check_call([sys.executable, "-m", "pip", "install", *missing_display],
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print("✅ Display libraries installed successfully!\n")
+                missing.difference_update(missing_display)
+                time.sleep(1)
+            except Exception as e:
+                print(f"⚠️  Could not install display libraries. Falling back to classic mode.\n")
+                missing_display = set()  # Reset to trigger fallback
+
+    # 4. Detect and set display mode
+    DISPLAY_MODE = detect_display_capabilities()
+    DISPLAY_INITIALIZED = True
+    
+    print(f"📺 Display Mode: [{DISPLAY_MODE.upper()}]\n")
+    
+    if DISPLAY_MODE == "classic":
+        print("\033[93m[!] ⚠️ Running in CLASSIC mode (limited UI features)\033[0m")
+        print("💡 Tip: Install 'textual' and 'rich' for enhanced display modes\n")
+    
+    # 5. Handle remaining missing libraries
     if missing:
         print(f"\033[93m[!] 📦 Missing Libraries detected: {', '.join(missing)}\033[0m")
         choice = input("📥 Do you want to install them now? (y/n): ").strip().lower()
@@ -101,22 +1473,28 @@ def boot_loader():
         if choice == 'y':
             print(f"🚀 Installing: {missing}...")
             try:
-                # Uses global 'sys' which is now safely imported at the top
                 subprocess.check_call([sys.executable, "-m", "pip", "install", *missing],
-                                      stdout=subprocess.DEVNULL)
-                print("✅ Setup complete. Launching Monitor...\n")
+                                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                print("✅ Setup complete. Launching Application...\n")
                 time.sleep(1)
             except Exception as e:
                 print(f"❌ Auto-install failed. Try running: pip install {' '.join(missing)}")
-                sys.exit(1)
+                if DISPLAY_MODE == "classic":
+                    print("🛡️ Continuing in Classic Mode...\n")
+                    time.sleep(2)
+                else:
+                    sys.exit(1)
         else:
-            # 4. User said NO - Enable Safe Mode (Mocking)
+            # 6. User said NO - Enable Safe Mode (Mocking)
             print("\n\033[91m[!] ⚠️ WARNING: You chose not to install dependencies.\033[0m")
 
             # Specific warning for Pillow
             if 'Pillow' in missing:
                 print("\033[91m[!] 🖼️ NOTE: Pillow is missing. Web Image/ASCII functionality will be REDUCED.\033[0m")
 
+            if DISPLAY_MODE != "classic":
+                print("⚠️ Some display features may be unavailable.\n")
+            
             print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
             time.sleep(2)
 
@@ -175,22 +1553,35 @@ from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
 
-# Import centralized logging system
+# Import centralized logging system (from script directory)
 try:
     from logger_system import LOGGER, LogLevel, log_info, log_error, log_warning, log_debug, LogAnalyzer
-except ImportError:
-    print("⚠️  Warning: logger_system module not found. Using basic logging.")
-    LOGGER = None
+except ImportError as e:
+    # Fallback: Try importing from script directory explicitly
+    try:
+        sys.path.insert(0, SCRIPT_DIR)
+        from logger_system import LOGGER, LogLevel, log_info, log_error, log_warning, log_debug, LogAnalyzer
+    except ImportError:
+        print("⚠️  Warning: logger_system module not found. Using basic logging.")
+        LOGGER = None
 
-# Import enhanced plugin system
+# Import enhanced plugin system (from script directory)
 try:
     from plugin_system import (
         PluginManager, PluginStatus, PluginMetadata, PluginValidator,
         initialize_plugin_system, get_plugin_manager
     )
-except ImportError:
-    print("⚠️  Warning: plugin_system module not found.")
-    PluginManager = None
+except ImportError as e:
+    # Fallback: Try importing from script directory explicitly
+    try:
+        sys.path.insert(0, SCRIPT_DIR)
+        from plugin_system import (
+            PluginManager, PluginStatus, PluginMetadata, PluginValidator,
+            initialize_plugin_system, get_plugin_manager
+        )
+    except ImportError:
+        print("⚠️  Warning: plugin_system module not found.")
+        PluginManager = None
 
 # ================================================================================
 # PERFORMANCE OPTIMIZATION SYSTEM
@@ -2790,7 +4181,8 @@ def _ensure_textual_imports():
     """Lazy-load Textual widgets the first time enhanced mode is launched."""
     global App, ComposeResult, Container, Horizontal, Vertical, Grid, reactive
     global Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab, Digits, Markdown
-    global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR
+    global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR, DISPLAY_MODE
+    
     if _TEXTUAL_IMPORTED:
         return True
     try:
@@ -2806,14 +4198,60 @@ def _ensure_textual_imports():
             Markdown = Static
         _TEXTUAL_IMPORTED = True
         _TEXTUAL_IMPORT_ERROR = None
+        DISPLAY_MODE = "textual"  # Update global display mode on success
         return True
     except Exception as exc:
         _TEXTUAL_IMPORTED = False
         _TEXTUAL_IMPORT_ERROR = exc
+        DISPLAY_MODE = "classic"  # Fallback to classic on Textual failure
         App = ComposeResult = Container = Horizontal = Vertical = Grid = None
         reactive = None
         Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = Markdown = None
         return False
+
+def safe_run_dashboard(dashboard_func, *args, fallback_func=None, **kwargs):
+    """
+    Safely run a dashboard with automatic fallback to classic mode if it fails.
+    
+    Args:
+        dashboard_func: The dashboard function to run (e.g., run_unified_dashboard)
+        fallback_func: Function to call if dashboard fails (e.g., run_classic_command_center)
+        *args, **kwargs: Arguments to pass to dashboard_func
+        
+    Returns:
+        Result of dashboard_func or fallback_func
+    """
+    global DISPLAY_MODE
+    
+    try:
+        print(f"🎯 Launching dashboard in {DISPLAY_MODE.upper()} mode...")
+        return dashboard_func(*args, **kwargs)
+    except Exception as e:
+        print(f"\n⚠️  Dashboard error in {DISPLAY_MODE} mode: {str(e)[:100]}")
+        print(f"💡 Attempting fallback to classic mode...\n")
+        
+        # Offer to install missing display libraries
+        if DISPLAY_MODE != "classic":
+            choice = input("📦 Would you like to install display libraries (textual, rich)? (y/n): ").strip().lower()
+            if choice == 'y':
+                print("🚀 Installing display libraries...")
+                try:
+                    subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "textual", "rich", "pygments"],
+                                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    print("✅ Display libraries installed. Please restart the application.\n")
+                    time.sleep(2)
+                except Exception as install_error:
+                    print(f"❌ Installation failed: {install_error}\n")
+        
+        # Fallback execution
+        DISPLAY_MODE = "classic"
+        if fallback_func:
+            try:
+                return fallback_func(*args, **kwargs)
+            except Exception as fallback_error:
+                print(f"❌ Fallback also failed: {fallback_error}")
+                return None
+        return None
 
 def init_audio_device():
     """Detect default audio output (PulseAudio/PipeWire) and set env override."""
@@ -28639,7 +30077,7 @@ Boot Time: {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M:
             def _render_command_grid(self) -> str:
                 """Render the command grid display."""
                 output = "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n"
-                output += "[bold]🎯 COMMAND GRID[/bold cyan]\n"
+                output += "[bold cyan]🎯 COMMAND GRID[/bold cyan]\n"
                 output += "[bold cyan]═══════════════════════════════════════════════════════════════[/bold cyan]\n\n"
 
                 # Show by category
