@@ -30475,6 +30475,13 @@ Process Count: {len(psutil.pids())}
             ("q", "quit_app", "Quit"),
             ("?", "show_help", "Help"),
             ("r", "refresh", "Refresh"),
+            ("1", "tab_commands", "Commands"),
+            ("2", "tab_system", "System"),
+            ("3", "tab_settings", "Settings"),
+            ("4", "tab_monitors", "Monitors"),
+            ("5", "tab_filemgr", "Files"),
+            ("6", "tab_widgets", "Widgets"),
+            ("7", "tab_media", "Media"),
         ]
 
         # Command buffer for multi-digit commands
@@ -30585,6 +30592,98 @@ Process Count: {len(psutil.pids())}
                             id="settings-view"
                         )
 
+                    with TabPane("🚀 Resource Monitors", id="monitors-tab"):
+                        yield Static(
+                            Text.from_markup(
+                                "[bold cyan]📊 SYSTEM RESOURCE MONITORS[/bold cyan]\n"
+                                "═════════════════════════════════════════════\n\n"
+                                "[bold yellow]Available Tools:[/bold yellow]\n\n"
+                                "[cyan][1][/cyan] [bold]🚀 Launch Bpytop[/bold]\n"
+                                "    Live system stats with beautiful graphs\n"
+                                "    [dim]Press Enter or click to launch[/dim]\n\n"
+                                "[cyan][2][/cyan] [bold]🖥  Launch Htop[/bold]\n"
+                                "    Interactive process viewer\n"
+                                "[cyan][3][/cyan] [bold]📊 Launch Gtop[/bold]\n"
+                                "    GPU monitoring with real-time stats\n\n"
+                                "[cyan][4][/cyan] [bold]⚡ Launch Btop++[/bold]\n"
+                                "    High-performance resource monitor\n\n"
+                                "[bold][yellow]Keyboard Shortcuts:[/yellow][/bold]\n"
+                                "[dim]Press 1-4 to launch tools or click buttons[/dim]\n"
+                            ),
+                            id="monitors-view"
+                        )
+
+                    with TabPane("📁 File Manager", id="filemgr-tab"):
+                        yield Static(
+                            Text.from_markup(
+                                "[bold cyan]📁 FILE MANAGER SUITE[/bold cyan]\n"
+                                "═════════════════════════════════════════════\n\n"
+                                "[bold yellow]File Manager Options:[/bold yellow]\n\n"
+                                "[cyan][1][/cyan] [bold]📁 Curses File Manager[/bold]\n"
+                                "    Classic terminal file browser\n\n"
+                                "[cyan][2][/cyan] [bold]🎨 Textual File Manager[/bold]\n"
+                                "    Modern Textual-based interface\n\n"
+                                "[cyan][3][/cyan] [bold]🚀 Superfile[/bold]\n"
+                                "    Ultra-fast file navigation (if installed)\n\n"
+                                "[bold][yellow]Features:[/bold][/yellow]\n"
+                                "[green]✓[/green] Browse directories\n"
+                                "[green]✓[/green] Preview files\n"
+                                "[green]✓[/green] Quick operations\n\n"
+                                "[dim]Press 1-3 or click to launch[/dim]\n"
+                            ),
+                            id="filemgr-view"
+                        )
+
+                    with TabPane("🎮 Widget Board", id="widgets-tab"):
+                        yield Static(
+                            Text.from_markup(
+                                "[bold cyan]🎮 TEXTUAL WIDGET BOARD[/bold cyan]\n"
+                                "═════════════════════════════════════════════\n\n"
+                                "[bold yellow]Interactive Widgets:[/bold yellow]\n\n"
+                                "[cyan][1][/cyan] [bold]🧮 Calculator[/bold]\n"
+                                "    Interactive desktop calculator\n"
+                                "    • Full keyboard support\n"
+                                "    • Decimal/scientific modes\n\n"
+                                "[cyan][2][/cyan] [bold]🎵 Audio Player[/bold]\n"
+                                "    MP3/WAV playback\n"
+                                "    • Visualizer included\n\n"
+                                "[cyan][3][/cyan] [bold]📝 Notes Widget[/bold]\n"
+                                "    Quick note taking\n\n"
+                                "[cyan][4][/cyan] [bold]⏱️  Stopwatch[/bold]\n"
+                                "    Timer and chronometer\n\n"
+                                "[cyan][5][/cyan] [bold]📊 Stats Dashboard[/bold]\n"
+                                "    Real-time system statistics\n\n"
+                                "[dim]Press 1-5 or click to access widgets[/dim]\n"
+                            ),
+                            id="widgets-view"
+                        )
+
+                    with TabPane("🎬 Media Lounge", id="media-tab"):
+                        yield Static(
+                            Text.from_markup(
+                                "[bold cyan]🎬 TEXTUAL MEDIA LOUNGE[/bold cyan]\n"
+                                "═════════════════════════════════════════════\n\n"
+                                "[bold yellow]Media Features:[/bold yellow]\n\n"
+                                "[cyan][1][/cyan] [bold]🌐 ASCII Web Browser[/bold]\n"
+                                "    Browse websites in your terminal\n"
+                                "    • Full HTML rendering\n"
+                                "    • Link navigation\n\n"
+                                "[cyan][2][/cyan] [bold]🎵 Audio Playback[/bold]\n"
+                                "    MP3/MP4 streaming support\n"
+                                "    • Playlist management\n"
+                                "    • Equalizer controls\n\n"
+                                "[cyan][3][/cyan] [bold]📺 Video Player[/bold]\n"
+                                "    ASCII video rendering\n"
+                                "    • Frame-by-frame controls\n\n"
+                                "[cyan][4][/cyan] [bold]📁 Media Scanner[/bold]\n"
+                                "    Scan and organize media files\n"
+                                "    • Auto-detection of formats\n\n"
+                                "[bold][yellow]Keyboard Shortcuts:[/bold][/yellow]\n"
+                                "[dim]Press 1-4 or click to launch[/dim]\n"
+                            ),
+                            id="media-view"
+                        )
+
             yield Footer()
 
         def action_quit_app(self) -> None:
@@ -30619,13 +30718,111 @@ Process Count: {len(psutil.pids())}
             stats_widget = self.query_one("#stats-panel", RealtimeStatsWidget)
             stats_widget.refresh()
 
+        def action_tab_commands(self) -> None:
+            """Switch to Commands tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "commands-tab"
+
+        def action_tab_system(self) -> None:
+            """Switch to System tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "system-tab"
+
+        def action_tab_settings(self) -> None:
+            """Switch to Settings tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "settings-tab"
+
+        def action_tab_monitors(self) -> None:
+            """Switch to Monitors tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "monitors-tab"
+
+        def action_tab_filemgr(self) -> None:
+            """Switch to File Manager tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "filemgr-tab"
+
+        def action_tab_widgets(self) -> None:
+            """Switch to Widgets tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "widgets-tab"
+
+        def action_tab_media(self) -> None:
+            """Switch to Media tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "media-tab"
+
         def action_run_cmd(self, cmd: str) -> None:
             """Execute a command."""
             self._execute_command(cmd)
 
+        def _launch_system_tool(self, tool_name: str) -> None:
+            """Launch a system monitoring tool."""
+            tools = {
+                "bpytop": ("bpytop", "Live system stats"),
+                "htop": ("htop", "Process monitor"),
+                "gtop": ("gtop", "GPU monitor"),
+                "btop": ("btop", "Resource monitor"),
+            }
+            if tool_name in tools:
+                cmd, desc = tools[tool_name]
+                if shutil.which(cmd):
+                    os.system(cmd)
+                else:
+                    self._show_message(f"⚠️  {cmd} not installed. {desc} not available.", "warning")
+
+        def _launch_file_manager(self, mgr_type: str) -> None:
+            """Launch file manager."""
+            if mgr_type == "curses":
+                safe_run(None, "File_Manager_Curses", lambda: os.system("mc"))
+            elif mgr_type == "textual":
+                try:
+                    feature_file_manager_suite()
+                except Exception as e:
+                    self._show_message(f"Error launching file manager: {e}", "error")
+            elif mgr_type == "superfile":
+                if shutil.which("spf"):
+                    os.system("spf")
+                else:
+                    self._show_message("Superfile not installed", "warning")
+
+        def _launch_widget_board(self, widget_type: str) -> None:
+            """Launch widget board."""
+            try:
+                if widget_type == "all":
+                    feature_textual_widget_board()
+                elif widget_type == "calculator":
+                    # Launch just the calculator
+                    os.system("python3 -c 'from pythonOScmd import feature_textual_calculator; feature_textual_calculator()'")
+            except Exception as e:
+                self._show_message(f"Error launching widget: {e}", "error")
+
+        def _launch_media_lounge(self) -> None:
+            """Launch media lounge."""
+            try:
+                feature_textual_media_lounge()
+            except Exception as e:
+                self._show_message(f"Error launching media lounge: {e}", "error")
+
+        def _show_message(self, message: str, msg_type: str = "info") -> None:
+            """Display a temporary message."""
+            from textual.widgets import Static
+            icon_map = {"info": "ℹ️", "warning": "⚠️", "error": "❌", "success": "✅"}
+            icon = icon_map.get(msg_type, "»")
+            # For now, this is a placeholder - in real implementation would show overlay
+            pass
+
         def on_key(self, event) -> None:
             """Handle key presses with intelligent buffering and confirmation."""
             key = event.key.lower()
+            
+            # Get active tab
+            try:
+                tabs = self.query_one(TabbedContent)
+                active_tab = tabs.active
+            except:
+                active_tab = None
 
             # Handle special commands that bypass buffer
             if key == "q":
@@ -30641,6 +30838,31 @@ Process Count: {len(psutil.pids())}
             if key == "r":
                 self.action_refresh()
                 event.prevent_default()
+                return
+
+            # Tab-specific key handlers
+            if active_tab == "monitors-tab" and key in "1234":
+                event.prevent_default()
+                tools = {"1": "bpytop", "2": "htop", "3": "gtop", "4": "btop"}
+                if key in tools:
+                    self._launch_system_tool(tools[key])
+                return
+
+            if active_tab == "filemgr-tab" and key in "123":
+                event.prevent_default()
+                mgrs = {"1": "curses", "2": "textual", "3": "superfile"}
+                if key in mgrs:
+                    self._launch_file_manager(mgrs[key])
+                return
+
+            if active_tab == "widgets-tab" and key in "12345":
+                event.prevent_default()
+                self._launch_widget_board("all")
+                return
+
+            if active_tab == "media-tab" and key in "1234":
+                event.prevent_default()
+                self._launch_media_lounge()
                 return
 
             # If user presses Enter on selected command, execute it
