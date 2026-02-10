@@ -6,7 +6,7 @@
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
 # Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
-# Version: pythonOScmd65 (Base: pythonOS70, Version 21.1)
+# Version: pythonOScmd200 (Base: pythonOS70, Version 21.1)
 # Description: Terminal OS with monitoring, security tools, media capabilities
 #
 # TABLE OF CONTENTS:
@@ -1339,6 +1339,221 @@ def get_statistics() -> Dict[str, Any]:
     }
 '''
 
+# ================================================================================
+# COMPREHENSIVE MODULE INDEX SYSTEM (AI-FRIENDLY NAVIGATION)
+# ================================================================================
+# This registry helps AI systems and developers quickly locate and understand
+# all features in pythonOScmd.py. It serves as the "spine" of the OS.
+
+FEATURES_REGISTRY = {
+    "core_modules": {
+        "logger_system": {
+            "type": "core_module",
+            "location": "embedded_in_script_dir",
+            "description": "Centralized logging system with rotation, JSON formatting, and analytics",
+            "exports": ["LOGGER", "LogLevel", "CentralizedLogger", "LogAnalyzer"],
+            "dependencies": ["logging", "logging.handlers", "json"],
+            "created": "on_first_run"
+        },
+        "plugin_system": {
+            "type": "core_module",
+            "location": "embedded_in_script_dir",
+            "description": "Plugin management with validation, sandboxing, and lifecycle management",
+            "exports": ["PluginManager", "PluginStatus", "PluginValidator", "PluginSandbox"],
+            "dependencies": ["importlib", "inspect", "pathlib"],
+            "created": "on_first_run"
+        }
+    },
+    "extended_modules": {
+        "pyAI": {
+            "type": "physics_engine",
+            "location": "pythonOS_data/swap",
+            "description": "Physics and mathematical calculation engine with 25+ functions",
+            "exports": ["PyAIBrain", "rocket_delta_v", "orbital_mechanics", "radar_range_equation"],
+            "dependencies": ["math", "numpy", "scipy", "sympy"],
+            "created": "on_first_run"
+        },
+        "tactical": {
+            "type": "control_system",
+            "location": "pythonOS_data/swap",
+            "description": "RF and Electronic Warfare control system with beamsteering and monitoring",
+            "exports": ["TacticalNexusPlugin", "LuffSynthesizer", "AntennaArrayManager"],
+            "dependencies": ["json", "time", "math"],
+            "created": "on_first_run"
+        },
+        "integration_layer": {
+            "type": "communication_bridge",
+            "location": "pythonOS_data/swap",
+            "description": "Inter-script communication protocol with capability registry and discovery",
+            "exports": ["CAPABILITY_REGISTRY", "REQUEST_QUEUE", "DISCOVERY_SERVICE"],
+            "dependencies": ["enum", "dataclasses", "typing"],
+            "created": "on_first_run"
+        },
+        "pyAI_enhanced": {
+            "type": "discovery_module",
+            "location": "pythonOS_data/swap",
+            "description": "Enhanced pyAI with cross-script discovery and metadata systems",
+            "exports": ["EnhancedPyAIBrain", "TaskMetadata", "manifest", "discover"],
+            "dependencies": ["pyAI", "integration_layer"],
+            "created": "on_first_run"
+        },
+        "tactical_enhanced": {
+            "type": "discovery_module",
+            "location": "pythonOS_data/swap",
+            "description": "Enhanced tactical with system registry and discovery capabilities",
+            "exports": ["TacticalNexusPlugin", "SystemCapability", "manifest", "discover"],
+            "dependencies": ["tactical", "integration_layer"],
+            "created": "on_first_run"
+        }
+    },
+    "system_features": {
+        "display_system": {
+            "line_start": 75,
+            "line_end": 130,
+            "description": "Display mode detection (textual/rich/classic) with fallback logic",
+            "functions": ["detect_display_capabilities", "safe_run_dashboard"],
+            "modes": ["textual", "rich", "classic"]
+        },
+        "boot_loader": {
+            "line_start": 1401,
+            "description": "System initialization with module extraction and dependency checking",
+            "calls": ["extract_embedded_files", "detect_display_capabilities"]
+        },
+        "module_index": {
+            "type": "metadata_system",
+            "description": "This registry itself - helps AI and developers navigate the system",
+            "updated": "on_each_run"
+        }
+    }
+}
+
+# Embedded module index documentation generator
+EMBEDDED_MODULE_INDEX_GENERATOR = r'''#!/usr/bin/env python3
+"""
+Module Index Generator & Navigator
+====================================
+Generates and manages the system-wide module index for AI and human navigation.
+"""
+
+import json
+import os
+from pathlib import Path
+from typing import Dict, List, Any
+
+class ModuleIndexGenerator:
+    """Generates comprehensive module index for the pythonOS system."""
+    
+    def __init__(self, registry: Dict[str, Any]):
+        self.registry = registry
+        self.index_path = Path(__file__).parent / "module_index.json"
+        self.readme_path = Path(__file__).parent / "MODULE_INDEX.md"
+    
+    def generate_index(self) -> Dict[str, Any]:
+        """Generate complete module index."""
+        return {
+            "system": "pythonOS - Terminal Operating System",
+            "version": "7.1-IndexedArchitecture",
+            "purpose": "Single-file modular OS with dynamic branching",
+            "spine": "pythonOScmd.py (32k+ lines, all modules embedded)",
+            "architecture": "One Script → Infinite Branches",
+            "modules": self.registry,
+            "generated": self._timestamp()
+        }
+    
+    def save_index(self) -> None:
+        """Save index to JSON file."""
+        index = self.generate_index()
+        with open(self.index_path, 'w') as f:
+            json.dump(index, f, indent=2)
+        print(f"✅ Module index saved to: {self.index_path}")
+    
+    def generate_markdown_docs(self) -> str:
+        """Generate markdown documentation from registry."""
+        docs = "# 🗺️ PythonOS Module Index & Navigation Guide\n\n"
+        docs += "## System Architecture: ONE SCRIPT → INFINITE BRANCHES\n\n"
+        docs += "### Core Spine: pythonOScmd.py\n"
+        docs += "- **32,000+ lines** of integrated functionality\n"
+        docs += "- **All modules embedded** as extractable constants\n"
+        docs += "- **Auto-extraction** on first run\n"
+        docs += "- **Self-organizing** system structure\n\n"
+        
+        docs += "### Module Hierarchy\n\n"
+        
+        # Core modules
+        docs += "#### 🔴 CORE MODULES (In Script Directory)\n"
+        for name, info in self.registry.get("core_modules", {}).items():
+            docs += f"\n**{name}**\n"
+            docs += f"- Description: {info['description']}\n"
+            docs += f"- Location: {info['location']}\n"
+            docs += f"- Exports: {', '.join(info['exports'])}\n"
+        
+        # Extended modules
+        docs += "\n\n#### 🟢 EXTENDED MODULES (In pythonOS_data/swap)\n"
+        for name, info in self.registry.get("extended_modules", {}).items():
+            docs += f"\n**{name}**\n"
+            docs += f"- Type: {info['type']}\n"
+            docs += f"- Description: {info['description']}\n"
+            docs += f"- Exports: {', '.join(info['exports'])}\n"
+            docs += f"- Dependencies: {', '.join(info['dependencies'])}\n"
+        
+        # System features
+        docs += "\n\n#### 🔵 SYSTEM FEATURES\n"
+        for name, info in self.registry.get("system_features", {}).items():
+            docs += f"\n**{name}**\n"
+            docs += f"- Description: {info['description']}\n"
+        
+        docs += "\n\n### Quick Navigation\n"
+        docs += "**For AI Systems:** Load this registry to instantly understand system structure\n"
+        docs += "**For Developers:** Use module names to locate features quickly\n"
+        docs += "**For New Team Members:** Start here to understand the architecture\n"
+        
+        return docs
+    
+    def save_markdown_docs(self) -> None:
+        """Save markdown documentation."""
+        docs = self.generate_markdown_docs()
+        with open(self.readme_path, 'w') as f:
+            f.write(docs)
+        print(f"✅ Module documentation saved to: {self.readme_path}")
+    
+    def get_module_by_name(self, name: str) -> Dict[str, Any]:
+        """Get module information by name."""
+        for category in ["core_modules", "extended_modules"]:
+            if name in self.registry.get(category, {}):
+                return self.registry[category][name]
+        return None
+    
+    def get_modules_by_type(self, module_type: str) -> List[Dict[str, Any]]:
+        """Get all modules of a specific type."""
+        results = []
+        for category in ["core_modules", "extended_modules"]:
+            for name, info in self.registry.get(category, {}).items():
+                if info.get("type") == module_type:
+                    results.append({name: info})
+        return results
+    
+    def get_dependencies_for(self, module_name: str) -> List[str]:
+        """Get all dependencies for a module."""
+        module = self.get_module_by_name(module_name)
+        if module:
+            return module.get("dependencies", [])
+        return []
+    
+    def _timestamp(self) -> str:
+        """Get current timestamp."""
+        from datetime import datetime
+        return datetime.now().isoformat()
+
+def manifest() -> Dict[str, Any]:
+    """Return module manifest."""
+    return {
+        "name": "module_index_generator",
+        "version": "1.0",
+        "description": "Generates and manages system-wide module index",
+        "type": "metadata_system"
+    }
+'''
+
 def extract_embedded_files():
     """Extract embedded modules to correct locations."""
     try:
@@ -1357,6 +1572,11 @@ def extract_embedded_files():
             ("tactical_enhanced.py", EMBEDDED_TACTICAL_ENHANCED),
         ]
         
+        # Files that go to pythonOS_data directory (system utilities)
+        data_dir_files = [
+            ("module_index_generator.py", EMBEDDED_MODULE_INDEX_GENERATOR),
+        ]
+        
         extracted_count = 0
         
         # Extract files to SCRIPT_DIR
@@ -1371,8 +1591,22 @@ def extract_embedded_files():
             else:
                 print(f"ℹ️  {filename} already exists in script dir, skipping...")
         
-        # Create pythonOS_data/swap directory structure
+        # Create pythonOS_data and swap directory structure
+        data_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
         os.makedirs(SCRIPT_DIR_FOR_EXTRACTION, exist_ok=True)
+        os.makedirs(data_dir, exist_ok=True)
+        
+        # Extract files to data directory (pythonOS_data)
+        for filename, content in data_dir_files:
+            file_path = os.path.join(data_dir, filename)
+            if not os.path.exists(file_path):
+                print(f"📝 Extracting {filename} to pythonOS_data directory...")
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(content)
+                print(f"✅ Created: {file_path}")
+                extracted_count += 1
+            else:
+                print(f"ℹ️  {filename} already exists, skipping...")
         
         # Extract files to swap directory
         for filename, content in swap_dir_files:
@@ -1390,6 +1624,20 @@ def extract_embedded_files():
             print(f"\n📦 Extracted {extracted_count} modules successfully\n")
         else:
             print(f"\n📦 All modules already exist\n")
+        
+        # Generate Module Index for AI & Developers
+        print("📑 Generating Module Index for AI Navigation...")
+        try:
+            # Import and run the index generator
+            sys.path.insert(0, os.path.join(SCRIPT_DIR, "pythonOS_data"))
+            from module_index_generator import ModuleIndexGenerator
+            
+            generator = ModuleIndexGenerator(FEATURES_REGISTRY)
+            generator.save_index()
+            generator.save_markdown_docs()
+            print("✅ Module index and documentation generated\n")
+        except Exception as e:
+            print(f"⚠️  Could not generate module index: {e}\n")
     except Exception as e:
         print(f"⚠️  Could not extract embedded files: {e}")
 
