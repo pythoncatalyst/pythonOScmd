@@ -96,7 +96,7 @@ DISPLAY_INITIALIZED = False
 
 def detect_display_capabilities():
     """Detect available display modes and capabilities.
-    
+
     Returns:
         str: One of 'textual', 'rich', or 'classic'
     """
@@ -161,7 +161,7 @@ class LogLevel(Enum):
 class CentralizedLogger:
     """
     Enterprise-grade centralized logging system.
-    
+
     Features:
     - Multiple output formats (console, file, JSON)
     - Automatic log rotation
@@ -170,7 +170,7 @@ class CentralizedLogger:
     - Log level filtering
     - Query and analysis capabilities
     """
-    
+
     def __init__(
         self,
         name: str = "pythonOS",
@@ -187,23 +187,23 @@ class CentralizedLogger:
         self.backup_count = backup_count
         self.console_level = console_level
         self.file_level = file_level
-        
+
         Path(log_dir).mkdir(parents=True, exist_ok=True)
-        
+
         self.logger = logging.getLogger(name)
         self.logger.setLevel(logging.DEBUG)
         self.logger.handlers.clear()
-        
+
         self._setup_handlers()
         self.log_buffer = deque(maxlen=1000)
-        
+
         self.stats = {
             "total_logs": 0,
             "by_level": {level.name: 0 for level in LogLevel},
             "by_component": {},
             "start_time": datetime.now().isoformat()
         }
-    
+
     def _setup_handlers(self):
         """Setup file and console handlers with rotation."""
         console_handler = logging.StreamHandler()
@@ -214,7 +214,7 @@ class CentralizedLogger:
         )
         console_handler.setFormatter(console_formatter)
         self.logger.addHandler(console_handler)
-        
+
         try:
             log_file = os.path.join(self.log_dir, f"{self.name}.log")
             file_handler = logging.handlers.RotatingFileHandler(
@@ -229,7 +229,7 @@ class CentralizedLogger:
             )
             file_handler.setFormatter(file_formatter)
             self.logger.addHandler(file_handler)
-            
+
             json_handler = logging.handlers.RotatingFileHandler(
                 os.path.join(self.log_dir, f"{self.name}.json"),
                 maxBytes=self.max_bytes,
@@ -238,44 +238,44 @@ class CentralizedLogger:
             json_handler.setLevel(self.file_level.value[0])
             json_handler.setFormatter(JSONFormatter())
             self.logger.addHandler(json_handler)
-            
+
         except Exception as e:
             print(f"⚠️  Failed to setup file handlers: {e}")
-    
+
     def debug(self, message: str, component: str = "System", **context):
         self._log(LogLevel.DEBUG, message, component, context)
-    
+
     def info(self, message: str, component: str = "System", **context):
         self._log(LogLevel.INFO, message, component, context)
-    
+
     def warning(self, message: str, component: str = "System", **context):
         self._log(LogLevel.WARNING, message, component, context)
-    
+
     def error(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
         if exception:
             context['exception'] = str(exception)
             context['exception_type'] = type(exception).__name__
         self._log(LogLevel.ERROR, message, component, context)
-    
+
     def critical(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
         if exception:
             context['exception'] = str(exception)
             context['exception_type'] = type(exception).__name__
         self._log(LogLevel.CRITICAL, message, component, context)
-    
+
     def _log(self, level: LogLevel, message: str, component: str, context: Dict[str, Any]):
         extra = {
             'component': component,
             'timestamp': datetime.now().isoformat()
         }
         extra.update(context)
-        
+
         self.logger.log(level.value[0], message, extra={'component': component})
-        
+
         self.stats['total_logs'] += 1
         self.stats['by_level'][level.name] += 1
         self.stats['by_component'][component] = self.stats['by_component'].get(component, 0) + 1
-        
+
         self.log_buffer.append({
             'level': level.name,
             'message': message,
@@ -283,24 +283,24 @@ class CentralizedLogger:
             'timestamp': extra['timestamp'],
             'context': context
         })
-    
+
     def get_recent_logs(self, count: int = 50, level: Optional[LogLevel] = None) -> List[Dict]:
         logs = list(self.log_buffer)
         if level:
             logs = [log for log in logs if log['level'] == level.name]
         return logs[-count:]
-    
+
     def get_logs_by_component(self, component: str, count: int = 50) -> List[Dict]:
         logs = [log for log in self.log_buffer if log['component'] == component]
         return logs[-count:]
-    
+
     def get_error_logs(self, count: int = 50) -> List[Dict]:
         logs = [log for log in self.log_buffer if log['level'] in ['ERROR', 'CRITICAL']]
         return logs[-count:]
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         return {**self.stats, "buffer_size": len(self.log_buffer), "current_time": datetime.now().isoformat()}
-    
+
     def get_log_files_info(self) -> Dict[str, Any]:
         info = {'log_dir': self.log_dir, 'files': [], 'total_size_mb': 0}
         if os.path.exists(self.log_dir):
@@ -316,10 +316,10 @@ class CentralizedLogger:
                     info['total_size_mb'] += size
         info['total_size_mb'] = round(info['total_size_mb'], 2)
         return info
-    
+
     def clear_buffer(self):
         self.log_buffer.clear()
-    
+
     def export_logs(self, filepath: str, format: str = "json"):
         if format == "json":
             with open(filepath, 'w') as f:
@@ -356,7 +356,7 @@ class LogAnalyzer:
     """Analyze and query logs."""
     def __init__(self, logger: CentralizedLogger):
         self.logger = logger
-    
+
     def get_error_summary(self) -> Dict[str, Any]:
         errors = self.logger.get_error_logs(count=10000)
         error_types = {}
@@ -364,14 +364,14 @@ class LogAnalyzer:
             exc_type = error_log.get('context', {}).get('exception_type', 'Unknown')
             error_types[exc_type] = error_types.get(exc_type, 0) + 1
         return {'total_errors': len(errors), 'error_types': error_types, 'latest_errors': errors[-10:]}
-    
+
     def get_component_health(self) -> Dict[str, Any]:
         health = {}
         for component, count in self.logger.stats['by_component'].items():
             errors = len([log for log in self.logger.log_buffer if log['component'] == component and log['level'] in ['ERROR', 'CRITICAL']])
             health[component] = {'total_logs': count, 'errors': errors, 'error_rate': round((errors / count * 100) if count > 0 else 0, 2)}
         return health
-    
+
     def find_logs(self, pattern: str, count: int = 50) -> List[Dict]:
         results = [log for log in self.logger.log_buffer if pattern.lower() in log['message'].lower() or pattern.lower() in log['component'].lower()]
         return results[-count:]
@@ -437,7 +437,7 @@ class PluginMetadata:
     required_modules: List[str] = None
     permissions: List[str] = None
     sandbox: bool = True
-    
+
     def __post_init__(self):
         if self.dependencies is None:
             self.dependencies = []
@@ -445,7 +445,7 @@ class PluginMetadata:
             self.required_modules = []
         if self.permissions is None:
             self.permissions = []
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
@@ -453,7 +453,7 @@ class PluginDependency:
     def __init__(self):
         self.dependency_graph: Dict[str, List[str]] = {}
         self.versions: Dict[str, str] = {}
-    
+
     def add_dependency(self, plugin_name: str, dependency: str, version: str = None):
         if plugin_name not in self.dependency_graph:
             self.dependency_graph[plugin_name] = []
@@ -461,10 +461,10 @@ class PluginDependency:
         if version:
             dep_key = f"{dependency}=={version}"
             self.versions[dep_key] = version
-    
+
     def get_dependencies(self, plugin_name: str) -> List[str]:
         return self.dependency_graph.get(plugin_name, [])
-    
+
     def get_load_order(self, plugins: Dict[str, Any]) -> List[str]:
         visited, temp_visited, load_order = set(), set(), []
         def visit(name):
@@ -482,7 +482,7 @@ class PluginDependency:
             if plugin_name not in visited:
                 visit(plugin_name)
         return load_order
-    
+
     def validate_dependencies(self, plugin_name: str, available_plugins: List[str]) -> Tuple[bool, str]:
         deps = self.get_dependencies(plugin_name)
         missing = [d for d in deps if d not in available_plugins]
@@ -491,16 +491,16 @@ class PluginDependency:
 class PluginValidator:
     REQUIRED_FIELDS = ['name', 'version', 'author', 'description']
     VERSION_REGEX = re.compile(r'^\d+\.\d+\.\d+$')
-    
+
     def __init__(self):
         self.validation_cache: Dict[str, Dict] = {}
         self.errors: deque = deque(maxlen=100)
-    
+
     def validate_file(self, file_path: str) -> Tuple[bool, str, Optional[PluginMetadata]]:
         if file_path in self.validation_cache:
             cached = self.validation_cache[file_path]
             return cached['valid'], cached['message'], cached.get('metadata')
-        
+
         try:
             if not os.path.exists(file_path):
                 return False, "File not found", None
@@ -510,31 +510,31 @@ class PluginValidator:
                 return False, "File too large", None
             if not file_path.endswith('.py'):
                 return False, "Not a Python file", None
-            
+
             with open(file_path, 'r') as f:
                 content = f.read()
-            
+
             try:
                 compile(content, file_path, 'exec')
             except SyntaxError as e:
                 return False, f"Syntax error: {e}", None
-            
+
             metadata = self._extract_metadata(content, file_path)
             if not metadata:
                 return False, "No metadata", None
-            
+
             valid, msg = self._validate_metadata(metadata)
             if not valid:
                 return False, msg, None
-            
+
             self.validation_cache[file_path] = {'valid': True, 'message': 'Valid', 'metadata': metadata}
             return True, 'Valid', metadata
-            
+
         except Exception as e:
             error_msg = f"Validation error: {str(e)}"
             self.errors.append(error_msg)
             return False, error_msg, None
-    
+
     def _extract_metadata(self, content: str, file_path: str) -> Optional[PluginMetadata]:
         try:
             if 'PLUGIN_METADATA' in content:
@@ -545,12 +545,12 @@ class PluginValidator:
                         return PluginMetadata(**exec_globals['PLUGIN_METADATA'])
                 except Exception:
                     pass
-            
+
             plugin_name = Path(file_path).stem
             return PluginMetadata(name=plugin_name, version="0.1.0", author="Unknown", description="No description")
         except Exception:
             return None
-    
+
     def _validate_metadata(self, metadata: PluginMetadata) -> Tuple[bool, str]:
         for field in self.REQUIRED_FIELDS:
             if not getattr(metadata, field, None):
@@ -567,7 +567,7 @@ class PluginSandbox:
         self.permissions = permissions or []
         self.safe_builtins = self._create_safe_builtins()
         self.call_log: deque = deque(maxlen=1000)
-    
+
     def _create_safe_builtins(self) -> Dict[str, Any]:
         return {
             'print': print, 'len': len, 'range': range, 'enumerate': enumerate,
@@ -577,12 +577,12 @@ class PluginSandbox:
             'sorted': sorted, 'reversed': reversed, 'type': type, 'isinstance': isinstance,
             'Exception': Exception, '__import__': self._safe_import,
         }
-    
+
     def _safe_import(self, name, *args, **kwargs):
         if name not in self.allowed_modules and '*' not in self.allowed_modules:
             raise ImportError(f"Module '{name}' not allowed in sandbox")
         return __import__(name, *args, **kwargs)
-    
+
     def execute(self, code: str, globals_dict: Dict = None, locals_dict: Dict = None) -> Any:
         try:
             globs = {'__builtins__': self.safe_builtins}
@@ -607,7 +607,7 @@ class LoadedPlugin:
     checksum: str = None
     sandbox: Optional[PluginSandbox] = None
     error: Optional[str] = None
-    
+
     def call_function(self, func_name: str, *args, **kwargs) -> Any:
         try:
             func = getattr(self.module, func_name)
@@ -628,7 +628,7 @@ class PluginManager:
         self.plugin_registry: Dict[str, Any] = {}
         self.hooks: Dict[str, List[Callable]] = {}
         self.event_log: deque = deque(maxlen=10000)
-    
+
     def discover_plugins(self) -> List[str]:
         self.discovered_plugins = {}
         discovered = []
@@ -640,7 +640,7 @@ class PluginManager:
                 self.discovered_plugins[metadata.name] = (str(file_path), metadata)
                 discovered.append(metadata.name)
         return discovered
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         return {
             'total_discovered': len(self.discovered_plugins),
@@ -705,13 +705,13 @@ class PyAIBrain:
     def __init__(self) -> None:
         self.tasks: Dict[str, Callable[..., Any]] = {}
         self._register_defaults()
-    
+
     def register(self, name: str, func: Callable[..., Any]) -> None:
         self.tasks[name] = func
-    
+
     def list_tasks(self) -> List[str]:
         return sorted(self.tasks.keys())
-    
+
     def run(self, name: str, **kwargs: Any) -> TaskResult:
         if name not in self.tasks:
             return TaskResult(name, False, None, {"error": "task not found"})
@@ -721,7 +721,7 @@ class PyAIBrain:
             return TaskResult(name, True, result, {"elapsed_ms": round((time.time() - t0) * 1000, 2)})
         except Exception as exc:
             return TaskResult(name, False, None, {"error": str(exc)})
-    
+
     def _register_defaults(self) -> None:
         self.register("rocket_delta_v", rocket_delta_v)
         self.register("orbital_elements", orbital_elements)
@@ -1071,30 +1071,30 @@ class SystemManifest:
     capabilities: List[Capability]
     dependencies: List[str]
     metadata: Dict[str, Any]
-    
+
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
 class CapabilityRegistry:
     """Central registry of all capabilities across all scripts."""
-    
+
     def __init__(self):
         self.capabilities: Dict[str, Capability] = {}
         self.manifests: Dict[ScriptRole, SystemManifest] = {}
         self.location_map: Dict[str, Path] = {}
-        
+
     def register_capability(self, capability: Capability) -> None:
         self.capabilities[capability.name] = capability
-        
+
     def register_manifest(self, manifest: SystemManifest) -> None:
         self.manifests[manifest.script_role] = manifest
-        
+
     def get_capability(self, name: str) -> Optional[Capability]:
         return self.capabilities.get(name)
-    
+
     def get_capabilities_by_type(self, cap_type: CapabilityType) -> List[Capability]:
         return [c for c in self.capabilities.values() if c.type == cap_type]
-    
+
     def list_all_capabilities(self) -> List[Dict[str, Any]]:
         return [{"name": c.name, "role": c.role.value, "type": c.type.value, "description": c.description} for c in self.capabilities.values()]
 
@@ -1123,32 +1123,32 @@ class CrossScriptResponse:
 
 class RequestQueue:
     """Queue for inter-script communication."""
-    
+
     def __init__(self):
         self.requests: Dict[str, CrossScriptRequest] = {}
         self.responses: Dict[str, CrossScriptResponse] = {}
-        
+
     def enqueue_request(self, request: CrossScriptRequest) -> None:
         self.requests[request.request_id] = request
-        
+
     def get_request(self, request_id: str) -> Optional[CrossScriptRequest]:
         return self.requests.get(request_id)
 
 class ResourceLocator:
     """Locates and manages resources across scripts."""
-    
+
     def __init__(self):
         self.resources: Dict[str, Dict[str, Any]] = {}
 
 class DiscoveryService:
     """Discovers and catalogs capabilities across all scripts."""
-    
+
     def __init__(self):
         self.discovered_at: Dict[str, float] = {}
 
 class SystemCoordinator:
     """Coordinates communication and operation between all scripts."""
-    
+
     def __init__(self):
         self.active = False
         self.event_handlers: Dict[str, List[Callable]] = {}
@@ -1206,13 +1206,13 @@ class TaskMetadata:
 
 class EnhancedPyAIBrain:
     """Enhanced PyAIBrain with discovery capabilities."""
-    
+
     def __init__(self):
         self.tasks: Dict[str, Callable] = {}
         self.task_metadata: Dict[str, TaskMetadata] = {}
         self.execution_history: List[Dict[str, Any]] = []
         self.version = "2.0-Enhanced"
-        
+
     def manifest(self) -> Dict[str, Any]:
         return {
             "name": "pyAI",
@@ -1222,7 +1222,7 @@ class EnhancedPyAIBrain:
             "tasks": list(self.tasks.keys()),
             "task_count": len(self.tasks)
         }
-    
+
     def discover(self) -> Dict[str, Any]:
         return {
             "module": "pyAI",
@@ -1292,12 +1292,12 @@ class SystemCapability:
 
 class TacticalNexusPlugin:
     """Master tactical system with comprehensive discovery."""
-    
+
     def __init__(self):
         self.systems: Dict[str, Any] = {}
         self.execution_history: List[Dict[str, Any]] = []
         self.version = "3.1-Enhanced"
-        
+
     def manifest(self) -> Dict[str, Any]:
         return {
             "name": "tactical",
@@ -1306,7 +1306,7 @@ class TacticalNexusPlugin:
             "systems": list(self.systems.keys()),
             "system_count": len(self.systems)
         }
-    
+
     def discover(self) -> Dict[str, Any]:
         return {
             "module": "tactical",
@@ -1317,7 +1317,7 @@ class TacticalNexusPlugin:
                 "total_operations": len(self.execution_history)
             }
         }
-    
+
     def get_all_system_status(self) -> Dict[str, Any]:
         return {system: "operational" for system in self.systems}
 
@@ -1336,6 +1336,1440 @@ def get_statistics() -> Dict[str, Any]:
     return {
         "systems": len(tactical_nexus.systems),
         "total_operations": len(tactical_nexus.execution_history)
+    }
+'''
+
+# ================================================================================
+# EMBEDDED UTILITY MODULES - DISCOVERY, MEDIA, SYSTEM, THEME
+# ================================================================================
+
+EMBEDDED_MODULE_DISCOVERY = r'''#!/usr/bin/env python3
+"""Advanced Module Discovery and Querying System."""
+import os, sys, json, importlib, inspect
+from pathlib import Path
+from typing import Dict, List, Any
+from collections import defaultdict
+
+class ModuleDiscovery:
+    def __init__(self, registry: Dict[str, Any] = None):
+        self.registry = registry or {}
+        self.discovered_modules = {}
+        self.import_graph = defaultdict(set)
+
+    def discover_modules(self, search_paths: List[str] = None):
+        if search_paths is None:
+            search_paths = sys.path[:5]
+        discovered = {}
+        for path in search_paths:
+            if not os.path.exists(path): continue
+            try:
+                for item in os.listdir(path):
+                    item_path = os.path.join(path, item)
+                    if item.endswith('.py') and item != '__pycache__':
+                        module_name = item[:-3]
+                        discovered[module_name] = {'type': 'module_file', 'path': item_path, 'size': os.path.getsize(item_path)}
+                    elif os.path.isdir(item_path) and os.path.exists(os.path.join(item_path, '__init__.py')):
+                        discovered[item] = {'type': 'package', 'path': item_path, 'submodules': len([f for f in os.listdir(item_path) if f.endswith('.py')])}
+            except: pass
+        self.discovered_modules = discovered
+        return discovered
+
+    def query_module(self, module_name: str):
+        try:
+            module = importlib.import_module(module_name)
+            return {
+                'name': module_name, 'file': inspect.getfile(module),
+                'docstring': inspect.getdoc(module), 'classes': {n: inspect.getdoc(o) or 'No doc' for n, o in inspect.getmembers(module, inspect.isclass) if o.__module__ == module.__name__},
+                'functions': {n: str(inspect.signature(o)) for n, o in inspect.getmembers(module, inspect.isfunction) if o.__module__ == module.__name__},
+                'version': getattr(module, '__version__', 'unknown')
+            }
+        except ImportError as e:
+            return {'error': f'Cannot import {module_name}: {e}'}
+
+    def search_modules(self, keyword: str):
+        return {n: i for n, i in self.discovered_modules.items() if keyword.lower() in n.lower()}
+
+    def get_registry_modules(self):
+        return {'core': self.registry.get('core_modules', {}), 'extended': self.registry.get('extended_modules', {})}
+
+def manifest():
+    return {'name': 'module_discovery', 'version': '1.0', 'description': 'Module discovery system', 'type': 'system_utility'}
+'''
+
+EMBEDDED_MEDIA_MANAGER = r'''#!/usr/bin/env python3
+"""Advanced Media Management System."""
+import os, json, mimetypes
+from pathlib import Path
+from typing import Dict, List, Any
+from collections import defaultdict
+
+class MediaManager:
+    SUPPORTED_IMAGES = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico'}
+    SUPPORTED_VIDEO = {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm'}
+    SUPPORTED_AUDIO = {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma'}
+
+    def __init__(self, media_dirs: List[str] = None):
+        self.media_dirs = media_dirs or [os.path.expanduser('~/Pictures'), os.path.expanduser('~/Videos')]
+        self.media_index = defaultdict(list)
+        self.scan_media()
+
+    def scan_media(self):
+        media = defaultdict(list)
+        for directory in self.media_dirs:
+            if not os.path.exists(directory): continue
+            try:
+                for root, dirs, files in os.walk(directory):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        ext = Path(file).suffix.lower()
+                        if ext in self.SUPPORTED_IMAGES:
+                            media['images'].append(file_path)
+                        elif ext in self.SUPPORTED_VIDEO:
+                            media['videos'].append(file_path)
+                        elif ext in self.SUPPORTED_AUDIO:
+                            media['audio'].append(file_path)
+            except: pass
+        self.media_index = media
+        return media
+
+    def get_media_info(self, file_path: str):
+        if not os.path.exists(file_path): return {'error': 'File not found'}
+        stat = os.stat(file_path)
+        mime_type, _ = mimetypes.guess_type(file_path)
+        return {'path': file_path, 'name': os.path.basename(file_path), 'size': stat.st_size, 'size_mb': stat.st_size / (1024 * 1024), 'mime_type': mime_type}
+
+    def list_by_type(self, media_type: str):
+        return self.media_index.get(media_type, [])
+
+    def search_media(self, keyword: str):
+        results = defaultdict(list)
+        keyword = keyword.lower()
+        for media_type, files in self.media_index.items():
+            for file_path in files:
+                if keyword in os.path.basename(file_path).lower():
+                    results[media_type].append(file_path)
+        return dict(results)
+
+    def get_statistics(self):
+        return {'total_images': len(self.media_index.get('images', [])), 'total_videos': len(self.media_index.get('videos', [])), 'total_audio': len(self.media_index.get('audio', [])), 'total_media': sum(len(v) for v in self.media_index.values())}
+
+def manifest():
+    return {'name': 'media_manager', 'version': '1.0', 'description': 'Media management system', 'type': 'media_utility'}
+'''
+
+EMBEDDED_SYSTEM_UTILITIES = r'''#!/usr/bin/env python3
+"""System Utility Functions and Helpers."""
+import os, sys, json, platform, shutil
+from pathlib import Path
+from typing import Dict, List, Any
+
+class SystemUtils:
+    @staticmethod
+    def get_system_info():
+        return {'platform': sys.platform, 'python_version': platform.python_version(), 'machine': platform.machine(), 'processor': platform.processor(), 'node': platform.node(), 'system': platform.system()}
+
+    @staticmethod
+    def get_disk_usage(path: str = '/'):
+        try:
+            usage = shutil.disk_usage(path)
+            total, used, free = usage.total, usage.used, usage.free
+            return {'path': path, 'total_bytes': total, 'used_bytes': used, 'free_bytes': free, 'percent_used': (used / total * 100) if total > 0 else 0}
+        except Exception as e:
+            return {'error': str(e)}
+
+    @staticmethod
+    def get_directory_size(path: str):
+        try:
+            total_size, file_count = 0, 0
+            for dirpath, dirnames, filenames in os.walk(path):
+                for filename in filenames:
+                    total_size += os.path.getsize(os.path.join(dirpath, filename))
+                    file_count += 1
+            return {'path': path, 'size_bytes': total_size, 'size_mb': total_size / (1024 * 1024), 'file_count': file_count}
+        except Exception as e:
+            return {'error': str(e)}
+
+    @staticmethod
+    def find_files(directory: str, pattern: str = None):
+        results = []
+        try:
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if pattern is None or pattern.lower() in file.lower():
+                        results.append(os.path.join(root, file))
+        except: pass
+        return results
+
+class ConfigManager:
+    def __init__(self, config_dir: str = None):
+        self.config_dir = config_dir or os.path.expanduser('~/.pythonOS')
+        os.makedirs(self.config_dir, exist_ok=True)
+        self.configs = {}
+
+    def load_config(self, config_name: str):
+        config_path = os.path.join(self.config_dir, f'{config_name}.json')
+        if not os.path.exists(config_path): return {}
+        try:
+            with open(config_path, 'r') as f:
+                config = json.load(f)
+                self.configs[config_name] = config
+                return config
+        except: return {}
+
+    def save_config(self, config_name: str, config: Dict[str, Any]):
+        config_path = os.path.join(self.config_dir, f'{config_name}.json')
+        try:
+            with open(config_path, 'w') as f:
+                json.dump(config, f, indent=2)
+            self.configs[config_name] = config
+            return True
+        except: return False
+
+def manifest():
+    return {'name': 'system_utilities', 'version': '1.0', 'description': 'System utility functions', 'type': 'utility'}
+'''
+
+EMBEDDED_THEME_MANAGER = r'''#!/usr/bin/env python3
+"""Visual Theme and Color Management System."""
+from typing import Dict, Any
+
+class ColorPalette:
+    COLORS = {'reset': '\033[0m', 'bold': '\033[1m', 'red': '\033[31m', 'green': '\033[32m', 'yellow': '\033[33m', 'blue': '\033[34m', 'magenta': '\033[35m', 'cyan': '\033[36m', 'white': '\033[37m', 'bg_red': '\033[41m', 'bg_green': '\033[42m', 'bg_blue': '\033[44m'}
+    THEMES = {
+        'default': {'primary': 'cyan', 'secondary': 'blue', 'success': 'green', 'warning': 'yellow', 'error': 'red'},
+        'dark': {'primary': 'white', 'secondary': 'cyan', 'success': 'green', 'warning': 'yellow', 'error': 'red'},
+        'vibrant': {'primary': 'magenta', 'secondary': 'cyan', 'success': 'green', 'warning': 'yellow', 'error': 'red'}
+    }
+
+class ThemeManager:
+    def __init__(self):
+        self.current_theme = 'default'
+        self.palette = ColorPalette()
+
+    def set_theme(self, theme_name: str):
+        if theme_name in self.palette.THEMES:
+            self.current_theme = theme_name
+            return True
+        return False
+
+    def get_color(self, color_name: str):
+        return self.palette.COLORS.get(color_name, '')
+
+    def colorize(self, text: str, color: str, bold: bool = False):
+        color_code = self.get_color(color)
+        bold_code = self.get_color('bold') if bold else ''
+        reset = self.get_color('reset')
+        return f"{bold_code}{color_code}{text}{reset}"
+
+    def format_message(self, message: str, msg_type: str):
+        theme = self.palette.THEMES.get(self.current_theme, self.palette.THEMES['default'])
+        color = theme.get(msg_type, 'white')
+        prefix_map = {'success': '✅', 'error': '❌', 'warning': '⚠️', 'info': 'ℹ️'}
+        prefix = prefix_map.get(msg_type, '»')
+        return self.colorize(f"{prefix} {message}", color)
+
+def manifest():
+    return {'name': 'theme_manager', 'version': '1.0', 'description': 'Theme and color management', 'type': 'ui_utility'}
+'''
+
+EMBEDDED_FILE_EXPLORER = r'''#!/usr/bin/env python3
+"""Interactive File System Explorer (Superfile-like)."""
+import os, sys
+from pathlib import Path
+from typing import Dict, List, Any
+
+class FileExplorer:
+    def __init__(self, start_path: str = None):
+        self.start_path = start_path or os.path.expanduser('~')
+        self.current_path = self.start_path
+        self.history = [self.current_path]
+
+    def list_directory(self, path: str = None):
+        path = path or self.current_path
+        if not os.path.isdir(path): return []
+        items = []
+        try:
+            for item in sorted(os.listdir(path)):
+                item_path = os.path.join(path, item)
+                is_dir = os.path.isdir(item_path)
+                size = os.path.getsize(item_path) if os.path.isfile(item_path) else 0
+                items.append({'name': item, 'path': item_path, 'is_dir': is_dir, 'size': size, 'icon': '📁' if is_dir else '📄'})
+        except PermissionError: pass
+        return items
+
+    def change_directory(self, path: str):
+        if os.path.isdir(path):
+            self.current_path = path
+            self.history.append(path)
+            return True
+        return False
+
+    def go_back(self):
+        if len(self.history) > 1:
+            self.history.pop()
+            self.current_path = self.history[-1]
+            return True
+        return False
+
+    def get_breadcrumb(self):
+        parts = self.current_path.split(os.sep)
+        return ' / '.join(parts[-4:] if len(parts) > 4 else parts)
+
+    def search_files(self, pattern: str):
+        results = []
+        try:
+            for root, dirs, files in os.walk(self.current_path):
+                for file in files:
+                    if pattern.lower() in file.lower():
+                        results.append(os.path.join(root, file))
+                if len(results) > 100: break
+        except: pass
+        return results
+
+    def get_tree_structure(self, path: str = None, max_depth: int = 3):
+        path = path or self.current_path
+        if max_depth <= 0: return {}
+        tree = {'name': os.path.basename(path), 'path': path, 'children': []}
+        try:
+            for item in os.listdir(path):
+                item_path = os.path.join(path, item)
+                if os.path.isdir(item_path):
+                    tree['children'].append(self.get_tree_structure(item_path, max_depth - 1))
+        except: pass
+        return tree
+
+def manifest():
+    return {'name': 'file_explorer', 'version': '1.0', 'description': 'Interactive file explorer', 'type': 'system_tool'}
+'''
+
+# ================================================================================
+# EMBEDDED MODULE DEPENDENCY VISUALIZER (DEPENDENCY TREE & RELATIONSHIP MAPPING)
+# ================================================================================
+# Visualizes module dependencies with ASCII trees, circular dependency detection,
+# and relationship mapping for understanding system architecture.
+
+EMBEDDED_DEPENDENCY_VISUALIZER = r'''#!/usr/bin/env python3
+"""
+Module Dependency Visualizer
+=============================
+Generates ASCII tree diagrams showing module relationships, detects circular
+dependencies, and provides dependency path analysis.
+"""
+
+import json
+from typing import Dict, List, Set, Tuple, Any, Optional
+from pathlib import Path
+from collections import deque
+
+class DependencyVisualizer:
+    """Visualizes and analyzes module dependencies."""
+
+    def __init__(self, registry: Dict[str, Any]):
+        self.registry = registry
+        self.modules = {}
+        self._load_modules()
+
+    def _load_modules(self):
+        """Load all modules from registry."""
+        for category in ["core_modules", "extended_modules"]:
+            for name, info in self.registry.get(category, {}).items():
+                self.modules[name] = {
+                    "category": category,
+                    "dependencies": info.get("dependencies", []),
+                    "type": info.get("type", "unknown"),
+                    "description": info.get("description", "")
+                }
+
+    def detect_circular_dependencies(self) -> Dict[str, List[str]]:
+        """Detect circular dependencies in the module graph."""
+        circles = {}
+
+        for module_name in self.modules:
+            visited = set()
+            path = []
+            if self._has_cycle(module_name, visited, path):
+                circles[module_name] = path
+
+        return circles
+
+    def _has_cycle(self, node: str, visited: Set[str], path: List[str]) -> bool:
+        """Check if node participates in a cycle."""
+        if node in path:
+            return True
+
+        if node in visited:
+            return False
+
+        visited.add(node)
+        path.append(node)
+
+        deps = self.modules.get(node, {}).get("dependencies", [])
+        for dep in deps:
+            if dep in self.modules and self._has_cycle(dep, visited, path):
+                return True
+
+        path.pop()
+        return False
+
+    def get_dependency_tree(self, module_name: str, max_depth: int = 5) -> str:
+        """Generate ASCII tree of module dependencies."""
+        if module_name not in self.modules:
+            return f"Module '{module_name}' not found"
+
+        lines = [f"📦 {module_name}"]
+        visited = set()
+        self._build_tree(module_name, lines, "", visited, 0, max_depth)
+        return "\n".join(lines)
+
+    def _build_tree(self, module: str, lines: List[str], prefix: str,
+                    visited: Set[str], depth: int, max_depth: int):
+        """Recursively build dependency tree."""
+        if depth >= max_depth or module in visited:
+            return
+
+        visited.add(module)
+        deps = self.modules.get(module, {}).get("dependencies", [])
+
+        for i, dep in enumerate(deps):
+            if dep not in self.modules:
+                continue
+
+            is_last = i == len(deps) - 1
+            connector = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{connector}{dep}")
+
+            if dep not in visited:
+                new_prefix = prefix + ("    " if is_last else "│   ")
+                self._build_tree(dep, lines, new_prefix, visited, depth + 1, max_depth)
+
+    def get_dependents_tree(self, module_name: str, max_depth: int = 5) -> str:
+        """Generate ASCII tree of modules that depend on this module."""
+        if module_name not in self.modules:
+            return f"Module '{module_name}' not found"
+
+        # Find all modules that depend on this one
+        dependents = []
+        for name, info in self.modules.items():
+            if module_name in info.get("dependencies", []):
+                dependents.append(name)
+
+        lines = [f"📦 {module_name} (depended on by:)"]
+        visited = set()
+        visited.add(module_name)
+
+        for dependent in dependents:
+            lines.append(f"├── {dependent}")
+            self._build_dependents_tree(dependent, lines, "│   ", visited, 1, max_depth)
+
+        return "\n".join(lines)
+
+    def _build_dependents_tree(self, module: str, lines: List[str], prefix: str,
+                               visited: Set[str], depth: int, max_depth: int):
+        """Recursively build dependent modules tree."""
+        if depth >= max_depth or module in visited:
+            return
+
+        visited.add(module)
+        dependents = []
+        for name, info in self.modules.items():
+            if module in info.get("dependencies", []) and name not in visited:
+                dependents.append(name)
+
+        for i, dependent in enumerate(dependents):
+            is_last = i == len(dependents) - 1
+            connector = "└── " if is_last else "├── "
+            lines.append(f"{prefix}{connector}{dependent}")
+
+            new_prefix = prefix + ("    " if is_last else "│   ")
+            self._build_dependents_tree(dependent, lines, new_prefix, visited, depth + 1, max_depth)
+
+    def get_dependency_chain(self, source: str, target: str) -> Optional[List[str]]:
+        """Find dependency path from source to target."""
+        if source not in self.modules or target not in self.modules:
+            return None
+
+        visited = set()
+        path = []
+        if self._find_path(source, target, visited, path):
+            return path + [target]
+        return None
+
+    def _find_path(self, current: str, target: str, visited: Set[str],
+                   path: List[str]) -> bool:
+        """BFS to find dependency path."""
+        if current == target:
+            return True
+
+        if current in visited:
+            return False
+
+        visited.add(current)
+        path.append(current)
+
+        deps = self.modules.get(current, {}).get("dependencies", [])
+        for dep in deps:
+            if dep in self.modules:
+                if self._find_path(dep, target, visited, path):
+                    return True
+
+        path.pop()
+        return False
+
+    def generate_dependency_graph(self) -> Dict[str, Any]:
+        """Generate complete dependency graph as JSON."""
+        graph = {
+            "modules": {},
+            "relationships": [],
+            "statistics": {}
+        }
+
+        # Module details
+        for name, info in self.modules.items():
+            graph["modules"][name] = {
+                "category": info["category"],
+                "type": info["type"],
+                "dependencies_count": len(info["dependencies"]),
+                "dependencies": info["dependencies"]
+            }
+
+        # Relationships
+        for module, info in self.modules.items():
+            for dep in info["dependencies"]:
+                if dep in self.modules:
+                    graph["relationships"].append({
+                        "from": module,
+                        "to": dep,
+                        "type": "depends_on"
+                    })
+
+        # Statistics
+        graph["statistics"] = {
+            "total_modules": len(self.modules),
+            "total_relationships": len(graph["relationships"]),
+            "circular_dependencies": len(self.detect_circular_dependencies()),
+            "core_modules": len([m for m, i in self.modules.items()
+                                if i["category"] == "core_modules"]),
+            "extended_modules": len([m for m, i in self.modules.items()
+                                   if i["category"] == "extended_modules"]),
+            "most_depended_on": self._find_most_depended_on(),
+            "independent_modules": self._find_independent_modules()
+        }
+
+        return graph
+
+    def _find_most_depended_on(self) -> Dict[str, int]:
+        """Find modules that are depended on most."""
+        count = {}
+        for info in self.modules.values():
+            for dep in info["dependencies"]:
+                count[dep] = count.get(dep, 0) + 1
+
+        return dict(sorted(count.items(), key=lambda x: x[1], reverse=True)[:5])
+
+    def _find_independent_modules(self) -> List[str]:
+        """Find modules with no dependencies."""
+        return [name for name, info in self.modules.items()
+                if not info["dependencies"]]
+
+    def generate_ascii_graph(self) -> str:
+        """Generate ASCII visualization of entire module graph."""
+        lines = ["🔗 MODULE DEPENDENCY GRAPH", "=" * 50]
+
+        graph = self.generate_dependency_graph()
+        stats = graph["statistics"]
+
+        lines.append(f"\n📊 Statistics:")
+        lines.append(f"  Total Modules: {stats['total_modules']}")
+        lines.append(f"  Core Modules: {stats['core_modules']}")
+        lines.append(f"  Extended Modules: {stats['extended_modules']}")
+        lines.append(f"  Total Dependencies: {stats['total_relationships']}")
+        lines.append(f"  Circular Dependencies: {stats['circular_dependencies']}")
+
+        lines.append(f"\n⭐ Most Depended On:")
+        for module, count in stats['most_depended_on'].items():
+            lines.append(f"  {module}: {count} dependents")
+
+        lines.append(f"\n🔓 Independent Modules (No dependencies):")
+        for module in stats['independent_modules']:
+            lines.append(f"  {module}")
+
+        circles = self.detect_circular_dependencies()
+        if circles:
+            lines.append(f"\n⚠️  Circular Dependencies Detected:")
+            for module, path in circles.items():
+                lines.append(f"  {' → '.join(path)} → {module}")
+
+        return "\n".join(lines)
+
+    def generate_mermaid_diagram(self) -> str:
+        """Generate Mermaid diagram code for visualization."""
+        lines = ["graph TD"]
+
+        for module, info in self.modules.items():
+            # Format module name for Mermaid
+            safe_name = module.replace("-", "_").replace(".", "_")
+            lines.append(f"  {safe_name}[\"{module}\"]")
+
+        for module, info in self.modules.items():
+            safe_from = module.replace("-", "_").replace(".", "_")
+            for dep in info["dependencies"]:
+                if dep in self.modules:
+                    safe_to = dep.replace("-", "_").replace(".", "_")
+                    lines.append(f"  {safe_from} -->|depends on| {safe_to}")
+
+        return "\n".join(lines)
+
+def visualize_dependencies(registry: Dict[str, Any]) -> DependencyVisualizer:
+    """Create and return dependency visualizer instance."""
+    return DependencyVisualizer(registry)
+
+def manifest() -> Dict[str, Any]:
+    """Return module manifest."""
+    return {
+        "name": "dependency_visualizer",
+        "version": "1.0",
+        "description": "Visualizes module dependencies with ASCII trees and graphs",
+        "type": "analysis_tool"
+    }
+'''
+
+# ================================================================================
+# EMBEDDED API SERVER FOR AI SYSTEMS (REST API FOR MODULE QUERIES)
+# ================================================================================
+# Provides HTTP endpoints for AI systems to query module information,
+# discover features, and retrieve system metadata without parsing the main script.
+
+EMBEDDED_API_SERVER = r'''#!/usr/bin/env python3
+"""
+PythonOS REST API Server
+========================
+HTTP API endpoints for AI systems to query module information and discover features.
+Starts on http://localhost:5000 by default.
+"""
+
+try:
+    from flask import Flask, jsonify, request, send_file
+    FLASK_AVAILABLE = True
+except ImportError:
+    FLASK_AVAILABLE = False
+
+import json
+import os
+import threading
+from pathlib import Path
+from typing import Dict, List, Any, Optional
+from datetime import datetime
+
+class APIServer:
+    """REST API server for pythonOS module queries."""
+
+    def __init__(self, registry: Dict[str, Any], data_dir: str = None, port: int = 5000):
+        """
+        Initialize API server.
+
+        Args:
+            registry: FEATURES_REGISTRY from main script
+            data_dir: Path to pythonOS_data directory
+            port: Port to run server on (default 5000)
+        """
+        if not FLASK_AVAILABLE:
+            raise ImportError("Flask is required for API server. Install with: pip install flask")
+
+        self.registry = registry
+        self.data_dir = data_dir or os.path.join(os.path.dirname(__file__), "pythonOS_data")
+        self.port = port
+        self.app = self._create_app()
+        self.running = False
+
+    def _create_app(self) -> Flask:
+        """Create and configure Flask application."""
+        app = Flask("pythonOS-API")
+
+        # ========== ROUTES ==========
+
+        @app.route("/", methods=["GET"])
+        def index():
+            """API root - system information."""
+            return jsonify({
+                "status": "online",
+                "system": "pythonOS Terminal Operating System",
+                "version": "7.1-APIEnabled",
+                "api_version": "1.0",
+                "endpoints": {
+                    "/api/system": "System and spine information",
+                    "/api/modules": "List all modules",
+                    "/api/modules/<name>": "Get specific module info",
+                    "/api/modules/type/<type>": "Get modules by type",
+                    "/api/modules/<name>/dependencies": "Get module dependencies",
+                    "/api/modules/<name>/dependents": "Get modules that depend on this",
+                    "/api/features": "List all system features",
+                    "/api/search": "Search modules (query parameter: q=...)",
+                    "/api/registry": "Get full registry JSON",
+                    "/api/index": "Get module index JSON file",
+                    "/api/docs": "Get module documentation"
+                }
+            })
+
+        @app.route("/api/system", methods=["GET"])
+        def system_info():
+            """Get system and spine information."""
+            return jsonify({
+                "system": "pythonOS",
+                "version": "7.1",
+                "architecture": "One Script → Infinite Branches",
+                "spine": "pythonOScmd.py (32,000+ lines)",
+                "modules_count": len(self.registry.get("core_modules", {})) +
+                                 len(self.registry.get("extended_modules", {})),
+                "core_modules_count": len(self.registry.get("core_modules", {})),
+                "extended_modules_count": len(self.registry.get("extended_modules", {})),
+                "timestamp": datetime.now().isoformat()
+            })
+
+        @app.route("/api/modules", methods=["GET"])
+        def list_modules():
+            """List all modules."""
+            modules = []
+
+            # Core modules
+            for name, info in self.registry.get("core_modules", {}).items():
+                modules.append({
+                    "name": name,
+                    "type": info.get("type"),
+                    "category": "core",
+                    "description": info.get("description"),
+                    "location": info.get("location")
+                })
+
+            # Extended modules
+            for name, info in self.registry.get("extended_modules", {}).items():
+                modules.append({
+                    "name": name,
+                    "type": info.get("type"),
+                    "category": "extended",
+                    "description": info.get("description"),
+                    "location": info.get("location")
+                })
+
+            return jsonify({
+                "total": len(modules),
+                "modules": modules
+            })
+
+        @app.route("/api/modules/<name>", methods=["GET"])
+        def get_module(name: str):
+            """Get specific module information."""
+            # Search in core modules
+            if name in self.registry.get("core_modules", {}):
+                module_info = self.registry["core_modules"][name]
+                return jsonify({
+                    "name": name,
+                    "category": "core",
+                    "found": True,
+                    **module_info
+                })
+
+            # Search in extended modules
+            if name in self.registry.get("extended_modules", {}):
+                module_info = self.registry["extended_modules"][name]
+                return jsonify({
+                    "name": name,
+                    "category": "extended",
+                    "found": True,
+                    **module_info
+                })
+
+            return jsonify({
+                "name": name,
+                "found": False,
+                "error": f"Module '{name}' not found"
+            }), 404
+
+        @app.route("/api/modules/type/<module_type>", methods=["GET"])
+        def modules_by_type(module_type: str):
+            """Get modules of a specific type."""
+            modules = []
+
+            for category in ["core_modules", "extended_modules"]:
+                for name, info in self.registry.get(category, {}).items():
+                    if info.get("type") == module_type:
+                        modules.append({
+                            "name": name,
+                            "type": module_type,
+                            "category": category.replace("_modules", ""),
+                            "description": info.get("description")
+                        })
+
+            return jsonify({
+                "type": module_type,
+                "count": len(modules),
+                "modules": modules
+            })
+
+        @app.route("/api/modules/<name>/dependencies", methods=["GET"])
+        def get_dependencies(name: str):
+            """Get dependencies for a module."""
+            # Search module
+            module_info = None
+            location = None
+
+            if name in self.registry.get("core_modules", {}):
+                module_info = self.registry["core_modules"][name]
+                location = "core"
+            elif name in self.registry.get("extended_modules", {}):
+                module_info = self.registry["extended_modules"][name]
+                location = "extended"
+
+            if not module_info:
+                return jsonify({
+                    "module": name,
+                    "found": False,
+                    "error": f"Module '{name}' not found"
+                }), 404
+
+            dependencies = module_info.get("dependencies", [])
+            internal_deps = [dep for dep in dependencies if dep in
+                           list(self.registry.get("core_modules", {}).keys()) +
+                           list(self.registry.get("extended_modules", {}).keys())]
+
+            return jsonify({
+                "module": name,
+                "location": location,
+                "total_dependencies": len(dependencies),
+                "internal_dependencies": len(internal_deps),
+                "dependencies": dependencies,
+                "internal_only": internal_deps
+            })
+
+        @app.route("/api/modules/<name>/dependents", methods=["GET"])
+        def get_dependents(name: str):
+            """Get modules that depend on this module."""
+            dependents = []
+
+            for category in ["core_modules", "extended_modules"]:
+                for mod_name, mod_info in self.registry.get(category, {}).items():
+                    if name in mod_info.get("dependencies", []):
+                        dependents.append({
+                            "module": mod_name,
+                            "category": category.replace("_modules", "")
+                        })
+
+            return jsonify({
+                "module": name,
+                "dependents_count": len(dependents),
+                "dependents": dependents
+            })
+
+        @app.route("/api/features", methods=["GET"])
+        def list_features():
+            """List all system features."""
+            features = self.registry.get("system_features", {})
+            return jsonify({
+                "total": len(features),
+                "features": list(features.keys()),
+                "details": features
+            })
+
+        @app.route("/api/search", methods=["GET"])
+        def search():
+            """Search modules by name or description."""
+            query = request.args.get("q", "").lower()
+
+            if not query:
+                return jsonify({
+                    "error": "Missing query parameter: ?q=search_term"
+                }), 400
+
+            results = []
+
+            # Search core modules
+            for name, info in self.registry.get("core_modules", {}).items():
+                if query in name.lower() or query in info.get("description", "").lower():
+                    results.append({
+                        "name": name,
+                        "category": "core",
+                        "type": info.get("type"),
+                        "description": info.get("description")
+                    })
+
+            # Search extended modules
+            for name, info in self.registry.get("extended_modules", {}).items():
+                if query in name.lower() or query in info.get("description", "").lower():
+                    results.append({
+                        "name": name,
+                        "category": "extended",
+                        "type": info.get("type"),
+                        "description": info.get("description")
+                    })
+
+            return jsonify({
+                "query": query,
+                "results_count": len(results),
+                "results": results
+            })
+
+        @app.route("/api/registry", methods=["GET"])
+        def get_registry():
+            """Get full registry JSON."""
+            return jsonify(self.registry)
+
+        @app.route("/api/index", methods=["GET"])
+        def get_index():
+            """Get module index JSON."""
+            try:
+                index_path = Path(self.data_dir) / "module_index.json"
+                if index_path.exists():
+                    with open(index_path, 'r') as f:
+                        return jsonify(json.load(f))
+                else:
+                    return jsonify({
+                        "error": "Module index not found",
+                        "path": str(index_path)
+                    }), 404
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/docs", methods=["GET"])
+        def get_docs():
+            """Get module documentation (markdown)."""
+            try:
+                docs_path = Path(self.data_dir) / "MODULE_INDEX.md"
+                if docs_path.exists():
+                    with open(docs_path, 'r') as f:
+                        return f.read(), 200, {'Content-Type': 'text/markdown'}
+                else:
+                    return jsonify({
+                        "error": "Documentation not found",
+                        "path": str(docs_path)
+                    }), 404
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/dependencies", methods=["GET"])
+        def visualize_dependencies():
+            """Get dependency visualization data."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                graph = visualizer.generate_dependency_graph()
+
+                return jsonify({
+                    "type": "dependency_graph",
+                    "data": graph
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/tree/<module_name>", methods=["GET"])
+        def visualize_tree(module_name: str):
+            """Get ASCII dependency tree for a module."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                tree = visualizer.get_dependency_tree(module_name)
+
+                return jsonify({
+                    "module": module_name,
+                    "type": "dependency_tree",
+                    "tree": tree
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/dependents/<module_name>", methods=["GET"])
+        def visualize_dependents(module_name: str):
+            """Get ASCII tree of modules depending on this one."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                tree = visualizer.get_dependents_tree(module_name)
+
+                return jsonify({
+                    "module": module_name,
+                    "type": "dependents_tree",
+                    "tree": tree
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/chain", methods=["GET"])
+        def visualize_chain():
+            """Find dependency chain between two modules."""
+            source = request.args.get("from")
+            target = request.args.get("to")
+
+            if not source or not target:
+                return jsonify({
+                    "error": "Missing parameters: ?from=module1&to=module2"
+                }), 400
+
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                chain = visualizer.get_dependency_chain(source, target)
+
+                if chain:
+                    return jsonify({
+                        "from": source,
+                        "to": target,
+                        "chain_found": True,
+                        "chain": chain,
+                        "depth": len(chain) - 1
+                    })
+                else:
+                    return jsonify({
+                        "from": source,
+                        "to": target,
+                        "chain_found": False,
+                        "message": f"No dependency path from {source} to {target}"
+                    }), 404
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/circular", methods=["GET"])
+        def visualize_circular():
+            """Detect circular dependencies."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                circles = visualizer.detect_circular_dependencies()
+
+                return jsonify({
+                    "type": "circular_dependencies",
+                    "circular_detected": len(circles) > 0,
+                    "count": len(circles),
+                    "circular_modules": circles
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/graph", methods=["GET"])
+        def visualize_graph():
+            """Get full ASCII graph visualization."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                graph_text = visualizer.generate_ascii_graph()
+
+                return jsonify({
+                    "type": "ascii_graph",
+                    "graph": graph_text
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        @app.route("/api/visualize/mermaid", methods=["GET"])
+        def visualize_mermaid():
+            """Get Mermaid diagram code."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from dependency_visualizer import DependencyVisualizer
+
+                visualizer = DependencyVisualizer(self.registry)
+                mermaid_code = visualizer.generate_mermaid_diagram()
+
+                return jsonify({
+                    "type": "mermaid_diagram",
+                    "code": mermaid_code,
+                    "note": "Paste code into https://mermaid.live for visualization"
+                })
+            except Exception as e:
+                return jsonify({
+                    "error": str(e)
+                }), 500
+
+        # ========== MODULE DISCOVERY ENDPOINTS ==========
+        @app.route("/api/discover/modules", methods=["GET"])
+        def discover_modules():
+            """Discover available modules."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from module_discovery import ModuleDiscovery
+
+                discovery = ModuleDiscovery(self.registry)
+                discovered = discovery.discover_modules()
+
+                return jsonify({
+                    "type": "module_discovery",
+                    "discovered_count": len(discovered),
+                    "modules": discovered
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/discover/query/<module_name>", methods=["GET"])
+        def query_module(module_name):
+            """Query specific module details."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from module_discovery import ModuleDiscovery
+
+                discovery = ModuleDiscovery(self.registry)
+                details = discovery.query_module(module_name)
+
+                return jsonify({
+                    "type": "module_query",
+                    "module": module_name,
+                    "details": details
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/discover/search", methods=["GET"])
+        def search_modules():
+            """Search for modules by keyword."""
+            try:
+                keyword = request.args.get("q", "")
+                sys.path.insert(0, self.data_dir)
+                from module_discovery import ModuleDiscovery
+
+                discovery = ModuleDiscovery(self.registry)
+                results = discovery.search_modules(keyword)
+
+                return jsonify({
+                    "type": "module_search",
+                    "keyword": keyword,
+                    "results_count": len(results),
+                    "results": results
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        # ========== MEDIA MANAGEMENT ENDPOINTS ==========
+        @app.route("/api/media/scan", methods=["GET"])
+        def scan_media():
+            """Scan for media files."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from media_manager import MediaManager
+
+                media = MediaManager()
+                scanned = media.scan_media()
+                stats = media.get_statistics()
+
+                return jsonify({
+                    "type": "media_scan",
+                    "statistics": stats,
+                    "media_types": {k: len(v) for k, v in scanned.items()}
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/media/list/<media_type>", methods=["GET"])
+        def list_media(media_type):
+            """List media by type (images/videos/audio)."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from media_manager import MediaManager
+
+                media = MediaManager()
+                files = media.list_by_type(media_type)
+
+                return jsonify({
+                    "type": "media_list",
+                    "media_type": media_type,
+                    "count": len(files),
+                    "files": files[:100]  # Limit to first 100
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/media/search", methods=["GET"])
+        def search_media():
+            """Search for media by keyword."""
+            try:
+                keyword = request.args.get("q", "")
+                sys.path.insert(0, self.data_dir)
+                from media_manager import MediaManager
+
+                media = MediaManager()
+                results = media.search_media(keyword)
+
+                return jsonify({
+                    "type": "media_search",
+                    "keyword": keyword,
+                    "results": results
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        # ========== SYSTEM UTILITIES ENDPOINTS ==========
+        @app.route("/api/system/info", methods=["GET"])
+        def system_info():
+            """Get system information."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from system_utilities import SystemUtils
+
+                info = SystemUtils.get_system_info()
+
+                return jsonify({
+                    "type": "system_info",
+                    "data": info
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/system/disk", methods=["GET"])
+        def disk_usage():
+            """Get disk usage information."""
+            try:
+                path = request.args.get("path", "/")
+                sys.path.insert(0, self.data_dir)
+                from system_utilities import SystemUtils
+
+                usage = SystemUtils.get_disk_usage(path)
+
+                return jsonify({
+                    "type": "disk_usage",
+                    "data": usage
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/system/dirsize", methods=["GET"])
+        def directory_size():
+            """Get directory size."""
+            try:
+                path = request.args.get("path", os.path.expanduser("~"))
+                sys.path.insert(0, self.data_dir)
+                from system_utilities import SystemUtils
+
+                size_info = SystemUtils.get_directory_size(path)
+
+                return jsonify({
+                    "type": "directory_size",
+                    "data": size_info
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/system/find", methods=["GET"])
+        def find_files():
+            """Find files matching pattern."""
+            try:
+                directory = request.args.get("dir", os.path.expanduser("~"))
+                pattern = request.args.get("pattern", None)
+                sys.path.insert(0, self.data_dir)
+                from system_utilities import SystemUtils
+
+                files = SystemUtils.find_files(directory, pattern)
+
+                return jsonify({
+                    "type": "file_search",
+                    "directory": directory,
+                    "pattern": pattern,
+                    "results_count": len(files),
+                    "results": files[:100]  # Limit to first 100
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        # ========== THEME MANAGEMENT ENDPOINTS ==========
+        @app.route("/api/theme/list", methods=["GET"])
+        def list_themes():
+            """List available themes."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from theme_manager import ThemeManager
+
+                manager = ThemeManager()
+                themes = list(manager.palette.THEMES.keys())
+
+                return jsonify({
+                    "type": "theme_list",
+                    "current_theme": manager.current_theme,
+                    "available_themes": themes
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/theme/colors", methods=["GET"])
+        def get_colors():
+            """Get available colors."""
+            try:
+                sys.path.insert(0, self.data_dir)
+                from theme_manager import ColorPalette
+
+                palette = ColorPalette()
+
+                return jsonify({
+                    "type": "color_palette",
+                    "colors": list(palette.COLORS.keys())
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        # ========== FILE EXPLORER ENDPOINTS ==========
+        @app.route("/api/files/list", methods=["GET"])
+        def list_files():
+            """List directory contents."""
+            try:
+                path = request.args.get("path", os.path.expanduser("~"))
+                sys.path.insert(0, self.data_dir)
+                from file_explorer import FileExplorer
+
+                explorer = FileExplorer(path)
+                items = explorer.list_directory()
+                breadcrumb = explorer.get_breadcrumb()
+
+                return jsonify({
+                    "type": "directory_list",
+                    "path": path,
+                    "breadcrumb": breadcrumb,
+                    "items_count": len(items),
+                    "items": items
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/files/tree", methods=["GET"])
+        def file_tree():
+            """Get file tree structure."""
+            try:
+                path = request.args.get("path", os.path.expanduser("~"))
+                max_depth = int(request.args.get("depth", 3))
+                sys.path.insert(0, self.data_dir)
+                from file_explorer import FileExplorer
+
+                explorer = FileExplorer(path)
+                tree = explorer.get_tree_structure(path, max_depth)
+
+                return jsonify({
+                    "type": "file_tree",
+                    "tree": tree
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        @app.route("/api/files/search", methods=["GET"])
+        def search_files_api():
+            """Search files in directory."""
+            try:
+                directory = request.args.get("dir", os.path.expanduser("~"))
+                pattern = request.args.get("pattern", "")
+                sys.path.insert(0, self.data_dir)
+                from file_explorer import FileExplorer
+
+                explorer = FileExplorer(directory)
+                results = explorer.search_files(pattern)
+
+                return jsonify({
+                    "type": "file_search",
+                    "directory": directory,
+                    "pattern": pattern,
+                    "results_count": len(results),
+                    "results": results[:100]
+                })
+            except Exception as e:
+                return jsonify({"error": str(e)}), 500
+
+        # Error handlers
+        @app.errorhandler(404)
+        def not_found(error):
+            return jsonify({
+                "error": "Endpoint not found",
+                "status": 404
+            }), 404
+
+        @app.errorhandler(500)
+        def server_error(error):
+            return jsonify({
+                "error": "Internal server error",
+                "status": 500
+            }), 500
+
+        return app
+
+    def run(self, debug: bool = False, threaded: bool = True):
+        """Run the API server."""
+        self.running = True
+        print(f"🚀 Starting pythonOS API Server on http://localhost:{self.port}")
+        print(f"📚 API Documentation: http://localhost:{self.port}/")
+        print(f"📡 Ready for AI system queries...\n")
+
+        try:
+            self.app.run(
+                host="0.0.0.0",
+                port=self.port,
+                debug=debug,
+                use_reloader=False,
+                threaded=threaded
+            )
+        except Exception as e:
+            print(f"❌ API Server error: {e}")
+            self.running = False
+
+    def run_background(self):
+        """Run API server in background thread."""
+        thread = threading.Thread(target=self.run, daemon=True)
+        thread.start()
+        return thread
+
+    def stop(self):
+        """Stop the API server."""
+        self.running = False
+
+def start_api_server(registry: Dict[str, Any], data_dir: str = None, port: int = 5000):
+    """
+    Start the API server in background.
+
+    Args:
+        registry: FEATURES_REGISTRY from main script
+        data_dir: Path to pythonOS_data directory
+        port: Port to run server on
+
+    Returns:
+        APIServer instance
+    """
+    try:
+        server = APIServer(registry, data_dir, port)
+        server.run_background()
+        return server
+    except ImportError:
+        print("⚠️  Flask not installed. API server not available.")
+        print("💡 Install with: pip install flask")
+        return None
+    except Exception as e:
+        print(f"⚠️  Could not start API server: {e}")
+        return None
+
+def manifest() -> Dict[str, Any]:
+    """Return module manifest."""
+    return {
+        "name": "api_server",
+        "version": "1.0",
+        "description": "REST API server for AI systems to query module information",
+        "type": "communication_system",
+        "endpoints": ["GET /api/system", "GET /api/modules", "GET /api/search"],
+        "framework": "Flask"
     }
 '''
 
@@ -1404,6 +2838,54 @@ FEATURES_REGISTRY = {
             "exports": ["TacticalNexusPlugin", "SystemCapability", "manifest", "discover"],
             "dependencies": ["tactical", "integration_layer"],
             "created": "on_first_run"
+        },
+        "dependency_visualizer": {
+            "type": "analysis_tool",
+            "location": "pythonOS_data",
+            "description": "Visualizes module dependencies with ASCII trees, circular detection, and relationship mapping",
+            "exports": ["DependencyVisualizer", "visualize_dependencies", "manifest"],
+            "dependencies": ["json", "typing", "pathlib", "collections"],
+            "created": "on_first_run"
+        },
+        "module_discovery": {
+            "type": "system_utility",
+            "location": "pythonOS_data",
+            "description": "Advanced module discovery and querying system for AI navigation",
+            "exports": ["ModuleDiscovery", "discover_system", "manifest"],
+            "dependencies": ["os", "sys", "json", "importlib", "inspect"],
+            "created": "on_first_run"
+        },
+        "media_manager": {
+            "type": "media_utility",
+            "location": "pythonOS_data",
+            "description": "Media management system for images, videos, and audio files",
+            "exports": ["MediaManager", "manifest"],
+            "dependencies": ["os", "pathlib", "mimetypes"],
+            "created": "on_first_run"
+        },
+        "system_utilities": {
+            "type": "utility",
+            "location": "pythonOS_data",
+            "description": "System utility functions - disk usage, file operations, configuration management",
+            "exports": ["SystemUtils", "ConfigManager", "manifest"],
+            "dependencies": ["os", "sys", "json", "platform", "shutil"],
+            "created": "on_first_run"
+        },
+        "theme_manager": {
+            "type": "ui_utility",
+            "location": "pythonOS_data",
+            "description": "Visual theme and color management system for terminal output",
+            "exports": ["ThemeManager", "ColorPalette", "manifest"],
+            "dependencies": ["typing"],
+            "created": "on_first_run"
+        },
+        "file_explorer": {
+            "type": "system_tool",
+            "location": "pythonOS_data",
+            "description": "Interactive file system explorer (superfile-like functionality)",
+            "exports": ["FileExplorer", "manifest"],
+            "dependencies": ["os", "pathlib"],
+            "created": "on_first_run"
         }
     },
     "system_features": {
@@ -1423,6 +2905,106 @@ FEATURES_REGISTRY = {
             "type": "metadata_system",
             "description": "This registry itself - helps AI and developers navigate the system",
             "updated": "on_each_run"
+        },
+        "api_server": {
+            "type": "communication_system",
+            "description": "REST API server for AI systems to query module information",
+            "port": 5000,
+            "status": "optional_enhancement",
+            "endpoints": [
+                "GET / - API root and documentation",
+                "GET /api/system - System information",
+                "GET /api/modules - List all modules",
+                "GET /api/modules/<name> - Get specific module",
+                "GET /api/modules/type/<type> - Get modules by type",
+                "GET /api/modules/<name>/dependencies - Get module dependencies",
+                "GET /api/modules/<name>/dependents - Get modules that depend on this",
+                "GET /api/features - List system features",
+                "GET /api/search?q=<query> - Search modules",
+                "GET /api/registry - Get full registry JSON",
+                "GET /api/index - Get module index JSON",
+                "GET /api/docs - Get module documentation"
+            ],
+            "framework": "Flask",
+            "dependencies": ["flask"],
+            "usage": "start_api_server(FEATURES_REGISTRY, data_dir)"
+        },
+        "dependency_visualizer": {
+            "type": "analysis_system",
+            "description": "Visualizes module relationships with ASCII trees and graphs",
+            "features": [
+                "ASCII dependency trees",
+                "Circular dependency detection",
+                "Dependency chain finding",
+                "Complete dependency graph generation",
+                "Most depended-on module analysis",
+                "Independent module identification",
+                "Mermaid diagram generation"
+            ],
+            "usage": "visualizer = DependencyVisualizer(FEATURES_REGISTRY)"
+        },
+        "module_discovery": {
+            "type": "navigation_system",
+            "description": "Enables AI and developers to discover available modules",
+            "features": [
+                "Module discovery in Python paths",
+                "Module querying and inspection",
+                "Keyword-based module search",
+                "Registry module access",
+                "Dependency analysis"
+            ],
+            "usage": "discovery = ModuleDiscovery(FEATURES_REGISTRY); discovery.discover_modules()"
+        },
+        "media_system": {
+            "type": "media_system",
+            "description": "Media management for images, videos, and audio",
+            "features": [
+                "Media file scanning and indexing",
+                "Media type filtering (images/videos/audio)",
+                "Media file information retrieval",
+                "Keyword-based media search",
+                "Directory tree visualization",
+                "Media statistics"
+            ],
+            "usage": "media = MediaManager(); media.scan_media()"
+        },
+        "system_utilities": {
+            "type": "utility_system",
+            "description": "General system utilities and configuration management",
+            "features": [
+                "System information (OS, Python version, processor)",
+                "Disk usage analysis",
+                "Directory size calculation",
+                "File finding and searching",
+                "File information retrieval",
+                "Configuration management (load/save JSON)"
+            ],
+            "usage": "utils = SystemUtils(); info = utils.get_system_info()"
+        },
+        "theme_system": {
+            "type": "ui_system",
+            "description": "Terminal theme and color management",
+            "features": [
+                "Multiple color themes (default, dark, vibrant)",
+                "ANSI color code generation",
+                "Text colorization with formatting",
+                "Message formatting with theme colors",
+                "ASCII box creation"
+            ],
+            "usage": "theme = ThemeManager(); theme.set_theme('vibrant')"
+        },
+        "file_explorer": {
+            "type": "file_system",
+            "description": "Interactive file system explorer",
+            "features": [
+                "Directory listing",
+                "Directory navigation",
+                "Breadcrumb path display",
+                "File searching",
+                "Tree structure generation",
+                "Back navigation"
+            ],
+            "usage": "explorer = FileExplorer(); explorer.list_directory()"
         }
     }
 }
@@ -1442,12 +3024,12 @@ from typing import Dict, List, Any
 
 class ModuleIndexGenerator:
     """Generates comprehensive module index for the pythonOS system."""
-    
+
     def __init__(self, registry: Dict[str, Any]):
         self.registry = registry
         self.index_path = Path(__file__).parent / "module_index.json"
         self.readme_path = Path(__file__).parent / "MODULE_INDEX.md"
-    
+
     def generate_index(self) -> Dict[str, Any]:
         """Generate complete module index."""
         return {
@@ -1459,14 +3041,14 @@ class ModuleIndexGenerator:
             "modules": self.registry,
             "generated": self._timestamp()
         }
-    
+
     def save_index(self) -> None:
         """Save index to JSON file."""
         index = self.generate_index()
         with open(self.index_path, 'w') as f:
             json.dump(index, f, indent=2)
         print(f"✅ Module index saved to: {self.index_path}")
-    
+
     def generate_markdown_docs(self) -> str:
         """Generate markdown documentation from registry."""
         docs = "# 🗺️ PythonOS Module Index & Navigation Guide\n\n"
@@ -1476,9 +3058,9 @@ class ModuleIndexGenerator:
         docs += "- **All modules embedded** as extractable constants\n"
         docs += "- **Auto-extraction** on first run\n"
         docs += "- **Self-organizing** system structure\n\n"
-        
+
         docs += "### Module Hierarchy\n\n"
-        
+
         # Core modules
         docs += "#### 🔴 CORE MODULES (In Script Directory)\n"
         for name, info in self.registry.get("core_modules", {}).items():
@@ -1486,7 +3068,7 @@ class ModuleIndexGenerator:
             docs += f"- Description: {info['description']}\n"
             docs += f"- Location: {info['location']}\n"
             docs += f"- Exports: {', '.join(info['exports'])}\n"
-        
+
         # Extended modules
         docs += "\n\n#### 🟢 EXTENDED MODULES (In pythonOS_data/swap)\n"
         for name, info in self.registry.get("extended_modules", {}).items():
@@ -1495,34 +3077,34 @@ class ModuleIndexGenerator:
             docs += f"- Description: {info['description']}\n"
             docs += f"- Exports: {', '.join(info['exports'])}\n"
             docs += f"- Dependencies: {', '.join(info['dependencies'])}\n"
-        
+
         # System features
         docs += "\n\n#### 🔵 SYSTEM FEATURES\n"
         for name, info in self.registry.get("system_features", {}).items():
             docs += f"\n**{name}**\n"
             docs += f"- Description: {info['description']}\n"
-        
+
         docs += "\n\n### Quick Navigation\n"
         docs += "**For AI Systems:** Load this registry to instantly understand system structure\n"
         docs += "**For Developers:** Use module names to locate features quickly\n"
         docs += "**For New Team Members:** Start here to understand the architecture\n"
-        
+
         return docs
-    
+
     def save_markdown_docs(self) -> None:
         """Save markdown documentation."""
         docs = self.generate_markdown_docs()
         with open(self.readme_path, 'w') as f:
             f.write(docs)
         print(f"✅ Module documentation saved to: {self.readme_path}")
-    
+
     def get_module_by_name(self, name: str) -> Dict[str, Any]:
         """Get module information by name."""
         for category in ["core_modules", "extended_modules"]:
             if name in self.registry.get(category, {}):
                 return self.registry[category][name]
         return None
-    
+
     def get_modules_by_type(self, module_type: str) -> List[Dict[str, Any]]:
         """Get all modules of a specific type."""
         results = []
@@ -1531,14 +3113,14 @@ class ModuleIndexGenerator:
                 if info.get("type") == module_type:
                     results.append({name: info})
         return results
-    
+
     def get_dependencies_for(self, module_name: str) -> List[str]:
         """Get all dependencies for a module."""
         module = self.get_module_by_name(module_name)
         if module:
             return module.get("dependencies", [])
         return []
-    
+
     def _timestamp(self) -> str:
         """Get current timestamp."""
         from datetime import datetime
@@ -1562,7 +3144,7 @@ def extract_embedded_files():
             ("logger_system.py", EMBEDDED_LOGGER_SYSTEM, SCRIPT_DIR),
             ("plugin_system.py", EMBEDDED_PLUGIN_SYSTEM, SCRIPT_DIR),
         ]
-        
+
         # Files that go to pythonOS_data/swap directory
         swap_dir_files = [
             ("pyAI.py", EMBEDDED_PYAI),
@@ -1571,14 +3153,21 @@ def extract_embedded_files():
             ("pyAI_enhanced.py", EMBEDDED_PYAI_ENHANCED),
             ("tactical_enhanced.py", EMBEDDED_TACTICAL_ENHANCED),
         ]
-        
+
         # Files that go to pythonOS_data directory (system utilities)
         data_dir_files = [
             ("module_index_generator.py", EMBEDDED_MODULE_INDEX_GENERATOR),
+            ("api_server.py", EMBEDDED_API_SERVER),
+            ("dependency_visualizer.py", EMBEDDED_DEPENDENCY_VISUALIZER),
+            ("module_discovery.py", EMBEDDED_MODULE_DISCOVERY),
+            ("media_manager.py", EMBEDDED_MEDIA_MANAGER),
+            ("system_utilities.py", EMBEDDED_SYSTEM_UTILITIES),
+            ("theme_manager.py", EMBEDDED_THEME_MANAGER),
+            ("file_explorer.py", EMBEDDED_FILE_EXPLORER),
         ]
-        
+
         extracted_count = 0
-        
+
         # Extract files to SCRIPT_DIR
         for filename, content, target_dir in script_dir_files:
             file_path = os.path.join(target_dir, filename)
@@ -1590,12 +3179,12 @@ def extract_embedded_files():
                 extracted_count += 1
             else:
                 print(f"ℹ️  {filename} already exists in script dir, skipping...")
-        
+
         # Create pythonOS_data and swap directory structure
         data_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
         os.makedirs(SCRIPT_DIR_FOR_EXTRACTION, exist_ok=True)
         os.makedirs(data_dir, exist_ok=True)
-        
+
         # Extract files to data directory (pythonOS_data)
         for filename, content in data_dir_files:
             file_path = os.path.join(data_dir, filename)
@@ -1607,7 +3196,7 @@ def extract_embedded_files():
                 extracted_count += 1
             else:
                 print(f"ℹ️  {filename} already exists, skipping...")
-        
+
         # Extract files to swap directory
         for filename, content in swap_dir_files:
             file_path = os.path.join(SCRIPT_DIR_FOR_EXTRACTION, filename)
@@ -1619,19 +3208,19 @@ def extract_embedded_files():
                 extracted_count += 1
             else:
                 print(f"ℹ️  {filename} already exists in swap dir, skipping...")
-        
+
         if extracted_count > 0:
             print(f"\n📦 Extracted {extracted_count} modules successfully\n")
         else:
             print(f"\n📦 All modules already exist\n")
-        
+
         # Generate Module Index for AI & Developers
         print("📑 Generating Module Index for AI Navigation...")
         try:
             # Import and run the index generator
             sys.path.insert(0, os.path.join(SCRIPT_DIR, "pythonOS_data"))
             from module_index_generator import ModuleIndexGenerator
-            
+
             generator = ModuleIndexGenerator(FEATURES_REGISTRY)
             generator.save_index()
             generator.save_markdown_docs()
@@ -1649,12 +3238,12 @@ def extract_embedded_files():
 def boot_loader():
     """Boot loader with enhanced display mode detection and installation logic."""
     global DISPLAY_MODE, DISPLAY_INITIALIZED
-    
+
     # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
     if sys.stdout.encoding != 'utf-8':
         import io
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-    
+
     # 0. Extract embedded modules first
     print("🔧 Initializing pythonOS...\n")
     extract_embedded_files()
@@ -1664,7 +3253,7 @@ def boot_loader():
         'psutil', 'requests', 'beautifulsoup4', 'Pillow', 'gputil', 'numpy',
         'textual', 'rich', 'pygments', 'pygame', 'tinytag'
     }
-    
+
     # Core display libraries (required for enhanced UI)
     display_libraries = {'textual', 'rich'}
     missing = set()
@@ -1689,7 +3278,7 @@ def boot_loader():
     if missing_display:
         print(f"\033[93m[!] 📦 Missing Display Libraries: {', '.join(missing_display)}\033[0m")
         print(f"\033[93m[!] This will affect the UI mode (Textual/Rich).\033[0m\n")
-        
+
         choice = input("📥 Do you want to install display libraries now? (y/n): ").strip().lower()
         if choice == 'y':
             print(f"🚀 Installing display libraries: {missing_display}...")
@@ -1706,13 +3295,13 @@ def boot_loader():
     # 4. Detect and set display mode
     DISPLAY_MODE = detect_display_capabilities()
     DISPLAY_INITIALIZED = True
-    
+
     print(f"📺 Display Mode: [{DISPLAY_MODE.upper()}]\n")
-    
+
     if DISPLAY_MODE == "classic":
         print("\033[93m[!] ⚠️ Running in CLASSIC mode (limited UI features)\033[0m")
         print("💡 Tip: Install 'textual' and 'rich' for enhanced display modes\n")
-    
+
     # 5. Handle remaining missing libraries
     if missing:
         print(f"\033[93m[!] 📦 Missing Libraries detected: {', '.join(missing)}\033[0m")
@@ -1742,7 +3331,7 @@ def boot_loader():
 
             if DISPLAY_MODE != "classic":
                 print("⚠️ Some display features may be unavailable.\n")
-            
+
             print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
             time.sleep(2)
 
@@ -4430,7 +6019,7 @@ def _ensure_textual_imports():
     global App, ComposeResult, Container, Horizontal, Vertical, Grid, reactive
     global Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab, Digits, Markdown
     global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR, DISPLAY_MODE
-    
+
     if _TEXTUAL_IMPORTED:
         return True
     try:
@@ -4460,24 +6049,24 @@ def _ensure_textual_imports():
 def safe_run_dashboard(dashboard_func, *args, fallback_func=None, **kwargs):
     """
     Safely run a dashboard with automatic fallback to classic mode if it fails.
-    
+
     Args:
         dashboard_func: The dashboard function to run (e.g., run_unified_dashboard)
         fallback_func: Function to call if dashboard fails (e.g., run_classic_command_center)
         *args, **kwargs: Arguments to pass to dashboard_func
-        
+
     Returns:
         Result of dashboard_func or fallback_func
     """
     global DISPLAY_MODE
-    
+
     try:
         print(f"🎯 Launching dashboard in {DISPLAY_MODE.upper()} mode...")
         return dashboard_func(*args, **kwargs)
     except Exception as e:
         print(f"\n⚠️  Dashboard error in {DISPLAY_MODE} mode: {str(e)[:100]}")
         print(f"💡 Attempting fallback to classic mode...\n")
-        
+
         # Offer to install missing display libraries
         if DISPLAY_MODE != "classic":
             choice = input("📦 Would you like to install display libraries (textual, rich)? (y/n): ").strip().lower()
@@ -4490,7 +6079,7 @@ def safe_run_dashboard(dashboard_func, *args, fallback_func=None, **kwargs):
                     time.sleep(2)
                 except Exception as install_error:
                     print(f"❌ Installation failed: {install_error}\n")
-        
+
         # Fallback execution
         DISPLAY_MODE = "classic"
         if fallback_func:
@@ -32130,8 +33719,46 @@ ctx = {
     "BOLD": BOLD
 }
 
+# ================================================================================
+# API SERVER STARTUP FUNCTION
+# ================================================================================
+# Optional enhancement to start REST API server for AI systems
+
+def start_api_server_optional(enable_on_startup: bool = False, port: int = 5000):
+    """
+    Start the REST API server for AI systems to query modules.
+
+    Args:
+        enable_on_startup: If True, automatically start API on pythonOS launch
+        port: Port to run API server on (default 5000)
+
+    Returns:
+        APIServer instance or None
+    """
+    try:
+        data_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
+        sys.path.insert(0, data_dir)
+
+        from api_server import start_api_server
+
+        print("🌐 Starting pythonOS REST API Server...")
+        server = start_api_server(FEATURES_REGISTRY, data_dir, port)
+
+        if server:
+            print(f"✅ API Server ready at http://localhost:{port}/")
+            return server
+        else:
+            print("⚠️  API Server not available")
+            return None
+    except Exception as e:
+        print(f"⚠️  Could not start API server: {e}")
+        return None
+
 def main():
     """Launch Textual-first Command Center, falling back to classic if needed."""
+    # Optional: Uncomment to enable API server on startup
+    # api_server = start_api_server_optional(enable_on_startup=False, port=5000)
+
     run_pytextos(return_to_classic=False)
 
 
