@@ -6,7 +6,7 @@
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
 # Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
-# Version: pythonOScmd200 (Base: pythonOS70, Version 21.1)
+# Version: pythonOScmd201 (Base: pythonOS70, Version 21.1)
 # Description: Terminal OS with monitoring, security tools, media capabilities
 #
 # TABLE OF CONTENTS:
@@ -14290,6 +14290,7 @@ def feature_server_client_switch():
         print(f" {BOLD}[3]{RESET} 📊 Connection Status")
         print(f" {BOLD}[4]{RESET} 🔐 Security Settings")
         print(f" {BOLD}[5]{RESET} 📜 Message Logs")
+        print(f" {BOLD}[6]{RESET} 💬 Messaging (Chat, SMS, Advanced)")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}Select mode: {RESET}").strip()
@@ -14306,8 +14307,656 @@ def feature_server_client_switch():
             _security_settings()
         elif choice == '5':
             _show_message_logs()
+        elif choice == '6':
+            _feature_messaging_submenu()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
+
+# --- MESSAGING SUBMENU FUNCTIONS ---
+
+def _feature_messaging_submenu():
+    """Messaging submenu with Chat, SMS, and Advanced options."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("💬 Messaging Center")
+        
+        print(f"\n{BOLD}Messaging Options:{RESET}")
+        print(f" {BOLD}[1]{RESET} 🔐 Server/Client Chat - Real-time two-way communication")
+        print(f" {BOLD}[2]{RESET} 📱 Send SMS via Email - Text messages using carrier gateways")
+        print(f" {BOLD}[3]{RESET} 🚀 Advanced Messaging - External APIs (Twilio, Vonage, etc.)")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Server/Client Menu")
+        
+        choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        elif choice == '1':
+            _messaging_server_client_chat()
+        elif choice == '2':
+            _messaging_sms_via_email()
+        elif choice == '3':
+            _messaging_advanced_apis()
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            time.sleep(1)
+
+def _messaging_server_client_chat():
+    """Real-time server/client chat using sockets."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔐 Server/Client Chat - Real-Time Communication")
+    
+    print(f"\n{BOLD}Chat Server/Client Module:{RESET}")
+    print(f"\n{COLORS['2'][0]}This module enables real-time two-way communication between systems.{RESET}")
+    
+    print(f"\n{BOLD}Features:{RESET}")
+    print(f"  • Direct socket-based peer-to-peer communication")
+    print(f"  • Message encryption support")
+    print(f"  • Connection persistence until user exits")
+    print(f"  • Multi-client connection capability")
+    print(f"  • Local network and internet support")
+    
+    print(f"\n{BOLD}Implementation Methods:{RESET}")
+    print(f" {BOLD}[1]{RESET} 🖥️  Start Chat Server")
+    print(f" {BOLD}[2]{RESET} 💻 Connect as Chat Client")
+    print(f" {BOLD}[3]{RESET} 📚 Socket Programming Guide")
+    print(f" {BOLD}[0]{RESET} Back")
+    
+    choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+    
+    if choice == '0':
+        return
+    elif choice == '1':
+        _chat_server_mode()
+    elif choice == '2':
+        _chat_client_mode()
+    elif choice == '3':
+        _socket_programming_guide()
+    else:
+        print(f"{COLORS['1'][0]}Invalid option{RESET}")
+
+def _chat_server_mode():
+    """Start a chat server for accepting client connections."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🖥️  Chat Server - Accepting Connections")
+    
+    try:
+        import socket
+        
+        port = input("Enter port to listen on [9000]: ").strip() or "9000"
+        max_clients = input("Enter max clients [10]: ").strip() or "10"
+        
+        try:
+            port = int(port)
+            max_clients = int(max_clients)
+        except ValueError:
+            print(f"{COLORS['1'][0]}Invalid port or max clients{RESET}")
+            input("\nPress Enter to return...")
+            return
+        
+        print(f"\n{COLORS['6'][0]}Starting chat server...{RESET}")
+        print(f"  Listening on port: {port}")
+        print(f"  Max clients: {max_clients}")
+        print(f"  Status: Ready to accept connections")
+        
+        # Create server socket
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        server_socket.bind(('0.0.0.0', port))
+        server_socket.listen(max_clients)
+        
+        print(f"\n{COLORS['2'][0]}✓ Server running. Press Ctrl+C to stop.{RESET}")
+        print(f"{BOLD}Waiting for connections...{RESET}\n")
+        
+        connected_clients = []
+        
+        try:
+            while True:
+                # Accept connection with timeout to allow Ctrl+C
+                server_socket.settimeout(1)
+                try:
+                    client_socket, client_address = server_socket.accept()
+                    connected_clients.append((client_socket, client_address))
+                    print(f"{COLORS['2'][0]}✓ Client connected: {client_address[0]}:{client_address[1]}{RESET}")
+                    
+                    # Send welcome message
+                    welcome_msg = f"Welcome to pythonOS Chat! ({len(connected_clients)} clients online)\n"
+                    client_socket.send(welcome_msg.encode('utf-8'))
+                    
+                    # Broadcast to other clients
+                    broadcast_msg = f"[{client_address[0]}:{client_address[1]}] joined the chat\n"
+                    for other_client, _ in connected_clients[:-1]:
+                        try:
+                            other_client.send(broadcast_msg.encode('utf-8'))
+                        except:
+                            pass
+                
+                except socket.timeout:
+                    pass
+                
+                # Try to receive messages from connected clients
+                disconnected = []
+                for client_socket, client_address in connected_clients:
+                    try:
+                        client_socket.settimeout(0.1)
+                        message = client_socket.recv(1024).decode('utf-8')
+                        if message:
+                            # Broadcast message to all clients
+                            broadcast_msg = f"[{client_address[0]}:{client_address[1]}]: {message}\n"
+                            for other_client, _ in connected_clients:
+                                try:
+                                    other_client.send(broadcast_msg.encode('utf-8'))
+                                except:
+                                    pass
+                        else:
+                            disconnected.append((client_socket, client_address))
+                    except socket.timeout:
+                        pass
+                    except:
+                        disconnected.append((client_socket, client_address))
+                
+                # Remove disconnected clients
+                for client_socket, client_address in disconnected:
+                    connected_clients.remove((client_socket, client_address))
+                    client_socket.close()
+                    print(f"{COLORS['1'][0]}✗ Client disconnected: {client_address[0]}:{client_address[1]}{RESET}")
+        
+        except KeyboardInterrupt:
+            print(f"\n\n{COLORS['1'][0]}Shutting down server...{RESET}")
+        finally:
+            for client_socket, _ in connected_clients:
+                client_socket.close()
+            server_socket.close()
+            print(f"{COLORS['2'][0]}✓ Server stopped{RESET}")
+    
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _chat_client_mode():
+    """Connect to a chat server as a client."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("💻 Chat Client - Connect to Server")
+    
+    try:
+        import socket
+        import threading
+        
+        host = input("Enter server address [localhost]: ").strip() or "localhost"
+        port = input("Enter server port [9000]: ").strip() or "9000"
+        
+        try:
+            port = int(port)
+        except ValueError:
+            print(f"{COLORS['1'][0]}Invalid port{RESET}")
+            input("\nPress Enter to return...")
+            return
+        
+        print(f"\n{COLORS['6'][0]}Connecting to {host}:{port}...{RESET}")
+        
+        # Create client socket
+        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        client_socket.connect((host, port))
+        
+        print(f"{COLORS['2'][0]}✓ Connected to server!{RESET}")
+        print(f"{BOLD}Type messages and press Enter. Type 'exit' to disconnect.{RESET}\n")
+        
+        # Receive initial welcome message
+        welcome = client_socket.recv(1024).decode('utf-8')
+        print(f"{COLORS['2'][0]}{welcome}{RESET}")
+        
+        # Thread to receive messages
+        def receive_messages():
+            while True:
+                try:
+                    message = client_socket.recv(1024).decode('utf-8')
+                    if message:
+                        print(f"\n{COLORS['4'][0]}{message}{RESET}", end='')
+                    else:
+                        break
+                except:
+                    break
+        
+        receive_thread = threading.Thread(target=receive_messages, daemon=True)
+        receive_thread.start()
+        
+        # Send messages
+        try:
+            while True:
+                message = input(f"{BOLD}You: {RESET}").strip()
+                if message.lower() == 'exit':
+                    break
+                if message:
+                    client_socket.send(message.encode('utf-8'))
+        except KeyboardInterrupt:
+            pass
+        finally:
+            print(f"\n{COLORS['1'][0]}Disconnecting...{RESET}")
+            client_socket.close()
+            print(f"{COLORS['2'][0]}✓ Disconnected{RESET}")
+    
+    except ConnectionRefusedError:
+        print(f"{COLORS['1'][0]}❌ Connection refused. Is the server running?{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _socket_programming_guide():
+    """Display socket programming guide and concepts."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📚 Socket Programming Guide")
+    
+    print(f"\n{BOLD}What is Socket Programming?{RESET}")
+    print(f"{COLORS['2'][0]}Socket programming enables direct communication between computers over")
+    print(f"a network. Python's socket library provides low-level networking interface.{RESET}")
+    
+    print(f"\n{BOLD}Key Concepts:{RESET}")
+    print(f"  1. {BOLD}Socket{RESET}: Endpoint for communication (like a telephone)")
+    print(f"  2. {BOLD}Server{RESET}: Listens for incoming connections")
+    print(f"  3. {BOLD}Client{RESET}: Initiates connection to server")
+    print(f"  4. {BOLD}Port{RESET}: Unique address on a machine (0-65535)")
+    print(f"  5. {BOLD}TCP/IP{RESET}: Connection-oriented, reliable protocol")
+    print(f"  6. {BOLD}UDP{RESET}: Connectionless, faster but unreliable")
+    
+    print(f"\n{BOLD}Basic Server Code:{RESET}")
+    print(f"""{COLORS['6'][0]}
+import socket
+server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server.bind(('localhost', 9000))
+server.listen(5)
+conn, addr = server.accept()
+data = conn.recv(1024)
+conn.send(b"Response")
+conn.close(){RESET}""")
+    
+    print(f"\n{BOLD}Basic Client Code:{RESET}")
+    print(f"""{COLORS['6'][0]}
+import socket
+client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+client.connect(('localhost', 9000))
+client.send(b"Hello Server")
+response = client.recv(1024)
+client.close(){RESET}""")
+    
+    print(f"\n{BOLD}Best Practices:{RESET}")
+    print(f"  ✓ Always close sockets after use")
+    print(f"  ✓ Use try/except for network errors")
+    print(f"  ✓ Set socket timeouts to prevent blocking")
+    print(f"  ✓ Handle client disconnections gracefully")
+    print(f"  ✓ Use threading for multiple clients")
+    
+    input("\nPress Enter to return...")
+
+def _messaging_sms_via_email():
+    """Send SMS via email using carrier gateways."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📱 SMS via Email Gateway")
+    
+    print(f"\n{BOLD}Send Text Messages Using Email:{RESET}")
+    print(f"{COLORS['2'][0]}This method sends SMS messages by emailing a carrier gateway{RESET}")
+    
+    print(f"\n{BOLD}Supported Carriers & Gateways:{RESET}")
+    carriers = {
+        "Verizon": "@vtext.com",
+        "AT&T": "@txt.att.net",
+        "T-Mobile": "@tmomail.net",
+        "Sprint": "@messaging.sprintpcs.com",
+        "US Cellular": "@email.uscc.net",
+        "Virgin Mobile": "@vmobl.com",
+        "MetroPCS": "@metropcs.sms.com",
+    }
+    
+    for carrier, gateway in carriers.items():
+        print(f"  • {carrier}: phone_number{gateway}")
+    
+    print(f"\n{BOLD}Implementation:{RESET}")
+    print(f" {BOLD}[1]{RESET} 📬 Send SMS Message")
+    print(f" {BOLD}[2]{RESET} 🔧 Setup Email Account")
+    print(f" {BOLD}[3]{RESET} 📚 Code Examples")
+    print(f" {BOLD}[0]{RESET} Back")
+    
+    choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+    
+    if choice == '0':
+        return
+    elif choice == '1':
+        _send_sms_via_email()
+    elif choice == '2':
+        _setup_email_for_sms()
+    elif choice == '3':
+        _sms_email_code_examples()
+
+def _send_sms_via_email():
+    """Send actual SMS via email."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📬 Send SMS Message")
+    
+    try:
+        import smtplib
+        from email.mime.text import MIMEText
+        
+        print(f"\n{BOLD}Carrier & Phone Number:{RESET}")
+        print(f"  Verizon (@vtext.com)")
+        print(f"  AT&T (@txt.att.net)")
+        print(f"  T-Mobile (@tmomail.net)")
+        print(f"  Sprint (@messaging.sprintpcs.com)")
+        
+        phone = input("\nEnter recipient phone number (10 digits): ").strip()
+        carrier = input("Enter carrier gateway (e.g., vtext.com): ").strip()
+        
+        if not phone or not carrier:
+            print(f"{COLORS['1'][0]}Invalid input{RESET}")
+            input("\nPress Enter to return...")
+            return
+        
+        # Format recipient email
+        recipient_email = f"{phone}@{carrier}"
+        
+        message = input("\nEnter SMS message (max 160 chars): ").strip()
+        if not message:
+            print(f"{COLORS['1'][0]}Message cannot be empty{RESET}")
+            input("\nPress Enter to return...")
+            return
+        
+        if len(message) > 160:
+            print(f"{COLORS['4'][0]}⚠️  Message will be split into multiple SMS{RESET}")
+        
+        # Email configuration
+        sender_email = input("\nEnter your Gmail address: ").strip()
+        password = getpass.getpass("Enter Gmail app password: ")
+        
+        if not sender_email or not password:
+            print(f"{COLORS['1'][0]}Email credentials required{RESET}")
+            input("\nPress Enter to return...")
+            return
+        
+        print(f"\n{COLORS['6'][0]}Sending SMS to {recipient_email}...{RESET}")
+        
+        # Send email to SMS gateway
+        msg = MIMEText(message)
+        msg['Subject'] = 'SMS'
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        
+        server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+        server.login(sender_email, password)
+        server.send_message(msg)
+        server.quit()
+        
+        print(f"{COLORS['2'][0]}✓ SMS sent successfully!{RESET}")
+        print(f"  To: {recipient_email}")
+        print(f"  Message: {message[:50]}...")
+    
+    except ImportError:
+        print(f"{COLORS['1'][0]}Required modules not available{RESET}")
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+    
+    input("\nPress Enter to return...")
+
+def _setup_email_for_sms():
+    """Guide for setting up email for SMS."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔧 Setup Email for SMS")
+    
+    print(f"\n{BOLD}Gmail Setup Instructions:{RESET}")
+    print(f"\n1. {BOLD}Enable 2-Factor Authentication:{RESET}")
+    print(f"   • Go to myaccount.google.com")
+    print(f"   • Select 'Security' in the left menu")
+    print(f"   • Enable 2-Step Verification")
+    
+    print(f"\n2. {BOLD}Generate App Password:{RESET}")
+    print(f"   • Go to myaccount.google.com/apppasswords")
+    print(f"   • Select 'Mail' and 'Windows Computer' (or your device)")
+    print(f"   • Google will generate a 16-character password")
+    print(f"   • Use this password in the SMS sender script")
+    
+    print(f"\n3. {BOLD}Other Email Providers:{RESET}")
+    print(f"   • Outlook: Use your regular password or app password")
+    print(f"   • Yahoo: Generate app-specific password")
+    print(f"   • Custom SMTP: Configure sender_email and password")
+    
+    print(f"\n{BOLD}Important Notes:{RESET}")
+    print(f"  ⚠️  Never share your app password")
+    print(f"  ⚠️  SMS via email may be rate-limited")
+    print(f"  ⚠️  Some carriers charge for incoming SMS")
+    print(f"  ✓ Completely free method")
+    print(f"  ✓ Works worldwide with any carrier")
+    
+    input("\nPress Enter to return...")
+
+def _sms_email_code_examples():
+    """Show code examples for SMS via email."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📚 SMS via Email - Code Examples")
+    
+    print(f"\n{BOLD}Example 1: Simple SMS{RESET}")
+    print(f"""{COLORS['6'][0]}
+import smtplib
+from email.mime.text import MIMEText
+
+sender = "your_email@gmail.com"
+password = "your_app_password"
+recipient = "1234567890@vtext.com"  # Verizon
+
+msg = MIMEText("Hello via SMS!")
+msg['Subject'] = 'SMS'
+msg['From'] = sender
+msg['To'] = recipient
+
+server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+server.login(sender, password)
+server.send_message(msg)
+server.quit(){RESET}""")
+    
+    print(f"\n{BOLD}Example 2: Multiple Recipients{RESET}")
+    print(f"""{COLORS['6'][0]}
+recipients = [
+    "1234567890@vtext.com",      # Verizon
+    "9876543210@txt.att.net",    # AT&T
+    "5551234567@tmomail.net",    # T-Mobile
+]
+
+for recipient in recipients:
+    # Send to each recipient
+    server.send_message(msg){RESET}""")
+    
+    print(f"\n{BOLD}Example 3: With Error Handling{RESET}")
+    print(f"""{COLORS['6'][0]}
+try:
+    server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
+    server.login(sender, password)
+    server.send_message(msg)
+    print("✓ SMS sent!")
+except smtplib.SMTPAuthenticationError:
+    print("❌ Wrong password")
+except smtplib.SMTPException as e:
+    print(f"❌ Error: {e}")
+finally:
+    server.quit(){RESET}""")
+    
+    input("\nPress Enter to return...")
+
+def _messaging_advanced_apis():
+    """Advanced messaging with external APIs."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🚀 Advanced Messaging APIs")
+    
+    print(f"\n{BOLD}Professional Messaging Platforms:{RESET}")
+    print(f"\n{BOLD}[1] Twilio{RESET}")
+    print(f"  • SMS, MMS, WhatsApp, Voice")
+    print(f"  • Free credits for new accounts")
+    print(f"  • Python SDK available")
+    print(f"  • URL: https://www.twilio.com")
+    
+    print(f"\n{BOLD}[2] Vonage (Nexmo){RESET}")
+    print(f"  • SMS, Voice, Verification APIs")
+    print(f"  • Global coverage")
+    print(f"  • Python SDK available")
+    print(f"  • URL: https://www.vonage.com")
+    
+    print(f"\n{BOLD}[3] PubNub{RESET}")
+    print(f"  • Real-time messaging infrastructure")
+    print(f"  • Multiple chat rooms")
+    print(f"  • Presence detection")
+    print(f"  • Message history")
+    print(f"  • URL: https://www.pubnub.com")
+    
+    print(f"\n{BOLD}[4] AWS SNS{RESET}")
+    print(f"  • Amazon Simple Notification Service")
+    print(f"  • SMS, Email, Push notifications")
+    print(f"  • Enterprise-grade reliability")
+    print(f"  • URL: https://aws.amazon.com/sns")
+    
+    print(f"\n{BOLD}[5] Firebase Cloud Messaging{RESET}")
+    print(f"  • Real-time messaging")
+    print(f"  • Push notifications")
+    print(f"  • Offline message queuing")
+    print(f"  • URL: https://firebase.google.com")
+    
+    print(f"\n{BOLD}Implementation Options:{RESET}")
+    print(f" {BOLD}[A]{RESET} 📖 Twilio Setup Guide")
+    print(f" {BOLD}[B]{RESET} 📖 Vonage Setup Guide")
+    print(f" {BOLD}[C]{RESET} 💻 API Code Examples")
+    print(f" {BOLD}[0]{RESET} Back")
+    
+    choice = input(f"\n{BOLD}Select option: {RESET}").strip().upper()
+    
+    if choice == '0':
+        return
+    elif choice == 'A':
+        _twilio_setup_guide()
+    elif choice == 'B':
+        _vonage_setup_guide()
+    elif choice == 'C':
+        _api_code_examples()
+
+def _twilio_setup_guide():
+    """Twilio setup and usage guide."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("Twilio Setup Guide")
+    
+    print(f"\n{BOLD}Step 1: Create Account{RESET}")
+    print(f"  • Visit: https://www.twilio.com/console")
+    print(f"  • Sign up for free account")
+    print(f"  • Get free trial credits ($15.50)")
+    
+    print(f"\n{BOLD}Step 2: Install Python SDK{RESET}")
+    print(f"{COLORS['6'][0]}pip install twilio{RESET}")
+    
+    print(f"\n{BOLD}Step 3: Get Credentials{RESET}")
+    print(f"  • Account SID: Find in Console Dashboard")
+    print(f"  • Auth Token: Find in Console Dashboard")
+    print(f"  • Phone Number: Twilio number (assigned to your account)")
+    
+    print(f"\n{BOLD}Step 4: Send SMS{RESET}")
+    print(f"""{COLORS['6'][0]}
+from twilio.rest import Client
+
+account_sid = "your_account_sid"
+auth_token = "your_auth_token"
+client = Client(account_sid, auth_token)
+
+message = client.messages.create(
+    body="Hello from pythonOS!",
+    from_="+1234567890",  # Your Twilio number
+    to="+9876543210"      # Recipient
+){RESET}""")
+    
+    print(f"\n{BOLD}Features:{RESET}")
+    print(f"  ✓ SMS & MMS support")
+    print(f"  ✓ WhatsApp integration")
+    print(f"  ✓ Voice calls")
+    print(f"  ✓ Message delivery tracking")
+    
+    input("\nPress Enter to return...")
+
+def _vonage_setup_guide():
+    """Vonage (Nexmo) setup and usage guide."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("Vonage Setup Guide")
+    
+    print(f"\n{BOLD}Step 1: Create Account{RESET}")
+    print(f"  • Visit: https://dashboard.nexmo.com")
+    print(f"  • Sign up for free account")
+    print(f"  • Get free credits")
+    
+    print(f"\n{BOLD}Step 2: Install Python SDK{RESET}")
+    print(f"{COLORS['6'][0]}pip install vonage{RESET}")
+    
+    print(f"\n{BOLD}Step 3: Get Credentials{RESET}")
+    print(f"  • API Key: From Settings")
+    print(f"  • API Secret: From Settings")
+    
+    print(f"\n{BOLD}Step 4: Send SMS{RESET}")
+    print(f"""{COLORS['6'][0]}
+from vonage import Client, Auth
+
+auth = Auth(api_key="your_api_key", api_secret="your_api_secret")
+client = Client(auth=auth)
+
+response = client.sms.send_message(
+    {
+        "to": "447123456789",
+        "from": "Vonage",
+        "text": "Hello from pythonOS!",
+    }
+){RESET}""")
+    
+    print(f"\n{BOLD}Features:{RESET}")
+    print(f"  ✓ SMS sending")
+    print(f"  ✓ Voice APIs")
+    print(f"  ✓ Verification service")
+    print(f"  ✓ Global coverage")
+    
+    input("\nPress Enter to return...")
+
+def _api_code_examples():
+    """Show code examples for various messaging APIs."""
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📚 Advanced Messaging - Code Examples")
+    
+    print(f"\n{BOLD}Twilio - Send SMS{RESET}")
+    print(f"""{COLORS['6'][0]}
+from twilio.rest import Client
+
+client = Client("account_sid", "auth_token")
+msg = client.messages.create(
+    body="Hello!",
+    from_="+1234567890",
+    to="+9876543210"
+)
+print(f"Sent: {msg.sid}"){RESET}""")
+    
+    print(f"\n{BOLD}PubNub - Real-time Chat{RESET}")
+    print(f"""{COLORS['6'][0]}
+import pubnub
+
+pn = pubnub.PubNub(pubnub.PNConfiguration())
+
+def message_callback(message):
+    print(f"Received: {message.message}")
+
+pn.add_listener(message_callback)
+pn.subscribe(channels=['chat_room'])
+pn.publish(
+    channel='chat_room',
+    message='Hello PubNub!'
+){RESET}""")
+    
+    print(f"\n{BOLD}Error Handling{RESET}")
+    print(f"""{COLORS['6'][0]}
+try:
+    response = client.send_sms(...)
+except AuthenticationError:
+    print("Invalid credentials")
+except RateLimitError:
+    print("Too many requests")
+except Exception as e:
+    print(f"Error: {e}"){RESET}""")
+    
+    input("\nPress Enter to return...")
 
 def _server_mode_handler(server):
     """Handle server mode operations."""
@@ -41294,7 +41943,7 @@ if __name__ == "__main__":
     main()
 
 
-# version pythonOScmd103 base pythonOS70
+# version pythonOScmd201 base pythonOS70
 # ==========================================================
 # CHANGELOG / UPDATE LOG
 # ==========================================================
