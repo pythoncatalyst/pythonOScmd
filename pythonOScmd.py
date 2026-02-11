@@ -15640,6 +15640,223 @@ def feature_weather_display():
             ('Toronto, Canada', 43.6532, -79.3832),
         ]
     
+    def _get_nearest_airports(lat, lon, count=5):
+        """Get nearest 5 airports using great circle distance."""
+        airports = {
+            'KJFK': (40.6413, -73.7781, 'New York JFK'),
+            'KLAX': (33.9425, -118.4081, 'Los Angeles LAX'),
+            'KORD': (41.8742, -87.7473, 'Chicago ORD'),
+            'KDFW': (32.8975, -97.0378, 'Dallas DFW'),
+            'KDEN': (39.8561, -104.6737, 'Denver DEN'),
+            'KBOS': (42.3656, -71.0096, 'Boston BOS'),
+            'KSFO': (37.6213, -122.3790, 'San Francisco SFO'),
+            'EGLL': (51.4700, -0.4543, 'London Heathrow'),
+            'LFPG': (49.0097, 2.5479, 'Paris CDG'),
+            'RJTT': (35.5494, 139.7798, 'Tokyo Haneda'),
+            'ZSSS': (31.1434, 121.8050, 'Shanghai Pudong'),
+            'VHHH': (22.3080, 113.9185, 'Hong Kong HKG'),
+            'WSSS': (1.3521, 103.9868, 'Singapore Changi'),
+            'KSYD': (-33.9461, 151.1772, 'Sydney SYD'),
+            'CYYZ': (43.6773, -79.6306, 'Toronto YYZ'),
+        }
+        
+        def haversine(lat1, lon1, lat2, lon2):
+            from math import radians, cos, sin, asin, sqrt
+            lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+            dlon = lon2 - lon1
+            dlat = lat2 - lat1
+            a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+            c = 2 * asin(sqrt(a))
+            km = 6371 * c
+            return km
+        
+        distances = []
+        for code, (apt_lat, apt_lon, name) in airports.items():
+            dist = haversine(lat, lon, apt_lat, apt_lon)
+            distances.append((code, name, apt_lat, apt_lon, dist))
+        
+        return sorted(distances, key=lambda x: x[4])[:count]
+    
+    def _get_opensky_flights(lat, lon, radius_km=50):
+        """Get live flight data from OpenSky Network API."""
+        try:
+            url = "https://opensky-network.org/api/states/all"
+            response = requests.get(url, timeout=8).json()
+            
+            flights = []
+            if response.get('states'):
+                from math import radians, cos, sin, asin, sqrt
+                def haversine(lat1, lon1, lat2, lon2):
+                    lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+                    dlon = lon2 - lon1
+                    dlat = lat2 - lat1
+                    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+                    c = 2 * asin(sqrt(a))
+                    km = 6371 * c
+                    return km
+                
+                for state in response['states'][:500]:  # Limit to first 500 for performance
+                    if state[5] is not None and state[6] is not None:  # lon, lat
+                        dist = haversine(lat, lon, state[6], state[5])
+                        if dist <= radius_km:
+                            flights.append({
+                                'icao24': state[0],
+                                'callsign': state[1].strip() if state[1] else 'N/A',
+                                'lat': state[6],
+                                'lon': state[5],
+                                'altitude': state[7],
+                                'velocity': state[9],
+                                'country': state[2]
+                            })
+            
+            return sorted(flights, key=lambda x: x['altitude'] if x['altitude'] else 0, reverse=True)[:20]
+        except Exception as e:
+            return []
+    
+    def _feature_aviation_submenu(location):
+        """Aviation submenu with 3 options."""
+        while True:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("✈️ Aviation Weather & Traffic")
+            
+            # Display nearest 5 airports
+            nearest = _get_nearest_airports(location['lat'], location['lon'], 5)
+            print(f"\n{BOLD}NEAREST AIRPORTS TO {location['city']}{RESET}")
+            print(f"Location: {location['lat']:.4f}, {location['lon']:.4f}\n")
+            
+            for i, (code, name, apt_lat, apt_lon, dist) in enumerate(nearest, 1):
+                metar = _get_aviation_metar(code)
+                temp = "N/A"
+                wind = "N/A"
+                if metar and metar.get('temp'):
+                    temp = f"{metar['temp']['value']}°{metar['temp']['unit']}"
+                if metar and metar.get('wind_speed'):
+                    wind = f"{metar['wind_speed']['value']} {metar['wind_speed']['unit']}"
+                
+                print(f"  [{i}] {code:6} {name:<30} {dist:>5.0f}km | Temp: {temp:>8} | Wind: {wind}")
+            
+            print(f"\n{BOLD}AVIATION MENU:{RESET}")
+            print(f"  [1] 🔍 Search Airport by Code")
+            print(f"  [2] 📊 Air Traffic Data (OpenSky Network)")
+            print(f"  [3] ✈️ Live Flight Tracking (Web Scraped)")
+            print(f"  [B] ◀️ Back to Weather Menu")
+            
+            choice = input(f"\n{BOLD}Select option: {RESET}").strip()
+            
+            if choice == '1':
+                # Original search
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("✈️ Search Airport METAR/TAF")
+                airport_code = input("Enter airport code (e.g., KJFK, EGLL, RJTT): ").strip().upper()
+                if not airport_code:
+                    airport_code = "KJFK"
+                
+                metar = _get_aviation_metar(airport_code)
+                taf = _get_aviation_taf(airport_code)
+                
+                print(f"\n{BOLD}METAR for {airport_code}:{RESET}")
+                if metar and metar.get('raw'):
+                    print(f"  {metar['raw']}")
+                    if metar.get('temp'):
+                        print(f"  🌡️ Temp: {metar['temp']['value']}°{metar['temp']['unit']}")
+                    if metar.get('dewpoint'):
+                        print(f"  💧 Dew Point: {metar['dewpoint']['value']}°{metar['dewpoint']['unit']}")
+                    if metar.get('wind_speed'):
+                        print(f"  💨 Wind: {metar['wind_speed']['value']} {metar['wind_speed']['unit']}")
+                    if metar.get('visibility'):
+                        print(f"  👁️ Visibility: {metar['visibility'][0]['value']} {metar['visibility'][0]['unit']}")
+                else:
+                    print("  ℹ️ METAR data not available - check airport code")
+                
+                print(f"\n{BOLD}TAF for {airport_code}:{RESET}")
+                if taf and taf.get('raw'):
+                    print(f"  {taf['raw'][:300]}...")
+                else:
+                    print("  ℹ️ TAF data not available")
+                
+                input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+            
+            elif choice == '2':
+                # OpenSky Network air traffic
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("📊 Live Air Traffic Data (OpenSky Network)")
+                print(f"\nFetching flight data for {location['city']}...")
+                
+                flights = _get_opensky_flights(location['lat'], location['lon'], radius_km=100)
+                
+                print(f"\n{BOLD}LIVE FLIGHTS WITHIN 100 KM (Total: {len(flights)}){RESET}\n")
+                print(f"{'Callsign':<12} {'Country':<20} {'Alt(m)':<8} {'Vel(kmh)':<10} {'Lat':<10} {'Lon':<10}")
+                print("-" * 70)
+                
+                for flight in flights[:15]:
+                    callsign = flight['callsign'][:11]
+                    country = flight['country'][:19]
+                    alt = int(flight['altitude']) if flight['altitude'] else 0
+                    vel = int(flight['velocity']) if flight['velocity'] else 0
+                    lat = f"{flight['lat']:.3f}"
+                    lon = f"{flight['lon']:.3f}"
+                    print(f"{callsign:<12} {country:<20} {alt:<8} {vel:<10} {lat:<10} {lon:<10}")
+                
+                print(f"\n📡 Data Source: OpenSky Network (https://opensky-network.org/)")
+                print(f"🔗 Research API: https://opensky-network.org/api/")
+                print(f"📊 Public Portal: https://opensky-network.org/")
+                
+                input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+            
+            elif choice == '3':
+                # Flight tracking with web scrape info
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header("✈️ Live Flight Tracking Services")
+                
+                print(f"\n{BOLD}AVAILABLE FLIGHT TRACKING SOURCES:{RESET}\n")
+                print(f"  [A] Flightradar24")
+                print(f"      🔗 https://www.flightradar24.com/")
+                print(f"      Real-time flight tracking with detailed aircraft information")
+                print(f"      • View live flights on interactive map")
+                print(f"      • Aircraft type, registration, route information")
+                print(f"      • Historical flight data available")
+                
+                print(f"\n  [B] AirNav Radar")
+                print(f"      🔗 https://www.airnavradar.com/")
+                print(f"      U.S. aviation radar and flight tracking")
+                print(f"      • Real-time radar data")
+                print(f"      • Detailed flight information")
+                print(f"      • Weather integration")
+                
+                print(f"\n  [C] FlightAware")
+                print(f"      🔗 https://www.flightaware.com/live/")
+                print(f"      Comprehensive flight tracking for worldwide operations")
+                print(f"      • Live flight tracking")
+                print(f"      • Airline tracking")
+                print(f"      • Airport information")
+                
+                print(f"\n{BOLD}LOCAL FLIGHT DATA FOR {location['city']}:{RESET}")
+                flights = _get_opensky_flights(location['lat'], location['lon'], radius_km=80)
+                if flights:
+                    print(f"\n  Currently {len(flights)} flights detected in your area")
+                    print(f"  Open a browser to one of the services above for live tracking")
+                else:
+                    print(f"\n  No flights currently detected in your area")
+                
+                sel = input(f"\n{BOLD}Open service (A/B/C or Enter to skip): {RESET}").strip().upper()
+                urls = {
+                    'A': 'https://www.flightradar24.com/',
+                    'B': 'https://www.airnavradar.com/',
+                    'C': 'https://www.flightaware.com/live/'
+                }
+                if sel in urls:
+                    try:
+                        import webbrowser
+                        webbrowser.open(urls[sel])
+                        print(f"✓ Opened {sel} in default browser")
+                    except:
+                        print(f"✓ Visit {urls[sel]} in your browser")
+                
+                input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
+            
+            elif choice.upper() == 'B':
+                break
+    
     # Main weather menu
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -15710,41 +15927,7 @@ def feature_weather_display():
         
         # ===== AVIATION WEATHER =====
         elif choice == '2':
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print_header("✈️ Aviation Weather (METAR/TAF)")
-            
-            airport_code = input("Enter airport code (e.g., KJFK, EGLL, RJTT): ").strip().upper()
-            if not airport_code:
-                airport_code = "KJFK"
-            
-            metar = _get_aviation_metar(airport_code)
-            taf = _get_aviation_taf(airport_code)
-            
-            print(f"\n{BOLD}METAR for {airport_code}:{RESET}")
-            if metar and metar.get('raw'):
-                print(f"  {metar['raw']}")
-                if metar.get('temp'):
-                    print(f"  🌡️ Temp: {metar['temp']['value']}°{metar['temp']['unit']}")
-                if metar.get('dewpoint'):
-                    print(f"  💧 Dew Point: {metar['dewpoint']['value']}°{metar['dewpoint']['unit']}")
-                if metar.get('wind_speed'):
-                    print(f"  💨 Wind: {metar['wind_speed']['value']} {metar['wind_speed']['unit']}")
-                if metar.get('visibility'):
-                    print(f"  👁️ Visibility: {metar['visibility'][0]['value']} {metar['visibility'][0]['unit']}")
-            else:
-                print("  ℹ️ METAR data not available - check airport code")
-            
-            print(f"\n{BOLD}TAF for {airport_code}:{RESET}")
-            if taf and taf.get('raw'):
-                print(f"  {taf['raw'][:200]}...")
-            else:
-                print("  ℹ️ TAF data not available")
-            
-            print(f"\n{BOLD}AVIATION RESOURCES:{RESET}")
-            print(f"  🔗 https://www.aviationweather.gov")
-            print(f"  🔗 https://www.checkwx.com")
-            
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            _feature_aviation_submenu(location)
         
         # ===== NAVAL & OCEAN CONDITIONS =====
         elif choice == '3':
