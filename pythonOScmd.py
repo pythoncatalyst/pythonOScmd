@@ -33547,7 +33547,7 @@ def feature_textual_file_manager():
             return results
 
     class FileManagerApp(App):
-        """Enhanced Textual file manager with 31 tools - 600% enhancement"""
+        """Enhanced Textual file manager with 31 tools - Full-Featured Browser Edition"""
 
         CSS = """
         Screen {
@@ -33593,12 +33593,33 @@ def feature_textual_file_manager():
             padding: 1;
         }
 
-        #preview {
+        #preview-container {
             height: 1fr;
+            width: 100%;
+            overflow-y: scroll;
+            overflow-x: auto;
+            border: solid $accent;
+            scrollbar-size: 2 1;
+        }
+
+        #preview {
+            height: auto;
+            width: auto;
+            padding: 1;
+        }
+
+        #button-bar {
+            height: 3;
+            border-top: solid $warning;
+            padding: 1;
         }
 
         #command-input {
             border: solid $accent;
+        }
+
+        .action-button {
+            margin: 0 1;
         }
         """
 
@@ -33609,9 +33630,14 @@ def feature_textual_file_manager():
             Binding("t", "toggle_tools", "Tools Menu"),
             Binding("h", "show_help", "Help"),
             Binding("o", "open_file", "Open"),
+            Binding("e", "edit_file", "Edit"),
+            Binding("delete", "delete_file", "Delete"),
             Binding("c", "copy", "Copy"),
             Binding("x", "cut", "Cut"),
             Binding("v", "paste", "Paste"),
+            Binding("n", "new_file", "New File"),
+            Binding("m", "new_folder", "New Folder"),
+            Binding("f", "search", "Search"),
             Binding("1", "tool_1", "Browser"),
             Binding("2", "tool_2", "Finder"),
             Binding("3", "tool_3", "Analyzer"),
@@ -33627,18 +33653,35 @@ def feature_textual_file_manager():
             self.clipboard_mode = None
             self.pending_action = None
             self.pending_target = None
+            self.file_history = []  # Recent files
 
         def compose(self) -> ComposeResult:
             """Create child widgets for the app."""
+            from textual.widgets import Button
+            from textual.containers import ScrollableContainer
+            
             yield Header(show_clock=True)
             with Vertical(id="main-container"):
                 with Horizontal(id="content-row"):
                     with Vertical(id="tree-panel"):
                         yield DirectoryTree(self.current_path, id="tree")
                     with Vertical(id="preview-panel"):
-                        yield Static("Select a file to preview", id="preview")
+                        with ScrollableContainer(id="preview-container"):
+                            yield Static("Select a file to preview\n\n📂 File Browser Features:\n  • Full document viewing with scrollbar\n  • Syntax highlighting for code files\n  • Image ASCII preview\n  • PDF text extraction\n  • Archive content listing\n  • Metadata display", id="preview")
+                
+                # Bottom button bar for quick actions
+                with Horizontal(id="button-bar"):
+                    yield Button("📂 Open", id="btn-open", variant="primary", classes="action-button")
+                    yield Button("✏️ Edit", id="btn-edit", variant="success", classes="action-button")
+                    yield Button("📋 Copy", id="btn-copy", variant="default", classes="action-button")
+                    yield Button("✂️ Cut", id="btn-cut", variant="default", classes="action-button")
+                    yield Button("📥 Paste", id="btn-paste", variant="default", classes="action-button")
+                    yield Button("🗑️ Delete", id="btn-delete", variant="error", classes="action-button")
+                    yield Button("➕ New", id="btn-new", variant="success", classes="action-button")
+                    yield Button("🔍 Search", id="btn-search", variant="primary", classes="action-button")
+                
                 with Container(id="info-panel"):
-                    yield Label(f"📁 Enhanced File Manager | Path: {self.current_path} | Press 'T' for tools", id="info")
+                    yield Label(f"📁 Full-Featured File Browser | Path: {self.current_path} | Press 'T' for tools", id="info")
                 yield Input(placeholder="Type command values here and press Enter", id="command-input")
             yield Footer()
 
@@ -33664,12 +33707,99 @@ def feature_textual_file_manager():
                         pass
 
         def _update_preview(self, content) -> None:
-            """Safely update the preview panel"""
+            """Safely update the preview panel with scrollable content"""
             try:
                 preview = self.query_one("#preview", Static)
                 preview.update(content)
+                # Scroll to top when content updates
+                try:
+                    container = self.query_one("#preview-container")
+                    container.scroll_home(animate=False)
+                except Exception:
+                    pass
             except Exception:
                 pass
+
+        def _read_file_content(self, path: Path, max_lines: int = 1000) -> str:
+            """Read file content with support for various formats."""
+            try:
+                ext = path.suffix.lower()
+                
+                # Text-based files
+                if ext in {".py", ".md", ".txt", ".json", ".yaml", ".yml", ".ini", ".cfg", 
+                          ".log", ".csv", ".xml", ".html", ".css", ".js", ".sh", ".bash",
+                          ".c", ".cpp", ".h", ".java", ".go", ".rs", ".rb", ".php", ".sql"}:
+                    try:
+                        with open(path, "r", encoding="utf-8", errors="replace") as f:
+                            lines = f.readlines()
+                        content_lines = lines[:max_lines]
+                        result = "".join(content_lines)
+                        if len(lines) > max_lines:
+                            result += f"\n\n... ({len(lines) - max_lines} more lines)"
+                        return result
+                    except Exception:
+                        return f"Error reading {path.name}"
+                
+                # PDF files (extract text if pypdf available)
+                elif ext == ".pdf":
+                    try:
+                        import pypdf
+                        with open(path, "rb") as f:
+                            reader = pypdf.PdfReader(f)
+                            text_parts = []
+                            for page_num, page in enumerate(reader.pages[:20], 1):
+                                text_parts.append(f"=== Page {page_num} ===\n")
+                                text_parts.append(page.extract_text())
+                            if len(reader.pages) > 20:
+                                text_parts.append(f"\n\n... ({len(reader.pages) - 20} more pages)")
+                            return "".join(text_parts)
+                    except ImportError:
+                        return f"PDF: {path.name}\nSize: {self._format_bytes(path.stat().st_size)}\nInstall pypdf for text extraction: pip install pypdf"
+                    except Exception as e:
+                        return f"PDF read error: {e}"
+                
+                # Archive files
+                elif ext in {".zip", ".tar", ".gz", ".tgz"}:
+                    try:
+                        import zipfile
+                        import tarfile
+                        
+                        if ext == ".zip":
+                            with zipfile.ZipFile(path, "r") as zf:
+                                files = zf.namelist()
+                                listing = f"📦 Archive: {path.name}\nFiles: {len(files)}\n\n"
+                                listing += "\n".join(files[:100])
+                                if len(files) > 100:
+                                    listing += f"\n\n... ({len(files) - 100} more files)"
+                                return listing
+                        elif ext in {".tar", ".gz", ".tgz"}:
+                            with tarfile.open(path, "r:*") as tf:
+                                members = tf.getmembers()
+                                listing = f"📦 Archive: {path.name}\nFiles: {len(members)}\n\n"
+                                listing += "\n".join([m.name for m in members[:100]])
+                                if len(members) > 100:
+                                    listing += f"\n\n... ({len(members) - 100} more files)"
+                                return listing
+                    except Exception as e:
+                        return f"Archive read error: {e}"
+                
+                # Binary files - show hex dump
+                else:
+                    with open(path, "rb") as f:
+                        data = f.read(1024)
+                    hex_lines = []
+                    for i in range(0, min(len(data), 512), 16):
+                        hex_part = " ".join(f"{b:02x}" for b in data[i:i+16])
+                        ascii_part = "".join(chr(b) if 32 <= b < 127 else "." for b in data[i:i+16])
+                        hex_lines.append(f"{i:08x}  {hex_part:<48}  {ascii_part}")
+                    result = f"Binary file: {path.name}\nSize: {self._format_bytes(path.stat().st_size)}\n\nHex dump (first 512 bytes):\n"
+                    result += "\n".join(hex_lines)
+                    if len(data) > 512:
+                        result += f"\n\n... ({len(data) - 512} more bytes)"
+                    return result
+                    
+            except Exception as e:
+                return f"Error reading file: {e}"
 
         def _prompt_input(self, prompt: str, action_key: str, target=None) -> None:
             """Prompt for input and store pending action."""
@@ -33709,9 +33839,34 @@ def feature_textual_file_manager():
             self.show_tools_submenu()
 
         def action_show_help(self) -> None:
-            """Show help information."""
-            help_text = "🔧 KEYS: T tools | 1-9, A-V select | O open | C copy | X cut | V paste | Enter for prompts"
-            self._update_info(help_text, "🔧 Help: tools 1-31 | O/C/X/V file ops | Enter for prompts")
+            """Show comprehensive help information."""
+            help_text = (
+                "📚 FULL-FEATURED FILE BROWSER HELP\n\n"
+                "🎯 Quick Actions (Bottom Buttons):\n"
+                "  📂 Open - View file with syntax highlighting & scrolling\n"
+                "  ✏️ Edit - Append text or clear file content\n"
+                "  📋 Copy - Copy selected file/folder\n"
+                "  ✂️ Cut - Cut selected file/folder\n"
+                "  📥 Paste - Paste into current directory\n"
+                "  🗑️ Delete - Remove file/folder (confirmation required)\n"
+                "  ➕ New - Create new file or folder\n"
+                "  🔍 Search - Find files by name or content\n\n"
+                "⌨️ Keyboard Shortcuts:\n"
+                "  O=Open | E=Edit | C=Copy | X=Cut | V=Paste\n"
+                "  N=New File | M=New Folder | F=Search | Delete=Delete\n"
+                "  T=Tools (1-31) | R=Refresh | D=Dark Mode | Q=Quit\n\n"
+                "📄 Supported Formats:\n"
+                "  • Code: .py .js .java .c .cpp .go .rs .rb .php\n"
+                "  • Config: .json .yaml .xml .ini .cfg\n"
+                "  • Docs: .txt .md .log .csv\n"
+                "  • Archives: .zip .tar .gz (list contents)\n"
+                "  • PDF: Text extraction (install pypdf)\n"
+                "  • Binary: Hex dump view\n\n"
+                "🛠️ Advanced Tools:\n"
+                "  Press T for 31 tools menu (1-9, A-V)"
+            )
+            self._update_info("📚 Help displayed in preview panel")
+            self._update_preview(help_text)
 
         def on_key(self, event) -> None:
             """Handle tool selections via digits and letters when tools menu is open."""
@@ -33895,9 +34050,29 @@ def feature_textual_file_manager():
             target = self.pending_target
             self.pending_action = None
             self.pending_target = None
+            
+            # Reset input placeholder
+            try:
+                cmd = self.query_one("#command-input", Input)
+                cmd.placeholder = "Type command values here and press Enter"
+                cmd.value = ""
+            except Exception:
+                pass
+            
             if not action:
                 return
-            if action == "duplicate_finder":
+            
+            # New file/folder actions
+            if action == "new_file":
+                self._create_new_file(value)
+            elif action == "new_folder":
+                self._create_new_folder(value)
+            elif action == "delete_file":
+                self._delete_file(target, value)
+            elif action == "edit_file":
+                self._edit_file(target, value)
+            # Existing actions
+            elif action == "duplicate_finder":
                 by_content = value.lower() != "name"
                 self._run_duplicate_finder(target, by_content)
             elif action == "disk_analyzer":
@@ -33929,8 +34104,88 @@ def feature_textual_file_manager():
             elif action == "file_sync":
                 self._run_file_sync(target, value)
 
+        def _create_new_file(self, filename: str) -> None:
+            """Create a new empty file."""
+            if not filename:
+                self._update_info("➕ New file | No filename provided")
+                return
+            try:
+                target_dir = self._get_selected_path()
+                if target_dir is None or not target_dir.is_dir():
+                    target_dir = Path(self.current_path)
+                
+                new_path = target_dir / filename
+                if new_path.exists():
+                    self._update_info(f"➕ New file | {filename} already exists")
+                    return
+                
+                new_path.touch()
+                self._update_info(f"➕ Created file: {filename}")
+                self.action_refresh()
+                self._update_preview(f"✅ Created new file: {new_path}\n\nYou can now select and edit it.")
+            except Exception as e:
+                self._update_info(f"➕ New file failed: {e}")
+
+        def _create_new_folder(self, foldername: str) -> None:
+            """Create a new folder."""
+            if not foldername:
+                self._update_info("➕ New folder | No folder name provided")
+                return
+            try:
+                target_dir = self._get_selected_path()
+                if target_dir is None or not target_dir.is_dir():
+                    target_dir = Path(self.current_path)
+                
+                new_path = target_dir / foldername
+                if new_path.exists():
+                    self._update_info(f"➕ New folder | {foldername} already exists")
+                    return
+                
+                new_path.mkdir(parents=True)
+                self._update_info(f"➕ Created folder: {foldername}")
+                self.action_refresh()
+                self._update_preview(f"✅ Created new folder: {new_path}")
+            except Exception as e:
+                self._update_info(f"➕ New folder failed: {e}")
+
+        def _delete_file(self, path: Path, confirmation: str) -> None:
+            """Delete a file or folder after confirmation."""
+            if confirmation.lower() != "yes":
+                self._update_info("🗑️ Delete cancelled")
+                return
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                    self._update_info(f"🗑️ Deleted folder: {path.name}")
+                else:
+                    path.unlink()
+                    self._update_info(f"🗑️ Deleted file: {path.name}")
+                self.action_refresh()
+                self._update_preview("✅ Item deleted successfully")
+            except Exception as e:
+                self._update_info(f"🗑️ Delete failed: {e}")
+
+        def _edit_file(self, path: Path, text: str) -> None:
+            """Edit file content."""
+            try:
+                if text.lower() == "clear":
+                    # Clear file
+                    with open(path, "w", encoding="utf-8") as f:
+                        f.write("")
+                    self._update_info(f"✏️ Cleared: {path.name}")
+                elif text:
+                    # Append text
+                    with open(path, "a", encoding="utf-8") as f:
+                        f.write(text + "\n")
+                    self._update_info(f"✏️ Appended to: {path.name}")
+                
+                # Reload file to show changes
+                self.action_open_file()
+            except Exception as e:
+                self._update_info(f"✏️ Edit failed: {e}")
+
         def action_open_file(self) -> None:
-            """Open selected file and show a short preview in info panel."""
+            """Open selected file and show full content with scrollbar."""
             path = self._get_selected_path()
             if not path:
                 self._update_info("📄 Open | No selection")
@@ -33939,18 +34194,134 @@ def feature_textual_file_manager():
                 self._update_info(f"📁 Open | {path.name} (directory)")
                 self._update_preview(self._render_directory_listing(path))
                 return
+            
+            # Add to history
+            if path not in self.file_history:
+                self.file_history.append(path)
+                if len(self.file_history) > 10:
+                    self.file_history.pop(0)
+            
             try:
-                if path.suffix.lower() in {".py", ".md", ".json", ".txt", ".yaml", ".yml", ".ini", ".csv", ".log"}:
-                    syntax = Syntax.from_path(str(path), line_numbers=True, theme="monokai")
-                    self._update_preview(syntax)
-                    self._update_info(f"📄 Open | {path.name}")
+                # Get file info
+                size = path.stat().st_size
+                modified = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Build header
+                header = f"{'='*60}\n"
+                header += f"📄 File: {path.name}\n"
+                header += f"📂 Path: {path.parent}\n"
+                header += f"💾 Size: {self._format_bytes(size)}\n"
+                header += f"📅 Modified: {modified}\n"
+                header += f"{'='*60}\n\n"
+                
+                # Read content
+                content = self._read_file_content(path)
+                full_content = header + content
+                
+                # Use syntax highlighting for code files if possible
+                ext = path.suffix.lower()
+                if ext in {".py", ".md", ".json", ".yaml", ".yml", ".txt", ".log", ".csv", 
+                          ".xml", ".html", ".css", ".js", ".sh", ".c", ".cpp", ".java"}:
+                    try:
+                        from rich.syntax import Syntax
+                        syntax = Syntax(content, ext[1:] if ext[1:] else "text", 
+                                      line_numbers=True, theme="monokai")
+                        self._update_preview(syntax)
+                    except Exception:
+                        self._update_preview(full_content)
                 else:
-                    with open(path, "rb") as f:
-                        data = f.read(128)
-                    self._update_preview(f"Binary preview: {data[:128]!r}")
-                    self._update_info(f"📄 Open | {path.name} (binary)")
-            except Exception:
-                self._update_info(f"📄 Open failed | {path.name}")
+                    self._update_preview(full_content)
+                
+                self._update_info(f"📄 Opened: {path.name} | {self._format_bytes(size)} | Use scroll to view all content")
+            except Exception as e:
+                self._update_info(f"📄 Open failed | {path.name}: {e}")
+                self._update_preview(f"Error opening file: {e}")
+
+        def action_edit_file(self) -> None:
+            """Edit selected file in simple text editor."""
+            path = self._get_selected_path()
+            if not path or path.is_dir():
+                self._update_info("✏️ Edit | Select a text file to edit")
+                return
+            
+            # Check if it's a text file
+            ext = path.suffix.lower()
+            if ext not in {".txt", ".md", ".py", ".json", ".yaml", ".yml", ".cfg", ".ini", ".log", ".csv"}:
+                self._update_info("✏️ Edit | Only text files supported. Use external editor for other types.")
+                return
+            
+            self._prompt_input(f"Editing {path.name}. Enter text to append (or 'clear' to empty file)", "edit_file", path)
+
+        def action_delete_file(self) -> None:
+            """Delete selected file or folder."""
+            path = self._get_selected_path()
+            if not path:
+                self._update_info("🗑️ Delete | No selection")
+                return
+            
+            self._prompt_input(f"Delete {path.name}? Type 'yes' to confirm", "delete_file", path)
+
+        def action_new_file(self) -> None:
+            """Create a new file."""
+            self._prompt_input("New file name (with extension)", "new_file", None)
+
+        def action_new_folder(self) -> None:
+            """Create a new folder."""
+            self._prompt_input("New folder name", "new_folder", None)
+
+        def action_search(self) -> None:
+            """Search for files."""
+            target = self._get_selected_path() or Path(self.current_path)
+            if target.is_file():
+                target = target.parent
+            self._prompt_input("Search pattern (filename or content)", "file_search", target)
+
+        # Button handlers
+        @on(Button.Pressed, "#btn-open")
+        def handle_btn_open(self, _event) -> None:
+            """Handle open button click."""
+            self.action_open_file()
+
+        @on(Button.Pressed, "#btn-edit")
+        def handle_btn_edit(self, _event) -> None:
+            """Handle edit button click."""
+            self.action_edit_file()
+
+        @on(Button.Pressed, "#btn-copy")
+        def handle_btn_copy(self, _event) -> None:
+            """Handle copy button click."""
+            self.action_copy()
+
+        @on(Button.Pressed, "#btn-cut")
+        def handle_btn_cut(self, _event) -> None:
+            """Handle cut button click."""
+            self.action_cut()
+
+        @on(Button.Pressed, "#btn-paste")
+        def handle_btn_paste(self, _event) -> None:
+            """Handle paste button click."""
+            self.action_paste()
+
+        @on(Button.Pressed, "#btn-delete")
+        def handle_btn_delete(self, _event) -> None:
+            """Handle delete button click."""
+            self.action_delete_file()
+
+        @on(Button.Pressed, "#btn-new")
+        def handle_btn_new(self, _event) -> None:
+            """Handle new file button click."""
+            self.action_new_file()
+
+        @on(Button.Pressed, "#btn-search")
+        def handle_btn_search(self, _event) -> None:
+            """Handle search button click."""
+            self.action_search()
+
+        # Tree selection handler for auto-preview
+        @on(DirectoryTree.FileSelected)
+        def handle_tree_select(self, event: DirectoryTree.FileSelected) -> None:
+            """Auto-preview when file is selected in tree."""
+            self.action_open_file()
 
         def action_copy(self) -> None:
             """Copy selected file or folder."""
