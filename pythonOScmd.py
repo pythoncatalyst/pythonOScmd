@@ -14161,7 +14161,8 @@ class EncryptedMessagingServer:
         self.server_socket = None
         self.running = False
         self.cipher_suite = self._setup_cipher(password)
-        self.connected_clients = []
+        self.connected_clients = []  # List of (addr, socket, info)
+        self.client_sockets = {}  # Dict mapping addr to socket for broadcasting
 
     def _setup_cipher(self, password):
         """Generate cipher from password."""
@@ -14171,6 +14172,33 @@ class EncryptedMessagingServer:
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Cipher setup failed: {e}{RESET}")
             return None
+
+    def broadcast_message(self, message, exclude_addr=None):
+        """Broadcast encrypted message to all connected clients."""
+        if not self.cipher_suite:
+            print(f"{COLORS['1'][0]}[ERROR] No cipher available{RESET}")
+            return
+        
+        try:
+            encrypted_msg = self.cipher_suite.encrypt(message.encode())
+            disconnected = []
+            
+            for addr, client_socket in self.client_sockets.items():
+                if exclude_addr and addr == exclude_addr:
+                    continue
+                try:
+                    client_socket.sendall(encrypted_msg)
+                except:
+                    disconnected.append(addr)
+            
+            # Remove disconnected clients
+            for addr in disconnected:
+                if addr in self.client_sockets:
+                    del self.client_sockets[addr]
+                if addr in self.connected_clients:
+                    self.connected_clients.remove(addr)
+        except Exception as e:
+            print(f"{COLORS['1'][0]}[ERROR] Broadcast failed: {e}{RESET}")
 
     def start(self):
         """Start listening for encrypted messages."""
@@ -14184,8 +14212,10 @@ class EncryptedMessagingServer:
 
             while self.running:
                 try:
+                    self.server_socket.settimeout(1)
                     client_socket, client_addr = self.server_socket.accept()
                     self.connected_clients.append(client_addr)
+                    self.client_sockets[client_addr] = client_socket
                     print(f"{COLORS['2'][0]}✓ Client connected: {client_addr[0]}:{client_addr[1]}{RESET}")
 
                     submit_async_task(f"client_{client_addr[0]}_{client_addr[1]}", self._handle_client, client_socket, client_addr)
@@ -14200,30 +14230,48 @@ class EncryptedMessagingServer:
         """Handle client connection and encrypted messages."""
         try:
             while self.running:
-                encrypted_msg = client_socket.recv(1024)
-                if not encrypted_msg:
-                    break
-
                 try:
-                    if self.cipher_suite:
-                        decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
-                        print(f"{COLORS['4'][0]}📨 [{client_addr[0]}]: {decrypted_msg}{RESET}")
-                    else:
-                        print(f"{COLORS['4'][0]}📨 [{client_addr[0]}] (encrypted, couldn't decrypt){RESET}")
-                except Exception as e:
-                    print(f"{COLORS['1'][0]}[ERROR] Decryption failed: {e}{RESET}")
+                    client_socket.settimeout(1)
+                    encrypted_msg = client_socket.recv(1024)
+                    if not encrypted_msg:
+                        break
+
+                    try:
+                        if self.cipher_suite:
+                            decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
+                            print(f"{COLORS['4'][0]}📨 [{client_addr[0]}:{client_addr[1]}]: {decrypted_msg}{RESET}")
+                        else:
+                            print(f"{COLORS['4'][0]}📨 [{client_addr[0]}] (encrypted, couldn't decrypt){RESET}")
+                    except Exception as e:
+                        print(f"{COLORS['1'][0]}[ERROR] Decryption failed: {e}{RESET}")
+                except socket.timeout:
+                    continue
 
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Client handler failed: {e}{RESET}")
         finally:
-            client_socket.close()
+            try:
+                client_socket.close()
+            except:
+                pass
             if client_addr in self.connected_clients:
                 self.connected_clients.remove(client_addr)
+            if client_addr in self.client_sockets:
+                del self.client_sockets[client_addr]
             print(f"{COLORS['1'][0]}✗ Client disconnected: {client_addr[0]}:{client_addr[1]}{RESET}")
 
     def stop(self):
         """Stop the server."""
         self.running = False
+        # Close all client sockets
+        for addr, client_socket in list(self.client_sockets.items()):
+            try:
+                client_socket.close()
+            except:
+                pass
+            if addr in self.connected_clients:
+                self.connected_clients.remove(addr)
+        
         if self.server_socket:
             self.server_socket.close()
         print(f"{COLORS['2'][0]}✓ Server stopped{RESET}")
@@ -14236,6 +14284,7 @@ class EncryptedMessagingClient:
         self.password = password
         self.socket = None
         self.cipher_suite = self._setup_cipher(password)
+        self.running = False
 
     def _setup_cipher(self, password):
         """Generate cipher from password."""
@@ -14251,11 +14300,42 @@ class EncryptedMessagingClient:
         try:
             self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.socket.connect((self.host, self.port))
+            self.running = True
             print(f"{COLORS['2'][0]}✓ Connected to {self.host}:{self.port}{RESET}")
             return True
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Connection failed: {e}{RESET}")
             return False
+
+    def receive_messages_threaded(self):
+        """Receive messages from server in background thread."""
+        def receiver():
+            try:
+                while self.running:
+                    try:
+                        self.socket.settimeout(1)
+                        encrypted_msg = self.socket.recv(1024)
+                        if not encrypted_msg:
+                            break
+                        
+                        try:
+                            if self.cipher_suite:
+                                decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
+                                print(f"\n{COLORS['4'][0]}📨 {decrypted_msg}{RESET}")
+                            else:
+                                print(f"\n{COLORS['4'][0]}📨 (encrypted message){RESET}")
+                        except Exception as e:
+                            print(f"\n{COLORS['1'][0]}[ERROR] Decryption failed{RESET}")
+                    except socket.timeout:
+                        continue
+            except Exception as e:
+                if self.running:
+                    print(f"\n{COLORS['1'][0]}Connection lost{RESET}")
+            finally:
+                self.running = False
+        
+        receiver_thread = threading.Thread(target=receiver, daemon=True)
+        receiver_thread.start()
 
     def send_message(self, message):
         """Send encrypted message to server."""
@@ -14263,16 +14343,23 @@ class EncryptedMessagingClient:
             if self.cipher_suite:
                 encrypted_msg = self.cipher_suite.encrypt(message.encode())
                 self.socket.sendall(encrypted_msg)
-                print(f"{COLORS['2'][0]}✓ Encrypted message sent{RESET}")
+                print(f"{COLORS['2'][0]}✓ Message sent{RESET}")
+                return True
             else:
                 print(f"{COLORS['1'][0]}[ERROR] No cipher available{RESET}")
+                return False
         except Exception as e:
             print(f"{COLORS['1'][0]}[ERROR] Send failed: {e}{RESET}")
+            return False
 
     def close(self):
         """Close connection."""
+        self.running = False
         if self.socket:
-            self.socket.close()
+            try:
+                self.socket.close()
+            except:
+                pass
         print(f"{COLORS['2'][0]}✓ Disconnected{RESET}")
 
 SERVER_INSTANCE = None
@@ -14991,19 +15078,22 @@ def _server_mode_handler(server):
         # Interactive chat interface
         try:
             while SERVER_INSTANCE.running:
-                # Check for new connections and display them
+                # Check for new connections
                 current_clients = len(SERVER_INSTANCE.connected_clients)
+                
                 if current_clients > 0:
-                    print(f"{COLORS['2'][0]}✓ Server listening on port {port}{RESET}")
-                    print(f"Connected clients: {current_clients}")
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_header("🖥️  Server Mode - Interactive Chat")
+                    print(f"\n{COLORS['2'][0]}✓ Server listening on port {port}{RESET}")
+                    print(f"{COLORS['6'][0]}Connected clients: {current_clients}{RESET}")
                     for addr in SERVER_INSTANCE.connected_clients:
                         print(f"  • {addr[0]}:{addr[1]}")
                     
-                    # Interactive message sending
-                    print(f"\n{BOLD}Commands:{RESET}")
-                    print(f"  Type message to broadcast to all clients")
-                    print(f"  Type 'quit' to stop server")
-                    print(f"  Type 'clients' to refresh client list\n")
+                    print(f"\n{BOLD}Available Commands:{RESET}")
+                    print(f"  • Type a message to broadcast to all clients")
+                    print(f"  • Type 'quit' to stop server")
+                    print(f"  • Type 'clients' to refresh client list")
+                    print(f"  • Type 'clear' to clear screen\n")
                     
                     msg = input(f"{BOLD}[SERVER]: {RESET}").strip()
                     
@@ -15011,39 +15101,30 @@ def _server_mode_handler(server):
                         print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
                         break
                     elif msg.lower() == 'clients':
-                        os.system('cls' if os.name == 'nt' else 'clear')
-                        print_header("🖥️  Server Mode")
-                        print(f"{COLORS['2'][0]}Connected clients: {current_clients}{RESET}\n")
-                        for idx, addr in enumerate(SERVER_INSTANCE.connected_clients, 1):
-                            print(f"  {idx}. {addr[0]}:{addr[1]}")
+                        continue
+                    elif msg.lower() == 'clear':
                         continue
                     elif msg:
                         # Send message to all connected clients
                         server_msg = f"[SERVER]: {msg}"
-                        for client_sock in SERVER_INSTANCE.connected_clients:
-                            try:
-                                # Send message through the server's encryption
-                                encrypted = SERVER_INSTANCE.cipher.encrypt(server_msg.encode())
-                                client_sock[0].send(encrypted)
-                            except:
-                                pass
-                        print(f"{COLORS['4'][0]}Message sent to {current_clients} clients{RESET}\n")
-                        os.system('cls' if os.name == 'nt' else 'clear')
-                        print_header("🖥️  Server Mode - Listen for encrypted messages")
+                        SERVER_INSTANCE.broadcast_message(server_msg)
+                        print(f"\n{COLORS['2'][0]}✓ Message sent to {current_clients} client(s){RESET}")
+                        time.sleep(0.5)
                 else:
-                    print(f"{COLORS['6'][0]}Waiting for client connections...{RESET}")
-                    print(f"Server listening on port {port}")
-                    print(f"Type 'quit' to stop server\n")
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_header("🖥️  Server Mode - Waiting for Connections")
+                    print(f"\n{COLORS['6'][0]}Server listening on port {port}{RESET}")
+                    print(f"{COLORS['4'][0]}Waiting for client connections...{RESET}")
+                    print(f"\n{BOLD}Commands (while waiting):{RESET}")
+                    print(f"  • Type 'quit' to stop server\n")
                     
                     msg = input(f"{BOLD}[SERVER (Waiting)]: {RESET}").strip()
                     if msg.lower() == 'quit':
                         print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
                         break
                     elif msg:
-                        print(f"{COLORS['1'][0]}No clients connected - message not sent{RESET}")
-                    time.sleep(0.5)
-                    os.system('cls' if os.name == 'nt' else 'clear')
-                    print_header("🖥️  Server Mode - Listen for encrypted messages")
+                        print(f"{COLORS['1'][0]}⚠️  No clients connected - message not sent{RESET}")
+                        time.sleep(1)
         
         except KeyboardInterrupt:
             print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
@@ -15058,9 +15139,9 @@ def _server_mode_handler(server):
     input("\nPress Enter to return...")
 
 def _client_mode_handler():
-    """Handle client mode operations."""
+    """Handle client mode operations with bidirectional messaging."""
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_header("💻 Client Mode")
+    print_header("💻 Client Mode - Send encrypted messages")
 
     host = input("Enter server host (IP address): ").strip()
     if not host:
@@ -15076,21 +15157,35 @@ def _client_mode_handler():
         client = EncryptedMessagingClient(host, port=port, password=password)
 
         if client.connect():
-            print(f"{COLORS['2'][0]}Connected to {host}:{port}{RESET}")
+            print(f"{COLORS['2'][0]}✓ Connected to {host}:{port}{RESET}")
+            print(f"{COLORS['6'][0]}Password: {password[:4]}...{RESET}")
+            print(f"\n{BOLD}Commands:{RESET}")
+            print(f"  • Type a message and press Enter to send")
+            print(f"  • Type 'quit' to disconnect\n")
+            
+            # Start receiving messages in background
+            client.receive_messages_threaded()
+            time.sleep(0.5)
 
-            while True:
-                msg = input(f"\n{BOLD}Enter message (or 'quit' to disconnect): {RESET}").strip()
-                if msg.lower() == 'quit':
-                    client.close()
-                    break
-                if msg:
-                    client.send_message(msg)
+            try:
+                while client.running:
+                    msg = input(f"{BOLD}[YOU]: {RESET}").strip()
+                    if msg.lower() == 'quit':
+                        break
+                    elif msg:
+                        client.send_message(msg)
+            except KeyboardInterrupt:
+                print(f"\n{COLORS['1'][0]}Disconnecting...{RESET}")
+            finally:
+                client.close()
         else:
             print(f"{COLORS['1'][0]}Failed to connect to {host}:{port}{RESET}")
     except ValueError:
         print(f"{COLORS['1'][0]}Invalid port number{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}[ERROR] {e}{RESET}")
+
+    input("\nPress Enter to return...")
 
     input("\nPress Enter to return...")
 
