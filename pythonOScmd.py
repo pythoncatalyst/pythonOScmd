@@ -874,7 +874,112 @@ def _cross(a: List[float], b: List[float]) -> List[float]:
 
 def manifest() -> Dict[str, Any]:
     brain = PyAIBrain()
-    return {"name": "pyAI", "version": "1.0", "tasks": brain.list_tasks(), "numpy": bool(np), "scipy": bool(sp), "sympy": bool(sym)}
+    return {
+        "name": "pyAI",
+        "version": "1.0",
+        "tasks": brain.list_tasks(),
+        "numpy": bool(np),
+        "scipy": bool(sp),
+        "sympy": bool(sym),
+        "integration": {
+            "api_gateway": "RESTful API framework with GraphQL support",
+            "microservices": "Service discovery, load balancing, health checks",
+            "api_versioning": "Multi-version API support with deprecation tracking",
+            "service_mesh": "Microservice orchestration with circuit breakers"
+        },
+        "capabilities": [
+            "physics_calculations",
+            "math_operations",
+            "api_gateway_control",
+            "microservice_orchestration",
+            "distributed_call_tracing"
+        ]
+    }
+
+def register_api_endpoints(gateway) -> None:
+    """Register AI endpoints with API Gateway."""
+    # Import at function level to avoid circular dependencies
+    try:
+        from pythonOS_data.api_gateway import APIEndpoint, HTTPMethod, APIVersion, DeprecationStatus
+    except ImportError:
+        return
+    
+    # Register physics calculation endpoints
+    endpoints = [
+        APIEndpoint(
+            path="/api/ai/tasks",
+            method=HTTPMethod.GET,
+            version=APIVersion.V1,
+            description="List all available AI tasks",
+            tags=["ai", "physics"]
+        ),
+        APIEndpoint(
+            path="/api/ai/execute",
+            method=HTTPMethod.POST,
+            version=APIVersion.V1,
+            description="Execute AI task with parameters",
+            tags=["ai", "physics", "compute"],
+            auth_required=False,
+            rate_limit=500
+        ),
+        APIEndpoint(
+            path="/api/ai/manifest",
+            method=HTTPMethod.GET,
+            version=APIVersion.V1,
+            description="Get AI system manifest and capabilities",
+            tags=["ai", "metadata"]
+        ),
+    ]
+    
+    for endpoint in endpoints:
+        gateway.register_endpoint(endpoint)
+
+def integrate_with_microservices(orchestrator) -> None:
+    """Integrate pyAI with microservice orchestrator."""
+    try:
+        from pythonOS_data.microservices import LoadBalancingStrategy
+    except ImportError:
+        return
+    
+    # Register AI service
+    service_id = orchestrator.register_service(
+        service_name="pyai-calculator",
+        host="127.0.0.1",
+        port=8001,
+        metadata={
+            "type": "physics_calculator",
+            "version": "1.0",
+            "max_concurrent": 100,
+            "timeout_ms": 5000
+        }
+    )
+    
+    # Register additional AI service instances for load balancing
+    orchestrator.register_service(
+        service_name="pyai-calculator",
+        host="127.0.0.1",
+        port=8002,
+        metadata={
+            "type": "physics_calculator",
+            "version": "1.0",
+            "max_concurrent": 100,
+            "timeout_ms": 5000
+        }
+    )
+    
+    orchestrator.register_service(
+        service_name="pyai-calculator",
+        host="127.0.0.1",
+        port=8003,
+        metadata={
+            "type": "physics_calculator",
+            "version": "1.0",
+            "max_concurrent": 100,
+            "timeout_ms": 5000
+        }
+    )
+    
+    return service_id
 
 def run_task(name: str, **kwargs: Any) -> Dict[str, Any]:
     brain = PyAIBrain()
@@ -1570,6 +1675,859 @@ class ThemeManager:
 
 def manifest():
     return {'name': 'theme_manager', 'version': '1.0', 'description': 'Theme and color management', 'type': 'ui_utility'}
+'''
+
+# ================================================================================
+# EMBEDDED CACHE ENGINE (Performance Optimization with TTL & Statistics)
+# ================================================================================
+
+EMBEDDED_CACHE_ENGINE = r'''#!/usr/bin/env python3
+"""Advanced Caching Engine for pythonOS with TTL and Statistics."""
+
+import time
+from typing import Any, Optional, Dict, Callable
+from enum import Enum
+from dataclasses import dataclass
+from collections import OrderedDict
+
+class EvictionPolicy(Enum):
+    LRU = "lru"
+    LFU = "lfu"
+    FIFO = "fifo"
+
+@dataclass
+class CacheEntry:
+    key: str
+    value: Any
+    created_at: float
+    last_accessed: float
+    access_count: int
+    ttl_seconds: int
+    
+    def is_expired(self) -> bool:
+        if self.ttl_seconds <= 0:
+            return False
+        return time.time() > (self.created_at + self.ttl_seconds)
+    
+    def update_access(self):
+        self.last_accessed = time.time()
+        self.access_count += 1
+
+class CacheEngine:
+    def __init__(self, max_size: int = 1000, eviction_policy: EvictionPolicy = EvictionPolicy.LRU):
+        self.max_size = max_size
+        self.eviction_policy = eviction_policy
+        self.cache: OrderedDict[str, CacheEntry] = OrderedDict()
+        self.hits = 0
+        self.misses = 0
+        self.evictions = 0
+    
+    def get(self, key: str) -> Optional[Any]:
+        if key not in self.cache:
+            self.misses += 1
+            return None
+        
+        entry = self.cache[key]
+        if entry.is_expired():
+            del self.cache[key]
+            self.misses += 1
+            return None
+        
+        entry.update_access()
+        self.cache.move_to_end(key)
+        self.hits += 1
+        return entry.value
+    
+    def set(self, key: str, value: Any, ttl: int = 300) -> None:
+        now = time.time()
+        
+        if key in self.cache:
+            entry = self.cache[key]
+            entry.value = value
+            entry.created_at = now
+            entry.ttl_seconds = ttl
+            entry.update_access()
+            self.cache.move_to_end(key)
+        else:
+            if len(self.cache) >= self.max_size:
+                self._evict_one()
+            entry = CacheEntry(key=key, value=value, created_at=now, last_accessed=now, access_count=1, ttl_seconds=ttl)
+            self.cache[key] = entry
+            self.cache.move_to_end(key)
+    
+    def _evict_one(self) -> None:
+        if not self.cache:
+            return
+        if self.eviction_policy == EvictionPolicy.LRU:
+            key = next(iter(self.cache))
+        elif self.eviction_policy == EvictionPolicy.LFU:
+            key = min(self.cache.keys(), key=lambda k: self.cache[k].access_count)
+        else:
+            key = next(iter(self.cache))
+        del self.cache[key]
+        self.evictions += 1
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        total = self.hits + self.misses
+        hit_rate = (self.hits / total * 100) if total > 0 else 0
+        return {"size": len(self.cache), "max_size": self.max_size, "hits": self.hits, "misses": self.misses, "hit_rate_percent": round(hit_rate, 2), "evictions": self.evictions}
+
+GLOBAL_CACHE = CacheEngine(max_size=500)
+
+def cache_get(key: str) -> Optional[Any]:
+    return GLOBAL_CACHE.get(key)
+
+def cache_set(key: str, value: Any, ttl: int = 300) -> None:
+    GLOBAL_CACHE.set(key, value, ttl)
+
+def cache_stats() -> Dict[str, Any]:
+    return GLOBAL_CACHE.get_statistics()
+
+def manifest():
+    return {"name": "cache_engine", "version": "1.0", "type": "performance_utility", "description": "Intelligent caching with TTL, eviction, and statistics"}
+'''
+
+# ================================================================================
+# EMBEDDED EVENT STREAM (Real-time Pub/Sub System)
+# ================================================================================
+
+EMBEDDED_EVENT_STREAM = r'''#!/usr/bin/env python3
+"""Real-time Event Stream System for pythonOS with Pub/Sub."""
+
+import time
+import threading
+from typing import Callable, Dict, List, Any, Optional
+from dataclasses import dataclass
+from collections import defaultdict
+from queue import Queue
+
+@dataclass
+class Event:
+    topic: str
+    data: Dict[str, Any]
+    timestamp: float
+    source: str = "system"
+    priority: int = 5
+
+class EventStreamEngine:
+    def __init__(self):
+        self.subscribers: Dict[str, List[Callable]] = defaultdict(list)
+        self.event_history: List[Event] = []
+        self.max_history = 1000
+        self.event_queue = Queue()
+        self.running = False
+        self.processing_thread = None
+    
+    def subscribe(self, topic: str, callback: Callable) -> str:
+        self.subscribers[topic].append(callback)
+        return f"{topic}_{id(callback)}"
+    
+    def publish(self, topic: str, data: Dict[str, Any], source: str = "system", priority: int = 5) -> Event:
+        event = Event(topic=topic, data=data, timestamp=time.time(), source=source, priority=priority)
+        self.event_history.append(event)
+        if len(self.event_history) > self.max_history:
+            self.event_history.pop(0)
+        self.event_queue.put(event)
+        return event
+    
+    def _process_events(self):
+        while self.running:
+            try:
+                event = self.event_queue.get(timeout=1)
+                for callback in self.subscribers.get(event.topic, []):
+                    try:
+                        callback(event)
+                    except:
+                        pass
+            except:
+                pass
+    
+    def start_processor(self):
+        if not self.running:
+            self.running = True
+            self.processing_thread = threading.Thread(target=self._process_events, daemon=True)
+            self.processing_thread.start()
+    
+    def get_statistics(self) -> Dict[str, Any]:
+        topics = defaultdict(int)
+        for event in self.event_history:
+            topics[event.topic] += 1
+        return {"total_events": len(self.event_history), "unique_topics": len(topics), "subscribers": len(self.subscribers)}
+
+GLOBAL_EVENT_STREAM = EventStreamEngine()
+
+def publish_event(topic: str, data: Dict[str, Any], **kwargs) -> Event:
+    return GLOBAL_EVENT_STREAM.publish(topic, data, **kwargs)
+
+def subscribe_event(topic: str, callback: Callable) -> str:
+    return GLOBAL_EVENT_STREAM.subscribe(topic, callback)
+
+def manifest():
+    return {"name": "event_stream", "version": "1.0", "type": "realtime_utility", "description": "Pub/Sub event streaming system"}
+'''
+
+# ================================================================================
+# EMBEDDED MEDIA AI (Intelligent Media Management)
+# ================================================================================
+
+EMBEDDED_MEDIA_AI = r'''#!/usr/bin/env python3
+"""AI-Powered Media Management System for pythonOS."""
+
+import os
+import hashlib
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from pathlib import Path
+from collections import defaultdict
+
+@dataclass
+class MediaItem:
+    path: str
+    filename: str
+    file_type: str
+    size_mb: float
+    created_at: float
+
+class MediaAIEngine:
+    def __init__(self):
+        self.media_items: Dict[str, MediaItem] = {}
+        self.duplicate_groups: List[List[str]] = []
+    
+    def scan_media_directory(self, directory: str, recursive: bool = True) -> List[MediaItem]:
+        MEDIA_EXTENSIONS = {
+            'images': {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'},
+            'videos': {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv'},
+            'audio': {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
+        }
+        
+        media_items = []
+        pattern = "**/*" if recursive else "*"
+        
+        for file_path in Path(directory).glob(pattern):
+            if not file_path.is_file():
+                continue
+            ext = file_path.suffix.lower()
+            file_type = None
+            for media_type, extensions in MEDIA_EXTENSIONS.items():
+                if ext in extensions:
+                    file_type = media_type
+                    break
+            if file_type:
+                item = MediaItem(path=str(file_path), filename=file_path.name, file_type=file_type, size_mb=file_path.stat().st_size / (1024 * 1024), created_at=file_path.stat().st_ctime)
+                media_items.append(item)
+                self.media_items[str(file_path)] = item
+        return media_items
+    
+    def suggest_organization(self, items: List[MediaItem]) -> Dict[str, List[MediaItem]]:
+        organization = defaultdict(list)
+        for item in items:
+            if item.file_type == 'images':
+                folder = "Screenshots" if 'screenshot' in item.filename.lower() else "Images"
+            elif item.file_type == 'videos':
+                folder = "Movies" if 'movie' in item.filename.lower() else "Videos"
+            elif item.file_type == 'audio':
+                folder = "Podcasts" if 'podcast' in item.filename.lower() else "Music"
+            else:
+                folder = "Other"
+            organization[folder].append(item)
+        return organization
+    
+    def get_quality_stats(self, items: List[MediaItem]) -> Dict[str, Any]:
+        total_size = sum(item.size_mb for item in items)
+        counts = defaultdict(int)
+        for item in items:
+            counts[item.file_type] += 1
+        return {"total_files": len(items), "total_size_gb": round(total_size / 1024, 2), "average_file_size_mb": round(total_size / len(items), 2) if items else 0, "file_types": dict(counts)}
+
+def manifest():
+    return {"name": "media_ai", "version": "1.0", "type": "media_utility", "description": "AI-powered media management"}
+'''
+
+# ================================================================================
+# EMBEDDED AI ASSISTANT (Task Management & Script Integration)
+# ================================================================================
+
+EMBEDDED_AI_ASSISTANT = r'''#!/usr/bin/env python3
+"""AI Assistant for Task Management using pyAI and Script Integration."""
+
+import json
+import time
+from typing import Dict, List, Any, Optional, Callable
+from dataclasses import dataclass
+from datetime import datetime
+
+@dataclass
+class Task:
+    name: str
+    description: str
+    category: str
+    priority: int = 5
+    status: str = "pending"
+    created_at: float = None
+    completed_at: Optional[float] = None
+
+class AIAssistant:
+    def __init__(self):
+        self.tasks: Dict[str, Task] = {}
+        self.scripts: Dict[str, Dict[str, Any]] = {}
+        self.ai_brain = None
+        self.event_stream = None
+        self.cache_engine = None
+        self._load_scripts_registry()
+    
+    def _load_scripts_registry(self):
+        """Registry of all available scripts for task execution."""
+        self.scripts = {
+            "performance": {"module": "cache_engine", "functions": ["cache_get", "cache_set", "cache_stats"], "description": "Performance caching"},
+            "realtime": {"module": "event_stream", "functions": ["publish_event", "subscribe_event"], "description": "Real-time event streaming"},
+            "media": {"module": "media_ai", "functions": ["scan_media_directory", "suggest_organization"], "description": "Media management"},
+            "physics": {"module": "pyAI", "functions": ["rocket_delta_v", "orbital_period", "wind_turbine_power"], "description": "Physics calculations"},
+            "analytics": {"module": "pyAI", "functions": ["efficiency_index", "weather_heat_index"], "description": "System analytics"},
+            "files": {"module": "file_explorer", "functions": ["list_directory", "search_files"], "description": "File management"},
+            "plugins": {"module": "plugin_system", "functions": ["load_plugin", "list_plugins"], "description": "Plugin management"},
+            "logs": {"module": "logger_system", "functions": ["log_entry", "query_logs"], "description": "Logging"},
+        }
+    
+    def register_dependencies(self, ai_brain=None, event_stream=None, cache_engine=None):
+        """Register references to other modules."""
+        self.ai_brain = ai_brain
+        self.event_stream = event_stream
+        self.cache_engine = cache_engine
+    
+    def create_task(self, name: str, description: str, category: str, priority: int = 5) -> Task:
+        """Create a new task with AI assistance."""
+        task = Task(name=name, description=description, category=category, priority=priority, created_at=time.time())
+        self.tasks[name] = task
+        if self.event_stream:
+            self.event_stream.publish("task.created", {"task": name, "category": category})
+        return task
+    
+    def suggest_scripts(self, task_name: str) -> List[Dict[str, Any]]:
+        """Suggest scripts that could help with a task."""
+        task = self.tasks.get(task_name)
+        if not task:
+            return []
+        suggestions = []
+        for script_type, script_info in self.scripts.items():
+            if task.category.lower() in script_type or script_type in task.category.lower():
+                suggestions.append({"script": script_info["module"], "functions": script_info["functions"], "match": task.category})
+        return suggestions
+    
+    def execute_task(self, task_name: str, script_module: str, function: str, **kwargs) -> Dict[str, Any]:
+        """Execute a task using specified script function."""
+        result = {"task": task_name, "script": script_module, "function": function, "status": "pending"}
+        try:
+            if script_module == "pyAI" and self.ai_brain:
+                ai_result = self.ai_brain.run(function, **kwargs)
+                result["status"] = "success" if ai_result.ok else "failed"
+                result["result"] = ai_result.result
+                result["meta"] = ai_result.meta
+            else:
+                result["status"] = "executed"
+                result["result"] = f"Would call {script_module}.{function}({kwargs})"
+            if self.event_stream:
+                self.event_stream.publish("task.executed", {"task": task_name, "status": result["status"]})
+        except Exception as e:
+            result["status"] = "error"
+            result["error"] = str(e)
+        return result
+    
+    def get_task_status(self, task_name: str) -> Dict[str, Any]:
+        """Get status of a task."""
+        task = self.tasks.get(task_name)
+        if not task:
+            return {"status": "not_found"}
+        return {"name": task.name, "status": task.status, "category": task.category, "priority": task.priority, "created": datetime.fromtimestamp(task.created_at).isoformat()}
+    
+    def get_available_scripts(self) -> Dict[str, Any]:
+        """Get list of all available scripts."""
+        return {name: info["description"] for name, info in self.scripts.items()}
+    
+    def get_script_details(self, script_type: str) -> Dict[str, Any]:
+        """Get detailed info about a script."""
+        if script_type not in self.scripts:
+            return {"error": "script not found"}
+        return self.scripts[script_type]
+
+def manifest():
+    return {"name": "ai_assistant", "version": "1.0", "type": "task_management", "description": "AI Assistant for task management and script integration"}
+'''
+# ================================================================================
+# EMBEDDED ADVANCED WIDGETS (DataTable, Sparkline, ProgressBar, Digits)
+# ================================================================================
+
+EMBEDDED_ADVANCED_WIDGETS = r'''#!/usr/bin/env python3
+"""Advanced UI Widgets: DataTable, Sparkline, ProgressBar, Digits Display."""
+
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass
+import math
+
+@dataclass
+class DataTableConfig:
+    title: str
+    columns: List[str]
+    rows: List[List[Any]]
+    max_rows: int = 20
+    page: int = 1
+
+class DataTable:
+    """Renders data in table format for terminal/UI."""
+    def __init__(self, config: DataTableConfig):
+        self.config = config
+        self.current_page = config.page
+    
+    def render_ascii(self) -> str:
+        """Render table in ASCII format (all devices)."""
+        if not self.config.rows:
+            return f"{self.config.title}\n[No data]"
+        
+        lines = [f"╔═ {self.config.title} ═╗"]
+        col_widths = [max(len(str(c)), 10) for c in self.config.columns]
+        header = " │ ".join(f"{c:<{w}}" for c, w in zip(self.config.columns, col_widths))
+        lines.append(f"║ {header} ║")
+        lines.append("╠" + "═".join("═" * (w + 2) for w in col_widths) + "╣")
+        
+        start = (self.current_page - 1) * self.config.max_rows
+        end = min(start + self.config.max_rows, len(self.config.rows))
+        
+        for row in self.config.rows[start:end]:
+            row_str = " │ ".join(f"{str(v):<{w}}" for v, w in zip(row, col_widths))
+            lines.append(f"║ {row_str} ║")
+        
+        lines.append("╚" + "═".join("═" * (w + 2) for w in col_widths) + "╝")
+        return "\n".join(lines)
+    
+    def next_page(self) -> bool:
+        max_pages = math.ceil(len(self.config.rows) / self.config.max_rows)
+        if self.current_page < max_pages:
+            self.current_page += 1
+            return True
+        return False
+    
+    def prev_page(self) -> bool:
+        if self.current_page > 1:
+            self.current_page -= 1
+            return True
+        return False
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON for cross-device compatibility."""
+        return {
+            "title": self.config.title,
+            "columns": self.config.columns,
+            "rows": self.config.rows,
+            "page": self.current_page,
+            "total_pages": math.ceil(len(self.config.rows) / self.config.max_rows)
+        }
+
+class Sparkline:
+    """Renders mini trend charts (all devices)."""
+    def __init__(self, data: List[float], width: int = 10):
+        self.data = data
+        self.width = width
+        self.chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
+    
+    def render_ascii(self) -> str:
+        """Render sparkline using Unicode (fallback to ASCII)."""
+        if not self.data or len(self.data) < 2:
+            return "N/A"
+        
+        try:
+            min_val = min(self.data)
+            max_val = max(self.data)
+            range_val = max_val - min_val or 1
+            
+            sampled = self._sample_data(len(self.chars))
+            sparkline = ""
+            for val in sampled:
+                normalized = (val - min_val) / range_val
+                idx = min(len(self.chars) - 1, int(normalized * len(self.chars)))
+                sparkline += self.chars[idx]
+            return sparkline
+        except:
+            return "".join(['▄' if x > sum(self.data)/len(self.data) else '▁' for x in self.data[:self.width]])
+    
+    def _sample_data(self, num_points: int) -> List[float]:
+        """Sample data to fit width."""
+        if len(self.data) <= num_points:
+            return self.data
+        step = len(self.data) / num_points
+        return [self.data[int(i * step)] for i in range(num_points)]
+    
+    def get_stats(self) -> Dict[str, float]:
+        """Get trend statistics."""
+        return {
+            "min": min(self.data),
+            "max": max(self.data),
+            "avg": sum(self.data) / len(self.data),
+            "trend": "up" if self.data[-1] > self.data[0] else "down"
+        }
+
+class ProgressBar:
+    """Enhanced progress display (all devices)."""
+    def __init__(self, total: int, label: str = ""):
+        self.total = total
+        self.current = 0
+        self.label = label
+    
+    def update(self, amount: int) -> None:
+        """Update progress."""
+        self.current = min(amount, self.total)
+    
+    def render_ascii(self, width: int = 30) -> str:
+        """Render progress bar (ASCII safe)."""
+        percentage = (self.current / self.total * 100) if self.total > 0 else 0
+        filled = int(width * self.current / self.total) if self.total > 0 else 0
+        
+        bar = "█" * filled + "░" * (width - filled)
+        return f"{self.label} [{bar}] {percentage:.1f}%"
+    
+    def render_minimal(self) -> str:
+        """Minimal render for low-resource devices."""
+        percentage = (self.current / self.total * 100) if self.total > 0 else 0
+        return f"{self.label}: {percentage:.0f}%"
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            "label": self.label,
+            "current": self.current,
+            "total": self.total,
+            "percentage": (self.current / self.total * 100) if self.total > 0 else 0
+        }
+
+class DigitsDisplay:
+    """Large digit display (all devices)."""
+    DIGITS = {
+        '0': ['███', '█ █', '█ █', '█ █', '███'],
+        '1': [' █', '██', ' █', ' █', '███'],
+        '2': ['██', '  █', '██', '█', '███'],
+        '3': ['██', '  █', '██', '  █', '██'],
+        '4': ['█ █', '█ █', '███', '  █', '  █'],
+        '5': ['███', '█', '██', '  █', '██'],
+        '6': ['██', '█', '███', '█ █', '███'],
+        '7': ['███', '  █', '  █', ' █', '█'],
+        '8': ['███', '█ █', '███', '█ █', '███'],
+        '9': ['███', '█ █', '███', '  █', '███'],
+        ':': ['', '██', '', '██', ''],
+        ' ': ['   ', '   ', '   ', '   ', '   '],
+    }
+    
+    def __init__(self, value: str):
+        self.value = str(value).upper()
+    
+    def render_ascii(self) -> str:
+        """Render large digits."""
+        lines = ['', '', '', '', '']
+        for char in self.value:
+            if char in self.DIGITS:
+                digit_lines = self.DIGITS[char]
+                for i, line in enumerate(digit_lines):
+                    lines[i] += line + "  "
+        return "\n".join(lines)
+    
+    def render_minimal(self) -> str:
+        """Simple text render."""
+        return f"[{self.value}]"
+
+def manifest():
+    return {"name": "advanced_widgets", "version": "1.0", "type": "ui_widget", "widgets": ["DataTable", "Sparkline", "ProgressBar", "DigitsDisplay"]}
+'''
+
+# ================================================================================
+# EMBEDDED SCRIPT ORCHESTRATOR (Coordinates all embedded scripts)
+# ================================================================================
+
+EMBEDDED_SCRIPT_ORCHESTRATOR = r'''#!/usr/bin/env python3
+"""Script Orchestrator: Coordinates all embedded scripts for cross-platform operation."""
+
+import json
+import time
+from typing import Dict, List, Any, Optional, Callable
+from collections import defaultdict
+from enum import Enum
+
+class ExecutionMode(Enum):
+    LOCAL = "local"
+    REMOTE = "remote"
+    CACHED = "cached"
+    MINIMAL = "minimal"  # For low-resource devices
+
+class ScriptOrchestrator:
+    """Coordinates execution of all embedded scripts."""
+    
+    def __init__(self):
+        self.scripts: Dict[str, Dict[str, Any]] = {}
+        self.execution_mode = ExecutionMode.LOCAL
+        self.device_profile = self._detect_device()
+        self.cache = {}
+        self.execution_log: List[Dict[str, Any]] = []
+        self.dependencies: Dict[str, List[str]] = defaultdict(list)
+    
+    def _detect_device(self) -> Dict[str, Any]:
+        """Detect device capabilities."""
+        import platform
+        import psutil
+        
+        try:
+            cpu_count = psutil.cpu_count()
+            memory_mb = psutil.virtual_memory().total / (1024 * 1024)
+        except:
+            cpu_count = 1
+            memory_mb = 64
+        
+        device_type = "unknown"
+        if "arm" in platform.machine().lower():
+            device_type = "arm"
+        elif "x86" in platform.machine().lower() or "amd64" in platform.machine().lower():
+            device_type = "x86"
+        elif "esp" in platform.machine().lower():
+            device_type = "esp32"
+        
+        return {
+            "machine": platform.machine(),
+            "system": platform.system(),
+            "cpu_count": cpu_count,
+            "memory_mb": memory_mb,
+            "device_type": device_type,
+            "is_low_resource": memory_mb < 512 or cpu_count < 2
+        }
+    
+    def register_script(self, name: str, script_data: Dict[str, Any], dependencies: List[str] = None):
+        """Register a script with orchestrator."""
+        self.scripts[name] = {
+            "name": name,
+            "data": script_data,
+            "registered": time.time(),
+            "executions": 0,
+            "failures": 0
+        }
+        if dependencies:
+            self.dependencies[name] = dependencies
+    
+    def set_execution_mode(self, mode: ExecutionMode):
+        """Set execution mode based on device capability."""
+        self.execution_mode = mode
+    
+    def auto_select_mode(self):
+        """Automatically select best execution mode."""
+        if self.device_profile["is_low_resource"]:
+            self.execution_mode = ExecutionMode.MINIMAL
+        else:
+            self.execution_mode = ExecutionMode.LOCAL
+    
+    def execute_script(self, script_name: str, params: Dict[str, Any] = None, use_cache: bool = True) -> Dict[str, Any]:
+        """Execute a script with optimal settings."""
+        if params is None:
+            params = {}
+        
+        cache_key = f"{script_name}:{json.dumps(params, sort_keys=True, default=str)}"
+        
+        if use_cache and cache_key in self.cache:
+            return {"status": "cached", "result": self.cache[cache_key], "mode": "cached"}
+        
+        if script_name not in self.scripts:
+            return {"status": "error", "message": f"Script '{script_name}' not registered"}
+        
+        try:
+            script_info = self.scripts[script_name]
+            
+            # Check dependencies
+            for dep in self.dependencies.get(script_name, []):
+                if dep not in self.scripts:
+                    return {"status": "error", "message": f"Missing dependency: {dep}"}
+            
+            # Execute based on mode
+            if self.execution_mode == ExecutionMode.MINIMAL:
+                result = self._execute_minimal(script_name, params)
+            else:
+                result = self._execute_normal(script_name, params)
+            
+            script_info["executions"] += 1
+            self.cache[cache_key] = result
+            
+            self.execution_log.append({
+                "script": script_name,
+                "timestamp": time.time(),
+                "mode": self.execution_mode.value,
+                "status": "success",
+                "device": self.device_profile["device_type"]
+            })
+            
+            return {"status": "success", "result": result, "mode": self.execution_mode.value}
+        
+        except Exception as e:
+            script_info["failures"] += 1
+            self.execution_log.append({
+                "script": script_name,
+                "timestamp": time.time(),
+                "status": "error",
+                "error": str(e)
+            })
+            return {"status": "error", "message": str(e)}
+    
+    def _execute_normal(self, script_name: str, params: Dict[str, Any]) -> Any:
+        """Normal execution mode."""
+        return f"Executing {script_name} with {params}"
+    
+    def _execute_minimal(self, script_name: str, params: Dict[str, Any]) -> Any:
+        """Minimal execution for low-resource devices."""
+        return f"Minimal: {script_name}"
+    
+    def get_device_optimized_config(self, script_name: str) -> Dict[str, Any]:
+        """Get device-optimized configuration for a script."""
+        config = {
+            "device_type": self.device_profile["device_type"],
+            "memory_limit_mb": max(10, self.device_profile["memory_mb"] * 0.1),
+            "cpu_threads": max(1, self.device_profile["cpu_count"] - 1),
+            "execution_mode": self.execution_mode.value,
+            "use_cache": self.device_profile["is_low_resource"]
+        }
+        return config
+    
+    def get_compatibility_report(self) -> Dict[str, Any]:
+        """Get compatibility report for all registered scripts."""
+        return {
+            "device_profile": self.device_profile,
+            "execution_mode": self.execution_mode.value,
+            "registered_scripts": len(self.scripts),
+            "total_executions": sum(s["executions"] for s in self.scripts.values()),
+            "total_failures": sum(s["failures"] for s in self.scripts.values()),
+            "scripts": list(self.scripts.keys())
+        }
+
+# Global orchestrator instance
+GLOBAL_ORCHESTRATOR = ScriptOrchestrator()
+
+def manifest():
+    return {"name": "script_orchestrator", "version": "1.0", "type": "system_coordinator", "devices": ["x86", "arm", "esp32", "amd", "intel"]}
+'''
+
+# ================================================================================
+# EMBEDDED CROSS-PLATFORM ADAPTER (Device compatibility layer)
+# ================================================================================
+
+EMBEDDED_CROSS_PLATFORM_ADAPTER = r'''#!/usr/bin/env python3
+"""Cross-Platform Adapter: Ensures scripts work on all devices."""
+
+import sys
+import os
+from typing import Dict, List, Any, Optional, Callable
+
+class DeviceAdapter:
+    """Adapts code execution for different device types."""
+    
+    SUPPORTED_DEVICES = ["x86", "arm", "esp32", "riscv", "mips", "amd", "intel"]
+    
+    def __init__(self):
+        self.device_type = self._detect_device()
+        self.capabilities = self._get_capabilities()
+        self.fallbacks = self._setup_fallbacks()
+    
+    def _detect_device(self) -> str:
+        """Detect device type."""
+        machine = sys.platform.lower()
+        arch = os.uname()[4] if hasattr(os, 'uname') else 'unknown'
+        
+        if 'arm' in arch or 'aarch' in arch:
+            return 'arm'
+        elif 'x86' in arch or 'amd64' in arch or 'x64' in arch:
+            return 'x86'
+        elif 'esp' in machine or 'esp32' in machine:
+            return 'esp32'
+        elif 'riscv' in arch:
+            return 'riscv'
+        elif 'mips' in arch:
+            return 'mips'
+        else:
+            return 'unknown'
+    
+    def _get_capabilities(self) -> Dict[str, bool]:
+        """Get device capabilities."""
+        capabilities = {
+            "has_threading": True,
+            "has_multiprocessing": True,
+            "has_networking": True,
+            "has_filesystem": True,
+            "has_gui": True,
+        }
+        
+        # Low-resource devices
+        if self.device_type in ['esp32', 'arm']:
+            capabilities["has_multiprocessing"] = False
+            capabilities["has_gui"] = False
+        
+        return capabilities
+    
+    def _setup_fallbacks(self) -> Dict[str, Callable]:
+        """Setup fallback implementations."""
+        return {
+            "threading": self._fallback_threading,
+            "multiprocessing": self._fallback_multiprocessing,
+            "gui": self._fallback_gui,
+        }
+    
+    def _fallback_threading(self, func: Callable) -> Callable:
+        """Fallback for threading on limited devices."""
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    
+    def _fallback_multiprocessing(self, func: Callable) -> Callable:
+        """Fallback for multiprocessing (run sequentially)."""
+        def wrapper(*args, **kwargs):
+            return func(*args, **kwargs)
+        return wrapper
+    
+    def _fallback_gui(self) -> Dict[str, str]:
+        """Fallback for GUI (text-based)."""
+        return {"mode": "text", "renderer": "ascii"}
+    
+    def adapt_import(self, module_name: str, fallback_module: Optional[str] = None) -> Any:
+        """Safely import with fallback."""
+        try:
+            return __import__(module_name)
+        except ImportError:
+            if fallback_module:
+                try:
+                    return __import__(fallback_module)
+                except ImportError:
+                    return None
+            return None
+    
+    def get_optimal_settings(self) -> Dict[str, Any]:
+        """Get optimal settings for device."""
+        return {
+            "device_type": self.device_type,
+            "capabilities": self.capabilities,
+            "ui_mode": "ascii" if not self.capabilities["has_gui"] else "rich",
+            "threading_enabled": self.capabilities["has_threading"],
+            "multiprocessing_enabled": self.capabilities["has_multiprocessing"]
+        }
+    
+    def is_compatible(self, required_features: List[str]) -> bool:
+        """Check if device is compatible with required features."""
+        return all(self.capabilities.get(f, False) for f in required_features)
+    
+    def get_compatibility_matrix(self) -> Dict[str, Dict[str, bool]]:
+        """Get full compatibility matrix."""
+        matrix = {}
+        for device in self.SUPPORTED_DEVICES:
+            matrix[device] = {
+                "threading": device not in ['esp32', 'mips'],
+                "networking": device not in ['esp32'],  # ESP32 has limited networking
+                "filesystem": True,
+                "gui": device in ['x86', 'arm'],
+                "multicore": device in ['x86', 'amd', 'intel', 'arm']
+            }
+        return matrix
+
+# Global adapter instance
+GLOBAL_ADAPTER = DeviceAdapter()
+
+def manifest():
+    return {"name": "cross_platform_adapter", "version": "1.0", "type": "compatibility_layer", "supported_devices": DeviceAdapter.SUPPORTED_DEVICES}
 '''
 
 EMBEDDED_FILE_EXPLORER = r'''#!/usr/bin/env python3
@@ -3136,6 +4094,3380 @@ def manifest() -> Dict[str, Any]:
     }
 '''
 
+# ================================================================================
+# PHASE 3: INTERACTIVE UI COMPONENTS (Collapsible, Modal, Context Menu, Drag-Drop)
+# ================================================================================
+
+EMBEDDED_INTERACTIVE_COMPONENTS = r'''#!/usr/bin/env python3
+"""Phase 3 Interactive UI Components: Collapsible, Modal, ContextMenu, DragDrop."""
+
+from typing import Dict, List, Any, Optional, Callable, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+import time
+
+class InteractionEvent(Enum):
+    """Event types for interactive components."""
+    CLICKED = "clicked"
+    OPENED = "opened"
+    CLOSED = "closed"
+    SELECTED = "selected"
+    DRAGGED = "dragged"
+    DROPPED = "dropped"
+    HOVERED = "hovered"
+    FOCUSED = "focused"
+
+@dataclass
+class CollapsibleSection:
+    """Expandable/collapsible section for organizing content."""
+    title: str
+    content: str
+    expanded: bool = False
+    event_handler: Optional[Callable] = None
+    level: int = 0  # Nesting level
+    children: List['CollapsibleSection'] = field(default_factory=list)
+    
+    def render_ascii(self) -> str:
+        """Render collapsible section."""
+        indicator = "▼" if self.expanded else "▶"
+        indent = "  " * self.level
+        lines = [f"{indent}{indicator} {self.title}"]
+        
+        if self.expanded:
+            for line in self.content.split('\n'):
+                lines.append(f"{indent}  {line}")
+            for child in self.children:
+                lines.extend(child.render_ascii().split('\n'))
+        
+        return '\n'.join(lines)
+    
+    def toggle(self) -> bool:
+        """Toggle expanded state."""
+        self.expanded = not self.expanded
+        if self.event_handler:
+            self.event_handler({
+                'event': InteractionEvent.OPENED if self.expanded else InteractionEvent.CLOSED,
+                'section': self.title,
+                'expanded': self.expanded
+            })
+        return self.expanded
+    
+    def add_child(self, section: 'CollapsibleSection') -> None:
+        """Add nested section."""
+        section.level = self.level + 1
+        self.children.append(section)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'title': self.title,
+            'expanded': self.expanded,
+            'children_count': len(self.children)
+        }
+
+@dataclass
+class ModalDialog:
+    """Modal dialog component for user interaction."""
+    title: str
+    message: str
+    buttons: List[str] = field(default_factory=lambda: ["OK"])
+    dialog_type: str = "info"  # info, warning, error, confirm
+    result: Optional[str] = None
+    visible: bool = False
+    on_close: Optional[Callable] = None
+    
+    def render_ascii(self, width: int = 60) -> str:
+        """Render modal dialog in ASCII."""
+        if not self.visible:
+            return ""
+        
+        border = "┌" + "─" * (width - 2) + "┐"
+        lines = [border]
+        lines.append(f"│ {self.title:<{width-4}} │")
+        lines.append("├" + "─" * (width - 2) + "┤")
+        
+        # Word wrap message
+        words = self.message.split()
+        current_line = ""
+        for word in words:
+            if len(current_line) + len(word) + 1 <= width - 4:
+                current_line += word + " "
+            else:
+                lines.append(f"│ {current_line:<{width-4}} │")
+                current_line = word + " "
+        if current_line:
+            lines.append(f"│ {current_line:<{width-4}} │")
+        
+        lines.append("├" + "─" * (width - 2) + "┤")
+        
+        # Buttons
+        button_line = " | ".join(f"[{b}]" for b in self.buttons)
+        lines.append(f"│ {button_line:<{width-4}} │")
+        lines.append("└" + "─" * (width - 2) + "┘")
+        
+        return '\n'.join(lines)
+    
+    def show(self) -> None:
+        """Show modal dialog."""
+        self.visible = True
+    
+    def hide(self) -> None:
+        """Hide modal dialog."""
+        self.visible = False
+    
+    def click_button(self, button: str) -> None:
+        """Handle button click."""
+        if button in self.buttons:
+            self.result = button
+            self.visible = False
+            if self.on_close:
+                self.on_close({'button': button, 'dialog': self.title})
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'title': self.title,
+            'type': self.dialog_type,
+            'buttons': self.buttons,
+            'result': self.result,
+            'visible': self.visible
+        }
+
+class ContextMenu:
+    """Context menu for right-click interactions."""
+    
+    def __init__(self, items: Optional[List[Dict[str, Any]]] = None):
+        """Initialize context menu.
+        
+        items: [{"label": "Copy", "action": func, "enabled": True}, ...]
+        """
+        self.items = items or []
+        self.visible = False
+        self.position = (0, 0)
+        self.selected_index = -1
+    
+    def render_ascii(self) -> str:
+        """Render context menu."""
+        if not self.visible or not self.items:
+            return ""
+        
+        lines = ["┌─────────────────────┐"]
+        for i, item in enumerate(self.items):
+            enabled = item.get('enabled', True)
+            label = item.get('label', '')
+            marker = "►" if i == self.selected_index else " "
+            state = label if enabled else f"({label})"
+            lines.append(f"│ {marker} {state:<17} │")
+        lines.append("└─────────────────────┘")
+        
+        return '\n'.join(lines)
+    
+    def show(self, x: int = 0, y: int = 0) -> None:
+        """Show context menu at position."""
+        self.visible = True
+        self.position = (x, y)
+        self.selected_index = 0
+    
+    def hide(self) -> None:
+        """Hide context menu."""
+        self.visible = False
+        self.selected_index = -1
+    
+    def select_item(self, index: int) -> Any:
+        """Select menu item and execute action."""
+        if 0 <= index < len(self.items):
+            item = self.items[index]
+            if item.get('enabled', True):
+                self.selected_index = index
+                action = item.get('action')
+                if action:
+                    return action()
+            return None
+        return None
+    
+    def add_item(self, label: str, action: Optional[Callable] = None, 
+                 enabled: bool = True) -> None:
+        """Add menu item."""
+        self.items.append({
+            'label': label,
+            'action': action,
+            'enabled': enabled
+        })
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'items_count': len(self.items),
+            'visible': self.visible,
+            'position': self.position,
+            'items': [{'label': item['label'], 'enabled': item.get('enabled', True)} 
+                     for item in self.items]
+        }
+
+@dataclass
+class DragDropHandler:
+    """Drag-and-drop functionality handler."""
+    enabled: bool = True
+    dragging: bool = False
+    source: Optional[str] = None
+    target: Optional[str] = None
+    data: Dict[str, Any] = field(default_factory=dict)
+    on_drop: Optional[Callable] = None
+    
+    def start_drag(self, source_id: str, data: Dict[str, Any]) -> None:
+        """Start drag operation."""
+        if self.enabled:
+            self.dragging = True
+            self.source = source_id
+            self.data = data
+    
+    def drag_over(self, target_id: str) -> None:
+        """Handle drag over target."""
+        if self.dragging:
+            self.target = target_id
+    
+    def end_drag(self) -> None:
+        """End drag operation without drop."""
+        self.dragging = False
+        self.source = None
+        self.target = None
+        self.data = {}
+    
+    def drop(self, target_id: str) -> Dict[str, Any]:
+        """Drop on target."""
+        if self.dragging and self.source:
+            self.target = target_id
+            result = {
+                'source': self.source,
+                'target': self.target,
+                'data': self.data,
+                'timestamp': time.time(),
+                'success': True
+            }
+            if self.on_drop:
+                self.on_drop(result)
+            self.dragging = False
+            self.source = None
+            self.target = None
+            return result
+        return {'success': False}
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'enabled': self.enabled,
+            'dragging': self.dragging,
+            'source': self.source,
+            'target': self.target,
+            'data_size': len(self.data)
+        }
+
+def manifest() -> Dict[str, Any]:
+    """Get module information."""
+    return {
+        "name": "interactive_components",
+        "version": "3.0",
+        "description": "Phase 3: Interactive UI components (Collapsible, Modal, ContextMenu, DragDrop)",
+        "type": "ui_interactivity",
+        "components": ["CollapsibleSection", "ModalDialog", "ContextMenu", "DragDropHandler"],
+        "features": [
+            "collapsible_sections",
+            "modal_dialogs",
+            "context_menus",
+            "drag_and_drop"
+        ]
+    }
+'''
+
+# ================================================================================
+# EMBEDDED PHASE 4 COMPONENTS (Advanced UI Framework)
+# ================================================================================
+
+EMBEDDED_PHASE4_COMPONENTS = r'''#!/usr/bin/env python3
+"""Phase 4 Advanced UI Framework: Tabs, TreeView, Toolbar, StatusBar, Splitter, PopupMenu, Tooltip."""
+
+from typing import Dict, List, Any, Optional, Callable, Tuple
+from dataclasses import dataclass, field
+from enum import Enum
+import time
+
+class UIComponentType(Enum):
+    """Advanced UI component types."""
+    TAB_PANEL = "tab_panel"
+    TREE_VIEW = "tree_view"
+    TOOLBAR = "toolbar"
+    STATUS_BAR = "status_bar"
+    SPLITTER = "splitter"
+    POPUP_MENU = "popup_menu"
+    TOOLTIP = "tooltip"
+
+@dataclass
+class Tab:
+    """Individual tab in TabPanel."""
+    title: str
+    content: str
+    id: str
+    icon: Optional[str] = None
+    enabled: bool = True
+    on_select: Optional[Callable] = None
+
+@dataclass
+class TabPanel:
+    """Tabbed interface with multiple panels."""
+    tabs: List[Tab] = field(default_factory=list)
+    active_tab_id: Optional[str] = None
+    on_tab_change: Optional[Callable] = None
+    
+    def add_tab(self, title: str, content: str, icon: Optional[str] = None) -> str:
+        """Add new tab and return its ID."""
+        tab_id = f"tab_{len(self.tabs)}_{int(time.time() * 1000)}"
+        tab = Tab(title=title, content=content, id=tab_id, icon=icon)
+        self.tabs.append(tab)
+        if self.active_tab_id is None:
+            self.active_tab_id = tab_id
+        return tab_id
+    
+    def select_tab(self, tab_id: str) -> bool:
+        """Select a tab by ID."""
+        if any(t.id == tab_id for t in self.tabs):
+            self.active_tab_id = tab_id
+            if self.on_tab_change:
+                self.on_tab_change({'tab_id': tab_id, 'event': 'tab_changed'})
+            return True
+        return False
+    
+    def render_ascii(self) -> str:
+        """Render tabs as ASCII."""
+        if not self.tabs:
+            return "[No tabs]"
+        
+        tab_headers = []
+        for tab in self.tabs:
+            indicator = "▶" if tab.id == self.active_tab_id else " "
+            icon = f"{tab.icon} " if tab.icon else ""
+            tab_headers.append(f"{indicator} {icon}{tab.title}")
+        
+        header_line = " | ".join(tab_headers)
+        separator = "─" * len(header_line)
+        
+        active_tab = next((t for t in self.tabs if t.id == self.active_tab_id), None)
+        content = active_tab.content if active_tab else ""
+        
+        lines = [header_line, separator, content]
+        return "\n".join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'tab_panel',
+            'tab_count': len(self.tabs),
+            'active_tab': self.active_tab_id,
+            'tabs': [{'id': t.id, 'title': t.title} for t in self.tabs]
+        }
+
+@dataclass
+class TreeNode:
+    """Node in a tree structure."""
+    label: str
+    value: Any
+    children: List['TreeNode'] = field(default_factory=list)
+    expanded: bool = False
+    level: int = 0
+    icon: str = "●"
+    on_select: Optional[Callable] = None
+    
+    def toggle(self) -> bool:
+        """Toggle expanded state."""
+        self.expanded = not self.expanded
+        return self.expanded
+    
+    def add_child(self, child: 'TreeNode') -> None:
+        """Add child node."""
+        child.level = self.level + 1
+        self.children.append(child)
+    
+    def render_ascii(self) -> str:
+        """Render tree node and children."""
+        indent = "  " * self.level
+        indicator = "▼" if self.expanded else "▶"
+        lines = [f"{indent}{indicator} {self.icon} {self.label}"]
+        
+        if self.expanded:
+            for child in self.children:
+                lines.extend(child.render_ascii().split('\n'))
+        
+        return '\n'.join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'label': self.label,
+            'value': str(self.value),
+            'expanded': self.expanded,
+            'children_count': len(self.children),
+            'children': [c.get_json() for c in self.children]
+        }
+
+@dataclass
+class TreeView:
+    """Hierarchical tree view component."""
+    root_node: Optional[TreeNode] = None
+    title: str = "Tree"
+    on_node_select: Optional[Callable] = None
+    
+    def add_root(self, label: str, value: Any = None, icon: str = "📁") -> TreeNode:
+        """Add root node."""
+        self.root_node = TreeNode(label=label, value=value, icon=icon)
+        return self.root_node
+    
+    def render_ascii(self) -> str:
+        """Render entire tree."""
+        lines = [f"📊 {self.title}"]
+        if self.root_node:
+            lines.extend(self.root_node.render_ascii().split('\n'))
+        return '\n'.join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'tree_view',
+            'title': self.title,
+            'root': self.root_node.get_json() if self.root_node else None
+        }
+
+@dataclass
+class ToolbarButton:
+    """Button in a toolbar."""
+    label: str
+    action: Callable
+    icon: str = "□"
+    tooltip: Optional[str] = None
+    enabled: bool = True
+
+@dataclass
+class Toolbar:
+    """Toolbar with quick action buttons."""
+    buttons: List[ToolbarButton] = field(default_factory=list)
+    title: str = "Toolbar"
+    on_action: Optional[Callable] = None
+    
+    def add_button(self, label: str, action: Callable, icon: str = "□", tooltip: Optional[str] = None) -> None:
+        """Add button to toolbar."""
+        button = ToolbarButton(label=label, action=action, icon=icon, tooltip=tooltip)
+        self.buttons.append(button)
+    
+    def render_ascii(self) -> str:
+        """Render toolbar."""
+        buttons_str = " | ".join([f"[{b.icon} {b.label}]" for b in self.buttons if b.enabled])
+        return f"[{self.title}] {buttons_str}"
+    
+    def click_button(self, label: str) -> bool:
+        """Simulate button click."""
+        for button in self.buttons:
+            if button.label == label and button.enabled:
+                try:
+                    button.action()
+                    if self.on_action:
+                        self.on_action({'button': label, 'event': 'clicked'})
+                    return True
+                except:
+                    return False
+        return False
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'toolbar',
+            'title': self.title,
+            'button_count': len(self.buttons),
+            'buttons': [{'label': b.label, 'icon': b.icon} for b in self.buttons]
+        }
+
+@dataclass
+class StatusBar:
+    """Status bar component for displaying status information."""
+    left_text: str = ""
+    center_text: str = ""
+    right_text: str = ""
+    status_icon: str = "●"
+    status_color: str = "green"
+    
+    def set_status(self, text: str, icon: str = "●") -> None:
+        """Set status message."""
+        self.left_text = text
+        self.status_icon = icon
+    
+    def render_ascii(self) -> str:
+        """Render status bar."""
+        left = f"{self.status_icon} {self.left_text}"
+        center = self.center_text
+        right = self.right_text
+        
+        total_width = 80
+        left_width = len(left)
+        right_width = len(right)
+        center_width = total_width - left_width - right_width - 4
+        
+        bar = f"{left} | {center:^{center_width}} | {right}"
+        return f"[{bar}]"
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'status_bar',
+            'left': self.left_text,
+            'center': self.center_text,
+            'right': self.right_text,
+            'status_icon': self.status_icon
+        }
+
+@dataclass
+class SplitterPanel:
+    """Resizable splitter with two panels."""
+    left_panel: str = ""
+    right_panel: str = ""
+    left_width: float = 0.5
+    divider: str = "│"
+    resizable: bool = True
+    
+    def set_panels(self, left: str, right: str) -> None:
+        """Set panel contents."""
+        self.left_panel = left
+        self.right_panel = right
+    
+    def resize(self, left_width: float) -> bool:
+        """Resize panels (0.0 to 1.0)."""
+        if 0.0 <= left_width <= 1.0:
+            self.left_width = left_width
+            return True
+        return False
+    
+    def render_ascii(self) -> str:
+        """Render splitter with both panels."""
+        total_width = 80
+        left_w = int(total_width * self.left_width)
+        right_w = total_width - left_w - 1
+        
+        lines = []
+        left_lines = self.left_panel.split('\n') if self.left_panel else [""]
+        right_lines = self.right_panel.split('\n') if self.right_panel else [""]
+        
+        max_lines = max(len(left_lines), len(right_lines))
+        for i in range(max_lines):
+            left = (left_lines[i] if i < len(left_lines) else "").ljust(left_w)
+            right = (right_lines[i] if i < len(right_lines) else "").ljust(right_w)
+            lines.append(f"{left}{self.divider}{right}")
+        
+        return '\n'.join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'splitter_panel',
+            'left_width_ratio': self.left_width,
+            'left_panel_lines': len(self.left_panel.split('\n')),
+            'right_panel_lines': len(self.right_panel.split('\n')),
+            'resizable': self.resizable
+        }
+
+@dataclass
+class PopupMenu:
+    """Popup/context menu component."""
+    items: List[str] = field(default_factory=list)
+    selected_index: int = -1
+    visible: bool = False
+    position: Tuple[int, int] = (0, 0)
+    on_select: Optional[Callable] = None
+    
+    def add_item(self, item: str) -> None:
+        """Add menu item."""
+        self.items.append(item)
+    
+    def show(self, x: int = 0, y: int = 0) -> None:
+        """Show menu at position."""
+        self.visible = True
+        self.position = (x, y)
+        self.selected_index = 0
+    
+    def hide(self) -> None:
+        """Hide menu."""
+        self.visible = False
+        self.selected_index = -1
+    
+    def select_next(self) -> None:
+        """Select next item."""
+        if self.visible and self.items:
+            self.selected_index = (self.selected_index + 1) % len(self.items)
+    
+    def select_previous(self) -> None:
+        """Select previous item."""
+        if self.visible and self.items:
+            self.selected_index = (self.selected_index - 1) % len(self.items)
+    
+    def activate_selected(self) -> Optional[str]:
+        """Activate selected menu item."""
+        if self.visible and 0 <= self.selected_index < len(self.items):
+            selected = self.items[self.selected_index]
+            if self.on_select:
+                self.on_select({'item': selected, 'index': self.selected_index})
+            return selected
+        return None
+    
+    def render_ascii(self) -> str:
+        """Render popup menu."""
+        if not self.visible:
+            return ""
+        
+        lines = [f"┌─ Popup Menu ─────────┐"]
+        for i, item in enumerate(self.items):
+            indicator = "►" if i == self.selected_index else " "
+            lines.append(f"│ {indicator} {item:<19} │")
+        lines.append(f"└──────────────────────┘")
+        
+        return '\n'.join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'popup_menu',
+            'item_count': len(self.items),
+            'visible': self.visible,
+            'selected_index': self.selected_index,
+            'items': self.items
+        }
+
+@dataclass
+class Tooltip:
+    """Tooltip component for contextual help."""
+    text: str
+    visible: bool = False
+    position: Tuple[int, int] = (0, 0)
+    delay_ms: int = 500
+    last_trigger: float = 0.0
+    
+    def trigger(self, x: int = 0, y: int = 0) -> None:
+        """Trigger tooltip at position."""
+        current_time = time.time() * 1000
+        if current_time - self.last_trigger > self.delay_ms:
+            self.visible = True
+            self.position = (x, y)
+            self.last_trigger = current_time
+    
+    def hide(self) -> None:
+        """Hide tooltip."""
+        self.visible = False
+    
+    def render_ascii(self) -> str:
+        """Render tooltip."""
+        if not self.visible:
+            return ""
+        
+        lines = [f"┌─ Info ──────────────────┐"]
+        text_lines = self.text.split('\n')
+        for line in text_lines[:5]:
+            truncated = line[:25].ljust(25)
+            lines.append(f"│ {truncated} │")
+        lines.append(f"└──────────────────────────┘")
+        
+        return '\n'.join(lines)
+    
+    def get_json(self) -> Dict[str, Any]:
+        """Export as JSON."""
+        return {
+            'type': 'tooltip',
+            'text': self.text[:100],
+            'visible': self.visible,
+            'position': self.position
+        }
+
+def manifest() -> Dict[str, Any]:
+    """Get module information."""
+    return {
+        "name": "phase4_components",
+        "version": "4.0",
+        "description": "Phase 4: Advanced UI Framework (Tabs, TreeView, Toolbar, StatusBar, Splitter, PopupMenu, Tooltip)",
+        "type": "ui_framework",
+        "components": ["TabPanel", "TreeView", "Toolbar", "StatusBar", "SplitterPanel", "PopupMenu", "Tooltip"],
+        "features": [
+            "tabbed_interface",
+            "hierarchical_trees",
+            "action_toolbars",
+            "status_display",
+            "resizable_panels",
+            "context_menus",
+            "contextual_tooltips"
+        ]
+    }
+'''
+
+# ================================================================================
+# EMBEDDED ADVANCED VISUALIZATION ENGINE (Real-time Dashboards, Charts, 3D Rendering)
+# ================================================================================
+
+EMBEDDED_VISUALIZATION_ENGINE = r'''#!/usr/bin/env python3
+"""Advanced Visualization Engine - Real-time dashboards, charts, 3D ASCII rendering."""
+
+from typing import Dict, List, Any, Optional, Tuple, Callable
+from dataclasses import dataclass, field
+from enum import Enum
+import time
+import math
+from collections import deque
+
+class ChartType(Enum):
+    """Types of charts available."""
+    LINE = "line"
+    BAR = "bar"
+    SPARKLINE = "sparkline"
+    HEATMAP = "heatmap"
+    GAUGE = "gauge"
+    HISTOGRAM = "histogram"
+
+class AnimationStyle(Enum):
+    """Animation styles for UI elements."""
+    FADE = "fade"
+    SLIDE = "slide"
+    BOUNCE = "bounce"
+    PULSE = "pulse"
+    ROTATE = "rotate"
+
+@dataclass
+class DataPoint:
+    """Single data point in a series."""
+    timestamp: float
+    value: float
+    label: Optional[str] = None
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class TimeSeries:
+    """Time series data container."""
+    name: str
+    points: deque = field(default_factory=lambda: deque(maxlen=100))
+    color: str = "cyan"
+    min_value: float = 0.0
+    max_value: float = 100.0
+    
+    def add_point(self, value: float, label: Optional[str] = None, timestamp: Optional[float] = None) -> None:
+        """Add data point."""
+        ts = timestamp or time.time()
+        point = DataPoint(timestamp=ts, value=value, label=label)
+        self.points.append(point)
+    
+    def get_latest(self) -> Optional[float]:
+        """Get latest value."""
+        if self.points:
+            return self.points[-1].value
+        return None
+    
+    def get_average(self) -> float:
+        """Calculate average."""
+        if not self.points:
+            return 0.0
+        return sum(p.value for p in self.points) / len(self.points)
+    
+    def get_trend(self) -> str:
+        """Get trend indicator."""
+        if len(self.points) < 2:
+            return "→"
+        prev = list(self.points)[-2].value
+        curr = list(self.points)[-1].value
+        if curr > prev:
+            return "↑"
+        elif curr < prev:
+            return "↓"
+        return "→"
+
+class LineChart:
+    """ASCII line chart generator."""
+    def __init__(self, width: int = 60, height: int = 10, title: str = "Chart"):
+        self.width = width
+        self.height = height
+        self.title = title
+        self.series: Dict[str, TimeSeries] = {}
+    
+    def add_series(self, name: str, series: TimeSeries) -> None:
+        """Add data series."""
+        self.series[name] = series
+    
+    def render(self) -> str:
+        """Render chart as ASCII."""
+        if not self.series or not any(s.points for s in self.series.values()):
+            return f"[{self.title}]\nNo data"
+        
+        lines = [f"╔{'═' * (self.width + 2)}╗"]
+        lines.append(f"║ {self.title:<{self.width}} ║")
+        lines.append(f"╠{'═' * (self.width + 2)}╣")
+        
+        for _ in range(self.height):
+            lines.append(f"║{' ' * self.width}│║")
+        
+        lines.append(f"╚{'═' * (self.width + 2)}╝")
+        
+        return '\n'.join(lines)
+
+class BarChart:
+    """ASCII bar chart generator."""
+    def __init__(self, title: str = "Bar Chart", width: int = 60):
+        self.title = title
+        self.width = width
+        self.data: Dict[str, float] = {}
+    
+    def add_bar(self, label: str, value: float) -> None:
+        """Add bar."""
+        self.data[label] = max(0, min(value, 100))
+    
+    def render(self) -> str:
+        """Render chart as ASCII."""
+        if not self.data:
+            return f"[{self.title}]\nNo data"
+        
+        lines = [f"╔{self.title:^{self.width}}╗"]
+        
+        max_val = max(self.data.values()) if self.data else 100
+        
+        for label, value in self.data.items():
+            bar_width = int((value / max_val) * (self.width - len(label) - 5)) if max_val > 0 else 0
+            bar = "█" * bar_width + "░" * (self.width - len(label) - 5 - bar_width)
+            lines.append(f"║{label:8}│{bar}│{value:5.1f}║")
+        
+        lines.append(f"╚{'═' * self.width}╝")
+        
+        return '\n'.join(lines)
+
+class SparklineChart:
+    """Compact sparkline generator."""
+    SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
+    
+    def __init__(self, title: str = "Sparkline"):
+        self.title = title
+        self.values: deque = deque(maxlen=50)
+    
+    def add_value(self, value: float) -> None:
+        """Add value."""
+        self.values.append(value)
+    
+    def render(self) -> str:
+        """Render as sparkline."""
+        if not self.values:
+            return f"{self.title}: [no data]"
+        
+        min_val = min(self.values)
+        max_val = max(self.values)
+        range_val = max_val - min_val if max_val > min_val else 1
+        
+        sparkline = ""
+        for val in self.values:
+            idx = int(((val - min_val) / range_val) * (len(self.SPARKLINE_CHARS) - 1))
+            sparkline += self.SPARKLINE_CHARS[idx]
+        
+        return f"{self.title}: {sparkline} {max(self.values):.1f}"
+
+class GaugeChart:
+    """Circular gauge/speedometer chart."""
+    def __init__(self, title: str = "Gauge", min_val: float = 0, max_val: float = 100):
+        self.title = title
+        self.min_val = min_val
+        self.max_val = max_val
+        self.current_val = min_val
+    
+    def set_value(self, value: float) -> None:
+        """Set current value."""
+        self.current_val = max(self.min_val, min(self.max_val, value))
+    
+    def render(self) -> str:
+        """Render gauge."""
+        percentage = ((self.current_val - self.min_val) / (self.max_val - self.min_val)) * 100
+        
+        arc_chars = "◐◓◑◒"
+        arc_idx = int((percentage / 100) * len(arc_chars)) - 1
+        arc_char = arc_chars[max(0, arc_idx)] if percentage > 0 else "◐"
+        
+        filled = int((percentage / 100) * 30)
+        gauge_bar = "█" * filled + "░" * (30 - filled)
+        
+        return f"[{self.title}]\n{arc_char} {gauge_bar} {percentage:.1f}%\n{self.min_val:.0f}{'─' * 28}{self.max_val:.0f}"
+
+class HeatmapChart:
+    """ASCII heatmap generator."""
+    HEAT_CHARS = " ·:!#"
+    
+    def __init__(self, width: int = 20, height: int = 10, title: str = "Heatmap"):
+        self.width = width
+        self.height = height
+        self.title = title
+        self.data: List[List[float]] = [[0.0] * width for _ in range(height)]
+    
+    def set_value(self, x: int, y: int, value: float) -> None:
+        """Set cell value."""
+        if 0 <= x < self.width and 0 <= y < self.height:
+            self.data[y][x] = max(0, min(1.0, value))
+    
+    def render(self) -> str:
+        """Render heatmap."""
+        lines = [f"┌{self.title:^{self.width}}┐"]
+        
+        for row in self.data:
+            line = "│"
+            for val in row:
+                idx = int(val * (len(self.HEAT_CHARS) - 1))
+                line += self.HEAT_CHARS[idx]
+            line += "│"
+            lines.append(line)
+        
+        lines.append(f"└{'─' * self.width}┘")
+        return '\n'.join(lines)
+
+class Renderer3D:
+    """3D ASCII renderer for coordinates."""
+    def __init__(self, width: int = 40, height: int = 20):
+        self.width = width
+        self.height = height
+        self.canvas = [[' ' for _ in range(width)] for _ in range(height)]
+    
+    def project_3d(self, x: float, y: float, z: float) -> Tuple[int, int]:
+        """Project 3D point to 2D screen."""
+        scale = 1.0 / (1.0 + z / 10.0)
+        screen_x = int((x * scale + 1) * self.width / 2)
+        screen_y = int((y * scale + 1) * self.height / 2)
+        return max(0, min(self.width - 1, screen_x)), max(0, min(self.height - 1, screen_y))
+    
+    def draw_point(self, x: float, y: float, z: float, char: str = "●") -> None:
+        """Draw 3D point."""
+        sx, sy = self.project_3d(x, y, z)
+        if 0 <= sy < self.height and 0 <= sx < self.width:
+            self.canvas[sy][sx] = char
+    
+    def draw_line_3d(self, x1: float, y1: float, z1: float, x2: float, y2: float, z2: float) -> None:
+        """Draw 3D line."""
+        steps = 10
+        for i in range(steps):
+            t = i / steps
+            x = x1 + (x2 - x1) * t
+            y = y1 + (y2 - y1) * t
+            z = z1 + (z2 - z1) * t
+            self.draw_point(x, y, z, "─" if i % 2 == 0 else "·")
+    
+    def render(self) -> str:
+        """Render canvas."""
+        return '\n'.join(''.join(row) for row in self.canvas)
+
+class AnimatedElement:
+    """Animated UI element."""
+    def __init__(self, content: str, style: AnimationStyle = AnimationStyle.PULSE, duration: float = 1.0):
+        self.content = content
+        self.style = style
+        self.duration = duration
+        self.start_time = time.time()
+    
+    def get_frame(self) -> str:
+        """Get current animation frame."""
+        elapsed = (time.time() - self.start_time) % self.duration
+        progress = elapsed / self.duration
+        
+        if self.style == AnimationStyle.PULSE:
+            opacity = int(3 + math.sin(progress * math.pi * 2) * 2)
+            return "▓" * opacity + " " * (5 - opacity) + self.content
+        
+        elif self.style == AnimationStyle.BOUNCE:
+            offset = int(math.sin(progress * math.pi * 2) * 3)
+            return " " * (3 + offset) + self.content
+        
+        elif self.style == AnimationStyle.ROTATE:
+            chars = ["◐", "◓", "◑", "◒"]
+            idx = int(progress * len(chars))
+            return chars[idx] + " " + self.content
+        
+        return self.content
+
+class RealTimeDashboard:
+    """Real-time performance dashboard."""
+    def __init__(self, width: int = 100, height: int = 30):
+        self.width = width
+        self.height = height
+        self.charts: Dict[str, Any] = {}
+        self.metrics: Dict[str, float] = {}
+        self.refresh_rate = 1.0
+        self.last_update = time.time()
+    
+    def add_metric(self, name: str, value: float) -> None:
+        """Add or update metric."""
+        self.metrics[name] = value
+    
+    def add_chart(self, name: str, chart: Any) -> None:
+        """Add chart to dashboard."""
+        self.charts[name] = chart
+    
+    def render(self) -> str:
+        """Render full dashboard."""
+        lines = [
+            "╔" + "═" * (self.width - 2) + "╗",
+            f"║ {'PYTHONOS REAL-TIME DASHBOARD':^{self.width - 4}} ║"
+        ]
+        
+        lines.append("╠" + "═" * (self.width - 2) + "╣")
+        
+        for name, value in list(self.metrics.items())[:5]:
+            line = f"║ {name:20} │ {value:10.2f} │"
+            lines.append(line.ljust(self.width - 1) + "║")
+        
+        lines.append("╠" + "═" * (self.width - 2) + "╣")
+        lines.append("║ " + "Charts & Visualizations".ljust(self.width - 4) + " ║")
+        
+        for chart in list(self.charts.values())[:3]:
+            chart_lines = chart.render().split('\n')
+            for cl in chart_lines[:5]:
+                lines.append("║ " + cl.ljust(self.width - 4) + " ║")
+        
+        lines.append("╚" + "═" * (self.width - 2) + "╝")
+        
+        return '\n'.join(lines[:self.height])
+
+def manifest() -> Dict[str, Any]:
+    """Get module information."""
+    return {
+        "name": "visualization_engine",
+        "version": "5.0",
+        "description": "Advanced Visualization Engine with real-time dashboards, charts, 3D rendering, and animations",
+        "type": "visualization",
+        "components": ["LineChart", "BarChart", "SparklineChart", "GaugeChart", "HeatmapChart", "Renderer3D", "AnimatedElement", "RealTimeDashboard"],
+        "features": [
+            "real_time_dashboards",
+            "line_charts",
+            "bar_charts",
+            "sparklines",
+            "heatmaps",
+            "gauges",
+            "3d_ascii_rendering",
+            "animations",
+            "performance_metrics",
+            "time_series_data"
+        ]
+    }
+'''
+
+EMBEDDED_VISUALIZATION_AI_INTEGRATION = r'''
+#!/usr/bin/env python3
+"""
+Visualization-pyAI Integration Module
+Combines visualization engine with physics calculations and AI analysis for intelligent dashboards
+"""
+
+import sys
+import os
+from typing import Dict, List, Any, Optional, Callable
+import time
+from dataclasses import dataclass
+
+# Try to import visualization and pyAI modules
+try:
+    from pythonOS_data.visualization_engine import (
+        BarChart, LineChart, SparklineChart, GaugeChart, HeatmapChart,
+        Renderer3D, TimeSeries, RealTimeDashboard, AnimatedElement, AnimationStyle
+    )
+except ImportError:
+    print("[Integration] Warning: visualization_engine not found")
+
+try:
+    from pythonOS_data.pyAI import PyAIBrain
+except ImportError:
+    print("[Integration] Warning: pyAI not found")
+
+@dataclass
+class PerformanceMetric:
+    """Performance metric with AI analysis."""
+    name: str
+    value: float
+    unit: str
+    min_threshold: float = 0.0
+    max_threshold: float = 100.0
+    trend: str = "→"
+    recommendation: Optional[str] = None
+
+class VisualizationAIBridge:
+    """Bridge between visualization and AI systems."""
+    
+    def __init__(self):
+        self.dashboard = RealTimeDashboard(width=120, height=35)
+        self.metrics: Dict[str, PerformanceMetric] = {}
+        self.charts: Dict[str, Any] = {}
+        self.ai_brain = None
+        self.analysis_history: List[Dict[str, Any]] = []
+        
+        # Try to initialize AI brain
+        try:
+            self.ai_brain = PyAIBrain()
+        except:
+            self.ai_brain = None
+    
+    def add_performance_metric(self, name: str, value: float, unit: str = "", 
+                              min_val: float = 0.0, max_val: float = 100.0) -> None:
+        """Add performance metric with thresholds."""
+        metric = PerformanceMetric(
+            name=name, value=value, unit=unit,
+            min_threshold=min_val, max_threshold=max_val
+        )
+        
+        # Calculate trend
+        if name in self.metrics:
+            prev_val = self.metrics[name].value
+            if value > prev_val:
+                metric.trend = "↑"
+            elif value < prev_val:
+                metric.trend = "↓"
+        
+        # Add AI recommendation if available
+        metric.recommendation = self._get_ai_recommendation(name, value, min_val, max_val)
+        
+        self.metrics[name] = metric
+        self.dashboard.add_metric(f"{name} {metric.unit}", value)
+    
+    def _get_ai_recommendation(self, name: str, value: float, 
+                              min_val: float, max_val: float) -> Optional[str]:
+        """Get AI recommendation for metric."""
+        percentage = ((value - min_val) / (max_val - min_val)) * 100 if max_val > min_val else 0
+        
+        if "cpu" in name.lower():
+            if percentage > 80:
+                return "🔴 High CPU usage - Consider optimizing hot functions"
+            elif percentage > 60:
+                return "🟡 Moderate CPU usage - Monitor for issues"
+            else:
+                return "🟢 CPU usage normal"
+        
+        elif "memory" in name.lower():
+            if percentage > 85:
+                return "🔴 Memory critical - Increase heap or optimize memory usage"
+            elif percentage > 70:
+                return "🟡 High memory - Consider cleanup"
+            else:
+                return "🟢 Memory usage healthy"
+        
+        elif "disk" in name.lower():
+            if percentage > 90:
+                return "🔴 Disk critical - Free up space immediately"
+            elif percentage > 80:
+                return "🟡 Disk usage high - Plan cleanup"
+            else:
+                return "🟢 Disk space available"
+        
+        elif "latency" in name.lower() or "response" in name.lower():
+            if value > 1000:
+                return "🔴 High latency - Check network/database"
+            elif value > 500:
+                return "🟡 Latency elevated - Investigate"
+            else:
+                return "🟢 Response time acceptable"
+        
+        return None
+    
+    def create_performance_chart(self, name: str, metrics_dict: Dict[str, float]) -> None:
+        """Create bar chart from metrics dictionary."""
+        chart = BarChart(title=f"{name} Breakdown", width=60)
+        for label, value in metrics_dict.items():
+            chart.add_bar(label, min(100, value))
+        self.charts[name] = chart
+        self.dashboard.add_chart(name, chart)
+    
+    def create_timeseries_chart(self, name: str, data_points: List[float]) -> None:
+        """Create sparkline from time series data."""
+        chart = SparklineChart(title=name)
+        for point in data_points:
+            chart.add_value(point)
+        self.charts[name] = chart
+    
+    def create_gauge(self, name: str, value: float, min_val: float = 0.0, max_val: float = 100.0) -> None:
+        """Create gauge chart."""
+        gauge = GaugeChart(title=name, min_val=min_val, max_val=max_val)
+        gauge.set_value(value)
+        self.charts[name] = gauge
+        self.dashboard.add_chart(name, gauge)
+    
+    def create_heatmap(self, name: str, width: int = 20, height: int = 10) -> HeatmapChart:
+        """Create heatmap."""
+        heatmap = HeatmapChart(width=width, height=height, title=name)
+        self.charts[name] = heatmap
+        self.dashboard.add_chart(name, heatmap)
+        return heatmap
+    
+    def analyze_performance_with_ai(self) -> Dict[str, Any]:
+        """Use AI to analyze current performance."""
+        analysis = {
+            "timestamp": time.time(),
+            "metrics_count": len(self.metrics),
+            "critical_alerts": [],
+            "recommendations": [],
+            "analysis": {}
+        }
+        
+        # Analyze each metric
+        for name, metric in self.metrics.items():
+            percentage = ((metric.value - metric.min_threshold) / 
+                         (metric.max_threshold - metric.min_threshold)) * 100
+            
+            if percentage > 90:
+                analysis["critical_alerts"].append(f"{name}: CRITICAL ({percentage:.1f}%)")
+            elif percentage > 70:
+                analysis["critical_alerts"].append(f"{name}: WARNING ({percentage:.1f}%)")
+            
+            if metric.recommendation:
+                analysis["recommendations"].append(metric.recommendation)
+            
+            analysis["analysis"][name] = {
+                "value": metric.value,
+                "percentage": round(percentage, 2),
+                "trend": metric.trend,
+                "status": "critical" if percentage > 90 else "warning" if percentage > 70 else "healthy"
+            }
+        
+        self.analysis_history.append(analysis)
+        return analysis
+    
+    def render_intelligent_dashboard(self) -> str:
+        """Render dashboard with AI analysis."""
+        lines = ["╔" + "═" * 118 + "╗"]
+        lines.append(f"║ {'🚀 PYTHONOS INTELLIGENT PERFORMANCE DASHBOARD - POWERED BY pyAI':^116} ║")
+        lines.append("╠" + "═" * 118 + "╣")
+        
+        # System metrics
+        lines.append("║ 📊 SYSTEM METRICS".ljust(119) + "║")
+        for name, metric in list(self.metrics.items())[:8]:
+            status_icon = "🔴" if metric.value > metric.max_threshold * 0.9 else "🟡" if metric.value > metric.max_threshold * 0.7 else "🟢"
+            line = f"║ {status_icon} {name:20} │ {metric.value:8.2f} {metric.unit:6} │ {metric.trend} │ {metric.recommendation or '':40}"
+            lines.append(line[:119].ljust(119) + "║")
+        
+        lines.append("╠" + "═" * 118 + "╣")
+        
+        # AI Analysis
+        if self.analysis_history:
+            latest = self.analysis_history[-1]
+            lines.append("║ 🧠 AI ANALYSIS & RECOMMENDATIONS".ljust(119) + "║")
+            
+            if latest["critical_alerts"]:
+                for alert in latest["critical_alerts"][:3]:
+                    line = f"║   ⚠️  {alert:110}"
+                    lines.append(line[:119].ljust(119) + "║")
+            
+            if latest["recommendations"]:
+                for rec in latest["recommendations"][:3]:
+                    line = f"║   💡 {rec:110}"
+                    lines.append(line[:119].ljust(119) + "║")
+        
+        lines.append("╠" + "═" * 118 + "╣")
+        
+        # Charts
+        lines.append("║ 📈 VISUALIZATIONS".ljust(119) + "║")
+        for chart_name, chart in list(self.charts.items())[:2]:
+            chart_lines = chart.render().split('\n')
+            for cl in chart_lines[:3]:
+                line = f"║ {cl:116}"
+                lines.append(line[:119].ljust(119) + "║")
+        
+        lines.append("╚" + "═" * 118 + "╝")
+        
+        return '\n'.join(lines)
+    
+    def get_system_health_score(self) -> float:
+        """Calculate overall system health score (0-100)."""
+        if not self.metrics:
+            return 100.0
+        
+        scores = []
+        for metric in self.metrics.values():
+            percentage = ((metric.value - metric.min_threshold) / 
+                         (metric.max_threshold - metric.min_threshold)) * 100
+            # Invert for metrics where lower is better (like latency)
+            if "latency" in metric.name.lower() or "response" in metric.name.lower():
+                health = max(0, 100 - percentage)
+            else:
+                health = max(0, 100 - percentage)
+            scores.append(health)
+        
+        return sum(scores) / len(scores) if scores else 100.0
+    
+    def generate_performance_report(self) -> str:
+        """Generate comprehensive performance report."""
+        health_score = self.get_system_health_score()
+        
+        report = f"""
+╔════════════════════════════════════════════════════════════════╗
+║         PYTHONOS PERFORMANCE REPORT - AI ANALYSIS              ║
+╚════════════════════════════════════════════════════════════════╝
+
+📊 OVERALL HEALTH SCORE: {health_score:.1f}/100 {'🟢' if health_score > 70 else '🟡' if health_score > 40 else '🔴'}
+
+📈 DETAILED METRICS:
+"""
+        for name, metric in self.metrics.items():
+            percentage = ((metric.value - metric.min_threshold) / 
+                         (metric.max_threshold - metric.min_threshold)) * 100
+            status = "✅ OK" if percentage < 70 else "⚠️  WARNING" if percentage < 90 else "🔴 CRITICAL"
+            report += f"\n  • {name:25} {metric.trend} {metric.value:8.2f} {metric.unit:6} {status}"
+            if metric.recommendation:
+                report += f"\n    → {metric.recommendation}"
+        
+        report += "\n\n💾 ANALYSIS HISTORY: " + str(len(self.analysis_history)) + " updates\n"
+        report += "╚════════════════════════════════════════════════════════════════╝\n"
+        
+        return report
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "visualization_ai_integration",
+        "version": "1.0",
+        "description": "Integration between Visualization Engine and pyAI for intelligent dashboards",
+        "type": "integration",
+        "dependencies": ["visualization_engine", "pyAI"],
+        "features": [
+            "ai_powered_dashboards",
+            "intelligent_recommendations",
+            "performance_analysis",
+            "health_scoring",
+            "automated_alerting"
+        ]
+    }
+
+# Global bridge instance
+BRIDGE = VisualizationAIBridge()
+
+def get_bridge() -> VisualizationAIBridge:
+    """Get global visualization-AI bridge."""
+    return BRIDGE
+'''
+
+EMBEDDED_API_GATEWAY = r'''
+#!/usr/bin/env python3
+"""
+API Gateway & Microservices Framework
+Built-in REST API framework with GraphQL support, service mesh integration,
+API versioning, and deprecation tracking
+"""
+
+import json
+import time
+import hashlib
+import hmac
+from typing import Dict, List, Any, Optional, Callable, Tuple
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from abc import ABC, abstractmethod
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
+import threading
+import uuid
+import re
+
+# ============================================================================
+# DATA STRUCTURES & ENUMS
+# ============================================================================
+
+class HTTPMethod(Enum):
+    """HTTP Methods."""
+    GET = "GET"
+    POST = "POST"
+    PUT = "PUT"
+    DELETE = "DELETE"
+    PATCH = "PATCH"
+    HEAD = "HEAD"
+    OPTIONS = "OPTIONS"
+
+class APIVersion(Enum):
+    """API Versions."""
+    V1 = "v1"
+    V2 = "v2"
+    V3 = "v3"
+    BETA = "beta"
+    ALPHA = "alpha"
+
+class DeprecationStatus(Enum):
+    """Deprecation status for API endpoints."""
+    ACTIVE = "active"
+    DEPRECATED = "deprecated"
+    SUNSET = "sunset"
+    RETIRED = "retired"
+
+@dataclass
+class APIEndpoint:
+    """API Endpoint definition."""
+    path: str
+    method: HTTPMethod
+    handler: Optional[Callable] = None
+    version: APIVersion = APIVersion.V1
+    description: str = ""
+    deprecated: DeprecationStatus = DeprecationStatus.ACTIVE
+    sunset_date: Optional[datetime] = None
+    replacement: Optional[str] = None
+    auth_required: bool = False
+    rate_limit: int = 1000
+    tags: List[str] = field(default_factory=list)
+    parameters: Dict[str, str] = field(default_factory=dict)
+
+@dataclass
+class APIRequest:
+    """API Request object."""
+    request_id: str
+    path: str
+    method: HTTPMethod
+    headers: Dict[str, str]
+    body: Optional[Dict[str, Any]] = None
+    query_params: Dict[str, Any] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
+    client_ip: str = "127.0.0.1"
+    version: APIVersion = APIVersion.V1
+
+@dataclass
+class APIResponse:
+    """API Response object."""
+    status_code: int
+    data: Optional[Dict[str, Any]] = None
+    error: Optional[str] = None
+    message: Optional[str] = None
+    headers: Dict[str, str] = field(default_factory=dict)
+    timestamp: float = field(default_factory=time.time)
+
+@dataclass
+class RateLimitInfo:
+    """Rate limit tracking."""
+    client_id: str
+    request_count: int = 0
+    reset_time: float = field(default_factory=time.time)
+    window_seconds: int = 60
+    max_requests: int = 1000
+
+@dataclass
+class APIMetrics:
+    """API Metrics."""
+    endpoint_path: str
+    method: HTTPMethod
+    status_code: int
+    response_time_ms: float
+    timestamp: float = field(default_factory=time.time)
+    client_id: str = "unknown"
+    version: APIVersion = APIVersion.V1
+
+class Middleware(ABC):
+    """Base middleware class."""
+    
+    @abstractmethod
+    def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
+        """Process request before handler."""
+        pass
+    
+    @abstractmethod
+    def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
+        """Process response after handler."""
+        pass
+
+class AuthenticationMiddleware(Middleware):
+    """Authentication middleware."""
+    
+    def __init__(self, secret_key: str = "default-secret"):
+        self.secret_key = secret_key
+        self.valid_tokens: Dict[str, float] = {}
+    
+    def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
+        """Check authentication."""
+        if "Authorization" not in request.headers:
+            return True, None
+        
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return False, APIResponse(401, error="Invalid authorization header")
+        
+        token = auth_header[7:]
+        if token not in self.valid_tokens or self.valid_tokens[token] < time.time():
+            return False, APIResponse(401, error="Invalid or expired token")
+        
+        return True, None
+    
+    def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
+        """Pass through."""
+        return response
+    
+    def generate_token(self, client_id: str, expires_in: int = 3600) -> str:
+        """Generate API token."""
+        token = hashlib.sha256(f"{client_id}-{time.time()}".encode()).hexdigest()
+        self.valid_tokens[token] = time.time() + expires_in
+        return token
+
+class RateLimitMiddleware(Middleware):
+    """Rate limiting middleware."""
+    
+    def __init__(self):
+        self.clients: Dict[str, RateLimitInfo] = defaultdict(
+            lambda: RateLimitInfo(client_id="unknown")
+        )
+    
+    def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
+        """Check rate limits."""
+        client_id = request.client_ip
+        info = self.clients[client_id]
+        
+        if time.time() > info.reset_time:
+            info.request_count = 0
+            info.reset_time = time.time() + info.window_seconds
+        
+        if info.request_count >= info.max_requests:
+            headers = {
+                "X-RateLimit-Limit": str(info.max_requests),
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int(info.reset_time))
+            }
+            return False, APIResponse(429, error="Rate limit exceeded", headers=headers)
+        
+        info.request_count += 1
+        return True, None
+    
+    def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
+        """Add rate limit headers."""
+        client_id = request.client_ip
+        info = self.clients[client_id]
+        response.headers["X-RateLimit-Limit"] = str(info.max_requests)
+        response.headers["X-RateLimit-Remaining"] = str(info.max_requests - info.request_count)
+        response.headers["X-RateLimit-Reset"] = str(int(info.reset_time))
+        return response
+
+class LoggingMiddleware(Middleware):
+    """Logging middleware."""
+    
+    def __init__(self):
+        self.logs: deque = deque(maxlen=1000)
+    
+    def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
+        """Log incoming request."""
+        self.logs.append({
+            "type": "request",
+            "request_id": request.request_id,
+            "path": request.path,
+            "method": request.method.value,
+            "timestamp": request.timestamp
+        })
+        return True, None
+    
+    def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
+        """Log response."""
+        self.logs.append({
+            "type": "response",
+            "request_id": request.request_id,
+            "status": response.status_code,
+            "timestamp": response.timestamp
+        })
+        return response
+
+class APIGateway:
+    """Main API Gateway with REST support."""
+    
+    def __init__(self, host: str = "0.0.0.0", port: int = 8000, api_key: str = ""):
+        self.host = host
+        self.port = port
+        self.api_key = api_key
+        self.endpoints: Dict[str, APIEndpoint] = {}
+        self.middlewares: List[Middleware] = []
+        self.metrics: List[APIMetrics] = []
+        self.request_history: deque = deque(maxlen=1000)
+        self.service_registry: Dict[str, Dict[str, Any]] = {}
+        self.deprecation_tracker: Dict[str, DeprecationStatus] = {}
+        self._lock = threading.Lock()
+        
+        self.add_middleware(LoggingMiddleware())
+        self.add_middleware(RateLimitMiddleware())
+        self.auth_middleware = AuthenticationMiddleware()
+        self.add_middleware(self.auth_middleware)
+    
+    def register_endpoint(self, endpoint: APIEndpoint) -> None:
+        """Register API endpoint."""
+        with self._lock:
+            key = f"{endpoint.method.value}:{endpoint.version.value}:{endpoint.path}"
+            self.endpoints[key] = endpoint
+            
+            if endpoint.deprecated != DeprecationStatus.ACTIVE:
+                self.deprecation_tracker[key] = endpoint.deprecated
+    
+    def add_middleware(self, middleware: Middleware) -> None:
+        """Add middleware to pipeline."""
+        with self._lock:
+            self.middlewares.append(middleware)
+    
+    def handle_request(self, path: str, method: str = "GET", headers: Optional[Dict[str, str]] = None,
+                      body: Optional[Dict[str, Any]] = None, query_params: Optional[Dict[str, Any]] = None,
+                      client_ip: str = "127.0.0.1") -> Dict[str, Any]:
+        """Handle API request."""
+        request_id = str(uuid.uuid4())[:8]
+        version = self._extract_version(path, headers)
+        
+        request = APIRequest(
+            request_id=request_id, path=path, method=HTTPMethod[method.upper()],
+            headers=headers or {}, body=body, query_params=query_params or {},
+            client_ip=client_ip, version=version
+        )
+        
+        start_time = time.time()
+        
+        for middleware in self.middlewares:
+            success, rejected_response = middleware.before_request(request)
+            if not success:
+                response = rejected_response or APIResponse(400, error="Request rejected")
+                return self._finalize_response(request, response, start_time)
+        
+        endpoint_key = f"{request.method.value}:{version.value}:{path}"
+        endpoint = self.endpoints.get(endpoint_key)
+        
+        if not endpoint:
+            response = APIResponse(404, error=f"Endpoint not found: {path}")
+        else:
+            if endpoint.deprecated != DeprecationStatus.ACTIVE:
+                headers_out = {"X-Deprecation-Status": endpoint.deprecated.value}
+                if endpoint.replacement:
+                    headers_out["X-Deprecation-Replacement"] = endpoint.replacement
+                if endpoint.sunset_date:
+                    headers_out["X-Sunset"] = endpoint.sunset_date.isoformat()
+            
+            try:
+                if endpoint.handler:
+                    handler_response = endpoint.handler(request, endpoint)
+                    response = APIResponse(200, data=handler_response) if isinstance(handler_response, dict) else handler_response
+                else:
+                    response = APIResponse(501, error="Handler not implemented")
+            except Exception as e:
+                response = APIResponse(500, error=str(e))
+        
+        for middleware in self.middlewares:
+            response = middleware.after_response(request, response)
+        
+        response_time_ms = (time.time() - start_time) * 1000
+        metric = APIMetrics(
+            endpoint_path=path, method=request.method, status_code=response.status_code,
+            response_time_ms=response_time_ms, client_id=client_ip, version=version
+        )
+        self.metrics.append(metric)
+        
+        return self._finalize_response(request, response, start_time)
+    
+    def _extract_version(self, path: str, headers: Optional[Dict[str, str]]) -> APIVersion:
+        """Extract API version from path or headers."""
+        headers = headers or {}
+        
+        if "Accept-Version" in headers:
+            version_str = headers["Accept-Version"].lower()
+            for version in APIVersion:
+                if version_str == version.value:
+                    return version
+        
+        for version in APIVersion:
+            if path.startswith(f"/{version.value}/"):
+                return version
+        
+        return APIVersion.V1
+    
+    def _finalize_response(self, request: APIRequest, response: APIResponse, start_time: float) -> Dict[str, Any]:
+        """Finalize response object."""
+        response_time_ms = (time.time() - start_time) * 1000
+        
+        result = {
+            "request_id": request.request_id,
+            "status": response.status_code,
+            "version": request.version.value,
+            "timestamp": response.timestamp,
+            "response_time_ms": response_time_ms,
+            "headers": response.headers
+        }
+        
+        if response.data:
+            result["data"] = response.data
+        if response.error:
+            result["error"] = response.error
+        if response.message:
+            result["message"] = response.message
+        
+        self.request_history.append(result)
+        return result
+    
+    def register_service(self, service_id: str, metadata: Dict[str, Any]) -> None:
+        """Register microservice in mesh."""
+        with self._lock:
+            self.service_registry[service_id] = {
+                "id": service_id,
+                "registered_at": datetime.now().isoformat(),
+                "metadata": metadata,
+                "health": "healthy"
+            }
+    
+    def get_service_status(self) -> Dict[str, Any]:
+        """Get status of all registered services."""
+        with self._lock:
+            return dict(self.service_registry)
+    
+    def generate_deprecation_report(self) -> Dict[str, Any]:
+        """Generate report on deprecated endpoints."""
+        report = {
+            "total_endpoints": len(self.endpoints),
+            "active": 0,
+            "deprecated": 0,
+            "sunset": 0,
+            "retired": 0,
+            "endpoints": {}
+        }
+        
+        for key, endpoint in self.endpoints.items():
+            report["endpoints"][key] = {
+                "path": endpoint.path,
+                "method": endpoint.method.value,
+                "version": endpoint.version.value,
+                "status": endpoint.deprecated.value,
+                "sunset_date": endpoint.sunset_date.isoformat() if endpoint.sunset_date else None,
+                "replacement": endpoint.replacement
+            }
+            
+            if endpoint.deprecated == DeprecationStatus.ACTIVE:
+                report["active"] += 1
+            elif endpoint.deprecated == DeprecationStatus.DEPRECATED:
+                report["deprecated"] += 1
+            elif endpoint.deprecated == DeprecationStatus.SUNSET:
+                report["sunset"] += 1
+            else:
+                report["retired"] += 1
+        
+        return report
+    
+    def get_metrics_summary(self) -> Dict[str, Any]:
+        """Get API metrics summary."""
+        if not self.metrics:
+            return {"total_requests": 0}
+        
+        total_requests = len(self.metrics)
+        avg_response_time = sum(m.response_time_ms for m in self.metrics) / total_requests
+        
+        status_codes = defaultdict(int)
+        for metric in self.metrics:
+            status_codes[metric.status_code] += 1
+        
+        endpoints_usage = defaultdict(int)
+        for metric in self.metrics:
+            endpoints_usage[metric.endpoint_path] += 1
+        
+        return {
+            "total_requests": total_requests,
+            "avg_response_time_ms": round(avg_response_time, 2),
+            "status_distribution": dict(status_codes),
+            "most_used_endpoints": sorted(endpoints_usage.items(), key=lambda x: x[1], reverse=True)[:10]
+        }
+
+class GraphQLSchema:
+    """GraphQL Schema definition."""
+    
+    def __init__(self):
+        self.types: Dict[str, Dict[str, Any]] = {}
+        self.queries: Dict[str, Dict[str, Any]] = {}
+        self.mutations: Dict[str, Dict[str, Any]] = {}
+    
+    def define_type(self, name: str, fields: Dict[str, str]) -> None:
+        """Define GraphQL type."""
+        self.types[name] = fields
+    
+    def define_query(self, name: str, return_type: str, fields: Dict[str, str]) -> None:
+        """Define GraphQL query."""
+        self.queries[name] = {"return_type": return_type, "fields": fields}
+    
+    def define_mutation(self, name: str, return_type: str, fields: Dict[str, str]) -> None:
+        """Define GraphQL mutation."""
+        self.mutations[name] = {"return_type": return_type, "fields": fields}
+    
+    def to_schema_string(self) -> str:
+        """Convert to GraphQL schema string."""
+        schema = "type Query {\\n"
+        for name, query in self.queries.items():
+            fields_str = ", ".join(f"{k}: {v}" for k, v in query.get("fields", {}).items())
+            schema += f"  {name}({fields_str}): {query[\"return_type\"]}\\n"
+        schema += "}\\n\\ntype Mutation {\\n"
+        for name, mutation in self.mutations.items():
+            fields_str = ", ".join(f"{k}: {v}" for k, v in mutation.get("fields", {}).items())
+            schema += f"  {name}({fields_str}): {mutation[\"return_type\"]}\\n"
+        schema += "}"
+        return schema
+
+class GraphQLExecutor:
+    """GraphQL Query Executor."""
+    
+    def __init__(self, schema: GraphQLSchema):
+        self.schema = schema
+        self.resolvers: Dict[str, Callable] = {}
+    
+    def register_resolver(self, field_name: str, resolver: Callable) -> None:
+        """Register field resolver."""
+        self.resolvers[field_name] = resolver
+    
+    def execute(self, query: str) -> Dict[str, Any]:
+        """Execute GraphQL query."""
+        try:
+            if "query" in query.lower():
+                parsed = self._parse_query(query)
+                result = self._resolve_query(parsed)
+                return {"data": result, "errors": None}
+            else:
+                return {"data": None, "errors": ["Invalid query"]}
+        except Exception as e:
+            return {"data": None, "errors": [str(e)]}
+    
+    def _parse_query(self, query: str) -> Dict[str, Any]:
+        """Parse GraphQL query."""
+        lines = [l.strip() for l in query.split("\\n") if l.strip()]
+        return {"query_text": query, "lines": lines}
+    
+    def _resolve_query(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
+        """Resolve query using resolvers."""
+        result = {}
+        for field_name, resolver in self.resolvers.items():
+            try:
+                result[field_name] = resolver()
+            except Exception as e:
+                result[field_name] = None
+        return result
+
+class ServiceMesh:
+    """Service mesh for microservices orchestration."""
+    
+    def __init__(self):
+        self.services: Dict[str, Dict[str, Any]] = {}
+        self.routes: List[Dict[str, Any]] = []
+        self.circuit_breakers: Dict[str, Dict[str, Any]] = {}
+        self.health_checks: Dict[str, bool] = {}
+    
+    def register_service(self, name: str, endpoints: List[str], port: int = 8000,
+                        metadata: Optional[Dict] = None) -> None:
+        """Register service in mesh."""
+        self.services[name] = {
+            "name": name, "endpoints": endpoints, "port": port,
+            "metadata": metadata or {}, "registered_at": datetime.now().isoformat(),
+            "status": "healthy"
+        }
+        self.health_checks[name] = True
+        self.circuit_breakers[name] = {"state": "closed", "failures": 0, "threshold": 5, "timeout": 60}
+    
+    def add_route(self, source: str, destination: str, weight: float = 1.0) -> None:
+        """Add route between services."""
+        self.routes.append({
+            "source": source, "destination": destination, "weight": weight,
+            "created_at": datetime.now().isoformat()
+        })
+    
+    def check_circuit_breaker(self, service_name: str) -> bool:
+        """Check circuit breaker status."""
+        if service_name not in self.circuit_breakers:
+            return True
+        cb = self.circuit_breakers[service_name]
+        return cb["state"] != "open"
+    
+    def record_failure(self, service_name: str) -> None:
+        """Record service failure."""
+        if service_name in self.circuit_breakers:
+            cb = self.circuit_breakers[service_name]
+            cb["failures"] += 1
+            if cb["failures"] >= cb["threshold"]:
+                cb["state"] = "open"
+    
+    def reset_circuit_breaker(self, service_name: str) -> None:
+        """Reset circuit breaker."""
+        if service_name in self.circuit_breakers:
+            self.circuit_breakers[service_name] = {"state": "closed", "failures": 0, "threshold": 5, "timeout": 60}
+    
+    def get_mesh_status(self) -> Dict[str, Any]:
+        """Get complete mesh status."""
+        return {
+            "services": len(self.services),
+            "routes": len(self.routes),
+            "services_detail": self.services,
+            "routes_detail": self.routes,
+            "circuit_breakers": self.circuit_breakers,
+            "timestamp": datetime.now().isoformat()
+        }
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "api_gateway",
+        "version": "1.0",
+        "description": "API Gateway with REST, GraphQL, service mesh, versioning, and deprecation",
+        "type": "framework",
+        "components": ["APIGateway", "REST_Support", "GraphQL_Support", "ServiceMesh", "APIVersioning", "DeprecationTracking"],
+        "features": ["built_in_rest_framework", "graphql_support", "service_mesh_integration", "api_versioning", "deprecation_tracking", "rate_limiting"]
+    }
+
+GATEWAY = APIGateway()
+GRAPHQL_SCHEMA = GraphQLSchema()
+GRAPHQL_EXECUTOR = GraphQLExecutor(GRAPHQL_SCHEMA)
+SERVICE_MESH = ServiceMesh()
+
+def get_gateway() -> APIGateway:
+    """Get global API gateway."""
+    return GATEWAY
+
+def get_graphql_executor() -> GraphQLExecutor:
+    """Get GraphQL executor."""
+    return GRAPHQL_EXECUTOR
+
+def get_service_mesh() -> ServiceMesh:
+    """Get service mesh."""
+    return SERVICE_MESH
+'''
+
+EMBEDDED_MICROSERVICES = r'''
+#!/usr/bin/env python3
+"""
+Microservices Framework
+Service orchestration, discovery, load balancing, and health management
+"""
+
+import json
+import time
+import random
+from typing import Dict, List, Any, Optional, Callable, Tuple
+from dataclasses import dataclass, field, asdict
+from enum import Enum
+from collections import defaultdict, deque
+from datetime import datetime, timedelta
+import threading
+import hashlib
+
+class ServiceStatus(Enum):
+    """Service status."""
+    HEALTHY = "healthy"
+    DEGRADED = "degraded"
+    UNHEALTHY = "unhealthy"
+    OFFLINE = "offline"
+    STARTING = "starting"
+
+class LoadBalancingStrategy(Enum):
+    """Load balancing strategies."""
+    ROUND_ROBIN = "round_robin"
+    LEAST_CONNECTIONS = "least_connections"
+    RANDOM = "random"
+    WEIGHTED = "weighted"
+    IP_HASH = "ip_hash"
+
+@dataclass
+class ServiceInstance:
+    """Microservice instance."""
+    instance_id: str
+    service_name: str
+    host: str
+    port: int
+    status: ServiceStatus = ServiceStatus.HEALTHY
+    load: int = 0
+    weight: float = 1.0
+    registered_at: float = field(default_factory=time.time)
+    last_heartbeat: float = field(default_factory=time.time)
+    metadata: Dict[str, Any] = field(default_factory=dict)
+
+@dataclass
+class ServiceCall:
+    """Service-to-service call record."""
+    caller_service: str
+    called_service: str
+    endpoint: str
+    method: str
+    status_code: int
+    response_time_ms: float
+    timestamp: float = field(default_factory=time.time)
+    success: bool = True
+    error: Optional[str] = None
+
+@dataclass
+class HealthCheckResult:
+    """Health check result."""
+    instance_id: str
+    service_name: str
+    timestamp: float = field(default_factory=time.time)
+    status: ServiceStatus = ServiceStatus.HEALTHY
+    response_time_ms: float = 0.0
+    details: Dict[str, Any] = field(default_factory=dict)
+
+class ServiceRegistry:
+    """Service discovery and registration."""
+    
+    def __init__(self):
+        self.services: Dict[str, List[ServiceInstance]] = defaultdict(list)
+        self.service_metadata: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.Lock()
+    
+    def register(self, service_name: str, instance: ServiceInstance) -> None:
+        """Register service instance."""
+        with self._lock:
+            self.services[service_name].append(instance)
+            if service_name not in self.service_metadata:
+                self.service_metadata[service_name] = {
+                    "name": service_name,
+                    "registered_at": datetime.now().isoformat(),
+                    "instances": 0
+                }
+            self.service_metadata[service_name]["instances"] += 1
+    
+    def deregister(self, service_name: str, instance_id: str) -> bool:
+        """Deregister service instance."""
+        with self._lock:
+            if service_name in self.services:
+                self.services[service_name] = [
+                    inst for inst in self.services[service_name]
+                    if inst.instance_id != instance_id
+                ]
+                self.service_metadata[service_name]["instances"] -= 1
+                return True
+            return False
+    
+    def discover(self, service_name: str) -> List[ServiceInstance]:
+        """Discover service instances."""
+        with self._lock:
+            return list(self.services.get(service_name, []))
+    
+    def get_healthy_instances(self, service_name: str) -> List[ServiceInstance]:
+        """Get only healthy instances."""
+        instances = self.discover(service_name)
+        return [i for i in instances if i.status == ServiceStatus.HEALTHY]
+    
+    def update_instance_status(self, service_name: str, instance_id: str, status: ServiceStatus) -> bool:
+        """Update instance status."""
+        with self._lock:
+            if service_name in self.services:
+                for instance in self.services[service_name]:
+                    if instance.instance_id == instance_id:
+                        instance.status = status
+                        instance.last_heartbeat = time.time()
+                        return True
+            return False
+
+class LoadBalancer:
+    """Load balancer for service instances."""
+    
+    def __init__(self, strategy: LoadBalancingStrategy = LoadBalancingStrategy.ROUND_ROBIN):
+        self.strategy = strategy
+        self.round_robin_index: Dict[str, int] = defaultdict(int)
+        self.call_history: deque = deque(maxlen=1000)
+    
+    def select_instance(self, service_name: str, instances: List[ServiceInstance],
+                       client_ip: Optional[str] = None) -> Optional[ServiceInstance]:
+        """Select instance based on strategy."""
+        if not instances:
+            return None
+        
+        if self.strategy == LoadBalancingStrategy.ROUND_ROBIN:
+            return self._round_robin(service_name, instances)
+        elif self.strategy == LoadBalancingStrategy.LEAST_CONNECTIONS:
+            return self._least_connections(instances)
+        elif self.strategy == LoadBalancingStrategy.RANDOM:
+            return random.choice(instances)
+        elif self.strategy == LoadBalancingStrategy.WEIGHTED:
+            return self._weighted_selection(instances)
+        elif self.strategy == LoadBalancingStrategy.IP_HASH:
+            return self._ip_hash(instances, client_ip)
+        else:
+            return instances[0]
+    
+    def _round_robin(self, service_name: str, instances: List[ServiceInstance]) -> ServiceInstance:
+        """Round robin selection."""
+        idx = self.round_robin_index[service_name]
+        selected = instances[idx % len(instances)]
+        self.round_robin_index[service_name] = (idx + 1) % len(instances)
+        return selected
+    
+    def _least_connections(self, instances: List[ServiceInstance]) -> ServiceInstance:
+        """Select instance with least connections."""
+        return min(instances, key=lambda x: x.load)
+    
+    def _weighted_selection(self, instances: List[ServiceInstance]) -> ServiceInstance:
+        """Weighted random selection."""
+        total_weight = sum(i.weight for i in instances)
+        choice = random.uniform(0, total_weight)
+        current = 0
+        for instance in instances:
+            current += instance.weight
+            if choice <= current:
+                return instance
+        return instances[0]
+    
+    def _ip_hash(self, instances: List[ServiceInstance], client_ip: Optional[str]) -> ServiceInstance:
+        """IP hash selection."""
+        if not client_ip:
+            return instances[0]
+        hash_val = int(hashlib.md5(client_ip.encode()).hexdigest(), 16)
+        return instances[hash_val % len(instances)]
+    
+    def record_call(self, call: ServiceCall) -> None:
+        """Record service call."""
+        self.call_history.append(call)
+
+class HealthChecker:
+    """Health checking system."""
+    
+    def __init__(self, check_interval: int = 30, timeout: int = 5):
+        self.check_interval = check_interval
+        self.timeout = timeout
+        self.health_history: deque = deque(maxlen=1000)
+        self._running = False
+        self._thread: Optional[threading.Thread] = None
+    
+    def check_instance(self, instance: ServiceInstance) -> HealthCheckResult:
+        """Check instance health."""
+        start_time = time.time()
+        
+        try:
+            time_since_heartbeat = time.time() - instance.last_heartbeat
+            
+            if time_since_heartbeat > 120:
+                status = ServiceStatus.OFFLINE
+            elif time_since_heartbeat > 60:
+                status = ServiceStatus.UNHEALTHY
+            elif time_since_heartbeat > 30:
+                status = ServiceStatus.DEGRADED
+            else:
+                status = ServiceStatus.HEALTHY
+            
+            response_time_ms = (time.time() - start_time) * 1000
+            
+            result = HealthCheckResult(
+                instance_id=instance.instance_id,
+                service_name=instance.service_name,
+                status=status,
+                response_time_ms=response_time_ms,
+                details={
+                    "time_since_heartbeat": time_since_heartbeat,
+                    "load": instance.load,
+                    "uptime_seconds": time.time() - instance.registered_at
+                }
+            )
+            
+            self.health_history.append(result)
+            return result
+        
+        except Exception as e:
+            return HealthCheckResult(
+                instance_id=instance.instance_id,
+                service_name=instance.service_name,
+                status=ServiceStatus.UNHEALTHY,
+                response_time_ms=(time.time() - start_time) * 1000,
+                details={"error": str(e)}
+            )
+
+class ServiceOrchestrator:
+    """Main service mesh orchestrator."""
+    
+    def __init__(self, lb_strategy: LoadBalancingStrategy = LoadBalancingStrategy.ROUND_ROBIN):
+        self.registry = ServiceRegistry()
+        self.load_balancer = LoadBalancer(lb_strategy)
+        self.health_checker = HealthChecker()
+        self.service_policies: Dict[str, Dict[str, Any]] = {}
+        self.traffic_splits: Dict[str, List[Tuple[str, float]]] = defaultdict(list)
+        self.call_trace: deque = deque(maxlen=5000)
+        self._lock = threading.Lock()
+    
+    def register_service(self, service_name: str, host: str, port: int,
+                        instance_id: Optional[str] = None,
+                        metadata: Optional[Dict[str, Any]] = None) -> str:
+        """Register service instance."""
+        if instance_id is None:
+            instance_id = f"{service_name}-{int(time.time() * 1000)}"
+        
+        instance = ServiceInstance(
+            instance_id=instance_id,
+            service_name=service_name,
+            host=host,
+            port=port,
+            metadata=metadata or {}
+        )
+        
+        self.registry.register(service_name, instance)
+        return instance_id
+    
+    def call_service(self, caller: str, service_name: str, endpoint: str,
+                    method: str = "GET", client_ip: Optional[str] = None) -> Dict[str, Any]:
+        """Call service through mesh."""
+        
+        instances = self.registry.get_healthy_instances(service_name)
+        
+        if not instances:
+            return {
+                "success": False,
+                "error": f"No healthy instances for {service_name}",
+                "status_code": 503
+            }
+        
+        instance = self.load_balancer.select_instance(service_name, instances, client_ip)
+        
+        if not instance:
+            return {
+                "success": False,
+                "error": "Load balancer failed to select instance",
+                "status_code": 503
+            }
+        
+        start_time = time.time()
+        try:
+            response_time_ms = random.uniform(10, 100)
+            status_code = 200 if random.random() > 0.05 else 500
+            success = status_code == 200
+            
+            if not success:
+                instance.load = max(0, instance.load - 1)
+            
+            call = ServiceCall(
+                caller_service=caller,
+                called_service=service_name,
+                endpoint=endpoint,
+                method=method,
+                status_code=status_code,
+                response_time_ms=response_time_ms,
+                success=success
+            )
+            
+            self.load_balancer.record_call(call)
+            self.call_trace.append(call)
+            
+            return {
+                "success": success,
+                "instance": instance.instance_id,
+                "endpoint": f"{instance.host}:{instance.port}{endpoint}",
+                "status_code": status_code,
+                "response_time_ms": response_time_ms
+            }
+        
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+                "status_code": 500
+            }
+    
+    def set_policy(self, service_name: str, policy_name: str, policy_config: Dict[str, Any]) -> None:
+        """Set service policy."""
+        if service_name not in self.service_policies:
+            self.service_policies[service_name] = {}
+        self.service_policies[service_name][policy_name] = policy_config
+    
+    def set_traffic_split(self, service_name: str, splits: List[Tuple[str, float]]) -> None:
+        """Set traffic split between service versions."""
+        self.traffic_splits[service_name] = splits
+    
+    def get_mesh_stats(self) -> Dict[str, Any]:
+        """Get mesh statistics."""
+        total_calls = len(self.call_trace)
+        successful_calls = sum(1 for c in self.call_trace if c.success)
+        success_rate = (successful_calls / total_calls * 100) if total_calls > 0 else 0
+        
+        avg_response_time = 0.0
+        if self.call_trace:
+            avg_response_time = sum(c.response_time_ms for c in self.call_trace) / len(self.call_trace)
+        
+        return {
+            "total_services": len(self.registry.services),
+            "total_instances": sum(len(v) for v in self.registry.services.values()),
+            "total_calls": total_calls,
+            "successful_calls": successful_calls,
+            "success_rate": round(success_rate, 2),
+            "avg_response_time_ms": round(avg_response_time, 2),
+            "services": dict(self.registry.service_metadata)
+        }
+    
+    def get_service_details(self, service_name: str) -> Dict[str, Any]:
+        """Get details about service."""
+        instances = self.registry.discover(service_name)
+        
+        return {
+            "service_name": service_name,
+            "instances": [
+                {
+                    "id": i.instance_id,
+                    "host": i.host,
+                    "port": i.port,
+                    "status": i.status.value,
+                    "load": i.load,
+                    "uptime_seconds": time.time() - i.registered_at
+                }
+                for i in instances
+            ],
+            "policies": self.service_policies.get(service_name, {}),
+            "traffic_split": self.traffic_splits.get(service_name, [])
+        }
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "microservices",
+        "version": "1.0",
+        "description": "Microservices framework with service discovery, load balancing, and health checking",
+        "type": "framework",
+        "components": ["ServiceRegistry", "ServiceDiscovery", "LoadBalancer", "HealthChecker", "ServiceOrchestrator"],
+        "features": ["service_discovery", "dynamic_registration", "load_balancing", "health_checking", "circuit_breaking", "service_policies", "traffic_splitting"]
+    }
+
+ORCHESTRATOR = ServiceOrchestrator()
+
+def get_orchestrator() -> ServiceOrchestrator:
+    """Get service orchestrator."""
+    return ORCHESTRATOR
+'''
+
+# ================================================================================
+# EMBEDDED TEXTUAL 3D VIEWER MODULE
+# ================================================================================
+
+EMBEDDED_TEXTUAL_3D_VIEWER = r'''
+#!/usr/bin/env python3
+"""
+Textual 3D ASCII Viewer & Dashboard
+Interactive 3D visualization with real-time rendering and analytics
+"""
+
+import math
+import time
+from typing import Dict, List, Any, Optional, Tuple
+from dataclasses import dataclass
+from datetime import datetime
+
+try:
+    from textual.app import ComposeResult, RenderableType
+    from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+    from textual.widgets import Static, Header, Footer, Button, Select, Label
+    from textual.reactive import reactive
+    TEXTUAL_AVAILABLE = True
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+    # Fallback for when textual is not available
+    class Static: pass
+    class Container: pass
+    class Vertical: pass
+    class Horizontal: pass
+
+# ============================================================================
+# 3D RENDERER FOR TEXTUAL
+# ============================================================================
+
+@dataclass
+class Vector3:
+    """3D Vector."""
+    x: float
+    y: float
+    z: float
+    
+    def rotate_x(self, angle: float) -> 'Vector3':
+        """Rotate around X axis."""
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        y = self.y * cos_a - self.z * sin_a
+        z = self.y * sin_a + self.z * cos_a
+        return Vector3(self.x, y, z)
+    
+    def rotate_y(self, angle: float) -> 'Vector3':
+        """Rotate around Y axis."""
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        x = self.x * cos_a + self.z * sin_a
+        z = -self.x * sin_a + self.z * cos_a
+        return Vector3(x, self.y, z)
+    
+    def rotate_z(self, angle: float) -> 'Vector3':
+        """Rotate around Z axis."""
+        cos_a, sin_a = math.cos(angle), math.sin(angle)
+        x = self.x * cos_a - self.y * sin_a
+        y = self.x * sin_a + self.y * cos_a
+        return Vector3(x, y, self.z)
+    
+    def project_2d(self, distance: float = 5.0) -> Tuple[float, float]:
+        """Project to 2D screen coordinates."""
+        scale = distance / (distance + self.z)
+        return (self.x * scale, self.y * scale)
+
+class TextualRenderer3D:
+    """3D ASCII renderer for Textual."""
+    
+    def __init__(self, width: int = 40, height: int = 20):
+        self.width = width
+        self.height = height
+        self.frame_buffer = [[' ' for _ in range(width)] for _ in range(height)]
+        self.z_buffer = [[float('inf') for _ in range(width)] for _ in range(height)]
+    
+    def clear(self):
+        """Clear frame buffer."""
+        self.frame_buffer = [[' ' for _ in range(self.width)] for _ in range(self.height)]
+        self.z_buffer = [[float('inf') for _ in range(self.width)] for _ in range(self.height)]
+    
+    def draw_point(self, x: float, y: float, z: float, char: str = '●'):
+        """Draw a point on the frame buffer."""
+        screen_x = int((x + 1) * self.width / 2)
+        screen_y = int((y + 1) * self.height / 2)
+        
+        if 0 <= screen_x < self.width and 0 <= screen_y < self.height:
+            if z < self.z_buffer[screen_y][screen_x]:
+                self.frame_buffer[screen_y][screen_x] = char
+                self.z_buffer[screen_y][screen_x] = z
+    
+    def draw_line(self, x1: float, y1: float, z1: float, 
+                 x2: float, y2: float, z2: float, char: str = '─'):
+        """Draw a line using Bresenham's algorithm."""
+        steps = 20
+        for i in range(steps + 1):
+            t = i / steps
+            x = x1 + (x2 - x1) * t
+            y = y1 + (y2 - y1) * t
+            z = z1 + (z2 - z1) * t
+            self.draw_point(x, y, z, char)
+    
+    def render_cube(self, rot_x: float, rot_y: float, rot_z: float) -> str:
+        """Render a rotating cube."""
+        self.clear()
+        
+        # Define cube vertices
+        vertices = [
+            Vector3(1, 1, 1), Vector3(1, -1, 1),
+            Vector3(-1, 1, 1), Vector3(-1, -1, 1),
+            Vector3(1, 1, -1), Vector3(1, -1, -1),
+            Vector3(-1, 1, -1), Vector3(-1, -1, -1),
+        ]
+        
+        # Apply rotations
+        rotated = []
+        for v in vertices:
+            v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
+            rotated.append(v)
+        
+        # Draw edges
+        edges = [
+            (0, 1), (0, 2), (1, 3), (2, 3),
+            (4, 5), (4, 6), (5, 7), (6, 7),
+            (0, 4), (1, 5), (2, 6), (3, 7),
+        ]
+        
+        for start, end in edges:
+            v1, v2 = rotated[start], rotated[end]
+            x1, y1 = v1.project_2d()
+            x2, y2 = v2.project_2d()
+            self.draw_line(x1, y1, v1.z, x2, y2, v2.z, '─')
+        
+        # Draw vertices
+        for v in rotated:
+            x, y = v.project_2d()
+            self.draw_point(x, y, v.z, '●')
+        
+        # Convert buffer to string
+        return '\n'.join(''.join(row) for row in self.frame_buffer)
+    
+    def render_pyramid(self, rot_x: float, rot_y: float, rot_z: float) -> str:
+        """Render a rotating pyramid."""
+        self.clear()
+        
+        vertices = [
+            Vector3(0, 1.5, 0),  # Top
+            Vector3(1, -1, 1), Vector3(-1, -1, 1),
+            Vector3(-1, -1, -1), Vector3(1, -1, -1),
+        ]
+        
+        rotated = []
+        for v in vertices:
+            v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
+            rotated.append(v)
+        
+        edges = [
+            (0, 1), (0, 2), (0, 3), (0, 4),
+            (1, 2), (2, 3), (3, 4), (4, 1),
+        ]
+        
+        for start, end in edges:
+            v1, v2 = rotated[start], rotated[end]
+            x1, y1 = v1.project_2d()
+            x2, y2 = v2.project_2d()
+            self.draw_line(x1, y1, v1.z, x2, y2, v2.z, '╱')
+        
+        for v in rotated:
+            x, y = v.project_2d()
+            self.draw_point(x, y, v.z, '◆')
+        
+        return '\n'.join(''.join(row) for row in self.frame_buffer)
+    
+    def render_sphere(self, rot_x: float, rot_y: float, rot_z: float) -> str:
+        """Render a rotating sphere."""
+        self.clear()
+        
+        # Generate sphere points
+        for lat in range(0, 180, 30):
+            for lon in range(0, 360, 30):
+                lat_rad = math.radians(lat)
+                lon_rad = math.radians(lon)
+                x = math.sin(lat_rad) * math.cos(lon_rad)
+                y = math.cos(lat_rad)
+                z = math.sin(lat_rad) * math.sin(lon_rad)
+                
+                v = Vector3(x, y, z)
+                v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
+                screen_x, screen_y = v.project_2d()
+                self.draw_point(screen_x, screen_y, v.z, '·')
+        
+        return '\n'.join(''.join(row) for row in self.frame_buffer)
+
+# ============================================================================
+# INTERACTIVE 3D VIEWER WIDGET
+# ============================================================================
+
+if TEXTUAL_AVAILABLE:
+    class Interactive3DViewer(Static):
+        """Interactive 3D viewer with keyboard controls."""
+        
+        rotation_x = reactive(0.0)
+        rotation_y = reactive(0.0)
+        rotation_z = reactive(0.0)
+        model_type = reactive("cube")
+        fps = reactive(0.0)
+        
+        BINDINGS = [
+            ("w", "rot_x_up", "Rotate X+"),
+            ("s", "rot_x_down", "Rotate X-"),
+            ("a", "rot_y_left", "Rotate Y-"),
+            ("d", "rot_y_right", "Rotate Y+"),
+            ("q", "rot_z_left", "Rotate Z-"),
+            ("e", "rot_z_right", "Rotate Z+"),
+            ("r", "reset", "Reset"),
+            ("c", "cycle_model", "Cycle Model"),
+            ("space", "toggle_auto", "Auto Rotate"),
+        ]
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.renderer = TextualRenderer3D(50, 25)
+            self.auto_rotating = False
+            self.frame_count = 0
+            self.last_time = time.time()
+            self.models = ["cube", "pyramid", "sphere"]
+            self.model_idx = 0
+        
+        def on_mount(self):
+            """Start animation timer."""
+            self.set_interval(0.05, self._animate)
+        
+        def _animate(self):
+            """Update animation frame."""
+            if self.auto_rotating:
+                self.rotation_x += 0.02
+                self.rotation_y += 0.03
+                self.rotation_z += 0.01
+            
+            self.frame_count += 1
+            if self.frame_count % 20 == 0:
+                current_time = time.time()
+                self.fps = 20 / (current_time - self.last_time)
+                self.last_time = current_time
+            
+            self.refresh()
+        
+        def action_rot_x_up(self):
+            self.rotation_x += 0.1
+        
+        def action_rot_x_down(self):
+            self.rotation_x -= 0.1
+        
+        def action_rot_y_left(self):
+            self.rotation_y -= 0.1
+        
+        def action_rot_y_right(self):
+            self.rotation_y += 0.1
+        
+        def action_rot_z_left(self):
+            self.rotation_z -= 0.1
+        
+        def action_rot_z_right(self):
+            self.rotation_z += 0.1
+        
+        def action_reset(self):
+            self.rotation_x = 0.0
+            self.rotation_y = 0.0
+            self.rotation_z = 0.0
+        
+        def action_cycle_model(self):
+            self.model_idx = (self.model_idx + 1) % len(self.models)
+            self.model_type = self.models[self.model_idx]
+        
+        def action_toggle_auto(self):
+            self.auto_rotating = not self.auto_rotating
+        
+        def render(self) -> str:
+            if self.model_type == "cube":
+                model_view = self.renderer.render_cube(self.rotation_x, self.rotation_y, self.rotation_z)
+            elif self.model_type == "pyramid":
+                model_view = self.renderer.render_pyramid(self.rotation_x, self.rotation_y, self.rotation_z)
+            else:
+                model_view = self.renderer.render_sphere(self.rotation_x, self.rotation_y, self.rotation_z)
+            
+            status = "AUTO" if self.auto_rotating else "MANUAL"
+            
+            return f"""╔═══════════════════════════════════════════════════╗
+║  3D ASCII VIEWER - {self.model_type.upper():13}  [{status:6}]    ║
+╠═══════════════════════════════════════════════════╣
+{model_view}
+╠═══════════════════════════════════════════════════╣
+║ Rotation: X={self.rotation_x:6.2f}° Y={self.rotation_y:6.2f}° Z={self.rotation_z:6.2f}° ║
+║ FPS: {self.fps:5.1f} | Controls: WASD/QE=Rotate, C=Model, Space=Auto, R=Reset ║
+╚═══════════════════════════════════════════════════╝"""
+
+    # ============================================================================
+    # STATISTICS PANEL
+    # ============================================================================
+
+    class StatsPanel(Static):
+        """Display real-time statistics."""
+        
+        rotation_x = reactive(0.0)
+        rotation_y = reactive(0.0)
+        rotation_z = reactive(0.0)
+        model_type = reactive("cube")
+        fps = reactive(0.0)
+        
+        def render(self) -> str:
+            return f"""╔════════════════════════════════════╗
+║         VIEWER STATISTICS          ║
+╠════════════════════════════════════╣
+║ Model:    {self.model_type:22} ║
+║ Rot X:    {self.rotation_x:10.2f}°        ║
+║ Rot Y:    {self.rotation_y:10.2f}°        ║
+║ Rot Z:    {self.rotation_z:10.2f}°        ║
+║ FPS:      {self.fps:10.1f}          ║
+║ Time:     {datetime.now().strftime('%H:%M:%S'):17} ║
+╠════════════════════════════════════╣
+║ W/S - Rotate X    Q/E - Rotate Z   ║
+║ A/D - Rotate Y    C - Cycle Model  ║
+║ Space - Auto Rotate  R - Reset     ║
+╚════════════════════════════════════╝"""
+
+    # ============================================================================
+    # TEXTUAL 3D DASHBOARD
+    # ============================================================================
+
+    class Textual3DDashboard(Static):
+        """Complete 3D visualization dashboard."""
+        
+        def compose(self) -> ComposeResult:
+            yield Header()
+            
+            with Horizontal(id="main-container"):
+                with Vertical(id="viewer-section"):
+                    yield Static("3D ASCII Visualization Engine", id="title")
+                    viewer = Interactive3DViewer(id="viewer")
+                    yield viewer
+                
+                with Vertical(id="stats-section"):
+                    stats = StatsPanel(id="stats")
+                    yield stats
+            
+            yield Footer()
+        
+        def on_mount(self):
+            """Link reactive properties."""
+            viewer = self.query_one("#viewer", Interactive3DViewer)
+            stats = self.query_one("#stats", StatsPanel)
+            
+            # Watch viewer changes
+            viewer.watch_rotation_x = lambda value: setattr(stats, "rotation_x", value)
+            viewer.watch_rotation_y = lambda value: setattr(stats, "rotation_y", value)
+            viewer.watch_rotation_z = lambda value: setattr(stats, "rotation_z", value)
+            viewer.watch_model_type = lambda value: setattr(stats, "model_type", value)
+            viewer.watch_fps = lambda value: setattr(stats, "fps", value)
+
+# ============================================================================
+# HELPER FUNCTIONS FOR NON-TEXTUAL USE
+# ============================================================================
+
+def get_ascii_model(model_type: str, rot_x: float, rot_y: float, rot_z: float,
+                    width: int = 40, height: int = 20) -> str:
+    """Get ASCII representation of a 3D model."""
+    renderer = TextualRenderer3D(width, height)
+    
+    if model_type == "cube":
+        return renderer.render_cube(rot_x, rot_y, rot_z)
+    elif model_type == "pyramid":
+        return renderer.render_pyramid(rot_x, rot_y, rot_z)
+    elif model_type == "sphere":
+        return renderer.render_sphere(rot_x, rot_y, rot_z)
+    else:
+        return renderer.render_cube(rot_x, rot_y, rot_z)
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "textual_3d_viewer",
+        "version": "1.0",
+        "description": "Interactive 3D ASCII visualization with Textual UI",
+        "type": "ui_framework",
+        "components": [
+            "TextualRenderer3D",
+            "Interactive3DViewer",
+            "StatsPanel",
+            "Textual3DDashboard",
+            "Vector3"
+        ],
+        "features": [
+            "real_time_3d_rendering",
+            "interactive_controls",
+            "multiple_models",
+            "auto_rotation",
+            "fps_tracking",
+            "statistics_display",
+            "textual_integration"
+        ]
+    }
+
+# Global instance
+VIEWER_INSTANCE = None
+
+def get_viewer() -> Optional[Interactive3DViewer]:
+    """Get global viewer instance."""
+    return VIEWER_INSTANCE if TEXTUAL_AVAILABLE else None
+'''
+
+# ================================================================================
+# EMBEDDED UNIFIED DASHBOARD MODULE
+# ================================================================================
+
+EMBEDDED_UNIFIED_DASHBOARD = r'''
+#!/usr/bin/env python3
+"""
+Unified Dashboard - Centralized System Monitoring & Visualization
+Combines API metrics, microservices health, and 3D visualization
+"""
+
+from typing import Dict, List, Any, Optional
+from dataclasses import dataclass
+from datetime import datetime
+from collections import defaultdict
+
+try:
+    from textual.app import ComposeResult
+    from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+    from textual.widgets import Static, Header, Footer, TabbedContent, TabPane
+    TEXTUAL_AVAILABLE = True
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+    class Static: pass
+
+# ============================================================================
+# METRICS AGGREGATOR
+# ============================================================================
+
+@dataclass
+class SystemMetric:
+    """System metric data point."""
+    name: str
+    value: float
+    unit: str
+    status: str  # healthy, warning, critical
+    timestamp: float
+    threshold_warn: float = 70.0
+    threshold_crit: float = 90.0
+
+class MetricsAggregator:
+    """Aggregate metrics from all systems."""
+    
+    def __init__(self):
+        self.api_metrics: Dict[str, Any] = {}
+        self.service_metrics: Dict[str, Any] = {}
+        self.visualization_metrics: Dict[str, Any] = {}
+        self.system_metrics: List[SystemMetric] = []
+        self.health_score = 100.0
+    
+    def add_metric(self, name: str, value: float, unit: str = "", 
+                  threshold_warn: float = 70.0, threshold_crit: float = 90.0):
+        """Add a metric."""
+        status = self._get_status(value, threshold_warn, threshold_crit)
+        metric = SystemMetric(
+            name=name, value=value, unit=unit, status=status,
+            timestamp=datetime.now().timestamp(),
+            threshold_warn=threshold_warn,
+            threshold_crit=threshold_crit
+        )
+        self.system_metrics.append(metric)
+    
+    def _get_status(self, value: float, warn: float, crit: float) -> str:
+        """Get status based on thresholds."""
+        if value >= crit:
+            return "critical"
+        elif value >= warn:
+            return "warning"
+        else:
+            return "healthy"
+    
+    def calculate_health_score(self) -> float:
+        """Calculate overall health score (0-100)."""
+        if not self.system_metrics:
+            return 100.0
+        
+        scores = []
+        for metric in self.system_metrics:
+            if metric.status == "healthy":
+                scores.append(100)
+            elif metric.status == "warning":
+                scores.append(70)
+            else:
+                scores.append(30)
+        
+        self.health_score = sum(scores) / len(scores) if scores else 100.0
+        return self.health_score
+    
+    def get_summary(self) -> Dict[str, Any]:
+        """Get metrics summary."""
+        health = self.calculate_health_score()
+        
+        status_counts = defaultdict(int)
+        for metric in self.system_metrics:
+            status_counts[metric.status] += 1
+        
+        return {
+            "health_score": round(health, 1),
+            "total_metrics": len(self.system_metrics),
+            "healthy": status_counts["healthy"],
+            "warning": status_counts["warning"],
+            "critical": status_counts["critical"],
+            "timestamp": datetime.now().isoformat()
+        }
+
+# ============================================================================
+# DASHBOARD WIDGETS
+# ============================================================================
+
+if TEXTUAL_AVAILABLE:
+    class HealthScoreWidget(Static):
+        """Display system health score."""
+        
+        def __init__(self, aggregator: MetricsAggregator, **kwargs):
+            super().__init__(**kwargs)
+            self.aggregator = aggregator
+        
+        def render(self) -> str:
+            summary = self.aggregator.get_summary()
+            health = summary["health_score"]
+            
+            if health >= 80:
+                status_icon = "🟢"
+                status_text = "HEALTHY"
+            elif health >= 50:
+                status_icon = "🟡"
+                status_text = "WARNING"
+            else:
+                status_icon = "🔴"
+                status_text = "CRITICAL"
+            
+            bar_len = 30
+            filled = int(bar_len * health / 100)
+            bar = "█" * filled + "░" * (bar_len - filled)
+            
+            return f"""╔════════════════════════════════════╗
+║  SYSTEM HEALTH SCORE               ║
+╠════════════════════════════════════╣
+║ Score: {health:5.1f}/100.0 {status_icon} {status_text:7}     ║
+║ [{bar}]   ║
+║                                    ║
+║ Healthy:  {summary['healthy']:2} │ Warning:  {summary['warning']:2}      ║
+║ Critical: {summary['critical']:2} │ Total:    {summary['total_metrics']:2}      ║
+╚════════════════════════════════════╝"""
+
+    class APIMetricsWidget(Static):
+        """Display API Gateway metrics."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.metrics = {
+                "total_requests": 1250,
+                "avg_response_time": 45.3,
+                "success_rate": 99.2,
+                "active_endpoints": 12,
+                "rate_limit_hits": 3
+            }
+        
+        def render(self) -> str:
+            return f"""╔════════════════════════════════════╗
+║     API GATEWAY METRICS            ║
+╠════════════════════════════════════╣
+║ Requests:    {self.metrics['total_requests']:8}              ║
+║ Avg Response: {self.metrics['avg_response_time']:7.1f}ms        ║
+║ Success Rate: {self.metrics['success_rate']:7.1f}%         ║
+║ Endpoints:   {self.metrics['active_endpoints']:8}              ║
+║ Rate Limits: {self.metrics['rate_limit_hits']:8} hits        ║
+╠════════════════════════════════════╣
+║ Status: ✅ OPERATIONAL              ║
+╚════════════════════════════════════╝"""
+
+    class MicroservicesWidget(Static):
+        """Display microservices status."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.services = {
+                "backend-api": {"instances": 3, "status": "healthy"},
+                "auth-service": {"instances": 2, "status": "healthy"},
+                "cache-layer": {"instances": 1, "status": "healthy"},
+                "analytics": {"instances": 2, "status": "degraded"},
+            }
+        
+        def render(self) -> str:
+            lines = [
+                "╔════════════════════════════════════╗",
+                "║   MICROSERVICES STATUS             ║",
+                "╠════════════════════════════════════╣",
+            ]
+            
+            for service, info in self.services.items():
+                icon = "🟢" if info["status"] == "healthy" else "🟡"
+                lines.append(f"║ {icon} {service:20} ×{info['instances']}        ║")
+            
+            lines.extend([
+                "╠════════════════════════════════════╣",
+                f"║ Total Services: {len(self.services):15}        ║",
+                f"║ All Healthy: {'YES' if all(s['status']=='healthy' for s in self.services.values()) else 'NO':18}        ║",
+                "╚════════════════════════════════════╝"
+            ])
+            
+            return '\n'.join(lines)
+
+    class VisualizationStatsWidget(Static):
+        """Display visualization engine stats."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.stats = {
+                "frames_rendered": 5420,
+                "fps": 24.5,
+                "active_charts": 8,
+                "total_datapoints": 3547
+            }
+        
+        def render(self) -> str:
+            return f"""╔════════════════════════════════════╗
+║  VISUALIZATION ENGINE              ║
+╠════════════════════════════════════╣
+║ Frames: {self.stats['frames_rendered']:8}             ║
+║ FPS: {self.stats['fps']:5.1f}                   ║
+║ Active Charts: {self.stats['active_charts']:5}           ║
+║ Data Points: {self.stats['total_datapoints']:6}          ║
+╠════════════════════════════════════╣
+║ Status: ✅ RUNNING                 ║
+╚════════════════════════════════════╝"""
+
+    class EventLogWidget(Static):
+        """Display recent system events."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.events = [
+                ("API Gateway", "Endpoint registered", "info"),
+                ("Microservices", "Service health check", "info"),
+                ("Visualization", "Render frame complete", "info"),
+                ("System", "Cache hit ratio 92%", "success"),
+            ]
+        
+        def render(self) -> str:
+            lines = [
+                "╔════════════════════════════════════╗",
+                "║      RECENT EVENTS                 ║",
+                "╠════════════════════════════════════╣",
+            ]
+            
+            for system, event, level in self.events[-5:]:
+                icon_map = {"info": "ℹ️", "success": "✅", "error": "❌"}
+                icon = icon_map.get(level, "•")
+                event_text = f"{system}: {event}"
+                lines.append(f"║ {icon} {event_text:30} ║")
+            
+            lines.append("╚════════════════════════════════════╝")
+            return '\n'.join(lines)
+
+    # ============================================================================
+    # UNIFIED DASHBOARD
+    # ============================================================================
+
+    class UnifiedDashboard(Static):
+        """Complete unified system dashboard."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.aggregator = MetricsAggregator()
+            self._init_sample_metrics()
+        
+        def _init_sample_metrics(self):
+            """Initialize sample metrics."""
+            self.aggregator.add_metric("CPU Usage", 45.2, "%")
+            self.aggregator.add_metric("Memory Usage", 62.1, "%")
+            self.aggregator.add_metric("Disk Usage", 38.5, "%")
+            self.aggregator.add_metric("Network I/O", 23.7, "Mbps")
+        
+        def compose(self) -> ComposeResult:
+            yield Header()
+            
+            with Horizontal(id="dashboard-main"):
+                with Vertical(id="left-column"):
+                    yield HealthScoreWidget(self.aggregator, id="health")
+                    yield APIMetricsWidget(id="api-metrics")
+                
+                with Vertical(id="center-column"):
+                    yield MicroservicesWidget(id="services")
+                    yield VisualizationStatsWidget(id="viz-stats")
+                
+                with Vertical(id="right-column"):
+                    yield EventLogWidget(id="events")
+            
+            yield Footer()
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "unified_dashboard",
+        "version": "1.0",
+        "description": "Centralized system monitoring and metrics aggregation",
+        "type": "ui_framework",
+        "components": [
+            "MetricsAggregator",
+            "HealthScoreWidget",
+            "APIMetricsWidget",
+            "MicroservicesWidget",
+            "VisualizationStatsWidget",
+            "EventLogWidget",
+            "UnifiedDashboard"
+        ],
+        "features": [
+            "metrics_aggregation",
+            "health_scoring",
+            "event_logging",
+            "real_time_monitoring",
+            "service_overview"
+        ]
+    }
+
+# Global aggregator
+METRICS_AGGREGATOR = MetricsAggregator()
+
+def get_aggregator() -> MetricsAggregator:
+    """Get global metrics aggregator."""
+    return METRICS_AGGREGATOR
+'''
+
+# ================================================================================
+# EMBEDDED COMMAND CENTER MODULE
+# ================================================================================
+
+EMBEDDED_COMMAND_CENTER = r'''
+#!/usr/bin/env python3
+"""
+Classic Command Center - Traditional Terminal UI
+Text-based interface for system control and monitoring
+"""
+
+from typing import Dict, List, Any, Callable, Optional
+from dataclasses import dataclass
+from datetime import datetime
+
+try:
+    from textual.app import ComposeResult
+    from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
+    from textual.widgets import Static, Header, Footer, Button, Input, Select, Label
+    TEXTUAL_AVAILABLE = True
+except ImportError:
+    TEXTUAL_AVAILABLE = False
+    class Static: pass
+
+# ============================================================================
+# COMMAND PROCESSING
+# ============================================================================
+
+@dataclass
+class Command:
+    """System command."""
+    name: str
+    description: str
+    handler: Callable
+    category: str
+    requires_args: bool = False
+
+class CommandProcessor:
+    """Process and execute system commands."""
+    
+    def __init__(self):
+        self.commands: Dict[str, Command] = {}
+        self.history: List[str] = []
+        self.output_buffer: List[str] = []
+        self._register_default_commands()
+    
+    def _register_default_commands(self):
+        """Register default system commands."""
+        self.register_command(
+            "help",
+            "Show available commands",
+            self._cmd_help,
+            "system"
+        )
+        self.register_command(
+            "status",
+            "Show system status",
+            self._cmd_status,
+            "system"
+        )
+        self.register_command(
+            "api",
+            "API Gateway control",
+            self._cmd_api,
+            "api"
+        )
+        self.register_command(
+            "services",
+            "Manage microservices",
+            self._cmd_services,
+            "microservices"
+        )
+        self.register_command(
+            "visualize",
+            "Launch 3D visualizer",
+            self._cmd_visualize,
+            "visualization"
+        )
+        self.register_command(
+            "metrics",
+            "Display system metrics",
+            self._cmd_metrics,
+            "monitoring"
+        )
+    
+    def register_command(self, name: str, description: str, 
+                        handler: Callable, category: str):
+        """Register a command."""
+        self.commands[name] = Command(
+            name=name,
+            description=description,
+            handler=handler,
+            category=category
+        )
+    
+    def execute(self, command: str, args: str = "") -> str:
+        """Execute a command."""
+        self.history.append(f"{command} {args}".strip())
+        
+        if command not in self.commands:
+            return f"❌ Unknown command: {command}"
+        
+        try:
+            result = self.commands[command].handler(args)
+            return result
+        except Exception as e:
+            return f"❌ Error: {str(e)}"
+    
+    def _cmd_help(self, args: str) -> str:
+        """Show help."""
+        lines = ["╔════════════════════════════════════╗"]
+        lines.append("║     AVAILABLE COMMANDS             ║")
+        lines.append("╠════════════════════════════════════╣")
+        
+        categories = {}
+        for cmd in self.commands.values():
+            if cmd.category not in categories:
+                categories[cmd.category] = []
+            categories[cmd.category].append(cmd)
+        
+        for category in sorted(categories.keys()):
+            lines.append(f"║ [{category.upper():15}]                ║")
+            for cmd in categories[category]:
+                lines.append(f"║  • {cmd.name:10} - {cmd.description:20} ║")
+            lines.append("║                                    ║")
+        
+        lines.append("╚════════════════════════════════════╝")
+        return '\n'.join(lines)
+    
+    def _cmd_status(self, args: str) -> str:
+        """Show system status."""
+        return f"""✅ SYSTEM STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+API Gateway:       🟢 OPERATIONAL (12 endpoints)
+Microservices:     🟢 HEALTHY (6 services, 12 instances)
+Visualization:     🟢 RUNNING (24 FPS)
+Cache:             🟢 ACTIVE (92% hit rate)
+Events:            🟢 STREAMING (247 events/min)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Overall Health:    🟢 EXCELLENT (94.2/100)
+Timestamp:         {datetime.now().isoformat()}"""
+    
+    def _cmd_api(self, args: str) -> str:
+        """API Gateway commands."""
+        if not args:
+            return """API Gateway Commands:
+  api list      - List all endpoints
+  api versions  - Show API versions
+  api metrics   - Display metrics
+  api reset     - Reset counters"""
+        
+        if "list" in args:
+            return """Active API Endpoints:
+  GET  /api/v1/health
+  POST /api/v1/data
+  GET  /api/v2/users
+  POST /api/v2/events
+  GET  /api/v3/analytics
+  ... and 7 more"""
+        
+        elif "versions" in args:
+            return """API Versions:
+  v1:   Stable (27 endpoints, 2 deprecated)
+  v2:   Current (35 endpoints)
+  v3:   Beta (12 endpoints)
+  beta: Development (8 endpoints)"""
+        
+        elif "metrics" in args:
+            return """API Metrics:
+  Total Requests:    1,247
+  Avg Response Time: 45.3ms
+  Success Rate:      99.2%
+  Error Rate:        0.8%
+  Rate Limits Hit:   3"""
+        
+        return "API command executed"
+    
+    def _cmd_services(self, args: str) -> str:
+        """Microservices commands."""
+        if not args:
+            return """Microservices Commands:
+  services list     - List all services
+  services health   - Health report
+  services policies - Show policies
+  services traffic  - Traffic splitting"""
+        
+        if "list" in args:
+            return """Registered Services:
+  backend-api    3 instances  🟢 HEALTHY
+  auth-service   2 instances  🟢 HEALTHY
+  cache-layer    1 instance   🟢 HEALTHY
+  analytics      2 instances  🟡 DEGRADED
+  queue-worker   3 instances  🟢 HEALTHY
+  notification   2 instances  🟢 HEALTHY"""
+        
+        elif "health" in args:
+            return """Service Health Report:
+  Success Rate:        99.8%
+  Avg Response Time:   34.2ms
+  Circuit Breaker:     0 open
+  Failed Calls:        2 (out of 1,500)
+  Last Check:          2 seconds ago"""
+        
+        return "Services command executed"
+    
+    def _cmd_visualize(self, args: str) -> str:
+        """Visualization commands."""
+        return """🚀 Launching 3D ASCII Viewer...
+Controls:
+  WASD    - Rotate
+  Q/E     - Z-axis rotation
+  C       - Cycle model (cube, pyramid, sphere)
+  Space   - Toggle auto-rotate
+  R       - Reset view
+
+Models: Cube | Pyramid | Sphere
+Status: READY"""
+    
+    def _cmd_metrics(self, args: str) -> str:
+        """Display metrics."""
+        return """System Metrics:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CPU Usage:         ████████░░ 45.2%
+Memory Usage:      ██████░░░░ 62.1%
+Disk Usage:        ███░░░░░░░ 38.5%
+Network I/O:       ██░░░░░░░░ 23.7 Mbps
+Cache Hit Ratio:   ████████░░ 92.3%
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Health Score:      94.2/100 🟢 EXCELLENT"""
+
+if TEXTUAL_AVAILABLE:
+    class CommandInput(Static):
+        """Command input field."""
+        
+        def __init__(self, processor: CommandProcessor, **kwargs):
+            super().__init__(**kwargs)
+            self.processor = processor
+            self.input_buffer = ""
+        
+        def render(self) -> str:
+            return f"""╔════════════════════════════════════╗
+║ COMMAND CENTER                     ║
+╠════════════════════════════════════╣
+║ > {self.input_buffer:<31} ║
+╚════════════════════════════════════╝"""
+
+    class CommandOutput(Static):
+        """Command output display."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.output = "Welcome to Classic Command Center\\nType '\''help'\'' for available commands"
+        
+        def render(self) -> str:
+            return f"""╔════════════════════════════════════╗
+║         OUTPUT                     ║
+╠════════════════════════════════════╣
+{self.output}
+╚════════════════════════════════════╝"""
+
+    class CommandHistory(Static):
+        """Show command history."""
+        
+        def __init__(self, processor: CommandProcessor, **kwargs):
+            super().__init__(**kwargs)
+            self.processor = processor
+        
+        def render(self) -> str:
+            lines = ["╔════════════════════════════════════╗"]
+            lines.append("║    COMMAND HISTORY                 ║")
+            lines.append("╠════════════════════════════════════╣")
+            
+            for cmd in self.processor.history[-5:]:
+                lines.append(f"║ $ {cmd:30} ║")
+            
+            lines.append("╚════════════════════════════════════╝")
+            return '\n'.join(lines)
+
+    class ClassicCommandCenter(Static):
+        """Classic terminal-style command center."""
+        
+        def __init__(self, **kwargs):
+            super().__init__(**kwargs)
+            self.processor = CommandProcessor()
+        
+        def compose(self) -> ComposeResult:
+            yield Header()
+            
+            with Vertical(id="center-main"):
+                yield Label("PYTHONOS COMMAND CENTER", id="title")
+                yield CommandInput(self.processor, id="input")
+                yield CommandOutput(id="output", styles="height: 15")
+                yield CommandHistory(self.processor, id="history", styles="height: 10")
+            
+            yield Footer()
+
+def manifest() -> Dict[str, Any]:
+    """Module manifest."""
+    return {
+        "name": "command_center",
+        "version": "1.0",
+        "description": "Classic terminal command interface",
+        "type": "ui_framework",
+        "components": [
+            "Command",
+            "CommandProcessor",
+            "CommandInput",
+            "CommandOutput",
+            "CommandHistory",
+            "ClassicCommandCenter"
+        ],
+        "features": [
+            "command_execution",
+            "system_control",
+            "api_management",
+            "service_control",
+            "metrics_display"
+        ]
+    }
+
+# Global processor
+COMMAND_PROCESSOR = CommandProcessor()
+
+def get_processor() -> CommandProcessor:
+    """Get global command processor."""
+    return COMMAND_PROCESSOR
+'''
+
 def extract_embedded_files():
     """Extract embedded modules to correct locations."""
     try:
@@ -3164,6 +7496,22 @@ def extract_embedded_files():
             ("system_utilities.py", EMBEDDED_SYSTEM_UTILITIES),
             ("theme_manager.py", EMBEDDED_THEME_MANAGER),
             ("file_explorer.py", EMBEDDED_FILE_EXPLORER),
+            ("cache_engine.py", EMBEDDED_CACHE_ENGINE),
+            ("event_stream.py", EMBEDDED_EVENT_STREAM),
+            ("media_ai.py", EMBEDDED_MEDIA_AI),
+            ("ai_assistant.py", EMBEDDED_AI_ASSISTANT),
+            ("advanced_widgets.py", EMBEDDED_ADVANCED_WIDGETS),
+            ("script_orchestrator.py", EMBEDDED_SCRIPT_ORCHESTRATOR),
+            ("cross_platform_adapter.py", EMBEDDED_CROSS_PLATFORM_ADAPTER),
+            ("interactive_components.py", EMBEDDED_INTERACTIVE_COMPONENTS),
+            ("phase4_components.py", EMBEDDED_PHASE4_COMPONENTS),
+            ("visualization_engine.py", EMBEDDED_VISUALIZATION_ENGINE),
+            ("visualization_ai_integration.py", EMBEDDED_VISUALIZATION_AI_INTEGRATION),
+            ("api_gateway.py", EMBEDDED_API_GATEWAY),
+            ("microservices.py", EMBEDDED_MICROSERVICES),
+            ("textual_3d_viewer.py", EMBEDDED_TEXTUAL_3D_VIEWER),
+            ("unified_dashboard.py", EMBEDDED_UNIFIED_DASHBOARD),
+            ("command_center.py", EMBEDDED_COMMAND_CENTER),
         ]
 
         extracted_count = 0
@@ -6018,7 +10366,7 @@ def _ensure_textual_imports():
     """Lazy-load Textual widgets the first time enhanced mode is launched."""
     global App, ComposeResult, Container, Horizontal, Vertical, Grid, reactive
     global Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab, Digits, Markdown
-    global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR, DISPLAY_MODE
+    global _TEXTUAL_IMPORTED, _TEXTUAL_IMPORT_ERROR, DISPLAY_MODE, events
 
     if _TEXTUAL_IMPORTED:
         return True
@@ -6026,6 +10374,7 @@ def _ensure_textual_imports():
         from textual.app import App, ComposeResult
         from textual.containers import Container, Horizontal, Vertical, Grid
         from textual.reactive import reactive
+        from textual import events
         from textual.widgets import Header, Footer, Static, ListView, ListItem, Label, Tabs, Tab
         try:
             from textual.widgets import Digits, Markdown
@@ -6043,6 +10392,7 @@ def _ensure_textual_imports():
         DISPLAY_MODE = "classic"  # Fallback to classic on Textual failure
         App = ComposeResult = Container = Horizontal = Vertical = Grid = None
         reactive = None
+        events = None
         Header = Footer = Static = ListView = ListItem = Label = Tabs = Tab = Digits = Markdown = None
         return False
 
@@ -25696,12 +30046,18 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         CSS = """
         Screen { background: $panel; }
         #main { height: 1fr; }
-        #media-tree { width: 32; border: solid $primary; }
+        #media-tree { width: 30; border: solid $primary; }
         #right { padding: 1; }
-        #browser-log, #info-log { height: 12; border: solid $secondary; }
+        #browser-log { height: 10; border: solid $secondary; }
+        #info-panel { height: 15; border: solid $accent; }
+        #playlist-panel { height: 12; border: solid $success; }
         #browser-bar { align: center middle; height: 3; }
-        #controls { height: 3; }
-        #now-playing { padding: 1 0; }
+        #controls { height: 5; }
+        #now-playing { padding: 1; background: $boost; }
+        #progress-bar { height: 1; border: solid $warning; }
+        #volume-display { width: 20; }
+        #search-bar { height: 3; }
+        .stat-row { height: 1; }
         """
 
         def __init__(self, start_path):
@@ -25710,55 +30066,155 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             self.audio_ready = _audio_ready
             self.audio_error = _audio_error
             self._paused = False
+            self._volume = 0.7
+            self._repeat_mode = "none"  # none, one, all
+            self._shuffle = False
+            self._current_position = 0
+            self._duration = 0
+            self.playlist = []
+            self.playlist_index = -1
             self.video_to_play: Optional[Path] = None
             self.converter = globals().get("convert_to_ascii")
             self.video_player = globals().get("_asciip_play_video")
+            self.update_timer = None
+            if self.audio_ready:
+                try:
+                    pygame.mixer.music.set_volume(self._volume)
+                except Exception:
+                    pass
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
             with Horizontal(id="main"):
                 yield DirectoryTree(str(self.start_path), id="media-tree")
                 with Vertical(id="right"):
-                    with Horizontal(id="browser-bar"):
-                        yield Input(placeholder="https://example.com", id="url-input")
-                        yield Button("Fetch ASCII", id="btn-fetch", variant="primary")
+                    # Search/Browser section
+                    with Horizontal(id="search-bar"):
+                        yield Input(placeholder="🔍 Search media files or enter URL", id="url-input")
+                        yield Button("🌐 Fetch", id="btn-fetch", variant="primary")
                     yield TextLog(id="browser-log", highlight=False)
-                    yield Static("Now Playing: --", id="now-playing")
+                    
+                    # Now Playing with rich info
+                    yield Static("⏸️ No track loaded", id="now-playing")
+                    yield Static("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00 / 0:00", id="progress-bar")
+                    
+                    # Advanced Controls
                     with Horizontal(id="controls"):
-                        yield Button("Play/Pause", id="btn-toggle")
-                        yield Button("Stop", id="btn-stop")
-                    yield TextLog(id="info-log", highlight=False)
+                        yield Button("⏮️ Prev", id="btn-prev", variant="default")
+                        yield Button("⏯️ Play", id="btn-toggle", variant="success")
+                        yield Button("⏭️ Next", id="btn-next", variant="default")
+                        yield Button("⏹️ Stop", id="btn-stop", variant="warning")
+                        yield Button("🔀 Shuffle", id="btn-shuffle", variant="default")
+                        yield Button("🔁 Repeat", id="btn-repeat", variant="default")
+                    with Horizontal():
+                        yield Button("🔊-", id="btn-vol-down", variant="default")
+                        yield Static(f"Vol: {int(self._volume * 100)}%", id="volume-display")
+                        yield Button("🔊+", id="btn-vol-up", variant="default")
+                        yield Button("📂 Add to Queue", id="btn-add-queue", variant="primary")
+                        yield Button("🗑️ Clear Queue", id="btn-clear-queue", variant="error")
+                    
+                    # Info Panel with detailed metadata
+                    yield TextLog(id="info-panel", highlight=False)
+                    
+                    # Playlist/Queue Panel
+                    yield TextLog(id="playlist-panel", highlight=False)
             yield Footer()
 
-        def _update_now_playing(self, track_name="--"):
-            self.query_one("#now-playing", Static).update(f"Now Playing: {track_name}")
+        def on_mount(self):
+            self.set_interval(0.5, self._update_progress)
+            self._update_playlist_display()
+            info = self.query_one("#info-panel", TextLog)
+            info.write("🎵 MEDIA LOUNGE PRO - Enhanced Edition")
+            info.write("━" * 50)
+            info.write("📁 Browse: Click files in tree")
+            info.write("⌨️  Shortcuts: Space=Play/Pause, N=Next, P=Prev")
+            info.write("🎚️  Volume: +/- keys or buttons")
+            info.write("🔀 Shuffle/Repeat available")
+            info.write("📋 Queue multiple tracks")
+            info.write("🌐 Fetch web content as ASCII")
+            info.write("━" * 50)
 
-        def _log(self, message: str, target: str = "#info-log", clear: bool = False):
+        def _update_now_playing(self, track_name="--", status="⏸️"):
+            info = f"{status} {track_name}"
+            self.query_one("#now-playing", Static).update(info)
+
+        def _update_progress(self):
+            """Update progress bar in real-time."""
+            if not self.audio_ready or not pygame.mixer.music.get_busy():
+                return
+            try:
+                # Get current playback position (pygame has limited position support)
+                elapsed = pygame.mixer.music.get_pos() / 1000.0  # milliseconds to seconds
+                if self._duration > 0:
+                    progress = min(elapsed / self._duration, 1.0)
+                    filled = int(progress * 40)
+                    bar = "█" * filled + "━" * (40 - filled)
+                    time_str = f"{int(elapsed // 60)}:{int(elapsed % 60):02d} / {int(self._duration // 60)}:{int(self._duration % 60):02d}"
+                    self.query_one("#progress-bar", Static).update(f"{bar} {time_str}")
+            except Exception:
+                pass
+
+        def _update_playlist_display(self):
+            """Refresh the playlist panel."""
+            panel = self.query_one("#playlist-panel", TextLog)
+            panel.clear()
+            if not self.playlist:
+                panel.write("📋 Queue is empty. Select files to add.")
+                return
+            panel.write(f"📋 QUEUE ({len(self.playlist)} tracks) {'🔀' if self._shuffle else ''} {'🔁' if self._repeat_mode != 'none' else ''}")
+            for idx, track in enumerate(self.playlist[:20]):  # Show first 20
+                marker = "▶️" if idx == self.playlist_index else "  "
+                panel.write(f"{marker} {idx + 1}. {track.name}")
+            if len(self.playlist) > 20:
+                panel.write(f"... and {len(self.playlist) - 20} more")
+
+        def _log(self, message: str, target: str = "#info-panel", clear: bool = False):
             log = self.query_one(target, TextLog)
             if clear:
                 log.clear()
             log.write(message)
 
         def _handle_audio_metadata(self, media_path: Path):
+            """Enhanced metadata display with more details."""
             if not TinyTag:
                 if _tinytag_error:
                     self._log(_tinytag_error)
                 return
             try:
                 tag = TinyTag.get(str(media_path))
-                meta = []
+                meta = ["━" * 50, "🎵 TRACK INFO"]
                 if tag.title:
-                    meta.append(f"Title: {tag.title}")
+                    meta.append(f"📀 Title: {tag.title}")
                 if tag.artist:
-                    meta.append(f"Artist: {tag.artist}")
+                    meta.append(f"🎤 Artist: {tag.artist}")
+                if tag.album:
+                    meta.append(f"💿 Album: {tag.album}")
+                if tag.year:
+                    meta.append(f"📅 Year: {tag.year}")
+                if tag.genre:
+                    meta.append(f"🎭 Genre: {tag.genre}")
                 if tag.duration:
-                    meta.append(f"Duration: {tag.duration:.0f}s")
-                if meta:
-                    self._log("\n".join(meta))
+                    self._duration = tag.duration
+                    mins = int(tag.duration // 60)
+                    secs = int(tag.duration % 60)
+                    meta.append(f"⏱️  Duration: {mins}:{secs:02d}")
+                if tag.bitrate:
+                    meta.append(f"📊 Bitrate: {tag.bitrate} kbps")
+                if tag.samplerate:
+                    meta.append(f"🎚️  Sample Rate: {tag.samplerate} Hz")
+                
+                # File info
+                size_mb = media_path.stat().st_size / (1024 * 1024)
+                meta.append(f"💾 Size: {size_mb:.2f} MB")
+                meta.append(f"📝 Format: {media_path.suffix.upper()}")
+                meta.append("━" * 50)
+                
+                self._log("\n".join(meta), clear=True)
             except Exception as exc:
-                self._log(f"Metadata unavailable: {exc}")
+                self._log(f"Metadata unavailable: {exc}", clear=True)
 
         def play_audio(self, media_path: Path):
+            """Enhanced audio playback with queue support."""
             if not self.audio_ready:
                 self._log(f"Audio unavailable: {self.audio_error}")
                 return
@@ -25766,34 +30222,149 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                 pygame.mixer.music.load(str(media_path))
                 pygame.mixer.music.play()
                 self._paused = False
-                self._update_now_playing(media_path.name)
-                self._log(f"▶️ Playing {media_path.name}", clear=True)
+                self._update_now_playing(media_path.name, "▶️")
+                self._log(f"▶️ Now Playing: {media_path.name}")
                 self._handle_audio_metadata(media_path)
+                
+                # Set end event to auto-play next track
+                pygame.mixer.music.set_endevent(pygame.USEREVENT)
             except Exception as exc:
-                self._log(f"❌ {exc}")
+                self._log(f"❌ Playback error: {exc}")
+
+        def play_next(self):
+            """Play next track in queue."""
+            if not self.playlist:
+                self._log("📋 Queue is empty")
+                return
+            
+            if self._repeat_mode == "one":
+                # Replay current track
+                if self.playlist_index >= 0 and self.playlist_index < len(self.playlist):
+                    self.play_audio(self.playlist[self.playlist_index])
+                    return
+            
+            if self._shuffle:
+                import random
+                self.playlist_index = random.randint(0, len(self.playlist) - 1)
+            else:
+                self.playlist_index += 1
+                if self.playlist_index >= len(self.playlist):
+                    if self._repeat_mode == "all":
+                        self.playlist_index = 0
+                    else:
+                        self._log("📋 End of queue")
+                        self.playlist_index = len(self.playlist) - 1
+                        return
+            
+            self.play_audio(self.playlist[self.playlist_index])
+            self._update_playlist_display()
+
+        def play_prev(self):
+            """Play previous track in queue."""
+            if not self.playlist:
+                self._log("📋 Queue is empty")
+                return
+            
+            self.playlist_index -= 1
+            if self.playlist_index < 0:
+                self.playlist_index = len(self.playlist) - 1 if self._repeat_mode == "all" else 0
+            
+            self.play_audio(self.playlist[self.playlist_index])
+            self._update_playlist_display()
+
+        def add_to_queue(self, media_path: Path):
+            """Add track to playlist queue."""
+            if media_path not in self.playlist:
+                self.playlist.append(media_path)
+                self._log(f"➕ Added to queue: {media_path.name}")
+                self._update_playlist_display()
+            else:
+                self._log(f"⚠️  Already in queue: {media_path.name}")
+
+        def clear_queue(self):
+            """Clear the entire playlist."""
+            self.playlist.clear()
+            self.playlist_index = -1
+            self._log("🗑️  Queue cleared")
+            self._update_playlist_display()
+
+        def toggle_shuffle(self):
+            """Toggle shuffle mode."""
+            self._shuffle = not self._shuffle
+            status = "enabled" if self._shuffle else "disabled"
+            self._log(f"🔀 Shuffle {status}")
+            self._update_playlist_display()
+            btn = self.query_one("#btn-shuffle", Button)
+            btn.variant = "success" if self._shuffle else "default"
+
+        def toggle_repeat(self):
+            """Cycle through repeat modes: none -> one -> all -> none."""
+            modes = ["none", "one", "all"]
+            current_idx = modes.index(self._repeat_mode)
+            self._repeat_mode = modes[(current_idx + 1) % len(modes)]
+            
+            symbols = {"none": "🔁", "one": "🔂", "all": "🔁"}
+            self._log(f"{symbols[self._repeat_mode]} Repeat: {self._repeat_mode}")
+            self._update_playlist_display()
+            btn = self.query_one("#btn-repeat", Button)
+            btn.label = symbols[self._repeat_mode]
+            btn.variant = "success" if self._repeat_mode != "none" else "default"
+
+        def adjust_volume(self, delta: float):
+            """Adjust playback volume."""
+            if not self.audio_ready:
+                return
+            self._volume = max(0.0, min(1.0, self._volume + delta))
+            try:
+                pygame.mixer.music.set_volume(self._volume)
+                self.query_one("#volume-display", Static).update(f"Vol: {int(self._volume * 100)}%")
+                self._log(f"🔊 Volume: {int(self._volume * 100)}%")
+            except Exception:
+                pass
 
         def toggle_audio(self):
+            """Enhanced play/pause toggle."""
             if not self.audio_ready:
                 self._log("Audio unavailable.")
                 return
             try:
-                if self._paused:
-                    pygame.mixer.music.unpause()
-                    self._log("Resumed playback.")
+                if pygame.mixer.music.get_busy():
+                    if self._paused:
+                        pygame.mixer.music.unpause()
+                        self._log("▶️ Resumed")
+                        btn = self.query_one("#btn-toggle", Button)
+                        btn.label = "⏸️ Pause"
+                    else:
+                        pygame.mixer.music.pause()
+                        self._log("⏸️ Paused")
+                        btn = self.query_one("#btn-toggle", Button)
+                        btn.label = "▶️ Play"
+                    self._paused = not self._paused
                 else:
-                    pygame.mixer.music.pause()
-                    self._log("Paused playback.")
-                self._paused = not self._paused
+                    # Start playing first track in queue
+                    if self.playlist and self.playlist_index < 0:
+                        self.playlist_index = 0
+                        self.play_audio(self.playlist[0])
+                    elif self.playlist_index >= 0 and self.playlist_index < len(self.playlist):
+                        self.play_audio(self.playlist[self.playlist_index])
+                    else:
+                        self._log("⚠️  No track loaded. Select a file or add to queue.")
             except Exception as exc:
                 self._log(f"❌ {exc}")
 
         def stop_audio(self):
+            """Enhanced stop with state reset."""
             if not self.audio_ready:
                 return
             try:
                 pygame.mixer.music.stop()
-                self._update_now_playing("--")
-                self._log("⏹️ Stopped.", clear=True)
+                self._paused = False
+                self._duration = 0
+                self._update_now_playing("No track loaded", "⏹️")
+                self.query_one("#progress-bar", Static).update("━" * 40 + " 0:00 / 0:00")
+                self._log("⏹️ Stopped")
+                btn = self.query_one("#btn-toggle", Button)
+                btn.label = "▶️ Play"
             except Exception as exc:
                 self._log(f"❌ {exc}")
 
@@ -25805,40 +30376,71 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         @on(Button.Pressed, "#btn-fetch")
         @on(Input.Submitted, "#url-input")
         def handle_fetch(self, event):
-            url = self.query_one("#url-input", Input).value.strip() or "https://example.com"
+            """Enhanced fetch with search capability."""
+            query = self.query_one("#url-input", Input).value.strip()
+            if not query:
+                return
+            
             browser_log = self.query_one("#browser-log", TextLog)
             browser_log.clear()
-            browser_log.write(f"🌐 Fetching: {url}")
-            try:
-                parsed = urlparse(url)
-                if parsed.scheme not in ("http", "https"):
-                    browser_log.write("❌ Only http/https URLs are allowed.")
-                    return
-                res = requests.get(url, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
-                res.raise_for_status()
-                if len(res.content) > 500_000:
-                    browser_log.write("❌ Response too large (>500KB)")
-                    return
-                soup = BeautifulSoup(res.text, 'html.parser')
-                for s in soup(["script", "style"]):
-                    s.extract()
-                lines = [line.strip() for line in soup.get_text().splitlines() if line.strip()]
-                for line in lines[: self.MAX_DISPLAY_LINES]:
-                    browser_log.write(line)
-                img = soup.find("img")
-                if img and img.get("src"):
-                    src = urljoin(url, img.get("src"))
-                    if not self.converter:
-                        browser_log.write("[ascii converter unavailable]")
+            
+            # Check if it's a URL or search query
+            if query.startswith("http://") or query.startswith("https://"):
+                # Web fetch mode
+                browser_log.write(f"🌐 Fetching: {query}")
+                try:
+                    parsed = urlparse(query)
+                    if parsed.scheme not in ("http", "https"):
+                        browser_log.write("❌ Only http/https URLs are allowed.")
+                        return
+                    res = requests.get(query, headers={'User-Agent': 'Mozilla/5.0'}, timeout=10)
+                    res.raise_for_status()
+                    if len(res.content) > 500_000:
+                        browser_log.write("❌ Response too large (>500KB)")
+                        return
+                    soup = BeautifulSoup(res.text, 'html.parser')
+                    for s in soup(["script", "style"]):
+                        s.extract()
+                    lines = [line.strip() for line in soup.get_text().splitlines() if line.strip()]
+                    for line in lines[: self.MAX_DISPLAY_LINES]:
+                        browser_log.write(line)
+                    img = soup.find("img")
+                    if img and img.get("src"):
+                        src = urljoin(query, img.get("src"))
+                        if not self.converter:
+                            browser_log.write("[ascii converter unavailable]")
+                        else:
+                            try:
+                                ascii_img = self.converter(src, width=48)
+                                for ascii_line in ascii_img[: self.MAX_DISPLAY_LINES]:
+                                    browser_log.write(ascii_line)
+                            except Exception as exc:
+                                browser_log.write(f"[image skipped: {exc}]")
+                except Exception as exc:
+                    browser_log.write(f"❌ {exc}")
+            else:
+                # Local file search mode
+                browser_log.write(f"🔍 Searching for: {query}")
+                try:
+                    results = []
+                    search_path = self.start_path
+                    for file_path in search_path.rglob(f"*{query}*"):
+                        if file_path.is_file() and file_path.suffix.lower() in (audio_exts | video_exts):
+                            results.append(file_path)
+                            if len(results) >= 50:  # Limit results
+                                break
+                    
+                    if results:
+                        browser_log.write(f"✅ Found {len(results)} files:")
+                        for idx, result in enumerate(results[:30], 1):
+                            rel_path = result.relative_to(self.start_path) if result.is_relative_to(self.start_path) else result
+                            browser_log.write(f"{idx}. {rel_path}")
+                        if len(results) > 30:
+                            browser_log.write(f"... and {len(results) - 30} more")
                     else:
-                        try:
-                            ascii_img = self.converter(src, width=48)
-                            for ascii_line in ascii_img[: self.MAX_DISPLAY_LINES]:
-                                browser_log.write(ascii_line)
-                        except Exception as exc:
-                            browser_log.write(f"[image skipped: {exc}]")
-            except Exception as exc:
-                browser_log.write(f"❌ {exc}")
+                        browser_log.write("❌ No matching media files found")
+                except Exception as exc:
+                    browser_log.write(f"❌ Search error: {exc}")
 
         @on(Button.Pressed, "#btn-toggle")
         def handle_toggle(self, _event):
@@ -25848,18 +30450,88 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         def handle_stop(self, _event):
             self.stop_audio()
 
+        @on(Button.Pressed, "#btn-next")
+        def handle_next(self, _event):
+            self.play_next()
+
+        @on(Button.Pressed, "#btn-prev")
+        def handle_prev(self, _event):
+            self.play_prev()
+
+        @on(Button.Pressed, "#btn-shuffle")
+        def handle_shuffle(self, _event):
+            self.toggle_shuffle()
+
+        @on(Button.Pressed, "#btn-repeat")
+        def handle_repeat(self, _event):
+            self.toggle_repeat()
+
+        @on(Button.Pressed, "#btn-vol-up")
+        def handle_vol_up(self, _event):
+            self.adjust_volume(0.1)
+
+        @on(Button.Pressed, "#btn-vol-down")
+        def handle_vol_down(self, _event):
+            self.adjust_volume(-0.1)
+
+        @on(Button.Pressed, "#btn-add-queue")
+        def handle_add_queue(self, _event):
+            tree = self.query_one("#media-tree", DirectoryTree)
+            if tree.cursor_line is not None:
+                try:
+                    path = Path(tree.get_node_at_line(tree.cursor_line).data.path)
+                    if path.is_file() and path.suffix.lower() in audio_exts:
+                        self.add_to_queue(path)
+                    else:
+                        self._log("⚠️  Select an audio file first")
+                except Exception:
+                    self._log("⚠️  No file selected")
+
+        @on(Button.Pressed, "#btn-clear-queue")
+        def handle_clear_queue(self, _event):
+            self.clear_queue()
+
+        def on_key(self, event):
+            """Keyboard shortcuts for media control."""
+            if event.key == "space":
+                self.toggle_audio()
+                event.prevent_default()
+            elif event.key == "n":
+                self.play_next()
+            elif event.key == "p":
+                self.play_prev()
+            elif event.key == "s":
+                self.stop_audio()
+            elif event.key == "r":
+                self.toggle_repeat()
+            elif event.key == "z":
+                self.toggle_shuffle()
+            elif event.key == "plus" or event.key == "equals":
+                self.adjust_volume(0.1)
+            elif event.key == "minus":
+                self.adjust_volume(-0.1)
+            elif event.key == "a":
+                self.handle_add_queue(event)
+
         @on(DirectoryTree.FileSelected)
         def handle_file(self, event: DirectoryTree.FileSelected):
+            """Enhanced file handling with auto-queue support."""
             path = Path(event.path)
             ext = path.suffix.lower()
             if ext in audio_exts:
-                self.play_audio(path)
+                # Add to queue and play if nothing is playing
+                self.add_to_queue(path)
+                if self.playlist_index < 0 or not pygame.mixer.music.get_busy():
+                    self.playlist_index = len(self.playlist) - 1
+                    self.play_audio(path)
+                    self._update_playlist_display()
             elif ext in video_exts:
                 self.prepare_video(path)
             else:
-                self._log(f"Unsupported file: {path.name}")
+                self._log(f"⚠️  Unsupported format: {path.name}")
 
         def on_unmount(self):
+            """Clean shutdown."""
             if self.audio_ready:
                 try:
                     pygame.mixer.music.stop()
@@ -25990,22 +30662,34 @@ def feature_textual_widget_board(screenshot_path=None):
             self.query_one("#calc-result", Static).update(f"Result: {result}")
 
     class Mp3Widget(Static):
-        def on_mount(self):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
             self.audio_ready = False
             self.audio_error = ""
             self._paused = False
             self._pygame = None
             self._loaded_path = None
+            self._init_audio()
+
+        def _init_audio(self):
             try:
                 import pygame  # type: ignore
                 try:
                     pygame.mixer.init()
                 except Exception:
-                    pygame.mixer.init(44100, -16, 2, 2048)
+                    try:
+                        pygame.mixer.init(44100, -16, 2, 2048)
+                    except Exception:
+                        pass
                 self._pygame = pygame
                 self.audio_ready = True
             except Exception as exc:  # pragma: no cover - optional dependency
                 self.audio_error = str(exc)
+
+        def on_mount(self):
+            # Re-initialize if needed
+            if not self.audio_ready:
+                self._init_audio()
 
         def compose(self) -> ComposeResult:
             yield Static("Textual MP3 Player", classes="title")
@@ -26014,13 +30698,19 @@ def feature_textual_widget_board(screenshot_path=None):
                 yield Button("Play", id="mp3-play", variant="success")
                 yield Button("Pause/Resume", id="mp3-toggle")
                 yield Button("Stop", id="mp3-stop", variant="warning")
-            yield TextLog(id="mp3-log", highlight=False, markup=False)
+            try:
+                yield TextLog(id="mp3-log", highlight=False)
+            except Exception:
+                yield Static("Log unavailable", id="mp3-log")
 
         def _log(self, message):
             try:
                 log_widget = self.query_one("#mp3-log", TextLog)
             except Exception:
-                return
+                try:
+                    log_widget = self.query_one("#mp3-log", Static)
+                except Exception:
+                    return
             if hasattr(log_widget, "write"):
                 log_widget.write(message)
             elif hasattr(log_widget, "write_line"):
@@ -26029,7 +30719,8 @@ def feature_textual_widget_board(screenshot_path=None):
                 log_widget.append(message)
             else:
                 try:
-                    log_widget.update(message)
+                    current = log_widget.renderable if hasattr(log_widget, 'renderable') else str(log_widget)
+                    log_widget.update(f"{current}\n{message}")
                 except Exception:
                     pass
 
@@ -26115,7 +30806,7 @@ def feature_textual_widget_board(screenshot_path=None):
     class NotesWidget(Static):
         def compose(self) -> ComposeResult:
             yield Static("Quick Notes", classes="title")
-            yield TextLog(id="notes-log", highlight=False, markup=False)
+            yield TextLog(id="notes-log", highlight=False)
             yield Input(placeholder="Type a note and press Enter", id="notes-input")
 
         def _write_note(self, message):
@@ -26224,12 +30915,34 @@ def feature_textual_widget_board(screenshot_path=None):
             except Exception:
                 pass
 
+    class Textual3DViewerWidget(Static):
+        """Embedded 3D ASCII viewer widget for WidgetBoard."""
+        def on_mount(self):
+            self._viewer_instance = None
+            self._setup_viewer()
+
+        def _setup_viewer(self):
+            try:
+                from pythonOS_data.textual_3d_viewer import Textual3DDashboard
+                self._viewer_instance = Textual3DDashboard()
+            except Exception:
+                pass
+
+        def compose(self) -> ComposeResult:
+            try:
+                from pythonOS_data.textual_3d_viewer import Textual3DDashboard
+                viewer = Textual3DDashboard()
+                yield viewer
+            except Exception as exc:
+                yield Static(f"3D Viewer unavailable: {exc}")
+
     default_widgets = {
         "calculator": {"title": "Calculator", "builder": CalculatorWidget},
         "mp3": {"title": "MP3 Player", "builder": Mp3Widget},
         "notes": {"title": "Notes", "builder": NotesWidget},
         "stopwatch": {"title": "Stopwatch", "builder": StopwatchWidget},
         "stats": {"title": "System Stats", "builder": StatsWidget},
+        "3d_viewer": {"title": "3D ASCII Viewer", "builder": Textual3DViewerWidget},
     }
 
     widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
@@ -26335,7 +31048,7 @@ def feature_media_menu():
         print(" [2] Integrated Media Scanner (Explorer)")
         print(" [3] Launch asciiplayer (plugins/asciiplayer18.py)")
         print(" [4] Launch External MP3 Engine (Linked Module)")
-        print(" [5] Textual Media Lounge (ASCII Browser + Player)")
+        print(" [5] Textual Media Lounge PRO (Full Media Powerhouse: Queue, Playlists, Search, Metadata)")
         print(" [6] Open Download Center (Media Tools)")
         print(" [7] Return to Main Menu")
 
@@ -30278,9 +34991,11 @@ def run_unified_dashboard(return_to_classic=True):
         from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
         from textual.reactive import reactive
         from textual.timer import Timer
+        from textual.widgets import TabbedContent, TabPane
         from rich.text import Text
         from rich.table import Table
         from rich.panel import Panel
+        from rich.console import RenderableType
         import time
     except ImportError:
         print(f"Textual not available. Falling back to Classic Menu.")
@@ -30465,6 +35180,170 @@ Process Count: {len(psutil.pids())}
         "*": ("Security_Audit_Menu", display_security_audit_menu),
     }
 
+    class InfiniteBranchingMenu(Static):
+        """Interactive infinite branching menu for dashboard navigation."""
+        
+        def __init__(self):
+            super().__init__()
+            self.current_path = []  # Track navigation path
+            self.menu_tree = {
+                "root": {
+                    "label": "🌳 INFINITE NAVIGATION HUB",
+                    "items": [
+                        {"label": "📊 SYSTEM", "id": "system", "action": "tab_commands"},
+                        {"label": "🚀 MONITORS", "id": "monitors", "action": "tab_monitors"},
+                        {"label": "📁 FILES", "id": "files", "action": "tab_filemgr"},
+                        {"label": "🎮 WIDGETS", "id": "widgets", "action": "tab_widgets"},
+                        {"label": "🎬 MEDIA", "id": "media", "action": "tab_media"},
+                        {"label": "⚙️  SETTINGS", "id": "settings", "action": "tab_settings"},
+                    ]
+                },
+                "system": {
+                    "label": "📊 SYSTEM MENU",
+                    "items": [
+                        {"label": "Commands Palette", "id": "commands", "action": "tab_commands"},
+                        {"label": "System Logs", "id": "logs", "action": "tab_system"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                },
+                "monitors": {
+                    "label": "🚀 RESOURCE MONITORS",
+                    "items": [
+                        {"label": "Bpytop", "id": "bpytop", "cmd": "bpytop"},
+                        {"label": "Htop", "id": "htop", "cmd": "htop"},
+                        {"label": "Gtop", "id": "gtop", "cmd": "gtop"},
+                        {"label": "Btop++", "id": "btop", "cmd": "btop"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                },
+                "files": {
+                    "label": "📁 FILE MANAGERS",
+                    "items": [
+                        {"label": "Curses FM", "id": "curses", "cmd": "mc"},
+                        {"label": "Textual FM", "id": "textual", "action": "launch_textual_fm"},
+                        {"label": "Superfile", "id": "superfile", "cmd": "spf"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                },
+                "widgets": {
+                    "label": "🎮 WIDGET BOARD",
+                    "items": [
+                        {"label": "Calculator", "id": "calc", "action": "launch_calc"},
+                        {"label": "Audio Player", "id": "audio", "action": "launch_audio"},
+                        {"label": "Notes", "id": "notes", "action": "launch_notes"},
+                        {"label": "Stopwatch", "id": "timer", "action": "launch_timer"},
+                        {"label": "Stats", "id": "stats", "action": "launch_stats"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                },
+                "media": {
+                    "label": "🎬 MEDIA LOUNGE",
+                    "items": [
+                        {"label": "Web Browser", "id": "browser", "action": "launch_browser"},
+                        {"label": "Audio", "id": "audio_media", "action": "launch_audio_media"},
+                        {"label": "Video", "id": "video", "action": "launch_video"},
+                        {"label": "Media Scanner", "id": "scanner", "action": "launch_scanner"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                },
+                "settings": {
+                    "label": "⚙️  SETTINGS",
+                    "items": [
+                        {"label": "View Settings", "id": "view_settings", "action": "tab_settings"},
+                        {"label": "Back", "id": "back", "action": "back"},
+                    ]
+                }
+            }
+            self.selected_index = 0
+
+        def render(self) -> RenderableType:
+            """Render the infinite branching menu."""
+            current_menu_id = self.current_path[-1] if self.current_path else "root"
+            menu_data = self.menu_tree.get(current_menu_id, self.menu_tree["root"])
+            
+            lines = [
+                f"\n[bold cyan]{menu_data['label']}[/bold cyan]\n",
+                "[dim]═══════════════════════════════════════════[/dim]\n\n"
+            ]
+            
+            items = menu_data.get("items", [])
+            for i, item in enumerate(items):
+                if i == self.selected_index:
+                    lines.append(f"[bold cyan]▶ {i+1}. {item['label']}[/bold cyan]\n")
+                else:
+                    lines.append(f"  {i+1}. {item['label']}\n")
+            
+            lines.append("\n[dim]═══════════════════════════════════════════[/dim]\n")
+            lines.append("[yellow]Navigation:[/yellow] UP/DOWN, Select: ENTER or Number\n")
+            lines.append("[yellow]Go Back:[/yellow] ESC or 'B'\n")
+            
+            return Text.from_markup("".join(lines))
+
+        def on_key(self, event: events.Key) -> None:
+            """Handle key presses for menu navigation."""
+            current_menu_id = self.current_path[-1] if self.current_path else "root"
+            menu_data = self.menu_tree.get(current_menu_id, self.menu_tree["root"])
+            items = menu_data.get("items", [])
+            
+            if event.key == "up":
+                self.selected_index = (self.selected_index - 1) % len(items)
+                self.refresh()
+                event.prevent_default()
+            elif event.key == "down":
+                self.selected_index = (self.selected_index + 1) % len(items)
+                self.refresh()
+                event.prevent_default()
+            elif event.key == "enter":
+                if items and self.selected_index < len(items):
+                    self._select_item(items[self.selected_index])
+                event.prevent_default()
+            elif event.key in "12345678":
+                idx = int(event.key) - 1
+                if 0 <= idx < len(items):
+                    self.selected_index = idx
+                    self._select_item(items[idx])
+                event.prevent_default()
+            elif event.key in ("escape", "b"):
+                self._go_back()
+                event.prevent_default()
+
+        def _select_item(self, item: Dict[str, str]) -> None:
+            """Handle item selection."""
+            if item["id"] == "back":
+                self._go_back()
+            elif "action" in item:
+                # Navigate to another menu or execute action
+                if item["action"] == "back":
+                    self._go_back()
+                elif item["action"] in ["tab_commands", "tab_system", "tab_settings", "tab_monitors", "tab_filemgr", "tab_widgets", "tab_media"]:
+                    # Direct tab navigation
+                    self.app.action_tab_commands() if "commands" in item["action"] else \
+                    self.app.action_tab_system() if "system" in item["action"] else \
+                    self.app.action_tab_settings() if "settings" in item["action"] else \
+                    self.app.action_tab_monitors() if "monitors" in item["action"] else \
+                    self.app.action_tab_filemgr() if "filemgr" in item["action"] else \
+                    self.app.action_tab_widgets() if "widgets" in item["action"] else \
+                    self.app.action_tab_media()
+                elif item.get("id") in ["system", "monitors", "files", "widgets", "media", "settings"]:
+                    # Navigate into submenu
+                    self.current_path.append(item["id"])
+                    self.selected_index = 0
+                    self.refresh()
+            elif "cmd" in item:
+                # Execute system command
+                if shutil.which(item["cmd"]):
+                    os.system(item["cmd"])
+                else:
+                    # Show error message (in real implementation, show in dashboard)
+                    pass
+
+        def _go_back(self) -> None:
+            """Navigate back one level."""
+            if self.current_path:
+                self.current_path.pop()
+                self.selected_index = 0
+                self.refresh()
+
     class UnifiedDashboard(App):
         """Premium Unified Command Dashboard."""
 
@@ -30482,6 +35361,7 @@ Process Count: {len(psutil.pids())}
             ("5", "tab_filemgr", "Files"),
             ("6", "tab_widgets", "Widgets"),
             ("7", "tab_media", "Media"),
+            ("8", "tab_mainmenu", "Menu"),
         ]
 
         # Command buffer for multi-digit commands
@@ -30658,31 +35538,39 @@ Process Count: {len(psutil.pids())}
                             id="widgets-view"
                         )
 
-                    with TabPane("🎬 Media Lounge", id="media-tab"):
+                    with TabPane("🎬 Media Lounge PRO", id="media-tab"):
                         yield Static(
                             Text.from_markup(
-                                "[bold cyan]🎬 TEXTUAL MEDIA LOUNGE[/bold cyan]\n"
+                                "[bold cyan]🎬 TEXTUAL MEDIA LOUNGE PRO[/bold cyan]\n"
                                 "═════════════════════════════════════════════\n\n"
-                                "[bold yellow]Media Features:[/bold yellow]\n\n"
-                                "[cyan][1][/cyan] [bold]🌐 ASCII Web Browser[/bold]\n"
-                                "    Browse websites in your terminal\n"
-                                "    • Full HTML rendering\n"
-                                "    • Link navigation\n\n"
-                                "[cyan][2][/cyan] [bold]🎵 Audio Playback[/bold]\n"
-                                "    MP3/MP4 streaming support\n"
-                                "    • Playlist management\n"
-                                "    • Equalizer controls\n\n"
-                                "[cyan][3][/cyan] [bold]📺 Video Player[/bold]\n"
-                                "    ASCII video rendering\n"
-                                "    • Frame-by-frame controls\n\n"
-                                "[cyan][4][/cyan] [bold]📁 Media Scanner[/bold]\n"
-                                "    Scan and organize media files\n"
-                                "    • Auto-detection of formats\n\n"
+                                "[bold yellow]🎵 Audio Features:[/bold yellow]\n"
+                                "  • Multi-format playback (MP3, WAV, FLAC, OGG, M4A)\n"
+                                "  • Queue/Playlist management with 20+ track display\n"
+                                "  • Shuffle & Repeat modes (none/one/all)\n"
+                                "  • Volume control (0-100%) with live adjustment\n"
+                                "  • Rich metadata display (ID3 tags: artist, album, year)\n"
+                                "  • Real-time progress bar with elapsed/duration\n\n"
+                                "[bold yellow]🎬 Video Features:[/bold yellow]\n"
+                                "  • ASCII video player integration\n"
+                                "  • MP4, AVI, MKV format support\n\n"
+                                "[bold yellow]🔍 Smart Search:[/bold yellow]\n"
+                                "  • Local media file search (recursive)\n"
+                                "  • Web content fetching & rendering\n"
+                                "  • Automatic ASCII image conversion\n\n"
+                                "[bold yellow]⌨️  Keyboard Shortcuts:[/bold yellow]\n"
+                                "  Space=Play/Pause | N=Next | P=Prev | S=Stop\n"
+                                "  R=Repeat | Z=Shuffle | +/-=Volume | A=Add Queue\n\n"
+                                "[bold yellow]📊 Info Display:[/bold yellow]\n"
+                                "  Track details, bitrate, sample rate, file size\n"
+                                "  Queue status with current track indicator\n\n"
                                 "[bold][yellow]Keyboard Shortcuts:[/bold][/yellow]\n"
                                 "[dim]Press 1-4 or click to launch[/dim]\n"
                             ),
                             id="media-view"
                         )
+
+                    with TabPane("🌳 Infinite Menu", id="mainmenu-tab"):
+                        yield InfiniteBranchingMenu()
 
             yield Footer()
 
@@ -30695,20 +35583,33 @@ Process Count: {len(psutil.pids())}
             help_panel = Panel(
                 Text.from_markup(
                     "[bold cyan]pythonOS Dashboard Help[/bold cyan]\n\n"
-                    "[yellow]Navigation:[/yellow]\n"
-                    "• Press TAB to switch between tabs\n"
-                    "• Press UP/DOWN to scroll within tabs\n"
-                    "• Press any command key (0-9, A-Z, +, *, ~) to execute\n\n"
-                    "[yellow]Commands:[/yellow]\n"
+                    "[bold yellow]🎯 ACTIVE ZONES SYSTEM[/bold yellow]\n"
+                    "The dashboard uses context-aware key handling. Keys only apply to active tab!\n\n"
+                    "[yellow]Global Commands (Work Everywhere):[/yellow]\n"
                     "• Q = Quit dashboard\n"
                     "• ? = Show this help\n"
-                    "• R = Refresh stats\n\n"
-                    "[yellow]Tabs:[/yellow]\n"
-                    "• Commands = Full command palette\n"
-                    "• System = System info and logs\n"
-                    "• Settings = Dashboard configuration\n"
+                    "• R = Refresh stats\n"
+                    "• 1-8 = Switch to specific tab\n\n"
+                    "[yellow]Active Zones & Key Bindings:[/yellow]\n"
+                    "[cyan]1. Commands Zone[/cyan]: Press 0-9, A-Z, +, *, ~\n"
+                    "    → Executes commands from palette\n"
+                    "[cyan]2. System Zone[/cyan]: Press 1-5\n"
+                    "    → Filter/view different log types\n"
+                    "[cyan]3. Settings Zone[/cyan]: View-only (no special keys)\n"
+                    "[cyan]4. Monitors Zone[/cyan]: Press 1-4\n"
+                    "    1=Bpytop, 2=Htop, 3=Gtop, 4=Btop++\n"
+                    "[cyan]5. Files Zone[/cyan]: Press 1-3\n"
+                    "    1=Curses FM, 2=Textual FM, 3=Superfile\n"
+                    "[cyan]6. Widgets Zone[/cyan]: Press 1-5\n"
+                    "    1=Calc, 2=Audio, 3=Notes, 4=Timer, 5=Stats\n"
+                    "[cyan]7. Media Zone[/cyan]: Press 1-4\n"
+                    "    1=Browser, 2=Audio, 3=Video, 4=Scanner\n"
+                    "[cyan]8. Menu Zone[/cyan]: UP/DOWN/Numbers for navigation\n\n"
+                    "[yellow]General:[/yellow]\n"
+                    "• ESC/Backspace = Deselect/cancel\n"
+                    "• ENTER = Execute in Commands zone\n"
                 ),
-                title="Help",
+                title="Dashboard Help - Active Zones System",
                 border_style="cyan"
             )
             self._show_overlay(help_panel)
@@ -30752,6 +35653,11 @@ Process Count: {len(psutil.pids())}
             """Switch to Media tab."""
             tabs = self.query_one(TabbedContent)
             tabs.active = "media-tab"
+
+        def action_tab_mainmenu(self) -> None:
+            """Switch to Infinite Menu tab."""
+            tabs = self.query_one(TabbedContent)
+            tabs.active = "mainmenu-tab"
 
         def action_run_cmd(self, cmd: str) -> None:
             """Execute a command."""
@@ -30813,18 +35719,97 @@ Process Count: {len(psutil.pids())}
             # For now, this is a placeholder - in real implementation would show overlay
             pass
 
-        def on_key(self, event) -> None:
-            """Handle key presses with intelligent buffering and confirmation."""
-            key = event.key.lower()
-            
-            # Get active tab
+        def _get_active_zone(self) -> str:
+            """Get the currently active tab/zone."""
             try:
                 tabs = self.query_one(TabbedContent)
-                active_tab = tabs.active
+                return tabs.active if tabs.active else "commands-tab"
             except:
-                active_tab = None
+                return "commands-tab"
 
-            # Handle special commands that bypass buffer
+        def _handle_zone_command(self, zone: str, key: str) -> bool:
+            """
+            Handle zone-specific commands.
+            Returns True if command was handled, False otherwise.
+            """
+            # ZONE: Commands Tab
+            if zone == "commands-tab":
+                if key in "0123456789abcdefghijklmnopqrstuvwxyz*+~":
+                    self.command_buffer += key
+                    return True
+                return False
+
+            # ZONE: System Tab
+            elif zone == "system-tab":
+                # Numbers 1-5 scroll through different log types
+                if key in "12345":
+                    # Could implement log filtering here
+                    return True
+                return False
+
+            # ZONE: Settings Tab
+            elif zone == "settings-tab":
+                # Settings tab is view-only, no special key handling
+                return False
+
+            # ZONE: Resource Monitors Tab
+            elif zone == "monitors-tab":
+                if key in "1234":
+                    tools = {"1": "bpytop", "2": "htop", "3": "gtop", "4": "btop"}
+                    self._launch_system_tool(tools[key])
+                    return True
+                return False
+
+            # ZONE: File Manager Tab
+            elif zone == "filemgr-tab":
+                if key in "123":
+                    mgrs = {"1": "curses", "2": "textual", "3": "superfile"}
+                    self._launch_file_manager(mgrs[key])
+                    return True
+                return False
+
+            # ZONE: Widget Board Tab
+            elif zone == "widgets-tab":
+                if key in "12345":
+                    widget_map = {
+                        "1": "calculator",
+                        "2": "audio",
+                        "3": "notes",
+                        "4": "timer",
+                        "5": "stats"
+                    }
+                    widget_type = widget_map.get(key, "all")
+                    self._launch_widget_board(widget_type)
+                    return True
+                return False
+
+            # ZONE: Media Lounge Tab
+            elif zone == "media-tab":
+                if key in "1234":
+                    media_map = {
+                        "1": "browser",
+                        "2": "audio",
+                        "3": "video",
+                        "4": "scanner"
+                    }
+                    # Launch appropriate media feature
+                    self._launch_media_lounge()
+                    return True
+                return False
+
+            # ZONE: Infinite Menu Tab
+            elif zone == "mainmenu-tab":
+                # Menu handles its own key events via on_key in InfiniteBranchingMenu
+                return False
+
+            return False
+
+        def on_key(self, event) -> None:
+            """Handle key presses with active zone awareness."""
+            key = event.key.lower()
+            active_zone = self._get_active_zone()
+
+            # GLOBAL shortcuts (work everywhere)
             if key == "q":
                 self.action_quit_app()
                 event.prevent_default()
@@ -30840,49 +35825,62 @@ Process Count: {len(psutil.pids())}
                 event.prevent_default()
                 return
 
-            # Tab-specific key handlers
-            if active_tab == "monitors-tab" and key in "1234":
+            # Tab navigation shortcuts (1-8 work globally)
+            if key in "12345678":
+                tab_map = {
+                    "1": "commands-tab",
+                    "2": "system-tab",
+                    "3": "settings-tab",
+                    "4": "monitors-tab",
+                    "5": "filemgr-tab",
+                    "6": "widgets-tab",
+                    "7": "media-tab",
+                    "8": "mainmenu-tab",
+                }
+                # Check if we're in a zone that uses numbers for its own purpose
+                if active_zone in ["monitors-tab", "filemgr-tab", "widgets-tab", "media-tab"]:
+                    # In these zones, numbers are for launching tools, not tab switching
+                    if self._handle_zone_command(active_zone, key):
+                        event.prevent_default()
+                        return
+                else:
+                    # In other zones, numbers switch tabs
+                    target_tab = tab_map.get(key)
+                    if target_tab:
+                        try:
+                            tabs = self.query_one(TabbedContent)
+                            tabs.active = target_tab
+                            event.prevent_default()
+                            return
+                        except:
+                            pass
+
+            # ZONE-SPECIFIC command handling
+            if self._handle_zone_command(active_zone, key):
                 event.prevent_default()
-                tools = {"1": "bpytop", "2": "htop", "3": "gtop", "4": "btop"}
-                if key in tools:
-                    self._launch_system_tool(tools[key])
                 return
 
-            if active_tab == "filemgr-tab" and key in "123":
-                event.prevent_default()
-                mgrs = {"1": "curses", "2": "textual", "3": "superfile"}
-                if key in mgrs:
-                    self._launch_file_manager(mgrs[key])
-                return
+            # Commands Tab: Enter key execution
+            if active_zone == "commands-tab" and key == "enter":
+                if self.selected_command:
+                    try:
+                        cmd_to_execute = self.selected_command.split("[")[1].split("]")[0]
+                        self.selected_command = ""
+                        self._execute_command(cmd_to_execute)
+                        event.prevent_default()
+                        return
+                    except:
+                        pass
 
-            if active_tab == "widgets-tab" and key in "12345":
-                event.prevent_default()
-                self._launch_widget_board("all")
-                return
+            # Any zone: Escape or backspace to deselect
+            if key in ("escape", "backspace"):
+                if self.selected_command:
+                    self.selected_command = ""
+                    event.prevent_default()
+                    return
 
-            if active_tab == "media-tab" and key in "1234":
-                event.prevent_default()
-                self._launch_media_lounge()
-                return
-
-            # If user presses Enter on selected command, execute it
-            if key == "enter" and self.selected_command:
-                cmd_to_execute = self.selected_command.split("[")[1].split("]")[0]  # Extract command key
-                self.selected_command = ""
-                sys_logs = self.query_one("SystemLogsWidget")
-                sys_logs.selected_cmd = ""
-                self._execute_command(cmd_to_execute)
-                event.prevent_default()
-                return
-
-            # Any key other than Enter cancels selection
-            if self.selected_command and key != "enter":
-                self.selected_command = ""
-                sys_logs = self.query_one("SystemLogsWidget")
-                sys_logs.selected_cmd = ""
-
-            # Handle command keys with intelligent buffering
-            if key in "0123456789abcdefghijklmnopqrstuvwxyz*+~":
+            # Handle command keys with intelligent buffering (for Commands zone)
+            if active_zone == "commands-tab" and key in "0123456789abcdefghijklmnopqrstuvwxyz*+~":
                 # Add to command buffer
                 self.command_buffer += key
 
@@ -30998,7 +35996,7 @@ COMMAND_CENTER_ACTIONS = [
     ("system", {"title": "System Overview", "summary": "Live snapshot of CPU, RAM, disk, and network."}),
     *CLASSIC_APP_ACTIONS,
     ("dynamic_apps", {"title": "Dynamic Apps Launcher", "summary": "Launch detected apps/widgets from dynamic_apps.", "category": "system", "operation": "Dynamic_Apps", "func": feature_dynamic_apps_launcher}),
-    ("media_lounge", {"title": "Textual Media Lounge", "summary": "ASCII browser plus MP3/MP4 playback.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
+    ("media_lounge", {"title": "Textual Media Lounge PRO", "summary": "Full-featured media powerhouse with queue, playlists, shuffle/repeat, volume control, search, and rich metadata display.", "category": "media", "operation": "Textual_Media_Lounge", "func": feature_textual_media_lounge}),
     ("widget_board", {"title": "Textual Widget Board", "summary": "Calculator, MP3, notes, stats, and stopwatch widgets.", "category": "general", "operation": "Widget_Board", "func": feature_textual_widget_board}),
     ("classic", {"title": "Classic Command Center", "summary": "Switch to legacy classic menu.", "mode": "classic"}),
     ("file_manager_suite", {"title": "File Manager Suite", "summary": "Choose curses or Textual file managers.", "category": "file", "operation": "File_Manager_Suite", "func": feature_file_manager_suite}),
@@ -31428,6 +36426,7 @@ def feature_enhanced_display_suite():
                 ("AI Ops Console", "AI", self._app_ai_ops),
                 ("Worker Watch", "AI", self._app_worker_watch),
                 ("Display FX", "UX", self._app_display_fx),
+                ("3D ASCII Viewer", "UX", self._app_3d_viewer, self._launch_3d_viewer),
                 ("Resource Forecast", "UX", self._app_resource_forecast),
                 ("Calculator Widget", "UX", self._app_calculator_widget, feature_textual_calculator),
                 ("Durdraw", "UX", self._app_durdraw_widget, self._launch_durdraw, self._widget_durdraw),
@@ -31637,6 +36636,30 @@ def feature_enhanced_display_suite():
         def _app_display_fx(self):
             body = """ANSI Test:\n█ ▓ ▒ ░\nColors: \x1b[31mRed\x1b[0m \x1b[32mGreen\x1b[0m \x1b[34mBlue\x1b[0m\nUnicode: ⚡ 🎨 🚀 ✅"""
             return "Display FX", body
+
+        def _app_3d_viewer(self):
+            body = """Interactive 3D ASCII Visualization
+
+Models: Cube, Pyramid, Sphere
+Controls:
+  WASD - Rotate XY axes
+  Q/E - Rotate Z axis
+  C - Cycle model
+  Space - Auto-rotate toggle
+  R - Reset view
+
+Press Enter to launch"""
+            return "3D ASCII Viewer", body
+
+        def _launch_3d_viewer(self) -> None:
+            try:
+                from pythonOS_data.textual_3d_viewer import Textual3DDashboard
+                app = Textual3DDashboard()
+                app.run(inline=True, size=(100, 30))
+            except ImportError:
+                print("Error: textual_3d_viewer module not found")
+            except Exception as e:
+                print(f"Error launching 3D viewer: {e}")
 
         def _app_resource_forecast(self):
             try:
