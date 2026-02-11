@@ -37944,7 +37944,7 @@ def _format_classic_menu_display():
 
     # Row 0: INTERFACE SELECTION (NEW - Three Options)
     lines.append(f" {COLORS['3'][0]}INTERFACE SELECTION:{RESET}")
-    lines.append(f" {BOLD}[1C]{RESET} 📜 Classic Menu  {BOLD}[2P]{RESET} 📋 PyTextOS List  {BOLD}[3D]{RESET} 🎯 Unified Dashboard")
+    lines.append(f" {BOLD}[1C]{RESET} 📜 Classic Menu  {BOLD}[2P]{RESET} 📋 PyTextOS List  {BOLD}[3D]{RESET} 🎯 Unified Dashboard  {BOLD}[4U]{RESET} 📦 Update")
 
     # Row 1: Settings (1-6)
     lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}  {BOLD}[3]{RESET} 🌡️ Thermal: {'S' if truncated_thermal else 'F'}  {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}")
@@ -40120,6 +40120,291 @@ def feature_keyboard_shortcuts_cheatsheet():
 
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
 
+# --- UPDATE SYSTEM ---
+
+def _create_backup_before_update():
+    """Create a backup of pythonOScmd.py before updating."""
+    import shutil
+    import datetime
+    
+    # Ensure backup directory exists
+    backup_dir = "pythonOS_data/swap"
+    os.makedirs(backup_dir, exist_ok=True)
+    
+    script_path = os.path.abspath(__file__)
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"pythonOScmd_backup_{timestamp}.py"
+    backup_path = os.path.join(backup_dir, backup_name)
+    
+    try:
+        shutil.copy2(script_path, backup_path)
+        print(f"{COLORS['2'][0]}✅ Backup created: {backup_path}{RESET}")
+        return backup_path
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Backup failed: {e}{RESET}")
+        return None
+
+def _update_from_github_gitpython():
+    """Update from GitHub using GitPython library."""
+    try:
+        import git
+    except ImportError:
+        print(f"{COLORS['4'][0]}⚠️  GitPython not installed. Install with: pip install gitpython{RESET}")
+        return False
+    
+    try:
+        repo_path = os.getcwd()
+        repo = git.Repo(repo_path)
+        
+        # Check for uncommitted changes
+        if repo.is_dirty():
+            print(f"{COLORS['4'][0]}⚠️  Local changes detected in the repository!{RESET}")
+            print("Commit or stash your changes before updating.")
+            proceed = input("Continue anyway? (y/n): ").strip().lower()
+            if proceed != 'y':
+                return False
+        
+        print(f"{COLORS['6'][0]}Fetching updates from GitHub...{RESET}")
+        origin = repo.remotes.origin
+        
+        # Fetch latest changes
+        fetch_info = origin.fetch()
+        print(f"{COLORS['2'][0]}✓ Fetch complete{RESET}")
+        
+        # Pull latest changes
+        print(f"{COLORS['6'][0]}Pulling latest changes...{RESET}")
+        pull_info = origin.pull()
+        
+        updated = False
+        for fetch_info in pull_info:
+            print(f"{COLORS['2'][0]}✓ Updated {fetch_info.ref} to {fetch_info.commit}{RESET}")
+            updated = True
+        
+        if not updated:
+            print(f"{COLORS['2'][0]}✓ Already up to date!{RESET}")
+        
+        return True
+    
+    except git.exc.InvalidGitRepositoryError:
+        print(f"{COLORS['1'][0]}❌ Not a valid Git repository{RESET}")
+        return False
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Git update failed: {e}{RESET}")
+        return False
+
+def _update_from_github_subprocess():
+    """Update from GitHub using subprocess (git command)."""
+    try:
+        # Check if git is available
+        subprocess.run(["git", "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{COLORS['1'][0]}❌ Git is not installed or not in PATH{RESET}")
+        return False
+    
+    try:
+        # Check for uncommitted changes
+        result = subprocess.run(["git", "status", "--porcelain"], 
+                              capture_output=True, text=True)
+        
+        if result.stdout.strip():
+            print(f"{COLORS['4'][0]}⚠️  Local changes detected!{RESET}")
+            print(result.stdout)
+            proceed = input("Continue anyway? (y/n): ").strip().lower()
+            if proceed != 'y':
+                return False
+        
+        print(f"{COLORS['6'][0]}Fetching updates from GitHub...{RESET}")
+        fetch_result = subprocess.run(["git", "fetch"], 
+                                     capture_output=True, text=True)
+        
+        if fetch_result.returncode == 0:
+            print(f"{COLORS['2'][0]}✓ Fetch complete{RESET}")
+        else:
+            print(f"{COLORS['1'][0]}❌ Fetch failed: {fetch_result.stderr}{RESET}")
+            return False
+        
+        print(f"{COLORS['6'][0]}Pulling latest changes...{RESET}")
+        pull_result = subprocess.run(["git", "pull"], 
+                                    capture_output=True, text=True)
+        
+        if pull_result.returncode == 0:
+            if "Already up to date" in pull_result.stdout:
+                print(f"{COLORS['2'][0]}✓ Already up to date!{RESET}")
+            else:
+                print(f"{COLORS['2'][0]}✓ Update successful!{RESET}")
+                print(pull_result.stdout)
+            return True
+        else:
+            print(f"{COLORS['1'][0]}❌ Pull failed: {pull_result.stderr}{RESET}")
+            return False
+    
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Update failed: {e}{RESET}")
+        return False
+
+def _clone_github_repo():
+    """Clone the GitHub repository."""
+    try:
+        subprocess.run(["git", "--version"], capture_output=True, check=True)
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print(f"{COLORS['1'][0]}❌ Git is not installed{RESET}")
+        return False
+    
+    try:
+        clone_dir = input(f"\n{BOLD}Enter directory to clone into [./pythonOScmd_update]: {RESET}").strip()
+        if not clone_dir:
+            clone_dir = "./pythonOScmd_update"
+        
+        if os.path.exists(clone_dir):
+            print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
+            proceed = input("Continue? (y/n): ").strip().lower()
+            if proceed != 'y':
+                return False
+        
+        print(f"{COLORS['6'][0]}Cloning repository...{RESET}")
+        result = subprocess.run(
+            ["git", "clone", "https://github.com/pythoncatalyst/pythonOScmd.git", clone_dir],
+            capture_output=True, text=True
+        )
+        
+        if result.returncode == 0:
+            print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
+            return True
+        else:
+            print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
+            return False
+    
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
+        return False
+
+def _update_from_web():
+    """Download latest version directly from web."""
+    try:
+        import requests
+    except ImportError:
+        print(f"{COLORS['4'][0]}⚠️  requests library not installed. Install with: pip install requests{RESET}")
+        return False
+    
+    try:
+        print(f"{COLORS['6'][0]}Downloading latest pythonOScmd.py from GitHub...{RESET}")
+        
+        url = "https://raw.githubusercontent.com/pythoncatalyst/pythonOScmd/main/pythonOScmd.py"
+        response = requests.get(url, timeout=30)
+        response.raise_for_status()
+        
+        script_path = os.path.abspath(__file__)
+        
+        # Create backup first
+        print(f"\n{COLORS['6'][0]}Creating backup...{RESET}")
+        _create_backup_before_update()
+        
+        # Write new version
+        print(f"{COLORS['6'][0]}Writing new version...{RESET}")
+        with open(script_path, 'w', encoding='utf-8') as f:
+            f.write(response.text)
+        
+        print(f"{COLORS['2'][0]}✓ Update successful!{RESET}")
+        print(f"{COLORS['4'][0]}⚠️  Please restart pythonOS for changes to take effect.{RESET}")
+        return True
+    
+    except requests.exceptions.RequestException as e:
+        print(f"{COLORS['1'][0]}❌ Download failed: {e}{RESET}")
+        return False
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Update failed: {e}{RESET}")
+        return False
+
+def feature_update_system():
+    """Update pythonOS from GitHub and other sources."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("📦 pythonOS Update Center")
+        
+        print(f"\n{BOLD}Current Version:{RESET} pythonOScmd200")
+        print(f"{BOLD}Repository:{RESET} github.com/pythoncatalyst/pythonOScmd")
+        
+        print(f"\n{BOLD}Update Options:{RESET}")
+        print(f" {BOLD}[1]{RESET} 🔄 Update via Git (Local Repository)")
+        print(f" {BOLD}[2]{RESET} 📥 Clone Fresh Copy from GitHub")
+        print(f" {BOLD}[3]{RESET} ⬇️  Download Latest from Web")
+        print(f" {BOLD}[4]{RESET} 📂 Open Backups Folder")
+        print(f" {BOLD}[5]{RESET} ℹ️  Repository Information")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
+        
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+        
+        if choice == '0':
+            break
+        
+        elif choice == '1':
+            print(f"\n{COLORS['6'][0]}Update via Git{RESET}")
+            print(f"\n{BOLD}Available methods:{RESET}")
+            print(f" {BOLD}[A]{RESET} GitPython (Python library)")
+            print(f" {BOLD}[B]{RESET} Git Command (CLI)")
+            
+            method = input(f"\n{BOLD}Choose method: {RESET}").strip().upper()
+            
+            if method == 'A':
+                if _update_from_github_gitpython():
+                    confirm = input(f"\n{COLORS['4'][0]}Restart pythonOS now? (y/n): {RESET}").strip().lower()
+                    if confirm == 'y':
+                        print(f"{COLORS['6'][0]}Restarting...{RESET}")
+                        os.execv(sys.executable, [sys.executable] + sys.argv)
+            
+            elif method == 'B':
+                _create_backup_before_update()
+                if _update_from_github_subprocess():
+                    confirm = input(f"\n{COLORS['4'][0]}Restart pythonOS now? (y/n): {RESET}").strip().lower()
+                    if confirm == 'y':
+                        print(f"{COLORS['6'][0]}Restarting...{RESET}")
+                        os.execv(sys.executable, [sys.executable] + sys.argv)
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '2':
+            _clone_github_repo()
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '3':
+            _create_backup_before_update()
+            if _update_from_web():
+                confirm = input(f"\n{COLORS['4'][0]}Restart pythonOS now? (y/n): {RESET}").strip().lower()
+                if confirm == 'y':
+                    print(f"{COLORS['6'][0]}Restarting...{RESET}")
+                    os.execv(sys.executable, [sys.executable] + sys.argv)
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '4':
+            backup_dir = "pythonOS_data/swap"
+            os.makedirs(backup_dir, exist_ok=True)
+            
+            if os.path.exists(backup_dir):
+                backups = [f for f in os.listdir(backup_dir) if f.startswith("pythonOScmd_backup")]
+                if backups:
+                    print(f"\n{COLORS['2'][0]}Available Backups:{RESET}")
+                    for i, backup in enumerate(sorted(backups, reverse=True)[:10], 1):
+                        print(f"  {i}. {backup}")
+                else:
+                    print(f"\n{COLORS['4'][0]}No backups found{RESET}")
+            else:
+                print(f"{COLORS['1'][0]}Backup directory does not exist{RESET}")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '5':
+            print(f"\n{COLORS['2'][0]}Repository Information:{RESET}")
+            print(f"  Name: pythonOScmd")
+            print(f"  Owner: pythoncatalyst")
+            print(f"  URL: https://github.com/pythoncatalyst/pythonOScmd")
+            print(f"  Main Branch: main")
+            print(f"\n{COLORS['2'][0]}Update Methods:{RESET}")
+            print(f"  1. Git-based (requires .git folder)")
+            print(f"  2. HTTP Download (direct file replacement)")
+            print(f"  3. Fresh Clone (new directory)")
+            
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+
 # --- MAIN OPERATING SYSTEM LOOP ---
 
 def run_classic_command_center():
@@ -40282,6 +40567,9 @@ def run_classic_command_center():
             # Switch to Unified Dashboard
             _set_display_mode("unified")
             return run_unified_dashboard(return_to_classic=True)
+        elif choice == '4U':
+            # Update System
+            safe_run("general", "Update_System", feature_update_system)
 
         # === ORIGINAL SETTINGS & OPTIONS ===
         elif choice == '1':
