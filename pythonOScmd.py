@@ -30646,11 +30646,304 @@ def feature_textual_widget_board(screenshot_path=None):
             return f"invalid expression or unsupported operation: {exc}"
 
     class CalculatorWidget(Static):
+        """Full-Featured Graphing Calculator with Advanced Math Support"""
+        
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.variables = {}  # Store user-defined variables
+            self.history = []  # Calculation history
+            self.plot_mode = "function"  # function, parametric, polar
+            
         def compose(self) -> ComposeResult:
-            yield Static("Textual Calculator", classes="title")
-            yield Input(placeholder="Enter expression, e.g. 2+2 or sin(1)", id="calc-expr")
-            yield Button("Compute", id="calc-run", variant="primary")
+            from textual.containers import ScrollableContainer
+            
+            yield Static("🔢 Advanced Graphing Calculator", classes="title")
+            
+            # Main calculator input
+            with Horizontal():
+                yield Input(placeholder="Expression: 2+2, sin(x), derivative(x**2), integrate(x)", id="calc-expr")
+                yield Button("Calculate", id="calc-run", variant="primary")
+            
+            # Advanced function buttons
+            with Horizontal():
+                yield Button("📊 Plot", id="calc-plot", variant="success")
+                yield Button("📐 Geometry", id="calc-geometry", variant="default")
+                yield Button("∫ Calculus", id="calc-calculus", variant="default")
+                yield Button("📜 History", id="calc-history", variant="default")
+            
+            # Result display
             yield Static("Result: --", id="calc-result")
+            
+            # Graph/Output area with scrolling
+            with ScrollableContainer(id="calc-graph-area"):
+                yield Static("📈 Graph and detailed output will appear here\n\n" + 
+                           "🎯 Features:\n" +
+                           "• Basic: +, -, *, /, **, sqrt(), abs()\n" +
+                           "• Trig: sin(), cos(), tan(), asin(), acos(), atan()\n" +
+                           "• Advanced: log(), exp(), factorial()\n" +
+                           "• Calculus: derivative(expr), integrate(expr)\n" +
+                           "• Algebra: solve(equation), expand(expr), factor(expr)\n" +
+                           "• Graphing: plot(function) or plot(expr, start, end)\n" +
+                           "• Variables: x=5, y=x**2 (stores values)\n" +
+                           "• Constants: pi, e available\n\n" +
+                           "Examples:\n" +
+                           "  Basic: 2**3 + 5*4\n" +
+                           "  Trig: sin(pi/4)\n" +
+                           "  Calculus: derivative(x**3)\n" +
+                           "  Plot: plot(sin(x), -10, 10)\n" +
+                           "  Algebra: solve(x**2 - 4 = 0)",
+                           id="calc-output")
+        
+        def _advanced_eval(self, expr: str) -> str:
+            """Enhanced evaluation with symbolic math and graphing."""
+            try:
+                import numpy as np
+                import math
+                
+                # Try to import plotext for ASCII plotting
+                try:
+                    import plotext as plt
+                    has_plotext = True
+                except ImportError:
+                    has_plotext = False
+                
+                # Check for variable assignment
+                if '=' in expr and not any(op in expr for op in ['==', '<=', '>=', '!=']):
+                    parts = expr.split('=', 1)
+                    var_name = parts[0].strip()
+                    var_expr = parts[1].strip()
+                    
+                    # Evaluate the right side
+                    result = self._advanced_eval(var_expr)
+                    try:
+                        self.variables[var_name] = float(result)
+                        self.history.append(f"{var_name} = {result}")
+                        return f"{var_name} = {result}"
+                    except:
+                        return f"Could not assign variable: {result}"
+                
+                # Check for special commands
+                if expr.startswith("plot("):
+                    return self._handle_plot(expr, has_plotext)
+                elif expr.startswith("derivative(") or expr.startswith("diff("):
+                    return self._handle_derivative(expr)
+                elif expr.startswith("integrate(") or expr.startswith("int("):
+                    return self._handle_integral(expr)
+                elif expr.startswith("solve("):
+                    return self._handle_solve(expr)
+                elif expr.startswith("expand("):
+                    return self._handle_expand(expr)
+                elif expr.startswith("factor("):
+                    return self._handle_factor(expr)
+                elif expr == "history":
+                    return "\n".join(self.history[-10:]) if self.history else "No history"
+                
+                # Enhanced safe evaluation with more functions
+                safe_dict = {
+                    'pi': math.pi,
+                    'e': math.e,
+                    'tau': math.tau,
+                    'inf': math.inf,
+                    'nan': math.nan,
+                    **{k: v for k, v in vars(math).items() if not k.startswith('_')},
+                    **self.variables,  # Include user variables
+                    'abs': abs,
+                    'round': round,
+                    'min': min,
+                    'max': max,
+                    'sum': sum,
+                    'len': len,
+                }
+                
+                # Evaluate expression
+                result = eval(expr, {"__builtins__": {}}, safe_dict)
+                self.history.append(f"{expr} = {result}")
+                return str(result)
+                
+            except Exception as e:
+                return f"Error: {e}"
+        
+        def _handle_plot(self, expr: str, has_plotext: bool) -> str:
+            """Handle function plotting."""
+            if not has_plotext:
+                return "Plotting requires 'plotext'. Install: pip install plotext"
+            
+            try:
+                import plotext as plt
+                import numpy as np
+                import re
+                
+                # Parse plot command: plot(sin(x), -10, 10) or plot(sin(x))
+                match = re.match(r'plot\((.*?)\s*(?:,\s*([-\d.]+)\s*,\s*([-\d.]+))?\)', expr)
+                if not match:
+                    return "Format: plot(function) or plot(function, start, end)"
+                
+                func_str = match.group(1)
+                start = float(match.group(2)) if match.group(2) else -10
+                end = float(match.group(3)) if match.group(3) else 10
+                
+                # Generate x values
+                x = np.linspace(start, end, 100)
+                
+                # Evaluate function for each x
+                y = []
+                for xi in x:
+                    try:
+                        result = eval(func_str, {"__builtins__": {}}, {
+                            'x': xi,
+                            'pi': np.pi,
+                            'e': np.e,
+                            **{k: v for k, v in vars(np).items() if not k.startswith('_')},
+                            **self.variables
+                        })
+                        y.append(result)
+                    except:
+                        y.append(np.nan)
+                
+                # Create ASCII plot
+                plt.clf()
+                plt.plot(x, y, label=func_str)
+                plt.title(f"Plot: {func_str}")
+                plt.xlabel("x")
+                plt.ylabel("y")
+                plt.grid(True)
+                
+                # Get plot as string
+                plot_str = plt.build()
+                
+                return f"Graph of {func_str}:\n\n{plot_str}"
+                
+            except Exception as e:
+                return f"Plot error: {e}"
+        
+        def _handle_derivative(self, expr: str) -> str:
+            """Handle symbolic differentiation."""
+            try:
+                # Try sympy for symbolic math
+                try:
+                    import sympy as sp
+                    x = sp.Symbol('x')
+                    
+                    # Extract expression
+                    import re
+                    match = re.match(r'(?:derivative|diff)\((.*?)\)', expr)
+                    if not match:
+                        return "Format: derivative(expression) or diff(expression)"
+                    
+                    expr_str = match.group(1)
+                    
+                    # Parse and differentiate
+                    parsed = sp.sympify(expr_str)
+                    result = sp.diff(parsed, x)
+                    
+                    return f"d/dx({expr_str}) = {result}"
+                    
+                except ImportError:
+                    return "Symbolic math requires 'sympy'. Install: pip install sympy"
+                    
+            except Exception as e:
+                return f"Derivative error: {e}"
+        
+        def _handle_integral(self, expr: str) -> str:
+            """Handle symbolic integration."""
+            try:
+                try:
+                    import sympy as sp
+                    x = sp.Symbol('x')
+                    
+                    import re
+                    match = re.match(r'(?:integrate|int)\((.*?)\)', expr)
+                    if not match:
+                        return "Format: integrate(expression) or int(expression)"
+                    
+                    expr_str = match.group(1)
+                    parsed = sp.sympify(expr_str)
+                    result = sp.integrate(parsed, x)
+                    
+                    return f"∫({expr_str})dx = {result} + C"
+                    
+                except ImportError:
+                    return "Symbolic math requires 'sympy'. Install: pip install sympy"
+                    
+            except Exception as e:
+                return f"Integration error: {e}"
+        
+        def _handle_solve(self, expr: str) -> str:
+            """Handle equation solving."""
+            try:
+                try:
+                    import sympy as sp
+                    x = sp.Symbol('x')
+                    
+                    import re
+                    match = re.match(r'solve\((.*?)\)', expr)
+                    if not match:
+                        return "Format: solve(equation) e.g., solve(x**2 - 4 = 0)"
+                    
+                    eq_str = match.group(1)
+                    
+                    # Handle equation format
+                    if '=' in eq_str:
+                        left, right = eq_str.split('=')
+                        equation = sp.sympify(left) - sp.sympify(right)
+                    else:
+                        equation = sp.sympify(eq_str)
+                    
+                    solutions = sp.solve(equation, x)
+                    
+                    return f"Solutions: {solutions}"
+                    
+                except ImportError:
+                    return "Equation solving requires 'sympy'. Install: pip install sympy"
+                    
+            except Exception as e:
+                return f"Solve error: {e}"
+        
+        def _handle_expand(self, expr: str) -> str:
+            """Handle algebraic expansion."""
+            try:
+                try:
+                    import sympy as sp
+                    import re
+                    
+                    match = re.match(r'expand\((.*?)\)', expr)
+                    if not match:
+                        return "Format: expand(expression)"
+                    
+                    expr_str = match.group(1)
+                    parsed = sp.sympify(expr_str)
+                    result = sp.expand(parsed)
+                    
+                    return f"Expanded: {result}"
+                    
+                except ImportError:
+                    return "Algebra requires 'sympy'. Install: pip install sympy"
+                    
+            except Exception as e:
+                return f"Expand error: {e}"
+        
+        def _handle_factor(self, expr: str) -> str:
+            """Handle algebraic factoring."""
+            try:
+                try:
+                    import sympy as sp
+                    import re
+                    
+                    match = re.match(r'factor\((.*?)\)', expr)
+                    if not match:
+                        return "Format: factor(expression)"
+                    
+                    expr_str = match.group(1)
+                    parsed = sp.sympify(expr_str)
+                    result = sp.factor(parsed)
+                    
+                    return f"Factored: {result}"
+                    
+                except ImportError:
+                    return "Algebra requires 'sympy'. Install: pip install sympy"
+                    
+            except Exception as e:
+                return f"Factor error: {e}"
 
         @on(Button.Pressed, "#calc-run")
         @on(Input.Submitted, "#calc-expr")
@@ -30658,8 +30951,84 @@ def feature_textual_widget_board(screenshot_path=None):
             expr = self.query_one("#calc-expr", Input).value.strip()
             if not expr:
                 return
-            result = _safe_eval(expr)
+            
+            result = self._advanced_eval(expr)
             self.query_one("#calc-result", Static).update(f"Result: {result}")
+        
+        @on(Button.Pressed, "#calc-plot")
+        def handle_plot_btn(self, event):
+            expr = self.query_one("#calc-expr", Input).value.strip()
+            if not expr:
+                expr = "sin(x)"
+            
+            # Auto-add plot wrapper if not present
+            if not expr.startswith("plot("):
+                expr = f"plot({expr})"
+            
+            try:
+                import plotext as plt
+                result = self._handle_plot(expr, True)
+                self.query_one("#calc-output", Static).update(result)
+            except ImportError:
+                self.query_one("#calc-output", Static).update(
+                    "📊 Plotting requires 'plotext'\n\n" +
+                    "Install with: pip install plotext\n\n" +
+                    "This will enable ASCII-based graphing in the terminal!"
+                )
+        
+        @on(Button.Pressed, "#calc-geometry")
+        def handle_geometry_btn(self, event):
+            help_text = (
+                "📐 GEOMETRY FORMULAS\n\n" +
+                "Circle:\n" +
+                "  area = pi * r**2\n" +
+                "  circumference = 2 * pi * r\n\n" +
+                "Rectangle:\n" +
+                "  area = length * width\n" +
+                "  perimeter = 2 * (length + width)\n\n" +
+                "Triangle:\n" +
+                "  area = 0.5 * base * height\n" +
+                "  Pythagorean: c = sqrt(a**2 + b**2)\n\n" +
+                "Sphere:\n" +
+                "  volume = (4/3) * pi * r**3\n" +
+                "  surface_area = 4 * pi * r**2\n\n" +
+                "Cylinder:\n" +
+                "  volume = pi * r**2 * h\n" +
+                "  surface_area = 2*pi*r*(r+h)\n\n" +
+                "Examples:\n" +
+                "  pi * 5**2  (circle area with r=5)\n" +
+                "  sqrt(3**2 + 4**2)  (hypotenuse)"
+            )
+            self.query_one("#calc-output", Static).update(help_text)
+        
+        @on(Button.Pressed, "#calc-calculus")
+        def handle_calculus_btn(self, event):
+            help_text = (
+                "∫ CALCULUS OPERATIONS\n\n" +
+                "Derivatives:\n" +
+                "  derivative(x**3)  → 3*x**2\n" +
+                "  diff(sin(x))      → cos(x)\n" +
+                "  derivative(x**2 + 2*x)  → 2*x + 2\n\n" +
+                "Integrals:\n" +
+                "  integrate(x**2)   → x**3/3 + C\n" +
+                "  int(sin(x))       → -cos(x) + C\n" +
+                "  integrate(1/x)    → log(x) + C\n\n" +
+                "Algebra:\n" +
+                "  solve(x**2 - 4 = 0)    → [-2, 2]\n" +
+                "  expand((x+1)**2)       → x**2 + 2*x + 1\n" +
+                "  factor(x**2 - 4)       → (x-2)*(x+2)\n\n" +
+                "Note: Requires 'sympy' library\n" +
+                "Install: pip install sympy"
+            )
+            self.query_one("#calc-output", Static).update(help_text)
+        
+        @on(Button.Pressed, "#calc-history")
+        def handle_history_btn(self, event):
+            if not self.history:
+                text = "📜 No calculation history yet"
+            else:
+                text = "📜 CALCULATION HISTORY\n\n" + "\n".join(self.history[-20:])
+            self.query_one("#calc-output", Static).update(text)
 
     class Mp3Widget(Static):
         def __init__(self, *args, **kwargs):
@@ -30804,39 +31173,95 @@ def feature_textual_widget_board(screenshot_path=None):
                     pass
 
     class NotesWidget(Static):
+        """Enhanced Notes Manager with Multiple Notes, Search, and Persistence"""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.notes = {}
+            self.current_note = "Untitled"
+            self.load_default_notes()
+
+        def load_default_notes(self):
+            """Load default notes on startup"""
+            self.notes = {
+                "Untitled": "Welcome to Notes Manager!\n\nStart typing to add your first note...",
+                "TODO": "• Finish project report\n• Review pull requests\n• Update documentation\n• Team standup at 10 AM\n• Code review before EOD",
+                "Ideas": "🧠 Random Ideas:\n• New feature suggestion\n• UI/UX improvements\n• Performance optimization\n• Better error handling\n• Add dark mode support",
+                "Meeting": "📅 Team Meeting Notes:\nDate: Today\n• Discussed Q4 roadmap\n• Planning sprint tasks\n• Reviewed performance metrics\n• Next meeting: Friday 2 PM"
+            }
+
         def compose(self) -> ComposeResult:
-            yield Static("Quick Notes", classes="title")
-            yield TextLog(id="notes-log", highlight=False)
-            yield Input(placeholder="Type a note and press Enter", id="notes-input")
+            yield Static("📝 NOTES MANAGER", id="notes-title", classes="title")
+            yield Static("Notes List | Search | Settings", classes="subtitle")
+            yield Static(id="notes-display")
+            yield Input(placeholder="Add new note... (Press Enter)", id="note-input")
+
+        def on_mount(self):
+            self._update_display()
+            self.set_interval(0.5, self._update_display)
+
+        def _update_display(self):
+            """Display all notes with formatting"""
+            notes_list = "\n".join([f"  📌 {name} ({len(content)} chars)" 
+                                   for name, content in self.notes.items()])
+            
+            current_content = self.notes.get(self.current_note, "")
+            
+            display_text = (
+                "📝 NOTES MANAGER\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"Available Notes ({len(self.notes)}):\n"
+                f"{notes_list}\n\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"Current: ⭐ {self.current_note}\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                f"{current_content}\n\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                "Commands:\n"
+                "  N - New Note  | D - Delete  | S - Switch\n"
+                "  E - Edit      | C - Clear   | T - Total"
+            )
+            
+            try:
+                display_widget = self.query_one("#notes-display", Static)
+                display_widget.update(display_text)
+            except:
+                pass
 
         def _write_note(self, message):
-            try:
-                log_widget = self.query_one("#notes-log", TextLog)
-            except Exception:
-                return
-            if hasattr(log_widget, "write"):
-                log_widget.write(message)
-            elif hasattr(log_widget, "write_line"):
-                log_widget.write_line(message)
-            elif hasattr(log_widget, "append"):
-                log_widget.append(message)
-            else:
-                try:
-                    log_widget.update(message)
-                except Exception:
-                    pass
+            """Add note to current note"""
+            if self.current_note not in self.notes:
+                self.notes[self.current_note] = ""
+            self.notes[self.current_note] += f"\n• {message}" if self.notes[self.current_note] else f"• {message}"
 
-        @on(Input.Submitted, "#notes-input")
+        @on(Input.Submitted, "#note-input")
         def add_note(self, event):
+            """Handle note input"""
             try:
-                note = self.query_one("#notes-input", Input).value.strip()
+                note = self.query_one("#note-input", Input).value.strip()
             except Exception:
                 return
             if not note:
                 return
-            self._write_note(f"• {note}")
+            
+            # Check for commands
+            if note.lower().startswith("new:"):
+                note_name = note[4:].strip()
+                if note_name:
+                    self.notes[note_name] = ""
+                    self.current_note = note_name
+            elif note.lower().startswith("switch:"):
+                note_name = note[7:].strip()
+                if note_name in self.notes:
+                    self.current_note = note_name
+            elif note.lower().startswith("delete:"):
+                note_name = note[7:].strip()
+                if note_name in self.notes and note_name != self.current_note:
+                    del self.notes[note_name]
+            else:
+                self._write_note(note)
+            
             try:
-                self.query_one("#notes-input", Input).value = ""
+                self.query_one("#note-input", Input).value = ""
             except Exception:
                 pass
 
@@ -30877,6 +31302,7 @@ def feature_textual_widget_board(screenshot_path=None):
             self.query_one("#stopwatch-display", Static).update("Elapsed: 0.0s")
 
     class StatsWidget(Static):
+        """Enhanced System Statistics with Progress Bars and Alerts"""
         BYTES_PER_KIB = 1024
 
         def on_mount(self):
@@ -30895,12 +31321,26 @@ def feature_textual_widget_board(screenshot_path=None):
                 return f"{val / (self.BYTES_PER_KIB ** 2):.1f} MB"
             return f"{val / self.BYTES_PER_KIB:.1f} KB"
 
+        def _progress_bar(self, percent, width=25):
+            """Create a visual progress bar"""
+            filled = int((percent / 100) * width)
+            bar = "█" * filled + "░" * (width - filled)
+            
+            # Color indicator
+            if percent >= 80:
+                indicator = "🔴"
+            elif percent >= 60:
+                indicator = "🟠"
+            elif percent >= 40:
+                indicator = "🟡"
+            else:
+                indicator = "🟢"
+            
+            return f"{indicator} [{bar}] {percent:>5.1f}%"
+
         def compose(self) -> ComposeResult:
-            yield Static("System Stats", classes="title")
-            yield Static("CPU: --", id="stats-cpu")
-            yield Static("Mem: --", id="stats-mem")
-            yield Static("Disk: --", id="stats-disk")
-            yield Static("Net: --", id="stats-net")
+            yield Static("📊 SYSTEM STATISTICS", classes="title")
+            yield Static(id="stats-display")
 
         def _refresh_stats(self):
             try:
@@ -30908,11 +31348,56 @@ def feature_textual_widget_board(screenshot_path=None):
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage(os.path.abspath(os.sep))
                 net = psutil.net_io_counters()
-                self.query_one("#stats-cpu", Static).update(f"CPU: {cpu:.1f}%")
-                self.query_one("#stats-mem", Static).update(f"Mem: {mem.percent:.1f}%")
-                self.query_one("#stats-disk", Static).update(f"Disk: {disk.percent:.1f}%")
-                self.query_one("#stats-net", Static).update(f"Net: {self._fmt_bytes(net.bytes_sent)}↑/{self._fmt_bytes(net.bytes_recv)}↓")
-            except Exception:
+                
+                # Get load average
+                load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else (0, 0, 0)
+                cpu_cores = psutil.cpu_count()
+                
+                content = (
+                    "📊 SYSTEM STATISTICS (Real-time)\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    "PROCESSOR:\n"
+                    f"  Current: {self._progress_bar(cpu)}\n"
+                    f"  Load Avg (1/5/15m): {load_avg[0]:.2f} / {load_avg[1]:.2f} / {load_avg[2]:.2f}\n"
+                    f"  Cores: {cpu_cores} logical\n\n"
+                    "MEMORY:\n"
+                    f"  Usage: {self._progress_bar(mem.percent)}\n"
+                    f"  Used: {self._fmt_bytes(mem.used)} / {self._fmt_bytes(mem.total)}\n"
+                    f"  Available: {self._fmt_bytes(mem.available)}\n\n"
+                    "STORAGE:\n"
+                    f"  Root: {self._progress_bar(disk.percent)}\n"
+                    f"  Used: {self._fmt_bytes(disk.used)} / {self._fmt_bytes(disk.total)}\n"
+                    f"  Free: {self._fmt_bytes(disk.free)}\n\n"
+                    "NETWORK:\n"
+                    f"  ↑ Sent: {self._fmt_bytes(net.bytes_sent)}\n"
+                    f"  ↓ Received: {self._fmt_bytes(net.bytes_recv)}\n"
+                    f"  📤 Packets: {net.packets_sent:,}\n"
+                    f"  📥 Packets: {net.packets_recv:,}\n\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                )
+                
+                # Add alerts
+                alerts = []
+                if cpu > 80:
+                    alerts.append("⚠️ HIGH CPU USAGE")
+                if mem.percent > 80:
+                    alerts.append("⚠️ HIGH MEMORY USAGE")
+                if disk.percent > 85:
+                    alerts.append("⚠️ DISK SPACE LOW")
+                
+                if alerts:
+                    content += "ALERTS:\n" + "\n".join(f"  {a}" for a in alerts)
+                else:
+                    content += "Status: ✅ All systems nominal"
+                
+                try:
+                    display_widget = self.query_one("#stats-display", Static)
+                    display_widget.update(content)
+                except Exception:
+                    pass
+                    
+            except Exception as e:
+                pass
                 pass
 
     class Textual3DViewerWidget(Static):
@@ -30936,13 +31421,599 @@ def feature_textual_widget_board(screenshot_path=None):
             except Exception as exc:
                 yield Static(f"3D Viewer unavailable: {exc}")
 
+    class HealthScoreWidget(Static):
+        """System Health Score Dashboard with Advanced Visualization"""
+        def compose(self) -> ComposeResult:
+            yield Static(id="health-display")
+
+        def on_mount(self):
+            self._refresh_health()
+            self.set_interval(1.0, self._refresh_health)
+
+        def _calculate_health_score(self) -> tuple:
+            """Calculate overall system health (0-100)"""
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage(os.path.abspath(os.sep))
+                
+                # Calculate score: lower usage = higher score
+                cpu_score = max(0, 100 - cpu)
+                mem_score = max(0, 100 - mem.percent)
+                disk_score = max(0, 100 - disk.percent)
+                
+                overall = (cpu_score + mem_score + disk_score) / 3
+                
+                return overall, cpu_score, mem_score, disk_score
+            except Exception:
+                return 50, 50, 50, 50
+
+        def _progress_bar(self, score, width=35):
+            filled = int((score / 100) * width)
+            return "█" * filled + "░" * (width - filled)
+
+        def _refresh_health(self):
+            overall, cpu, mem, disk = self._calculate_health_score()
+            
+            # Color based on score
+            if overall >= 75:
+                status = "🟢 EXCELLENT"
+            elif overall >= 50:
+                status = "🟡 GOOD"
+            elif overall >= 25:
+                status = "🟠 FAIR"
+            else:
+                status = "🔴 CRITICAL"
+            
+            content = f"""
+💚 SYSTEM HEALTH SCORECARD
+╔═════════════════════════════════════╗
+║  OVERALL HEALTH: {overall:>5.1f}/100  {status}  ║
+║  [{self._progress_bar(overall)}]  ║
+╚═════════════════════════════════════╝
+
+┌─ COMPONENT BREAKDOWN ─────────────────┐
+│ CPU Usage Score:  {cpu:>6.1f}/100        │
+│ [{self._progress_bar(cpu)}] │
+│ Status: {'⚡ Optimal' if cpu >= 70 else '⚠️  High' if cpu < 30 else '✅ Normal':<17}│
+│                                       │
+│ Memory Usage Score: {mem:>5.1f}/100      │
+│ [{self._progress_bar(mem)}] │
+│ Status: {'💾 Available' if mem >= 70 else '⚠️  Limited' if mem < 30 else '✅ Normal':<15}│
+│                                       │
+│ Disk Usage Score: {disk:>6.1f}/100       │
+│ [{self._progress_bar(disk)}] │
+│ Status: {'💿 Free' if disk >= 70 else '🚨 Critical' if disk < 30 else '✅ Normal':<15}│
+└───────────────────────────────────────┘
+
+📊 SYSTEM RECOMMENDATIONS:
+"""
+            
+            recommendations = []
+            if cpu >= 80:
+                recommendations.append("  🔴 CPU: Critical load - close applications")
+            elif cpu >= 70:
+                recommendations.append("  🟠 CPU: High usage - consider reducing load")
+            
+            if mem >= 85:
+                recommendations.append("  🔴 RAM: Critical memory pressure")
+            elif mem >= 75:
+                recommendations.append("  🟠 RAM: High memory usage - close unused apps")
+            
+            if disk >= 90:
+                recommendations.append("  🔴 DISK: Critical space - delete files urgently")
+            elif disk >= 80:
+                recommendations.append("  🟠 DISK: Low free space - cleanup recommended")
+            
+            if not recommendations:
+                recommendations.append("  ✅ OPTIMAL: All systems operating within normal parameters")
+            
+            content += "\n".join(recommendations)
+            content += f"\n\nLast Updated: {datetime.now().strftime('%H:%M:%S')}"
+            
+            try:
+                self.query_one("#health-display", Static).update(content)
+            except:
+                pass
+
+    class APIMetricsWidget(Static):
+        """API Performance Metrics with Interactive Controls"""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.total_requests = 0
+            self.successful_requests = 0
+            self.failed_requests = 0
+            self.response_times = []
+
+        def on_mount(self):
+            self._generate_metrics()
+            self.set_interval(2.0, self._refresh_metrics)
+
+        def _generate_metrics(self):
+            """Generate realistic API metrics"""
+            import random
+            self.total_requests = random.randint(10000, 20000)
+            self.successful_requests = int(self.total_requests * random.uniform(0.96, 0.99))
+            self.failed_requests = self.total_requests - self.successful_requests
+            self.response_times = [random.gauss(200, 50) for _ in range(100)]
+
+        def _refresh_metrics(self):
+            # Simulate incoming requests
+            import random
+            self.total_requests += random.randint(50, 200)
+            self.successful_requests += int((self.total_requests * 0.01) * 0.97)
+            self.failed_requests = self.total_requests - self.successful_requests
+            
+            avg_response = sum(self.response_times[-100:]) / len(self.response_times[-100:]) if self.response_times else 0
+            min_response = min(self.response_times) if self.response_times else 0
+            max_response = max(self.response_times) if self.response_times else 0
+            success_rate = (self.successful_requests / self.total_requests * 100) if self.total_requests > 0 else 0
+            
+            content = (
+                "📡 API PERFORMANCE METRICS\n"
+                "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "Response Times:\n"
+                f"  Average: {avg_response:.0f}ms\n"
+                f"  Min: {min_response:.0f}ms\n"
+                f"  Max: {max_response:.0f}ms\n"
+                f"  P95: {sorted(self.response_times)[-5:][0]:.0f}ms\n\n"
+                "Request Stats:\n"
+                f"  Total: {self.total_requests:,}\n"
+                f"  Success: {self.successful_requests:,} ({success_rate:.1f}%)\n"
+                f"  Errors: {self.failed_requests:,} ({100-success_rate:.1f}%)\n\n"
+                "Top Endpoints:\n"
+                f"  GET /api/users: 2.4k req/min (245ms avg)\n"
+                f"  POST /api/data: 890 req/min (180ms avg)\n"
+                f"  GET /api/status: 1.2k req/min (125ms avg)\n\n"
+                f"Status: {'🟢 Healthy' if success_rate >= 95 else '🟡 Degraded' if success_rate >= 90 else '🔴 Critical'}\n"
+                f"Uptime: 99.97%"
+            )
+            self.update(content)
+
+        def compose(self) -> ComposeResult:
+            yield Static("📡 API Metrics\n\nInitializing...", id="api-metrics")
+
+    class MicroservicesWidget(Static):
+        """Microservices Status Monitor with Live Display"""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.services = {
+                "auth": {"status": "running", "cpu": 12, "ram": 256, "uptime": "45d"},
+                "database": {"status": "running", "cpu": 34, "ram": 2100, "uptime": "89d"},
+                "cache": {"status": "running", "cpu": 5, "ram": 512, "uptime": "23d"},
+                "queue": {"status": "running", "cpu": 8, "ram": 384, "uptime": "12d"},
+                "analytics": {"status": "degraded", "cpu": 78, "ram": 1200, "uptime": "5h"},
+                "email": {"status": "offline", "cpu": 0, "ram": 0, "uptime": "0m"},
+            }
+
+        def compose(self) -> ComposeResult:
+            yield Static(id="services-display")
+
+        def on_mount(self):
+            self._refresh_services()
+            self.set_interval(2.0, self._refresh_services)
+
+        def _refresh_services(self):
+            import random
+            
+            # Update service data
+            for service in self.services:
+                if self.services[service]["status"] == "running":
+                    self.services[service]["cpu"] = max(0, random.randint(2, 50))
+                    self.services[service]["ram"] = max(100, random.randint(100, 2000))
+            
+            # Build content
+            content = "⚙️ MICROSERVICES CLUSTER\n"
+            content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            content += "Service      Status       CPU    RAM(MB)   Uptime     Action\n"
+            content += "─" * 70 + "\n"
+            
+            healthy = degraded = offline = 0
+            
+            for name, data in self.services.items():
+                status_icon = "🟢" if data["status"] == "running" else "🟡" if data["status"] == "degraded" else "🔴"
+                status_text = data["status"].upper()
+                cpu_str = f"{data['cpu']}%" if data["cpu"] > 0 else "N/A"
+                ram_str = f"{data['ram']}MB" if data["ram"] > 0 else "N/A"
+                action = "Restart" if data["status"] == "degraded" else "Monitor" if data["status"] == "running" else "Start"
+                
+                content += f"{name.upper():<12} {status_icon} {status_text:<9} {cpu_str:>5} {ram_str:>8}  {data['uptime']:<6}  {action}\n"
+                
+                if data["status"] == "running":
+                    healthy += 1
+                elif data["status"] == "degraded":
+                    degraded += 1
+                else:
+                    offline += 1
+            
+            # Add summary
+            health_score = (healthy * 100 + degraded * 50) // max(1, (healthy + degraded + offline))
+            content += (
+                "\n" + "─" * 70 + "\n"
+                f"🟢 Running: {healthy} | 🟡 Degraded: {degraded} | 🔴 Offline: {offline}\n"
+                f"Cluster Health: {health_score}/100 {'✅ HEALTHY' if health_score >= 80 else '⚠️ WARNING' if health_score >= 50 else '🚨 CRITICAL'}\n"
+                f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
+            )
+            
+            try:
+                self.query_one("#services-display", Static).update(content)
+            except:
+                pass
+
+    class ProcessMonitorWidget(Static):
+        """Top Processes Monitor with Advanced Display"""
+        def compose(self) -> ComposeResult:
+            yield Static(id="process-display")
+
+        def on_mount(self):
+            self._refresh_processes()
+            self.set_interval(3.0, self._refresh_processes)
+
+        def _refresh_processes(self):
+            try:
+                processes = []
+                for proc in psutil.process_iter(['pid', 'name', 'cpu_percent', 'memory_percent', 'memory_info']):
+                    try:
+                        processes.append(proc.info)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                
+                # Sort by CPU usage
+                processes.sort(key=lambda x: x.get('cpu_percent', 0), reverse=True)
+                
+                high_cpu_count = 0
+                high_mem_count = 0
+                
+                # Build display content
+                content = "⚙️ TOP PROCESSES BY CPU\n"
+                content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                content += "PID      Process             CPU %     Memory %    Mem(MB)   Status\n"
+                content += "─" * 70 + "\n"
+                
+                for proc in processes[:25]:
+                    pid = str(proc['pid'])
+                    name = proc['name'][:15]
+                    cpu = proc.get('cpu_percent', 0) or 0
+                    mem_pct = proc.get('memory_percent', 0) or 0
+                    mem_info = proc.get('memory_info')
+                    mem_mb = (mem_info.rss / (1024*1024)) if mem_info else 0
+                    
+                    # Status indicator
+                    if cpu > 50 or mem_pct > 20:
+                        status = "🔴 HIGH"
+                        high_cpu_count += 1 if cpu > 50 else 0
+                        high_mem_count += 1 if mem_pct > 20 else 0
+                    elif cpu > 25 or mem_pct > 10:
+                        status = "🟡 MED"
+                    else:
+                        status = "🟢 LOW"
+                    
+                    content += f"{pid:<8} {name:<15} {cpu:>6.1f}%  {mem_pct:>8.2f}%  {mem_mb:>8.1f}  {status}\n"
+                
+                # System summary
+                total_procs = len(processes)
+                cpu_total = psutil.cpu_percent()
+                mem_total = psutil.virtual_memory().percent
+                
+                content += (
+                    "\n" + "─" * 70 + "\n"
+                    f"Total Processes: {total_procs}\n"
+                    f"🔴 High CPU: {high_cpu_count} | ⚠️ High Memory: {high_mem_count}\n"
+                    f"System CPU: {cpu_total:.1f}% | System RAM: {mem_total:.1f}%\n"
+                    f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
+                )
+                
+                try:
+                    self.query_one("#process-display", Static).update(content)
+                except:
+                    pass
+                    
+            except Exception as e:
+                try:
+                    self.query_one("#process-display", Static).update(f"⚙️ Process Monitor\n\nError: {str(e)[:50]}")
+                except:
+                    pass
+
+    class NetworkMonitorWidget(Static):
+        """Network Interface Monitor with Live Display"""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self._prev_bytes_sent = 0
+            self._prev_bytes_recv = 0
+
+        def compose(self) -> ComposeResult:
+            yield Static(id="network-display")
+
+        def on_mount(self):
+            self._refresh_network()
+            self.set_interval(2.0, self._refresh_network)
+
+        def _fmt_bytes(self, b):
+            for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+                if b < 1024:
+                    return f"{b:.1f}{unit}"
+                b /= 1024
+            return f"{b:.1f}PB"
+
+        def _refresh_network(self):
+            try:
+                net_io = psutil.net_io_counters()
+                interfaces = psutil.net_if_stats()
+                net_if_addrs = psutil.net_if_addrs()
+                
+                up_interfaces = 0
+                down_interfaces = 0
+                total_speed = 0
+                
+                # Build content
+                content = "🌐 NETWORK INTERFACES\n"
+                content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                content += "Interface     Status    IP Address        Speed    MTU    Type\n"
+                content += "─" * 70 + "\n"
+                
+                for iface in sorted(interfaces.keys())[:10]:
+                    stats = interfaces[iface]
+                    status_icon = "🟢" if stats.isup else "🔴"
+                    status_text = "UP" if stats.isup else "DOWN"
+                    iface_type = "WiFi" if "wlan" in iface.lower() else "Ethernet" if "eth" in iface.lower() else "Virtual"
+                    
+                    # Get IP address
+                    ip_addr = "N/A"
+                    if iface in net_if_addrs:
+                        for addr in net_if_addrs[iface]:
+                            if addr.family.name == 'AF_INET':
+                                ip_addr = addr.address
+                                break
+                    
+                    speed_str = f"{stats.speed}Mbps" if stats.speed > 0 else "Auto"
+                    
+                    content += f"{iface:<13} {status_icon} {status_text:<7} {ip_addr:<17} {speed_str:<8} {stats.mtu:<6} {iface_type}\n"
+                    
+                    if stats.isup:
+                        up_interfaces += 1
+                        total_speed += stats.speed if stats.speed > 0 else 0
+                    else:
+                        down_interfaces += 1
+                
+                # Add traffic stats
+                content += (
+                    "\n" + "─" * 70 + "\n"
+                    "NETWORK TRAFFIC:\n"
+                    f"  ↑ Sent:     {self._fmt_bytes(net_io.bytes_sent):>12}\n"
+                    f"  ↓ Received: {self._fmt_bytes(net_io.bytes_recv):>12}\n\n"
+                    "PACKET STATISTICS:\n"
+                    f"  📤 Sent:     {net_io.packets_sent:>10,}\n"
+                    f"  📥 Received: {net_io.packets_recv:>10,}\n"
+                    f"  ⚠️  Errors:   {net_io.errin + net_io.errout:>10,}\n"
+                    f"  🚫 Dropped:  {net_io.dropin + net_io.dropout:>10,}\n\n"
+                    f"Active Interfaces: {up_interfaces} | Inactive: {down_interfaces}\n"
+                    f"Total Bandwidth: {total_speed} Mbps\n"
+                    f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
+                )
+                
+                try:
+                    self.query_one("#network-display", Static).update(content)
+                except:
+                    pass
+                    
+            except Exception as e:
+                try:
+                    self.query_one("#network-display", Static).update(f"🌐 Network Monitor\n\nError: {str(e)[:50]}")
+                except:
+                    pass
+
+    class SystemInfoWidget(Static):
+        """Comprehensive System Information with Advanced Display"""
+        def compose(self) -> ComposeResult:
+            yield Static(id="sysinfo-display")
+
+        def on_mount(self):
+            self._display_info()
+            self.set_interval(5.0, self._display_info)
+
+        def _display_info(self):
+            try:
+                import platform
+                
+                # Get all system info
+                boot_time = datetime.fromtimestamp(psutil.boot_time())
+                uptime = datetime.now() - boot_time
+                cpu_freq = psutil.cpu_freq()
+                mem = psutil.virtual_memory()
+                ram_gb = mem.total / (1024**3)
+                
+                hours = uptime.seconds // 3600
+                minutes = (uptime.seconds % 3600) // 60
+                
+                content = f"""
+🖥️ SYSTEM INFORMATION DASHBOARD
+╔═════════════════════════════════════════════════════╗
+║       COMPREHENSIVE OVERVIEW                        ║
+╚═════════════════════════════════════════════════════╝
+
+┌─ SOFTWARE ───────────────────────────────────────────┐
+│ Operating System: {platform.system()} {platform.release():<14}│
+│ Kernel Version: {platform.version()[:28]:<20}│
+│ Python Version: {platform.python_version():<23}│
+│ Hostname: {platform.node():<28}│
+└─────────────────────────────────────────────────────┘
+
+┌─ HARDWARE ───────────────────────────────────────────┐
+│ Processor: {platform.processor()[:33]}│
+│ Architecture: {platform.machine():<27}│
+│ CPU Cores: {psutil.cpu_count(logical=False)} (Logical: {psutil.cpu_count():<8}  │
+│ CPU Frequency: {cpu_freq.current:.0f} MHz (Max: {cpu_freq.max:.0f} MHz)   │
+│ Total RAM: {ram_gb:>6.1f} GB{' '*20}│
+└─────────────────────────────────────────────────────┘
+
+┌─ SYSTEM STATUS ──────────────────────────────────────┐
+│ Boot Time: {boot_time.strftime('%Y-%m-%d %H:%M:%S'):<21}│
+│ System Uptime: {uptime.days}d {hours:02d}h {minutes:02d}m{' '*20}│
+│ Current Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S'):<20}│
+│ System Load: {os.getloadavg()[0]:.2f} (1m), {os.getloadavg()[1]:.2f} (5m), {os.getloadavg()[2]:.2f} (15m){' '*3}│
+└─────────────────────────────────────────────────────┘
+
+┌─ STORAGE PARTITIONS ─────────────────────────────────┐
+"""
+                
+                for partition in psutil.disk_partitions()[:6]:
+                    try:
+                        usage = psutil.disk_usage(partition.mountpoint)
+                        pct = usage.percent
+                        used_gb = usage.used / (1024**3)
+                        total_gb = usage.total / (1024**3)
+                        free_gb = usage.free / (1024**3)
+                        
+                        status = "🟢" if pct < 70 else "🟡" if pct < 85 else "🔴"
+                        
+                        filled = int((pct / 100) * 20)
+                        bar = "█" * filled + "░" * (20 - filled)
+                        
+                        content += f"│ {status} {partition.device:<10} {bar} {pct:>5.1f}%  │\n"
+                        content += f"│   {used_gb:>6.1f}GB/{total_gb:>6.1f}GB used  (Free: {free_gb:>6.1f}GB)      │\n"
+                    except (PermissionError, OSError):
+                        pass
+                
+                content += "└─────────────────────────────────────────────────────┘\n"
+                
+                # Memory breakdown
+                content += f"""
+┌─ MEMORY ANALYSIS ────────────────────────────────────┐
+│ Total: {ram_gb:>6.1f} GB                             │
+│ Used: {mem.used / (1024**3):>6.1f} GB ({mem.percent:>5.1f}%)              │
+│ Available: {mem.available / (1024**3):>6.1f} GB                   │
+│ Free: {mem.free / (1024**3):>6.1f} GB                      │
+│ Buffers: {mem.buffers / (1024**3):>6.1f} GB (Cache: {mem.cached / (1024**3):.1f} GB)   │
+└─────────────────────────────────────────────────────┘
+
+📊 Last Updated: {datetime.now().strftime('%H:%M:%S')}
+"""
+                
+                try:
+                    self.query_one("#sysinfo-display", Static).update(content)
+                except:
+                    pass
+                    
+            except Exception as e:
+                error_msg = f"🖥️ System Info\n\nError: {str(e)[:80]}"
+                try:
+                    self.query_one("#sysinfo-display", Static).update(error_msg)
+                except:
+                    pass
+
+    class WeatherWidget(Static):
+        """Weather Widget with Live Updates and Advanced Display"""
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.temp = 72
+            self.humidity = 65
+            self.wind_speed = 12
+            self.conditions = ["Sunny", "Partly Cloudy", "Cloudy", "Rainy", "Thunderstorm"]
+            self.current_condition_idx = 1
+            self.forecast = [
+                {"day": "Tomorrow", "high": 75, "low": 62, "condition": "Sunny", "icon": "☀️", "chance": 0},
+                {"day": "Thursday", "high": 68, "low": 55, "condition": "Rainy", "icon": "🌧️", "chance": 85},
+                {"day": "Friday", "high": 72, "low": 58, "condition": "Cloudy", "icon": "☁️", "chance": 30},
+                {"day": "Saturday", "high": 78, "low": 65, "condition": "Sunny", "icon": "☀️", "chance": 5},
+                {"day": "Sunday", "high": 80, "low": 68, "condition": "Sunny", "icon": "☀️", "chance": 0},
+            ]
+
+        def compose(self) -> ComposeResult:
+            yield Static(id="weather-display")
+
+        def on_mount(self):
+            self._refresh_weather()
+            self.set_interval(5.0, self._refresh_weather)
+
+        def _refresh_weather(self):
+            import random
+            
+            # Simulate weather changes
+            self.temp = max(50, min(95, self.temp + random.randint(-2, 2)))
+            self.humidity = max(20, min(95, self.humidity + random.randint(-5, 5)))
+            self.wind_speed = max(0, self.wind_speed + random.randint(-3, 3))
+            self.current_condition_idx = random.randint(0, len(self.conditions) - 1)
+            
+            temp_f = self.temp
+            temp_c = (temp_f - 32) * 5/9
+            
+            condition = self.conditions[self.current_condition_idx]
+            
+            # Map condition to icon
+            condition_map = {
+                "Sunny": "☀️",
+                "Partly Cloudy": "⛅",
+                "Cloudy": "☁️",
+                "Rainy": "🌧️",
+                "Thunderstorm": "⛈️"
+            }
+            
+            condition_icon = condition_map.get(condition, "❓")
+            
+            # Calculate UV index and air quality
+            uv_index = random.randint(1, 11)
+            uv_text = "Low" if uv_index <= 2 else "Moderate" if uv_index <= 5 else "High" if uv_index <= 7 else "Very High" if uv_index <= 10 else "Extreme"
+            
+            # Visibility and pressure
+            visibility = random.randint(5, 10)
+            pressure = round(random.uniform(29.8, 30.2), 2)
+            
+            # Wind direction
+            directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+            wind_dir = random.choice(directions)
+            
+            # Dew point
+            dew_point = temp_c - ((100 - self.humidity) / 5)
+            
+            content = f"""
+🌤️ WEATHER DASHBOARD
+╔═════════════════════════════════════════════════════╗
+║       LOCAL WEATHER CONDITIONS                      ║
+╚═════════════════════════════════════════════════════╝
+
+  {condition_icon} {condition.upper():<28}
+
+  🌡️  Temperature: {temp_f:>5.0f}°F ({temp_c:>5.1f}°C)
+  💧 Humidity: {self.humidity:>5}%
+  💨 Wind Speed: {self.wind_speed:>5} mph {wind_dir}
+  👁️  Visibility: {visibility} miles
+  🔵 Pressure: {pressure} inHg
+  ❄️  Dew Point: {dew_point:>5.1f}°C
+  ☀️  UV Index: {uv_index}/11 ({uv_text})
+
+┌─ 5-DAY FORECAST ─────────────────────────────────────┐
+"""
+            
+            for day_data in self.forecast:
+                icon = day_data["icon"]
+                content += f"│ {day_data['day']:<12} {icon} {day_data['high']:>3}°F/{day_data['low']:<2}°F ({day_data['chance']:>2}% rain)  │\n"
+            
+            content += f"""└─────────────────────────────────────────────────────┘
+
+📍 Location: Local System
+🔄 Last Updated: {datetime.now().strftime('%H:%M:%S')}
+📡 Data Source: System Weather Simulation
+"""
+            
+            try:
+                self.query_one("#weather-display", Static).update(content)
+            except:
+                pass
+
     default_widgets = {
-        "calculator": {"title": "Calculator", "builder": CalculatorWidget},
-        "mp3": {"title": "MP3 Player", "builder": Mp3Widget},
-        "notes": {"title": "Notes", "builder": NotesWidget},
-        "stopwatch": {"title": "Stopwatch", "builder": StopwatchWidget},
-        "stats": {"title": "System Stats", "builder": StatsWidget},
-        "3d_viewer": {"title": "3D ASCII Viewer", "builder": Textual3DViewerWidget},
+        "calculator": {"title": "🔢 Graphing Calculator", "builder": CalculatorWidget},
+        "mp3": {"title": "🎵 MP3 Player", "builder": Mp3Widget},
+        "notes": {"title": "📝 Quick Notes", "builder": NotesWidget},
+        "stopwatch": {"title": "⏱️ Stopwatch", "builder": StopwatchWidget},
+        "stats": {"title": "📊 System Stats", "builder": StatsWidget},
+        "3d_viewer": {"title": "🎨 3D ASCII Viewer", "builder": Textual3DViewerWidget},
+        "health": {"title": "💚 Health Score", "builder": HealthScoreWidget},
+        "api": {"title": "📡 API Metrics", "builder": APIMetricsWidget},
+        "services": {"title": "⚙️ Microservices", "builder": MicroservicesWidget},
+        "processes": {"title": "⚙️ Processes", "builder": ProcessMonitorWidget},
+        "network": {"title": "🌐 Network", "builder": NetworkMonitorWidget},
+        "sysinfo": {"title": "🖥️ System Info", "builder": SystemInfoWidget},
+        "weather": {"title": "🌤️ Weather", "builder": WeatherWidget},
     }
 
     widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
@@ -30951,8 +32022,17 @@ def feature_textual_widget_board(screenshot_path=None):
         CSS = """
         #widget-body { height: 1fr; }
         #widget-nav-container { width: 32; }
-        #widget-nav { border: solid $primary; }
-        #widget-panel { padding: 1; border: solid $secondary; }
+        #widget-nav { 
+            border: solid $primary;
+            overflow-y: scroll;
+            scrollbar-size: 2 1;
+        }
+        #widget-panel { 
+            padding: 1; 
+            border: solid $secondary;
+            overflow-y: scroll;
+            scrollbar-size: 2 1;
+        }
         .title { content-align: center middle; height: 1; }
         #widget-quit { dock: bottom; margin: 1 0; }
         """
@@ -36524,6 +37604,168 @@ def feature_enhanced_display_mode():
         time.sleep(1)
         feature_enhanced_display_mode()
 
+def feature_textual_calculator():
+    """Embedded Textual calculator app."""
+    try:
+        from textual.app import App, ComposeResult
+        from textual.widgets import Button, Digits
+        from textual.containers import Container
+        from textual.reactive import var
+        from textual import on, events
+        from textual.css.query import NoMatches
+        from decimal import Decimal
+    except ImportError:
+        print(f"{get_current_color()}✗{RESET} Textual not installed.")
+        print("\nInstall with: pip install textual")
+        input("\nPress Enter to return...")
+        return
+
+    class CalculatorApp(App):
+        """A working desktop calculator."""
+
+        CSS = """
+        #calculator { width: 60; height: auto; border: solid $primary; padding: 1; }
+        #numbers { height: 3; margin-bottom: 1; }
+        Button { width: 9; height: 3; margin: 0 1 1 0; }
+        .number { background: $panel; }
+        """
+
+        numbers = var("0")
+        show_ac = var(True)
+        left = var(Decimal("0"))
+        right = var(Decimal("0"))
+        value = var("")
+        operator = var("plus")
+
+        NAME_MAP = {
+            "asterisk": "multiply",
+            "slash": "divide",
+            "underscore": "plus-minus",
+            "full_stop": "point",
+            "plus_minus_sign": "plus-minus",
+            "percent_sign": "percent",
+            "equals_sign": "equals",
+            "minus": "minus",
+            "plus": "plus",
+        }
+
+        def watch_numbers(self, value: str) -> None:
+            self.query_one("#numbers", Digits).update(value)
+
+        def compute_show_ac(self) -> bool:
+            return self.value in ("", "0") and self.numbers == "0"
+
+        def watch_show_ac(self, show_ac: bool) -> None:
+            self.query_one("#c").display = not show_ac
+            self.query_one("#ac").display = show_ac
+
+        def compose(self) -> ComposeResult:
+            with Container(id="calculator"):
+                yield Digits(id="numbers")
+                yield Button("AC", id="ac", variant="primary")
+                yield Button("C", id="c", variant="primary")
+                yield Button("+/-", id="plus-minus", variant="primary")
+                yield Button("%", id="percent", variant="primary")
+                yield Button("÷", id="divide", variant="warning")
+                yield Button("7", id="number-7", classes="number")
+                yield Button("8", id="number-8", classes="number")
+                yield Button("9", id="number-9", classes="number")
+                yield Button("×", id="multiply", variant="warning")
+                yield Button("4", id="number-4", classes="number")
+                yield Button("5", id="number-5", classes="number")
+                yield Button("6", id="number-6", classes="number")
+                yield Button("-", id="minus", variant="warning")
+                yield Button("1", id="number-1", classes="number")
+                yield Button("2", id="number-2", classes="number")
+                yield Button("3", id="number-3", classes="number")
+                yield Button("+", id="plus", variant="warning")
+                yield Button("0", id="number-0", classes="number")
+                yield Button(".", id="point")
+                yield Button("=", id="equals", variant="warning")
+
+        def on_key(self, event: events.Key) -> None:
+            def press(button_id: str) -> None:
+                try:
+                    self.query_one(f"#{button_id}", Button).press()
+                except NoMatches:
+                    pass
+
+            key = event.key
+            if key.isdecimal():
+                press(f"number-{key}")
+            elif key == "c":
+                press("c")
+                press("ac")
+            else:
+                button_id = self.NAME_MAP.get(key)
+                if button_id is not None:
+                    press(self.NAME_MAP.get(key, key))
+
+        @on(Button.Pressed, ".number")
+        def number_pressed(self, event: Button.Pressed) -> None:
+            assert event.button.id is not None
+            number = event.button.id.partition("-")[-1]
+            self.numbers = self.value = self.value.lstrip("0") + number
+
+        @on(Button.Pressed, "#plus-minus")
+        def plus_minus_pressed(self) -> None:
+            self.numbers = self.value = str(Decimal(self.value or "0") * -1)
+
+        @on(Button.Pressed, "#percent")
+        def percent_pressed(self) -> None:
+            self.numbers = self.value = str(Decimal(self.value or "0") / Decimal(100))
+
+        @on(Button.Pressed, "#point")
+        def pressed_point(self) -> None:
+            if "." not in self.value:
+                self.numbers = self.value = (self.value or "0") + "."
+
+        @on(Button.Pressed, "#ac")
+        def pressed_ac(self) -> None:
+            self.value = ""
+            self.left = self.right = Decimal(0)
+            self.operator = "plus"
+            self.numbers = "0"
+
+        @on(Button.Pressed, "#c")
+        def pressed_c(self) -> None:
+            self.value = ""
+            self.numbers = "0"
+
+        def _do_math(self) -> None:
+            try:
+                if self.operator == "plus":
+                    self.left += self.right
+                elif self.operator == "minus":
+                    self.left -= self.right
+                elif self.operator == "divide":
+                    self.left /= self.right
+                elif self.operator == "multiply":
+                    self.left *= self.right
+                self.numbers = str(self.left)
+                self.value = ""
+            except Exception:
+                self.numbers = "Error"
+
+        @on(Button.Pressed, "#plus,#minus,#divide,#multiply")
+        def pressed_op(self, event: Button.Pressed) -> None:
+            self.right = Decimal(self.value or "0")
+            self._do_math()
+            assert event.button.id is not None
+            self.operator = event.button.id
+
+        @on(Button.Pressed, "#equals")
+        def pressed_equals(self) -> None:
+            if self.value:
+                self.right = Decimal(self.value)
+            self._do_math()
+
+    try:
+        CalculatorApp().run()
+    except Exception as e:
+        print(f"{get_current_color()}✗{RESET} Calculator error: {e}")
+        input("\nPress Enter to return...")
+
 def feature_enhanced_display_suite():
     """Textual Enhanced Display Suite with 15+ live apps."""
     try:
@@ -36545,152 +37787,6 @@ def feature_enhanced_display_suite():
     import socket
     import threading
     from datetime import datetime
-
-    def feature_textual_calculator():
-        """Embedded Textual calculator app."""
-        from decimal import Decimal
-
-        class CalculatorApp(App):
-            """A working desktop calculator."""
-
-            CSS = """
-            #calculator { width: 60; height: auto; border: solid $primary; padding: 1; }
-            #numbers { height: 3; margin-bottom: 1; }
-            Button { width: 9; height: 3; margin: 0 1 1 0; }
-            .number { background: $panel; }
-            """
-
-            numbers = var("0")
-            show_ac = var(True)
-            left = var(Decimal("0"))
-            right = var(Decimal("0"))
-            value = var("")
-            operator = var("plus")
-
-            NAME_MAP = {
-                "asterisk": "multiply",
-                "slash": "divide",
-                "underscore": "plus-minus",
-                "full_stop": "point",
-                "plus_minus_sign": "plus-minus",
-                "percent_sign": "percent",
-                "equals_sign": "equals",
-                "minus": "minus",
-                "plus": "plus",
-            }
-
-            def watch_numbers(self, value: str) -> None:
-                self.query_one("#numbers", Digits).update(value)
-
-            def compute_show_ac(self) -> bool:
-                return self.value in ("", "0") and self.numbers == "0"
-
-            def watch_show_ac(self, show_ac: bool) -> None:
-                self.query_one("#c").display = not show_ac
-                self.query_one("#ac").display = show_ac
-
-            def compose(self) -> ComposeResult:
-                with Container(id="calculator"):
-                    yield Digits(id="numbers")
-                    yield Button("AC", id="ac", variant="primary")
-                    yield Button("C", id="c", variant="primary")
-                    yield Button("+/-", id="plus-minus", variant="primary")
-                    yield Button("%", id="percent", variant="primary")
-                    yield Button("÷", id="divide", variant="warning")
-                    yield Button("7", id="number-7", classes="number")
-                    yield Button("8", id="number-8", classes="number")
-                    yield Button("9", id="number-9", classes="number")
-                    yield Button("×", id="multiply", variant="warning")
-                    yield Button("4", id="number-4", classes="number")
-                    yield Button("5", id="number-5", classes="number")
-                    yield Button("6", id="number-6", classes="number")
-                    yield Button("-", id="minus", variant="warning")
-                    yield Button("1", id="number-1", classes="number")
-                    yield Button("2", id="number-2", classes="number")
-                    yield Button("3", id="number-3", classes="number")
-                    yield Button("+", id="plus", variant="warning")
-                    yield Button("0", id="number-0", classes="number")
-                    yield Button(".", id="point")
-                    yield Button("=", id="equals", variant="warning")
-
-            def on_key(self, event: events.Key) -> None:
-                def press(button_id: str) -> None:
-                    try:
-                        self.query_one(f"#{button_id}", Button).press()
-                    except NoMatches:
-                        pass
-
-                key = event.key
-                if key.isdecimal():
-                    press(f"number-{key}")
-                elif key == "c":
-                    press("c")
-                    press("ac")
-                else:
-                    button_id = self.NAME_MAP.get(key)
-                    if button_id is not None:
-                        press(self.NAME_MAP.get(key, key))
-
-            @on(Button.Pressed, ".number")
-            def number_pressed(self, event: Button.Pressed) -> None:
-                assert event.button.id is not None
-                number = event.button.id.partition("-")[-1]
-                self.numbers = self.value = self.value.lstrip("0") + number
-
-            @on(Button.Pressed, "#plus-minus")
-            def plus_minus_pressed(self) -> None:
-                self.numbers = self.value = str(Decimal(self.value or "0") * -1)
-
-            @on(Button.Pressed, "#percent")
-            def percent_pressed(self) -> None:
-                self.numbers = self.value = str(Decimal(self.value or "0") / Decimal(100))
-
-            @on(Button.Pressed, "#point")
-            def pressed_point(self) -> None:
-                if "." not in self.value:
-                    self.numbers = self.value = (self.value or "0") + "."
-
-            @on(Button.Pressed, "#ac")
-            def pressed_ac(self) -> None:
-                self.value = ""
-                self.left = self.right = Decimal(0)
-                self.operator = "plus"
-                self.numbers = "0"
-
-            @on(Button.Pressed, "#c")
-            def pressed_c(self) -> None:
-                self.value = ""
-                self.numbers = "0"
-
-            def _do_math(self) -> None:
-                try:
-                    if self.operator == "plus":
-                        self.left += self.right
-                    elif self.operator == "minus":
-                        self.left -= self.right
-                    elif self.operator == "divide":
-                        self.left /= self.right
-                    elif self.operator == "multiply":
-                        self.left *= self.right
-                    self.numbers = str(self.left)
-                    self.value = ""
-                except Exception:
-                    self.numbers = "Error"
-
-            @on(Button.Pressed, "#plus,#minus,#divide,#multiply")
-            def pressed_op(self, event: Button.Pressed) -> None:
-                self.right = Decimal(self.value or "0")
-                self._do_math()
-                assert event.button.id is not None
-                self.operator = event.button.id
-
-            @on(Button.Pressed, "#equals")
-            def pressed_equals(self) -> None:
-                if self.value:
-                    self.right = Decimal(self.value)
-                self._do_math()
-
-        CalculatorApp().run(inline=True)
 
     class EnhancedDisplaySuite(App):
         """High-density display suite with live stats and 15+ apps."""
