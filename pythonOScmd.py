@@ -14959,10 +14959,10 @@ except Exception as e:
     input("\nPress Enter to return...")
 
 def _server_mode_handler(server):
-    """Handle server mode operations."""
+    """Handle server mode operations with interactive chat."""
     global SERVER_INSTANCE
     os.system('cls' if os.name == 'nt' else 'clear')
-    print_header("🖥️  Server Mode")
+    print_header("🖥️  Server Mode - Listen for encrypted messages")
 
     if SERVER_INSTANCE and SERVER_INSTANCE.running:
         print(f"{COLORS['2'][0]}✓ Server already running on port {SERVER_INSTANCE.port}{RESET}")
@@ -14983,14 +14983,73 @@ def _server_mode_handler(server):
 
         server_thread = threading.Thread(target=SERVER_INSTANCE.start, daemon=True)
         server_thread.start()
-
+        
+        time.sleep(1)  # Give server time to start
         print(f"{COLORS['2'][0]}✓ Server started. Press Ctrl+C to stop.{RESET}")
+        print(f"{COLORS['6'][0]}Server listening on port {port}{RESET}\n")
+        
+        # Interactive chat interface
         try:
             while SERVER_INSTANCE.running:
-                time.sleep(1)
+                # Check for new connections and display them
+                current_clients = len(SERVER_INSTANCE.connected_clients)
+                if current_clients > 0:
+                    print(f"{COLORS['2'][0]}✓ Server listening on port {port}{RESET}")
+                    print(f"Connected clients: {current_clients}")
+                    for addr in SERVER_INSTANCE.connected_clients:
+                        print(f"  • {addr[0]}:{addr[1]}")
+                    
+                    # Interactive message sending
+                    print(f"\n{BOLD}Commands:{RESET}")
+                    print(f"  Type message to broadcast to all clients")
+                    print(f"  Type 'quit' to stop server")
+                    print(f"  Type 'clients' to refresh client list\n")
+                    
+                    msg = input(f"{BOLD}[SERVER]: {RESET}").strip()
+                    
+                    if msg.lower() == 'quit':
+                        print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
+                        break
+                    elif msg.lower() == 'clients':
+                        os.system('cls' if os.name == 'nt' else 'clear')
+                        print_header("🖥️  Server Mode")
+                        print(f"{COLORS['2'][0]}Connected clients: {current_clients}{RESET}\n")
+                        for idx, addr in enumerate(SERVER_INSTANCE.connected_clients, 1):
+                            print(f"  {idx}. {addr[0]}:{addr[1]}")
+                        continue
+                    elif msg:
+                        # Send message to all connected clients
+                        server_msg = f"[SERVER]: {msg}"
+                        for client_sock in SERVER_INSTANCE.connected_clients:
+                            try:
+                                # Send message through the server's encryption
+                                encrypted = SERVER_INSTANCE.cipher.encrypt(server_msg.encode())
+                                client_sock[0].send(encrypted)
+                            except:
+                                pass
+                        print(f"{COLORS['4'][0]}Message sent to {current_clients} clients{RESET}\n")
+                        os.system('cls' if os.name == 'nt' else 'clear')
+                        print_header("🖥️  Server Mode - Listen for encrypted messages")
+                else:
+                    print(f"{COLORS['6'][0]}Waiting for client connections...{RESET}")
+                    print(f"Server listening on port {port}")
+                    print(f"Type 'quit' to stop server\n")
+                    
+                    msg = input(f"{BOLD}[SERVER (Waiting)]: {RESET}").strip()
+                    if msg.lower() == 'quit':
+                        print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
+                        break
+                    elif msg:
+                        print(f"{COLORS['1'][0]}No clients connected - message not sent{RESET}")
+                    time.sleep(0.5)
+                    os.system('cls' if os.name == 'nt' else 'clear')
+                    print_header("🖥️  Server Mode - Listen for encrypted messages")
+        
         except KeyboardInterrupt:
             print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
+        finally:
             SERVER_INSTANCE.stop()
+            
     except ValueError:
         print(f"{COLORS['1'][0]}Invalid port number{RESET}")
     except Exception as e:
