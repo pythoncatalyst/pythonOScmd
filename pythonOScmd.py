@@ -2,6 +2,17 @@
 # -*- coding: utf-8 -*-
 """pythonOScmd - Unified Terminal Operating System."""
 
+# Handle encoding for Windows console
+import sys
+if sys.platform == 'win32':
+    try:
+        # Try to set UTF-8 mode for Windows
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
+
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
@@ -8022,8 +8033,11 @@ try:
     NUMPY_AVAILABLE = True
 except ModuleNotFoundError:
     NUMPY_AVAILABLE = False
-    print("⚠️  WARNING: NumPy not available - numeric operations will be limited")
-    print("   Install: pip install numpy")
+    try:
+        print("[*] WARNING: NumPy not available - numeric operations will be limited")
+        print("    Install: pip install numpy")
+    except UnicodeEncodeError:
+        print("[*] WARNING: NumPy not available - numeric operations will be limited")
     np = None
 
 # Requests - HTTP library
@@ -8032,7 +8046,10 @@ try:
     REQUESTS_AVAILABLE = True
 except ModuleNotFoundError:
     REQUESTS_AVAILABLE = False
-    print("⚠️  WARNING: Requests not available - network features will be limited")
+    try:
+        print("[*] WARNING: Requests not available - network features will be limited")
+    except UnicodeEncodeError:
+        print("[*] WARNING: Requests not available - network features will be limited")
     print("   Install: pip install requests")
     requests = None
 
@@ -8042,8 +8059,11 @@ try:
     BEAUTIFULSOUP_AVAILABLE = True
 except ModuleNotFoundError:
     BEAUTIFULSOUP_AVAILABLE = False
-    print("⚠️  WARNING: BeautifulSoup not available - web scraping disabled")
-    print("   Install: pip install beautifulsoup4")
+    try:
+        print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
+        print("    Install: pip install beautifulsoup4")
+    except UnicodeEncodeError:
+        print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
     BeautifulSoup = None
 
 # Pillow - Image processing
@@ -8052,8 +8072,11 @@ try:
     PILLOW_AVAILABLE = True
 except ModuleNotFoundError:
     PILLOW_AVAILABLE = False
-    print("⚠️  WARNING: Pillow not available - image processing disabled")
-    print("   Install: pip install pillow")
+    try:
+        print("[*] WARNING: Pillow not available - image processing disabled")
+        print("    Install: pip install pillow")
+    except UnicodeEncodeError:
+        print("[*] WARNING: Pillow not available - image processing disabled")
     Image = None
 
 # GPUtil - GPU utilities
@@ -8062,8 +8085,11 @@ try:
     GPUTIL_AVAILABLE = True
 except ModuleNotFoundError:
     GPUTIL_AVAILABLE = False
-    print("⚠️  WARNING: GPUtil not available - GPU monitoring disabled")
-    print("   Install: pip install gputil")
+    try:
+        print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
+        print("    Install: pip install gputil")
+    except UnicodeEncodeError:
+        print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
     GPUtil = None
 
 from io import BytesIO
@@ -8199,8 +8225,11 @@ except ModuleNotFoundError:
         
         curses = StubCurses()
         CURSES_AVAILABLE = False
-        print("⚠️  WARNING: Curses module not available - using fallback stub mode")
-        print("   Install windows-curses: pip install windows-curses")
+        try:
+            print("[*] WARNING: Curses module not available - using fallback stub mode")
+            print("    Install windows-curses: pip install windows-curses")
+        except UnicodeEncodeError:
+            print("[*] WARNING: Curses module not available - using fallback stub mode")
 
 from collections import deque
 from pathlib import Path
@@ -8973,6 +9002,7 @@ import logging
 from functools import wraps
 from enum import Enum
 import traceback
+from datetime import datetime
 
 class ErrorLevel(Enum):
     """Error severity levels for logging and handling."""
@@ -9037,9 +9067,14 @@ class ResilienceLogger:
             except Exception:
                 pass  # Silent fail for logging failures
 
-        # Also log to console for visibility
+        # Also log to console for visibility (with fallback if COLORS not defined yet)
         if level in [ErrorLevel.CRITICAL, ErrorLevel.ERROR, ErrorLevel.WARNING]:
-            print(f"{COLORS['1'][0]}{log_entry}{RESET}" if level != ErrorLevel.WARNING else f"{COLORS['4'][0]}{log_entry}{RESET}")
+            try:
+                colored_output = f"{COLORS['1'][0]}{log_entry}{RESET}" if level != ErrorLevel.WARNING else f"{COLORS['4'][0]}{log_entry}{RESET}"
+                print(colored_output)
+            except (NameError, KeyError, TypeError):
+                # COLORS or RESET not defined yet, use plain text
+                print(log_entry)
 
     def record_recovery(self, feature, attempt_num, success=False):
         """Track retry/recovery attempts."""
@@ -10272,8 +10307,26 @@ class CredentialEncryptor:
         """Load encryption key or create new one."""
         try:
             if os.path.exists(self.key_file):
-                with open(self.key_file, 'rb') as f:
-                    key = f.read()
+                try:
+                    with open(self.key_file, 'rb') as f:
+                        key = f.read()
+                    # Validate the key
+                    self.cipher = Fernet(key)
+                except (ValueError, TypeError) as ke:
+                    # Key is corrupted/invalid - delete and create new one
+                    RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Corrupted encryption key file, generating new one",
+                                         feature="Encryption", error=ke)
+                    try:
+                        os.remove(self.key_file)
+                    except:
+                        pass
+                    # Generate new key
+                    key = Fernet.generate_key()
+                    os.makedirs(os.path.dirname(self.key_file), exist_ok=True)
+                    with open(self.key_file, 'wb') as f:
+                        f.write(key)
+                    os.chmod(self.key_file, 0o600)
+                    self.cipher = Fernet(key)
             else:
                 # Create new key
                 key = Fernet.generate_key()
@@ -10281,8 +10334,7 @@ class CredentialEncryptor:
                 with open(self.key_file, 'wb') as f:
                     f.write(key)
                 os.chmod(self.key_file, 0o600)  # Secure permissions
-
-            self.cipher = Fernet(key)
+                self.cipher = Fernet(key)
         except Exception as e:
             RESILIENCE_LOGGER.log(ErrorLevel.ERROR, f"Failed to initialize encryption: {e}",
                                  feature="Encryption", error=e)
@@ -39703,17 +39755,21 @@ Process Count: {len(psutil.pids())}
                 if cmd_key in COMMAND_MAP:
                     op_name, op_func = COMMAND_MAP[cmd_key]
                     if op_name and op_func:
+                        cmd_completed = False
                         try:
                             safe_run(None, op_name, op_func)
+                            cmd_completed = True
                         except Exception as e:
                             print(f"Error executing command: {e}")
+                            cmd_completed = True
                         finally:
                             # After command completes, offer to return to dashboard
                             try:
                                 input("\n[Press Enter to return to dashboard...]")
                             except (KeyboardInterrupt, EOFError):
                                 pass
-                            # Loop back to dashboard (don't return, just continue)
+                        # Loop back to dashboard (don't return, just continue)
+                        if cmd_completed:
                             continue
 
             # If we get here and result is None, user pressed Q to quit
