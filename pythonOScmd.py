@@ -16719,6 +16719,14 @@ def feature_weather_display():
                     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
                 
                 elif choice == '2':
+                    textual_available = importlib.util.find_spec("textual") is not None
+                    if textual_available:
+                        try:
+                            feature_textual_widget_board(initial_widget="air_traffic")
+                            continue
+                        except Exception:
+                            pass
+
                     # OpenSky Network air traffic with categorized airports
                     os.system('cls' if os.name == 'nt' else 'clear')
                     print_header("📊 Live Air Traffic Data (OpenSky Network)")
@@ -17630,8 +17638,16 @@ def feature_satellite_tracker():
 
         # ========== CORE TRACKING ==========
         if choice == '1':
-            bridge = MarsBridge(qth, targets=targets, primary_target=target)
-            bridge.run()
+            textual_available = importlib.util.find_spec("textual") is not None
+            if textual_available:
+                try:
+                    feature_textual_widget_board(initial_widget="sat_live")
+                except Exception:
+                    bridge = MarsBridge(qth, targets=targets, primary_target=target)
+                    bridge.run()
+            else:
+                bridge = MarsBridge(qth, targets=targets, primary_target=target)
+                bridge.run()
 
         elif choice == '2':
             print("Updating TLE data from Celestrak...")
@@ -31922,7 +31938,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         input("\nPress Enter to return...")
 
 
-def feature_textual_widget_board(screenshot_path=None):
+def feature_textual_widget_board(screenshot_path=None, initial_widget=None):
     """Launch a Textual widget board with embedded mini apps."""
     try:
         from textual.app import App, ComposeResult
@@ -33976,6 +33992,194 @@ def feature_textual_widget_board(screenshot_path=None):
             except:
                 pass
 
+    class AirTrafficOpenSkyWidget(Static):
+        """OpenSky live air traffic board with colorized map and interactive controls."""
+        FLIGHT_COLORS = ["bright_cyan", "bright_green", "bright_magenta", "bright_yellow", "bright_blue", "bright_white"]
+
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.location = {"city": "Unknown", "country": "N/A", "lat": 0.0, "lon": 0.0}
+            self.flights = []
+            self.last_refresh = "Never"
+            self.last_message = "Ready"
+
+        def compose(self) -> ComposeResult:
+            yield Static("📊 AIR TRAFFIC DATA (OPENSKY NETWORK)", id="air-title", classes="title")
+            with Horizontal(id="air-body"):
+                with Vertical(id="air-left-pane"):
+                    yield Static(id="air-status")
+                    yield Static(id="air-legend")
+                    yield Static(id="air-table")
+                with Vertical(id="air-right-pane"):
+                    yield Static(id="air-map")
+                    with Horizontal(id="air-controls"):
+                        yield Button("🔄 Refresh", id="air-refresh", variant="success")
+                        yield Button("❌ Quit", id="air-quit", variant="error")
+                    yield Static(id="air-source")
+
+        def on_mount(self):
+            self._refresh_data()
+            self.set_interval(20.0, self._refresh_data)
+
+        def _resolve_location(self):
+            try:
+                resp = requests.get("http://ip-api.com/json/", timeout=6)
+                info = resp.json()
+                if info.get("status") == "success":
+                    return {
+                        "city": info.get("city", "Unknown"),
+                        "country": info.get("country", "N/A"),
+                        "lat": float(info.get("lat", 0.0)),
+                        "lon": float(info.get("lon", 0.0)),
+                    }
+            except Exception:
+                pass
+            return {"city": "Unknown", "country": "N/A", "lat": 39.267, "lon": -76.798}
+
+        def _get_opensky_flights(self, lat, lon, radius_km=150):
+            try:
+                response = requests.get("https://opensky-network.org/api/states/all", timeout=8).json()
+                states = response.get("states") or []
+            except Exception:
+                return []
+
+            from math import radians, cos, sin, asin, sqrt
+
+            def haversine(lat1, lon1, lat2, lon2):
+                lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
+                dlon = lon2 - lon1
+                dlat = lat2 - lat1
+                a = sin(dlat / 2) ** 2 + cos(lat1) * cos(lat2) * sin(dlon / 2) ** 2
+                c = 2 * asin(sqrt(a))
+                return 6371 * c
+
+            flights = []
+            for state in states[:500]:
+                if state[5] is None or state[6] is None:
+                    continue
+                dist = haversine(lat, lon, state[6], state[5])
+                if dist <= radius_km:
+                    flights.append({
+                        "icao24": state[0],
+                        "callsign": state[1].strip() if state[1] else "N/A",
+                        "country": state[2] or "N/A",
+                        "lon": float(state[5]),
+                        "lat": float(state[6]),
+                        "altitude": state[7] or 0,
+                        "velocity": state[9] or 0,
+                        "dist_km": dist,
+                    })
+
+            flights.sort(key=lambda x: x["altitude"], reverse=True)
+            return flights[:20]
+
+        def _render_map(self, flights):
+            width = max(56, self.size.width - 12)
+            height = max(14, self.size.height - 16)
+            center_lat = self.location["lat"]
+            center_lon = self.location["lon"]
+            span_lat = 3.0
+            span_lon = 3.0
+            min_lat, max_lat = center_lat - span_lat, center_lat + span_lat
+            min_lon, max_lon = center_lon - span_lon, center_lon + span_lon
+
+            grid = [[" " for _ in range(width)] for _ in range(height)]
+
+            cx = width // 2
+            cy = height // 2
+            grid[cy][cx] = "+"
+
+            legend = []
+            for idx, flight in enumerate(flights[:10]):
+                lat = flight["lat"]
+                lon = flight["lon"]
+                if not (min_lat <= lat <= max_lat and min_lon <= lon <= max_lon):
+                    continue
+                x = int((lon - min_lon) / (max_lon - min_lon) * (width - 1))
+                y = int((max_lat - lat) / (max_lat - min_lat) * (height - 1))
+                x = max(0, min(width - 1, x))
+                y = max(0, min(height - 1, y))
+                marker = chr(ord("A") + (idx % 26))
+                color = self.FLIGHT_COLORS[idx % len(self.FLIGHT_COLORS)]
+                grid[y][x] = f"[{color} bold]{marker}[/]"
+                legend.append((marker, color, flight))
+
+            lines = []
+            for row in grid:
+                rendered = "".join(cell if isinstance(cell, str) else str(cell) for cell in row)
+                lines.append(rendered)
+
+            map_title = (
+                f"[bold cyan]Local Airspace Map[/]  "
+                f"[dim](±{span_lat:.1f}° lat / ±{span_lon:.1f}° lon around {self.location['city']})[/]"
+            )
+            map_text = map_title + "\n" + "\n".join(lines)
+
+            legend_lines = []
+            for marker, color, flight in legend[:8]:
+                legend_lines.append(
+                    f"[{color} bold]{marker}[/] {flight['callsign'][:12]:<12} "
+                    f"{int(flight['altitude']):>6}m  {int(flight['velocity']):>4}km/h"
+                )
+            if not legend_lines:
+                legend_lines = ["No aircraft in local map bounds."]
+
+            return map_text, "\n".join(legend_lines)
+
+        def _render_table(self, flights):
+            if not flights:
+                return "No flights currently detected in range."
+            lines = [
+                "[bold]Callsign      Country              Alt(m)  Vel(kmh)  Dist(km)[/]",
+                "[dim]---------------------------------------------------------------[/]",
+            ]
+            for flight in flights[:12]:
+                lines.append(
+                    f"{flight['callsign'][:12]:<12} "
+                    f"{flight['country'][:20]:<20} "
+                    f"{int(flight['altitude']):>6} "
+                    f"{int(flight['velocity']):>8} "
+                    f"{flight['dist_km']:>8.1f}"
+                )
+            return "\n".join(lines)
+
+        def _refresh_data(self):
+            self.location = self._resolve_location()
+            self.flights = self._get_opensky_flights(self.location["lat"], self.location["lon"], radius_km=150)
+            self.last_refresh = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            self.last_message = f"Loaded {len(self.flights)} flights from OpenSky"
+
+            map_text, legend_text = self._render_map(self.flights)
+            table_text = self._render_table(self.flights)
+            status_text = (
+                f"[bold cyan]Location:[/] {self.location['city']}, {self.location['country']}\n"
+                f"[bold cyan]Coords:[/] {self.location['lat']:.4f}, {self.location['lon']:.4f}\n"
+                f"[bold cyan]Flights in 150km:[/] {len(self.flights)}\n"
+                f"[bold cyan]Last Refresh:[/] {self.last_refresh}"
+            )
+            source_text = (
+                "[bold]Data Source[/]\n"
+                "OpenSky Network: https://opensky-network.org/\n"
+                "API: https://opensky-network.org/api/states/all\n"
+                f"Last: {self.last_message}"
+            )
+
+            self.query_one("#air-status", Static).update(status_text)
+            self.query_one("#air-legend", Static).update(f"[bold]Map Legend[/]\n{legend_text}")
+            self.query_one("#air-table", Static).update(table_text)
+            self.query_one("#air-map", Static).update(map_text)
+            self.query_one("#air-source", Static).update(source_text)
+
+        @on(Button.Pressed, "#air-refresh")
+        def _on_refresh(self, _event):
+            self.last_message = "Refreshing..."
+            self.query_one("#air-source", Static).update(f"[bold]Data Source[/]\nRefreshing from OpenSky...")
+            self._refresh_data()
+
+        @on(Button.Pressed, "#air-quit")
+        def _on_quit(self, _event):
+            self.app.exit()
+
     class PyPowerWidget(Static):
         """Python Power Tools & Scripting Environment"""
         def compose(self) -> ComposeResult:
@@ -34310,6 +34514,147 @@ def feature_textual_widget_board(screenshot_path=None):
             except:
                 pass
 
+    class SatelliteLiveTrackerWidget(Static):
+        """Textual satellite live tracker with enhanced visual map and command pane."""
+        SAT_PALETTE = ["bright_green", "bright_cyan", "bright_magenta", "bright_yellow", "bright_blue"]
+
+        def compose(self) -> ComposeResult:
+            yield Static("🛰️ SATELLITE LIVE TRACKER", id="sat-live-title", classes="title")
+            with Horizontal(id="sat-live-body"):
+                with Vertical(id="sat-left-pane"):
+                    yield Static(id="sat-status")
+                    yield Static(id="sat-legend")
+                    yield Static(id="sat-telemetry")
+                with Vertical(id="sat-right-pane"):
+                    yield Static(id="sat-map")
+                    yield Input(placeholder="Command: U | S <name> | A <name> | R <name> | Q", id="sat-cmd")
+                    yield Static(id="sat-last")
+
+        def on_mount(self):
+            self.session = _EnhancedSatelliteSession()
+            self.set_interval(1.0, self._refresh)
+            self._refresh()
+
+        def _render_colored_map(self, positions, marker_map):
+            body_height = max(12, self.size.height - 12)
+            body_width = max(48, self.size.width - 6)
+            self.session.update_map_size(body_width, body_height)
+            map_h = self.session.map.height
+            map_w = self.session.map.width
+            north_count = len(NORTH_HEMISPHERE)
+            south_count = len(SOUTH_HEMISPHERE)
+
+            grid = []
+            for r in range(map_h):
+                if r < north_count:
+                    src = NORTH_HEMISPHERE[r][:map_w]
+                else:
+                    idx = r - north_count
+                    src = SOUTH_HEMISPHERE[idx][:map_w] if idx < south_count else ""
+                grid.append(list(src.ljust(map_w)))
+
+            for trail in self.session.trails.values():
+                for t_lat, t_lon in trail:
+                    tx, ty = self.session.map.latlon_to_xy(t_lat, t_lon)
+                    if 0 <= ty < map_h and 0 <= tx < map_w:
+                        grid[ty][tx] = "·"
+
+            sat_styles = {}
+            targets = list(marker_map.keys())
+            for idx, name in enumerate(targets[:SAT_MAX_TARGETS]):
+                sat_styles[name] = self.SAT_PALETTE[idx % len(self.SAT_PALETTE)]
+
+            marker_positions = {}
+            for name, (lat, lon) in positions.items():
+                sx, sy = self.session.map.latlon_to_xy(lat, lon)
+                marker_positions[(sx, sy)] = name
+
+            lines = []
+            for r in range(map_h):
+                if r < north_count:
+                    prefix = "N "
+                elif r == north_count:
+                    prefix = "EQ"
+                else:
+                    prefix = "S "
+
+                line_fragments = []
+                for c in range(map_w):
+                    char = grid[r][c]
+                    sat_name = marker_positions.get((c, r))
+                    if sat_name:
+                        style = sat_styles.get(sat_name, "white")
+                        marker = marker_map.get(sat_name, "*")
+                        if sat_name == self.session.primary_target:
+                            line_fragments.append(f"[{style} bold]{marker}[/]")
+                        else:
+                            line_fragments.append(f"[{style}]{marker}[/]")
+                    elif char == "·":
+                        line_fragments.append("[grey42]·[/]")
+                    else:
+                        line_fragments.append(char)
+
+                lines.append(f"[cyan]{prefix}[/]|" + "".join(line_fragments) + "|")
+
+            return "\n".join(lines), sat_styles
+
+        def _refresh(self):
+            now = time.time()
+            targets, positions = self.session.compute_positions(now)
+            marker_map = {name: SAT_MARKERS[i] for i, name in enumerate(targets[:SAT_MAX_TARGETS])}
+
+            earth_dist = (1.524 - 1.0) * AU_KM
+            latency_min = (earth_dist / C_KMS) / 60
+            status_text = (
+                f"[bold cyan]STATUS:[/] {self.session.health} {self.session._health_icon()}\n"
+                f"[bold cyan]PRIMARY:[/] {self.session.primary_target}\n"
+                f"[bold cyan]MISSION CLOCK:[/] {time.ctime(now)} UTC\n"
+                f"[bold cyan]EARTH DISTANCE:[/] {earth_dist:,.0f} KM\n"
+                f"[bold cyan]LATENCY:[/] {latency_min:.1f}m\n"
+                f"[bold cyan]SATELLITES IN MEMORY:[/] {self.session.store.count()}"
+            )
+
+            lat = lon = None
+            if self.session.primary_target in positions:
+                lat, lon = positions[self.session.primary_target]
+            if lat is None or lon is None:
+                tele_text = "[bold]TELEMETRY:[/] N/A"
+            else:
+                lat_suffix = "N" if lat >= 0 else "S"
+                lon_suffix = "E" if lon >= 0 else "W"
+                tele_text = f"[bold]TELEMETRY:[/] {abs(lat):>6.2f}{lat_suffix}  {abs(lon):>7.2f}{lon_suffix}"
+
+            map_text, sat_styles = self._render_colored_map(positions, marker_map)
+            legend_parts = []
+            for idx, name in enumerate(targets[:SAT_MAX_TARGETS]):
+                color = sat_styles.get(name, "white")
+                marker = marker_map.get(name, str(idx + 1))
+                if name == self.session.primary_target:
+                    legend_parts.append(f"[{color} bold]{marker}:{name} (PRIMARY)[/]")
+                else:
+                    legend_parts.append(f"[{color}]{marker}:{name}[/]")
+            legend_text = "\n".join(legend_parts) if legend_parts else "No active targets"
+
+            self.query_one("#sat-status", Static).update(status_text)
+            self.query_one("#sat-legend", Static).update(f"[bold]TRACKING (max {SAT_MAX_TARGETS})[/]\n{legend_text}")
+            self.query_one("#sat-telemetry", Static).update(tele_text)
+            self.query_one("#sat-map", Static).update(map_text)
+            self.query_one("#sat-last", Static).update(
+                f"[bold]Last:[/] {self.session.last_message}\n[dim]Commands: U update, S/A/R target ops, Q to close widget board[/]"
+            )
+
+        @on(Input.Submitted, "#sat-cmd")
+        def _handle_sat_cmd(self, event):
+            cmd = event.value.strip()
+            event.control.value = ""
+            if not cmd:
+                return
+            res = self.session.handle_command(cmd)
+            if res == "quit":
+                self.app.exit()
+                return
+            self._refresh()
+
     default_widgets = {
         "calculator": {"title": "🔢 Graphing Calculator", "builder": CalculatorWidget},
         "mp3": {"title": "🎵 MP3 Player", "builder": Mp3Widget},
@@ -34338,6 +34683,7 @@ def feature_textual_widget_board(screenshot_path=None):
         "aicmd": {"title": "🧠 AI Command", "builder": AICommandCenterWidget},
         "bluetooth": {"title": "🔵 Bluetooth", "builder": BluetoothManagerWidget},
         "traffic": {"title": "📊 Traffic", "builder": TrafficMonitorWidget},
+        "air_traffic": {"title": "✈️ Air Traffic (OpenSky)", "builder": AirTrafficOpenSkyWidget},
         "pypower": {"title": "🐍 Python Power", "builder": PyPowerWidget},
         "download": {"title": "📥 Downloads", "builder": DownloadCenterWidget},
         "diskio": {"title": "💽 Disk I/O", "builder": DiskIOAnalyzerWidget},
@@ -34347,6 +34693,7 @@ def feature_textual_widget_board(screenshot_path=None):
         "ramdrive": {"title": "💾 RAM Drive", "builder": RAMDriveWidget},
         "perfstats": {"title": "⚡ Performance", "builder": PerformanceStatsWidget},
         "health2": {"title": "🏥 Health", "builder": HealthStatusWidget},
+        "sat_live": {"title": "🛰️ Satellite Live Tracker", "builder": SatelliteLiveTrackerWidget},
     }
 
     widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
@@ -34368,12 +34715,28 @@ def feature_textual_widget_board(screenshot_path=None):
         }
         .title { content-align: center middle; height: 1; }
         #widget-quit { dock: bottom; margin: 1 0; }
+        #sat-live-body { height: 1fr; }
+        #sat-left-pane { width: 40%; border: solid $primary; padding: 1; }
+        #sat-right-pane { width: 60%; border: solid $secondary; padding: 1; }
+        #sat-map { border: round $accent; height: 1fr; overflow-y: scroll; }
+        #sat-status, #sat-legend, #sat-telemetry, #sat-last { border: round $primary; padding: 0 1; margin-bottom: 1; }
+        #sat-cmd { margin-top: 1; margin-bottom: 1; }
+        #air-body { height: 1fr; }
+        #air-left-pane { width: 46%; border: solid $primary; padding: 1; }
+        #air-right-pane { width: 54%; border: solid $secondary; padding: 1; }
+        #air-status, #air-legend, #air-table, #air-source { border: round $primary; padding: 0 1; margin-bottom: 1; }
+        #air-map { border: round $accent; height: 1fr; overflow-y: scroll; }
+        #air-controls { height: 3; align: center middle; }
+        #air-refresh, #air-quit { margin-right: 1; }
         """
 
         def __init__(self, widget_defs):
             super().__init__()
             self.widget_defs = widget_defs
-            self.selected = next(iter(widget_defs), None)
+            if initial_widget in widget_defs:
+                self.selected = initial_widget
+            else:
+                self.selected = next(iter(widget_defs), None)
             self.nav = None
             self.panel = None
             self._nav_index = {}
@@ -42062,7 +42425,7 @@ python3 pythonOScmd.py %*
 pause
 '''
         with open(bat_path, 'w') as f:
-            f.write(bat_content)
+            f.write(bat_content)    
         print(f"{COLORS['2'][0]}✓ Created: {bat_path}{RESET}")
         
         # Create run.sh for Linux/Mac/ARM
