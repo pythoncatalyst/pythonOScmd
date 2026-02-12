@@ -2,17 +2,6 @@
 # -*- coding: utf-8 -*-
 """pythonOScmd - Unified Terminal Operating System."""
 
-# Handle encoding for Windows console
-import sys
-if sys.platform == 'win32':
-    try:
-        # Try to set UTF-8 mode for Windows
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
-    except Exception:
-        pass
-
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
@@ -46,9 +35,9 @@ if sys.platform == 'win32':
 #
 # IMPORTANT NOTES:
 # - Indentation is just as important as your Incantation
-# - Runs video in terminal with full color ASCII support
+# - Runs video in terminal with full color ASCII support I then 1 and change for maximum immersion
 # - Option 3 and 13 are most like a T.V.
-# - Fix needed: Command Center Option 9, selection 2 (Ctrl+C handling)
+# - Option 9 is for hackers and security professionals
 #
 # ╔═══════════════════════════════════════════════════════════════════════════╗
 # ║                   SELF-EXTRACTING MODULE SYSTEM                           ║
@@ -77,6 +66,17 @@ if sys.platform == 'win32':
 # ================================================================================
 # SECTION 1: IMPORTS & CORE DEPENDENCIES
 # ================================================================================
+
+# Handle encoding for Windows console
+import sys
+if sys.platform == 'win32':
+    try:
+        # Try to set UTF-8 mode for Windows
+        import io
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 # Standard Library Imports
 import sys
@@ -42038,6 +42038,216 @@ def feature_keyboard_shortcuts_cheatsheet():
 
 # --- UPDATE SYSTEM ---
 
+def _create_auto_boot_files():
+    """Create run.bat (Windows) and run.sh (Linux/Mac/ARM) for cross-platform execution."""
+    import shutil
+    
+    # Get pythonOScmd.py location
+    script_path = os.path.abspath(__file__)
+    script_dir = os.path.dirname(script_path)
+    data_dir = os.path.join(script_dir, "pythonOS_data")
+    os.makedirs(data_dir, exist_ok=True)
+    
+    # Current platform
+    current_platform = platform.system()
+    
+    try:
+        # Create run.bat for Windows
+        bat_path = os.path.join(data_dir, "run.bat")
+        bat_content = f'''@echo off
+REM pythonOS Auto Boot - Windows
+REM This batch file launches pythonOS from anywhere
+cd /d "{script_dir}"
+python3 pythonOScmd.py %*
+pause
+'''
+        with open(bat_path, 'w') as f:
+            f.write(bat_content)
+        print(f"{COLORS['2'][0]}✓ Created: {bat_path}{RESET}")
+        
+        # Create run.sh for Linux/Mac/ARM
+        sh_path = os.path.join(data_dir, "run.sh")
+        sh_content = f'''#!/bin/bash
+# pythonOS Auto Boot - Linux/Mac/ARM
+# This script launches pythonOS from anywhere
+cd "{script_dir}"
+python3 pythonOScmd.py "$@"
+'''
+        with open(sh_path, 'w') as f:
+            f.write(sh_content)
+        
+        # Make it executable on Unix systems
+        if current_platform != "Windows":
+            os.chmod(sh_path, 0o755)
+        
+        print(f"{COLORS['2'][0]}✓ Created: {sh_path}{RESET}")
+        
+        # Create symbolic links/shortcuts guide
+        guide_path = os.path.join(data_dir, "AUTOBOOT_GUIDE.txt")
+        guide_content = f'''pythonOS Auto Boot Guide
+=========================
+
+Created Files:
+- run.bat (Windows)
+- run.sh (Linux/Mac/ARM)
+
+WINDOWS:
+--------
+1. Copy run.bat to your desired location
+2. Double-click run.bat to start pythonOS
+3. Or create a shortcut to run.bat on Desktop
+4. Add to Path: Set Environment Variable PATH to include {data_dir}
+   Then run: run.bat from any terminal
+
+LINUX/MAC/ARM:
+--------------
+1. Copy run.sh to your desired location: cp {sh_path} ~/pythonos_launcher
+2. Make it executable: chmod +x ~/pythonos_launcher
+3. Run from terminal: ~/pythonos_launcher
+4. Add to bash alias in ~/.bashrc: alias pythonos='{sh_path}'
+   Then restart terminal and run: pythonos
+
+Script Location: {script_dir}
+
+For help: {script_path}
+'''
+        with open(guide_path, 'w') as f:
+            f.write(guide_content)
+        print(f"{COLORS['2'][0]}✓ Created: {guide_path}{RESET}")
+        
+        print(f"\n{COLORS['2'][0]}✅ Auto Boot files created successfully!{RESET}")
+        print(f"{COLORS['6'][0]}Files location: {data_dir}{RESET}")
+        return True
+    
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Auto Boot creation failed: {e}{RESET}")
+        return False
+
+def _download_experimental_from_web():
+    """Download experimental pythonOS version from web."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("⬇️ Download Experimental pythonOS")
+        
+        print(f"\n{BOLD}Select clone method:{RESET}")
+        print(f" {BOLD}[A]{RESET} 🔗 HTTPS Clone")
+        print(f"     https://github.com/suche101-spec/pythonOS.git")
+        print(f" {BOLD}[B]{RESET} 🔑 SSH Clone (requires SSH key)")
+        print(f"     git@github.com:suche101-spec/pythonOS.git")
+        print(f" {BOLD}[C]{RESET} 🐙 GitHub CLI Clone (requires gh CLI)")
+        print(f"     gh repo clone suche101-spec/pythonOS")
+        print(f" {BOLD}[0]{RESET} ↩️  Return to Update Center")
+        
+        choice = input(f"\n{BOLD}🎯 Select method: {RESET}").strip().upper()
+        
+        if choice == '0':
+            break
+        
+        clone_url = None
+        clone_dir = input(f"\n{BOLD}Enter directory to clone into [./pythonOS-experimental]: {RESET}").strip()
+        if not clone_dir:
+            clone_dir = "./pythonOS-experimental"
+        
+        if choice == 'A':
+            clone_url = "https://github.com/suche101-spec/pythonOS.git"
+            method_name = "HTTPS"
+        
+        elif choice == 'B':
+            clone_url = "git@github.com:suche101-spec/pythonOS.git"
+            method_name = "SSH"
+        
+        elif choice == 'C':
+            clone_url = None
+            method_name = "GitHub CLI"
+            # Will be handled separately below
+        
+        else:
+            print(f"{COLORS['4'][0]}Invalid choice{RESET}")
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+            continue
+        
+        # Create backup before cloning
+        confirm_backup = input(f"\n{COLORS['4'][0]}Create backup before cloning? (y/n): {RESET}").strip().lower()
+        if confirm_backup == 'y':
+            _create_backup_before_update()
+        
+        # Execute clone based on method
+        success = False
+        
+        if choice == 'C':
+            # GitHub CLI method
+            try:
+                subprocess.run(["gh", "--version"], capture_output=True, check=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(f"{COLORS['1'][0]}❌ GitHub CLI (gh) is not installed or not in PATH{RESET}")
+                print(f"{BOLD}Install from: https://cli.github.com/{RESET}")
+                input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+                continue
+            
+            try:
+                if os.path.exists(clone_dir):
+                    print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
+                    proceed = input("Continue? (y/n): ").strip().lower()
+                    if proceed != 'y':
+                        input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+                        continue
+                
+                print(f"{COLORS['6'][0]}Cloning experimental pythonOS using GitHub CLI...{RESET}")
+                result = subprocess.run(
+                    ["gh", "repo", "clone", "suche101-spec/pythonOS", clone_dir],
+                    capture_output=True, text=True
+                )
+                
+                if result.returncode == 0:
+                    print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
+                    success = True
+                else:
+                    print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
+            
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
+        
+        else:
+            # Git HTTPS or SSH method
+            try:
+                subprocess.run(["git", "--version"], capture_output=True, check=True)
+            except (subprocess.CalledProcessError, FileNotFoundError):
+                print(f"{COLORS['1'][0]}❌ Git is not installed or not in PATH{RESET}")
+                input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+                continue
+            
+            try:
+                if os.path.exists(clone_dir):
+                    print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
+                    proceed = input("Continue? (y/n): ").strip().lower()
+                    if proceed != 'y':
+                        input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+                        continue
+                
+                print(f"{COLORS['6'][0]}Cloning experimental pythonOS using {method_name}...{RESET}")
+                result = subprocess.run(
+                    ["git", "clone", clone_url, clone_dir],
+                    capture_output=True, text=True
+                )
+                
+                if result.returncode == 0:
+                    print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
+                    success = True
+                else:
+                    print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
+            
+            except Exception as e:
+                print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
+        
+        if success:
+            print(f"\n{COLORS['2'][0]}✅ Download completed successfully!{RESET}")
+            print(f"{BOLD}Next steps:{RESET}")
+            print(f"1. Navigate to: cd {clone_dir}")
+            print(f"2. Run: python3 pythonOScmd.py")
+        
+        input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        break
+
 def _create_backup_before_update():
     """Create a backup of pythonOScmd.py before updating."""
     import shutil
@@ -42246,6 +42456,8 @@ def feature_update_system():
         print(f" {BOLD}[3]{RESET} ⬇️  Download Latest from Web")
         print(f" {BOLD}[4]{RESET} 📂 Open Backups Folder")
         print(f" {BOLD}[5]{RESET} ℹ️  Repository Information")
+        print(f" {BOLD}[6]{RESET} 🚀 Auto_Boot (Create run.bat/run.sh)")
+        print(f" {BOLD}[7]{RESET} ⬇️  Download Experimental from Web")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
@@ -42320,6 +42532,13 @@ def feature_update_system():
             print(f"  3. Fresh Clone (new directory)")
             
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '6':
+            _create_auto_boot_files()
+            input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
+        
+        elif choice == '7':
+            _download_experimental_from_web()
 
 # --- MAIN OPERATING SYSTEM LOOP ---
 
