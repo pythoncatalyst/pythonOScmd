@@ -7710,9 +7710,19 @@ boot_loader()
 
 # Third-Party Library Imports (after boot_loader ensures they exist)
 import platform
-import psutil
 import socket
 import getpass
+
+# Failsafe for psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ModuleNotFoundError:
+    PSUTIL_AVAILABLE = False
+    print("⚠️  WARNING: Psutil not available - process monitoring will be limited")
+    print("   Install: pip install psutil")
+    psutil = None
+
 import uuid
 import datetime
 import threading
@@ -7721,13 +7731,198 @@ import random
 import math
 import cmath
 import statistics
-import curses
-import numpy as np
-import requests
-from bs4 import BeautifulSoup
-from PIL import Image
+
+# ================================================================================
+# FAILSAFE IMPORTS FOR OPTIONAL PACKAGES
+# ================================================================================
+# Try importing optional packages with graceful fallbacks
+
+# NumPy - Numerical computing
+try:
+    import numpy as np
+    NUMPY_AVAILABLE = True
+except ModuleNotFoundError:
+    NUMPY_AVAILABLE = False
+    print("⚠️  WARNING: NumPy not available - numeric operations will be limited")
+    print("   Install: pip install numpy")
+    np = None
+
+# Requests - HTTP library
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ModuleNotFoundError:
+    REQUESTS_AVAILABLE = False
+    print("⚠️  WARNING: Requests not available - network features will be limited")
+    print("   Install: pip install requests")
+    requests = None
+
+# BeautifulSoup - HTML parsing
+try:
+    from bs4 import BeautifulSoup
+    BEAUTIFULSOUP_AVAILABLE = True
+except ModuleNotFoundError:
+    BEAUTIFULSOUP_AVAILABLE = False
+    print("⚠️  WARNING: BeautifulSoup not available - web scraping disabled")
+    print("   Install: pip install beautifulsoup4")
+    BeautifulSoup = None
+
+# Pillow - Image processing
+try:
+    from PIL import Image
+    PILLOW_AVAILABLE = True
+except ModuleNotFoundError:
+    PILLOW_AVAILABLE = False
+    print("⚠️  WARNING: Pillow not available - image processing disabled")
+    print("   Install: pip install pillow")
+    Image = None
+
+# GPUtil - GPU utilities
+try:
+    import GPUtil
+    GPUTIL_AVAILABLE = True
+except ModuleNotFoundError:
+    GPUTIL_AVAILABLE = False
+    print("⚠️  WARNING: GPUtil not available - GPU monitoring disabled")
+    print("   Install: pip install gputil")
+    GPUtil = None
+
 from io import BytesIO
-import GPUtil
+# ================================================================================
+# FAILSAFE CURSES IMPORT SYSTEM - GUARANTEED EXECUTION
+# ================================================================================
+# Try multiple import strategies to ensure script runs at all cost
+CURSES_AVAILABLE = False
+curses = None
+
+try:
+    # Strategy 1: Try native curses (Linux/Unix/Mac)
+    import curses
+    CURSES_AVAILABLE = True
+except ModuleNotFoundError:
+    try:
+        # Strategy 2: Try windows-curses on Windows
+        import windows_curses as curses
+        CURSES_AVAILABLE = True
+    except ModuleNotFoundError:
+        # Strategy 3: Create stub/fallback module
+        class StubCurses:
+            """Fallback curses stub - provides dummy implementations."""
+            COLORS_SUPPORTED = False
+            
+            # Color pair constants
+            def color_pair(self, color_id):
+                return 0
+            
+            # Attributes
+            A_BOLD = 0
+            A_DIM = 0
+            A_NORMAL = 0
+            A_REVERSE = 0
+            A_UNDERLINE = 0
+            
+            # Line drawing characters
+            ACS_HLINE = '-'
+            ACS_VLINE = '|'
+            ACS_BLOCK = '█'
+            ACS_CORNER = '+'
+            ACS_LTEE = '├'
+            ACS_RTEE = '┤'
+            ACS_ULCORNER = '┌'
+            ACS_URCORNER = '┐'
+            ACS_LLCORNER = '└'
+            ACS_LRCORNER = '┘'
+            
+            # Key codes
+            KEY_UP = 259
+            KEY_DOWN = 258
+            KEY_LEFT = 260
+            KEY_RIGHT = 261
+            KEY_ENTER = 10
+            KEY_BACKSPACE = 263
+            
+            ERR = -1
+            OK = 0
+            
+            @staticmethod
+            def initscr():
+                """Dummy window object."""
+                return StubWindow()
+            
+            @staticmethod
+            def endwin():
+                pass
+            
+            @staticmethod
+            def cbreak():
+                pass
+            
+            @staticmethod
+            def noecho():
+                pass
+            
+            @staticmethod
+            def start_color():
+                pass
+            
+            @staticmethod
+            def init_pair(pair_id, fg, bg):
+                pass
+        
+        class StubWindow:
+            """Fallback window object with stub methods."""
+            def __init__(self):
+                self.width = 80
+                self.height = 24
+            
+            def erase(self):
+                print("\033[2J\033[H")  # Clear screen ANSI
+            
+            def attron(self, attr):
+                return 0
+            
+            def attroff(self, attr):
+                return 0
+            
+            def box(self):
+                pass
+            
+            def addstr(self, *args):
+                if len(args) >= 2:
+                    if isinstance(args[0], int) and isinstance(args[1], int):
+                        # addstr(y, x, string, [attr])
+                        print(args[2] if len(args) > 2 else "", end="")
+                    else:
+                        # addstr(string, [attr])
+                        print(args[0] if len(args) > 0 else "", end="")
+            
+            def addch(self, *args):
+                if len(args) >= 2:
+                    print(args[2] if len(args) > 2 else " ", end="")
+            
+            def getmaxyx(self):
+                return (self.height, self.width)
+            
+            def refresh(self):
+                pass
+            
+            def getch(self):
+                return -1
+            
+            def timeout(self, ms):
+                pass
+            
+            def clear(self):
+                print("\033[2J\033[H")
+            
+            def move(self, y, x):
+                pass
+        
+        curses = StubCurses()
+        CURSES_AVAILABLE = False
+        print("⚠️  WARNING: Curses module not available - using fallback stub mode")
+        print("   Install windows-curses: pip install windows-curses")
+
 from collections import deque
 from pathlib import Path
 import re # Added for Visual FX Regex
@@ -7737,6 +7932,32 @@ import json # Added for JSON logging
 from urllib.parse import urlparse, parse_qs, urlencode
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import traceback
+
+# ================================================================================
+# CURSES SAFETY WRAPPERS - Guaranteed to never fail
+# ================================================================================
+def safe_color_pair(pair_id):
+    """Safely get color pair - works in fallback mode."""
+    if CURSES_AVAILABLE and hasattr(curses, 'color_pair'):
+        return curses.color_pair(pair_id)
+    return 0
+
+def safe_curses_call(window, method_name, *args, **kwargs):
+    """Safely call curses methods - handles both real and stub."""
+    try:
+        if window and hasattr(window, method_name):
+            method = getattr(window, method_name)
+            return method(*args, **kwargs)
+    except Exception as e:
+        pass  # Silently fail in stub mode
+    return None
+
+# Pre-calculate safe attribute constants
+SAFE_A_BOLD = getattr(curses, 'A_BOLD', 0)
+SAFE_A_DIM = getattr(curses, 'A_DIM', 0)
+SAFE_ACS_BLOCK = getattr(curses, 'ACS_BLOCK', '█')
+SAFE_ACS_HLINE = getattr(curses, 'ACS_HLINE', '-')
+SAFE_ACS_VLINE = getattr(curses, 'ACS_VLINE', '|')
 
 # Import centralized logging system (from script directory)
 try:
@@ -9512,7 +9733,41 @@ def should_use_degraded_mode(feature_name):
 # SECURITY SYSTEM - ENCRYPTION, RATE LIMITING, AUDIT LOGGING
 # ================================================================================
 
-from cryptography.fernet import Fernet
+# Failsafe for cryptography module
+CRYPTOGRAPHY_AVAILABLE = False
+Fernet = None
+
+try:
+    from cryptography.fernet import Fernet
+    CRYPTOGRAPHY_AVAILABLE = True
+except ModuleNotFoundError:
+    # Stub fallback for when cryptography is not available
+    class FernetStub:
+        """Fallback stub for Fernet encryption when cryptography is unavailable."""
+        def __init__(self, key):
+            self.key = key
+        
+        def encrypt(self, data):
+            """Dummy encryption - returns data unchanged."""
+            if isinstance(data, str):
+                return data.encode()
+            return data
+        
+        def decrypt(self, data):
+            """Dummy decryption - returns data unchanged."""
+            if isinstance(data, bytes):
+                return data.decode()
+            return data
+        
+        @staticmethod
+        def generate_key():
+            """Dummy key generation."""
+            return b'dummy-key-for-fallback-mode' * 2
+    
+    Fernet = FernetStub
+    print("⚠️  WARNING: Cryptography module not available - using stub encryption (no real encryption)")
+    print("   Install: pip install cryptography")
+
 from collections import defaultdict, deque
 import hashlib
 
@@ -14149,7 +14404,7 @@ print("CFD simulation complete!")
 # --- SERVER/CLIENT SWITCH FEATURE WITH ENCRYPTED MESSAGING ---
 import socket
 import threading
-from cryptography.fernet import Fernet
+# Fernet already imported above in the Security System section with failsafe
 import base64
 import hashlib
 
@@ -27692,28 +27947,28 @@ class ScienceConsole:
 
     def draw_input(self, win):
         h, w = win.getmaxyx()
-        win.erase(); win.attron(curses.color_pair(1)); win.box()
+        win.erase(); win.attron(safe_color_pair(1)); win.box()
         win.addstr(0, 2, " ⌨️ COMMAND INTERFACE ")
         for i, entry in enumerate(self.history[-4:]):
-            win.addstr(1 + i, 2, f" • {str(entry)[:w-6]}", curses.color_pair(5))
-        win.addstr(h-2, 2, " CMD > ", curses.color_pair(2) | curses.A_BOLD)
-        win.addstr(self.input_buffer, curses.color_pair(2) | curses.A_BOLD)
+            win.addstr(1 + i, 2, f" • {str(entry)[:w-6]}", safe_color_pair(5))
+        win.addstr(h-2, 2, " CMD > ", safe_color_pair(2) | SAFE_A_BOLD)
+        win.addstr(self.input_buffer, safe_color_pair(2) | SAFE_A_BOLD)
         if (self.frame // 10) % 2 == 0:
-            win.addch(h-2, 10 + len(self.input_buffer), curses.ACS_BLOCK, curses.color_pair(2))
+            win.addch(h-2, 10 + len(self.input_buffer), SAFE_ACS_BLOCK, safe_color_pair(2))
         msg = " [;] SAMPLES+  [ESC] EXIT "
-        win.addstr(h-2, w - len(msg) - 2, msg, curses.color_pair(4))
+        win.addstr(h-2, w - len(msg) - 2, msg, safe_color_pair(4))
         win.noutrefresh()
 
     def draw_log(self, win):
         h, w = win.getmaxyx()
-        win.erase(); win.attron(curses.color_pair(2)); win.box()
+        win.erase(); win.attron(safe_color_pair(2)); win.box()
         mid = w // 2
         for y in range(1, h-1):
-            try: win.addch(y, mid, curses.ACS_VLINE)
+            try: win.addch(y, mid, SAFE_ACS_VLINE)
             except: pass
         win.addstr(0, 2, " 📖 SYNTAX ")
         guide = ["POWER: x^3", "COEFF: 2x", "TERMS: x y", "SYSTEM: solve()"]
-        for i, line in enumerate(guide): win.addstr(1 + i, 1, line[:mid-2], curses.color_pair(1))
+        for i, line in enumerate(guide): win.addstr(1 + i, 1, line[:mid-2], safe_color_pair(1))
 
         win.addstr(0, mid + 2, " 💡 ANALYTICAL FEED ")
         y_off = 1
@@ -27722,24 +27977,24 @@ class ScienceConsole:
             line = ""
             for word in words:
                 if len(line + word) > (w - mid - 6):
-                    if y_off < h-1: win.addstr(y_off, mid + 2, line, curses.color_pair(4)); y_off += 1
+                    if y_off < h-1: win.addstr(y_off, mid + 2, line, safe_color_pair(4)); y_off += 1
                     line = word + " "
                 else: line += word + " "
-            if y_off < h-1: win.addstr(y_off, mid + 2, line, curses.color_pair(4)); y_off += 1
+            if y_off < h-1: win.addstr(y_off, mid + 2, line, safe_color_pair(4)); y_off += 1
         win.noutrefresh()
 
     def draw_graph(self, win):
         h, w = win.getmaxyx()
-        win.erase(); win.attron(curses.color_pair(3)); win.box()
+        win.erase(); win.attron(safe_color_pair(3)); win.box()
         ctrls = " [PGUP/DN] ZOOM | [L/R ARROWS] PAN "
-        win.addstr(0, 2, f" 📡 {self.active_func} ", curses.A_BOLD)
-        win.addstr(0, w - len(ctrls) - 2, ctrls, curses.color_pair(4))
+        win.addstr(0, 2, f" 📡 {self.active_func} ", SAFE_A_BOLD)
+        win.addstr(0, w - len(ctrls) - 2, ctrls, safe_color_pair(4))
         mid_y, mid_x = h // 2, w // 2
         for x_p in range(1, w-1):
-            try: win.addch(mid_y, x_p, curses.ACS_HLINE, curses.A_DIM)
+            try: win.addch(mid_y, x_p, SAFE_ACS_HLINE, SAFE_A_DIM)
             except: pass
         for y_p in range(1, h-1):
-            try: win.addch(y_p, mid_x, curses.ACS_VLINE, curses.A_DIM)
+            try: win.addch(y_p, mid_x, SAFE_ACS_VLINE, SAFE_A_DIM)
             except: pass
         for x_pixel in range(1, w - 1):
             x_val = (x_pixel - mid_x) * (0.15 / self.zoom) + self.offset_x
@@ -27751,12 +28006,16 @@ class ScienceConsole:
         win.noutrefresh()
 
     def run(self, stdscr):
-        curses.start_color()
-        curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
-        curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
-        curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
-        curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
-        curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
+        if CURSES_AVAILABLE:
+            try:
+                curses.start_color()
+                curses.init_pair(1, curses.COLOR_CYAN, curses.COLOR_BLACK)
+                curses.init_pair(2, curses.COLOR_GREEN, curses.COLOR_BLACK)
+                curses.init_pair(3, curses.COLOR_MAGENTA, curses.COLOR_BLACK)
+                curses.init_pair(4, curses.COLOR_YELLOW, curses.COLOR_BLACK)
+                curses.init_pair(5, curses.COLOR_WHITE, curses.COLOR_BLACK)
+            except Exception:
+                pass
         stdscr.nodelay(True); stdscr.keypad(True); curses.curs_set(0)
         while True:
             h, w = stdscr.getmaxyx()
@@ -33978,17 +34237,26 @@ def asciiplayer_run():
 # --- ENHANCED DISPLAY MODE (CURSES-BASED) ---
 
 def _enhanced_curses_init(stdscr):
-    curses.start_color()
-    curses.use_default_colors()
-    curses.init_pair(1, curses.COLOR_CYAN, -1)
-    curses.init_pair(2, curses.COLOR_GREEN, -1)
-    curses.init_pair(3, curses.COLOR_YELLOW, -1)
-    curses.init_pair(4, curses.COLOR_MAGENTA, -1)
-    curses.init_pair(5, curses.COLOR_WHITE, -1)
-    stdscr.nodelay(True)
-    stdscr.keypad(True)
+    if not CURSES_AVAILABLE:
+        return
     try:
-        curses.curs_set(0)
+        curses.start_color()
+        if hasattr(curses, 'use_default_colors'):
+            curses.use_default_colors()
+        curses.init_pair(1, curses.COLOR_CYAN, -1)
+        curses.init_pair(2, curses.COLOR_GREEN, -1)
+        curses.init_pair(3, curses.COLOR_YELLOW, -1)
+        curses.init_pair(4, curses.COLOR_MAGENTA, -1)
+        curses.init_pair(5, curses.COLOR_WHITE, -1)
+        if hasattr(stdscr, 'nodelay'):
+            stdscr.nodelay(True)
+        if hasattr(stdscr, 'keypad'):
+            stdscr.keypad(True)
+        if hasattr(curses, 'curs_set'):
+            try:
+                curses.curs_set(0)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -42264,6 +42532,311 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+# ================================================================================
+# FAILSAFE ERROR HANDLING SYSTEM
+# ================================================================================
+# Ensures every feature has a working fallback
+
+class FeatureFailsafe:
+    """Intelligent failsafe system for all pythonOS features"""
+    
+    def __init__(self):
+        self.feature_status = {}
+        self.fallback_map = {}
+        self._register_fallbacks()
+    
+    def _register_fallbacks(self):
+        """Register fallback options for every feature"""
+        self.fallback_map = {
+            # Display Features
+            "textual_media_lounge": "feature_media_menu",
+            "textual_widget_board": "feature_graphing_calculator",
+            "enhanced_display_mode": "feature_test_font_size",
+            "unified_dashboard": "run_classic_command_center",
+            "textual_file_manager": "feature_curses_file_browser",
+            
+            # Network Features
+            "wifi_toolkit": "feature_network_toolkit",
+            "bluetooth_toolkit": "feature_network_toolkit",
+            "server_client_switch": "shell_bridge",
+            "remote_dashboard": "feature_download_center",
+            
+            # Media Features
+            "media_lounge": "feature_media_menu",
+            "media_scanner": "feature_media_menu",
+            "quick_audio_playback": "feature_test_font_size",
+            
+            # AI Features
+            "deep_probe_ai": "feature_system_overview",
+            "ai_center": "feature_ai_app_handler",
+            "python_power": "feature_download_center",
+            
+            # System Features
+            "satellite_tracker": "feature_weather_display",
+            "graphing_calculator": "feature_system_overview",
+            "text_doc_center": "feature_download_center",
+            "dynamic_apps_launcher": "feature_download_center",
+            
+            # Security Features
+            "pentest_toolkit": "feature_defence_center",
+            "defence_center": "feature_security_audit",
+            "plugin_center": "feature_download_center",
+            
+            # Database Features
+            "database_log_center": "feature_download_center",
+            
+            # File Features
+            "file_manager_suite": "shell_bridge",
+        }
+    
+    def safe_execute(self, feature_key, feature_func, *args, **kwargs):
+        """Execute feature with automatic failsafe"""
+        try:
+            # Try primary feature
+            return feature_func(*args, **kwargs)
+        except KeyboardInterrupt:
+            raise  # Allow user interrupts
+        except Exception as e:
+            RESILIENCE_LOGGER.log(
+                "ERROR",
+                f"Feature '{feature_key}' failed: {str(e)}",
+                feature=feature_key,
+                error=e
+            )
+            
+            # Fall back to alternative
+            return self._execute_fallback(feature_key, e)
+    
+    def _execute_fallback(self, feature_key, original_error):
+        """Execute fallback feature"""
+        fallback_key = self.fallback_map.get(feature_key, "run_classic_command_center")
+        
+        try:
+            fallback_func = globals().get(fallback_key)
+            if fallback_func and callable(fallback_func):
+                os.system('cls' if os.name == 'nt' else 'clear')
+                print_header(f"⚠️  FAILSAFE ACTIVATED")
+                print(f"\n{COLORS['4'][0]}Primary feature '{feature_key}' encountered an error.{RESET}")
+                print(f"Falling back to: {fallback_key}\n")
+                print(f"{COLORS['6'][0]}Error: {str(original_error)[:100]}{RESET}\n")
+                
+                time.sleep(1.5)
+                return fallback_func()
+        except Exception as fallback_error:
+            # If fallback fails, use emergency failsafe
+            return self._emergency_failsafe(feature_key, original_error, fallback_error)
+    
+    def _emergency_failsafe(self, feature_key, primary_error, fallback_error):
+        """Last resort: return to classic command center"""
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🚨 EMERGENCY FAILSAFE ACTIVATED")
+        print(f"\n{COLORS['1'][0]}CRITICAL: Both primary and fallback features failed!{RESET}\n")
+        print(f"Primary Feature: {feature_key}")
+        print(f"Primary Error: {str(primary_error)[:80]}\n")
+        print(f"Fallback Error: {str(fallback_error)[:80]}\n")
+        print(f"{COLORS['2'][0]}Returning to Classic Command Center...{RESET}\n")
+        
+        time.sleep(2)
+        return run_classic_command_center()
+
+# Global failsafe instance
+GLOBAL_FAILSAFE = FeatureFailsafe()
+
+# ================================================================================
+# WRAPPER FUNCTIONS WITH FAILSAFE
+# ================================================================================
+
+def safe_feature_execute(feature_key, feature_func, *args, **kwargs):
+    """Wrapper for all feature calls"""
+    return GLOBAL_FAILSAFE.safe_execute(feature_key, feature_func, *args, **kwargs)
+
+# ================================================================================
+# UPDATE ALL COMMAND CENTER CHOICES TO USE FAILSAFE
+# ================================================================================
+
+def run_classic_command_center_safe():
+    """Safe version of classic command center with failsafe for all choices"""
+    
+    while True:
+        try:
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🎛️  COMMAND CENTER - FAILSAFE ENABLED")
+            print(f"\n{COLORS['2'][0]}✅ Failsafe Protection: ACTIVE{RESET}\n")
+            
+            # Build menu from COMMAND_CENTER_ACTIONS with failsafe
+            for i, (key, meta) in enumerate(COMMAND_CENTER_ACTIONS[:20], 1):
+                title = meta.get("title", key)
+                summary = meta.get("summary", "")[:40]
+                print(f" {BOLD}[{i}]{RESET} {title:25} - {summary}")
+            
+            print(f"\n {BOLD}[0]{RESET} Exit pythonOS")
+            choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+            
+            if choice == '0':
+                break
+            
+            try:
+                idx = int(choice) - 1
+                if 0 <= idx < len(COMMAND_CENTER_ACTIONS):
+                    key, meta = COMMAND_CENTER_ACTIONS[idx]
+                    func = meta.get("func")
+                    
+                    if func and callable(func):
+                        # Execute with failsafe
+                        safe_feature_execute(key, func)
+                    else:
+                        print(f"{COLORS['1'][0]}❌ Feature not available{RESET}")
+                        time.sleep(1)
+            except (ValueError, IndexError):
+                print(f"{COLORS['1'][0]}❌ Invalid selection{RESET}")
+                time.sleep(1)
+        
+        except KeyboardInterrupt:
+            print(f"\n{COLORS['3'][0]}Returning to menu...{RESET}")
+            time.sleep(0.5)
+        except Exception as e:
+            print(f"\n{COLORS['1'][0]}❌ Menu error: {str(e)[:80]}{RESET}")
+            time.sleep(2)
+
+# ================================================================================
+# IMPORT ERROR HANDLERS
+# ================================================================================
+
+def _handle_import_errors():
+    """Gracefully handle missing dependencies"""
+    missing_features = []
+    
+    # Test critical imports
+    critical_imports = {
+        "psutil": "System monitoring",
+        "requests": "Web requests",
+        "PIL": "Image processing",
+        "matplotlib": "Plotting",
+        "numpy": "Numerical computing",
+    }
+    
+    for module_name, feature in critical_imports.items():
+        try:
+            __import__(module_name)
+        except ImportError:
+            missing_features.append(f"{feature} ({module_name})")
+    
+    if missing_features:
+        print(f"\n{COLORS['4'][0]}⚠️  Missing optional features:{RESET}")
+        for feature in missing_features:
+            print(f"   • {feature}")
+        print(f"\n{COLORS['2'][0]}Continuing with available features...{RESET}\n")
+        time.sleep(2)
+
+# ================================================================================
+# DISPLAY MODE FAILSAFE
+# ================================================================================
+
+def detect_display_capabilities_safe():
+    """Safely detect display mode with fallback"""
+    try:
+        try:
+            import textual
+            return "textual"
+        except ImportError:
+            pass
+        
+        try:
+            import rich
+            return "rich"
+        except ImportError:
+            pass
+        
+        return "classic"
+    
+    except Exception:
+        return "classic"
+
+# ================================================================================
+# AUTO-RECOVERY SYSTEM
+# ================================================================================
+
+class AutoRecovery:
+    """Automatic recovery from temporary errors"""
+    
+    def __init__(self, max_retries=3, retry_delay=1):
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.recovery_log = []
+    
+    def retry_operation(self, operation_name, func, *args, **kwargs):
+        """Retry operation with exponential backoff"""
+        last_error = None
+        
+        for attempt in range(1, self.max_retries + 1):
+            try:
+                return func(*args, **kwargs)
+            except KeyboardInterrupt:
+                raise
+            except Exception as e:
+                last_error = e
+                self.recovery_log.append({
+                    "operation": operation_name,
+                    "attempt": attempt,
+                    "error": str(e),
+                    "timestamp": datetime.now().isoformat()
+                })
+                
+                if attempt < self.max_retries:
+                    wait_time = self.retry_delay * (2 ** (attempt - 1))
+                    print(f"🔄 Retry {attempt}/{self.max_retries} in {wait_time}s...")
+                    time.sleep(wait_time)
+        
+        # All retries exhausted
+        raise last_error
+    
+    def get_recovery_stats(self):
+        """Get recovery statistics"""
+        return {
+            "total_attempts": len(self.recovery_log),
+            "unique_operations": len(set(r["operation"] for r in self.recovery_log)),
+            "log": self.recovery_log[-10:]  # Last 10
+        }
+
+AUTO_RECOVERY = AutoRecovery()
+
+# ================================================================================
+# MAIN ENTRY POINT WITH FAILSAFE
+# ================================================================================
+
+def main_safe():
+    """Main entry point with comprehensive failsafe"""
+    
+    try:
+        # Handle missing imports
+        _handle_import_errors()
+        
+        # Detect display mode safely
+        global DISPLAY_MODE
+        DISPLAY_MODE = detect_display_capabilities_safe()
+        
+        # Boot sequence with failsafe
+        boot_loader()
+        
+        # Run command center with failsafe
+        run_classic_command_center_safe()
+        
+    except KeyboardInterrupt:
+        print(f"\n{COLORS['3'][0]}[*] pythonOS shutting down...{RESET}\n")
+        sys.exit(0)
+    
+    except Exception as e:
+        print(f"\n{COLORS['1'][0]}[!] FATAL ERROR: {str(e)}{RESET}\n")
+        print(f"Recovery log:")
+        for entry in AUTO_RECOVERY.get_recovery_stats()["log"]:
+            print(f"  • {entry['operation']}: {entry['error']}")
+        
+        time.sleep(2)
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main_safe()
 
 
 # version pythonOScmd201 base pythonOS70
