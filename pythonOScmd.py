@@ -8115,11 +8115,40 @@ except ModuleNotFoundError:
         class StubCurses:
             """Fallback curses stub - provides dummy implementations."""
             COLORS_SUPPORTED = False
-            
-            # Color pair constants
+
+            # Basic color constants (match curses standard values)
+            COLOR_BLACK = 0
+            COLOR_RED = 1
+            COLOR_GREEN = 2
+            COLOR_YELLOW = 3
+            COLOR_BLUE = 4
+            COLOR_MAGENTA = 5
+            COLOR_CYAN = 6
+            COLOR_WHITE = 7
+
+            # Color pair constants (no-op in stub)
             def color_pair(self, color_id):
                 return 0
-            
+
+            def has_colors(self):
+                return False
+
+            # Provide a minimal wrapper to mimic curses.wrapper() behavior
+            @staticmethod
+            def wrapper(func, *args, **kwargs):
+                stdscr = None
+                try:
+                    if hasattr(StubCurses, 'initscr'):
+                        stdscr = StubCurses.initscr()
+                    result = func(stdscr, *args, **kwargs)
+                    return result
+                finally:
+                    try:
+                        if hasattr(StubCurses, 'endwin'):
+                            StubCurses.endwin()
+                    except Exception:
+                        pass
+
             # Attributes
             A_BOLD = 0
             A_DIM = 0
@@ -15121,6 +15150,7 @@ def feature_server_client_switch():
         print(f" {BOLD}[4]{RESET} 🔐 Security Settings")
         print(f" {BOLD}[5]{RESET} 📜 Message Logs")
         print(f" {BOLD}[6]{RESET} 💬 Messaging (Chat, SMS, Advanced)")
+        print(f" {BOLD}[7]{RESET} 📡 Meshtastic Radio Mesh")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
 
         choice = input(f"\n{BOLD}Select mode: {RESET}").strip()
@@ -15139,8 +15169,87 @@ def feature_server_client_switch():
             _show_message_logs()
         elif choice == '6':
             _feature_messaging_submenu()
+        elif choice == '7':
+            feature_meshtastic_app()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
+
+# --- Meshtastic Mesh Radio App ---
+def feature_meshtastic_app():
+    print_header("📡 Meshtastic Radio Mesh")
+    try:
+        import meshtastic
+        import meshtastic.serial_interface
+        from meshtastic.mesh_interface import MeshInterface
+    except ImportError:
+        print("Meshtastic library not found.")
+        resp = input("\nDo you want to download and install the required Meshtastic library now? (y/n): ").strip().lower()
+        if resp != 'y':
+            print("Meshtastic functionality will not be available until installed.")
+            input("\n[ ⌨️ Press Enter to return... ]")
+            return
+        print("Attempting to install Meshtastic dependencies via pip...")
+        import subprocess, sys
+        try:
+            subprocess.check_call([sys.executable, "-m", "pip", "install", "--upgrade", "meshtastic"])
+            import meshtastic
+            import meshtastic.serial_interface
+            from meshtastic.mesh_interface import MeshInterface
+            print("Meshtastic installed successfully.")
+        except Exception as e:
+            print(f"Failed to install meshtastic: {e}")
+            input("\n[ ⌨️ Press Enter to return... ]")
+            return
+    import time
+    def onReceive(packet, interface):
+        try:
+            if packet.get('decoded', {}).get('portnum') == 'TEXT_MESSAGE_APP':
+                print(f"Received message from {packet.get('fromId')}: {packet['decoded'].get('text')}")
+        except Exception as e:
+            print(f"Error in receive callback: {e}")
+    try:
+        interface: MeshInterface = meshtastic.serial_interface.SerialInterface()
+        print("Connected to Meshtastic device.")
+    except Exception as e:
+        print(f"Error connecting to device: {e}")
+        input("\n[ ⌨️ Press Enter to return... ]")
+        return
+    try:
+        interface.incodecs.add_receive_callback(onReceive)
+    except Exception as e:
+        print(f"Error setting receive callback: {e}")
+    while True:
+        print("\n[1] Send Message  [2] Wait for Messages  [3] Close Connection  [0] Return")
+        sel = input("Select: ").strip()
+        if sel == '1':
+            msg = input("Enter message to send: ").strip()
+            dest = input("Destination ID (or !all): ").strip() or "!all"
+            try:
+                interface.sendText(msg, destinationId=dest)
+                print("Message sent.")
+            except Exception as e:
+                print(f"Error sending message: {e}")
+        elif sel == '2':
+            print("Waiting for messages (press Ctrl+C to stop)...")
+            try:
+                while True:
+                    time.sleep(1)
+            except KeyboardInterrupt:
+                print("Stopped waiting for messages.")
+        elif sel == '3':
+            try:
+                interface.close()
+                print("Connection closed.")
+            except Exception as e:
+                print(f"Error closing interface: {e}")
+        elif sel == '0':
+            try:
+                interface.close()
+            except:
+                pass
+            break
+        else:
+            print("Invalid option.")
 
 # --- MESSAGING SUBMENU FUNCTIONS ---
 
@@ -33303,6 +33412,10 @@ def feature_textual_widget_board(screenshot_path=None):
             self._paused = False
             self._pygame = None
             self._loaded_path = None
+            self._show_browser = False
+            self._file_list = []
+            self._browser_path = os.path.expanduser("~")
+            self._search_results = []
             self._init_audio()
 
         def _init_audio(self):
@@ -33324,18 +33437,92 @@ def feature_textual_widget_board(screenshot_path=None):
             # Re-initialize if needed
             if not self.audio_ready:
                 self._init_audio()
+            self._refresh_file_list()
 
         def compose(self) -> ComposeResult:
             yield Static("Textual MP3 Player", classes="title")
-            yield Input(placeholder="Path to MP3/WAV file", id="mp3-path")
+            yield Input(placeholder="Path to MP3/WAV file or directory", id="mp3-path")
             with Horizontal():
                 yield Button("Play", id="mp3-play", variant="success")
                 yield Button("Pause/Resume", id="mp3-toggle")
                 yield Button("Stop", id="mp3-stop", variant="warning")
+                yield Button("Browse", id="mp3-browse", variant="primary")
+            # Show search results if a directory was entered
+            if self._search_results:
+                from textual.widgets import ListView, ListItem, Label
+                file_items = []
+                import os
+                for f in self._search_results:
+                    name = os.path.basename(f)
+                    file_items.append(ListItem(Label(f"🎵 {name}"), id=f"mp3search-{f}"))
+                yield Static("Playable files:")
+                yield ListView(*file_items, id="mp3-search-list", show_cursor=True, height=8)
+            if self._show_browser:
+                yield Static(f"Browsing: {self._browser_path}", id="mp3-browser-path")
+                from os import listdir
+                from os.path import isfile, isdir, join
+                try:
+                    items = self._file_list
+                except Exception:
+                    items = []
+                import re
+                from textual.widgets import ListView, ListItem, Label
+                file_items = []
+                for item in items:
+                    name = item['name']
+                    is_dir = item['is_dir']
+                    icon = '📁' if is_dir else '🎵' if re.search(r"\\.(mp3|wav)$", name, re.I) else '📄'
+                    file_items.append(ListItem(Label(f"{icon} {name}"), id=f"mp3file-{name}"))
+                yield ListView(*file_items, id="mp3-file-list", show_cursor=True, height=12)
             try:
                 yield TextLog(id="mp3-log", highlight=False)
             except Exception:
                 yield Static("Log unavailable", id="mp3-log")
+
+        def _refresh_file_list(self):
+            # List files and folders in the current browser path
+            try:
+                from os import listdir
+                from os.path import isfile, isdir, join
+                items = []
+                for name in listdir(self._browser_path):
+                    path = join(self._browser_path, name)
+                    items.append({
+                        'name': name,
+                        'is_dir': isdir(path),
+                        'is_file': isfile(path),
+                        'path': path
+                    })
+                self._file_list = items
+            except Exception:
+                self._file_list = []
+
+        @on(Button.Pressed, "#mp3-browse")
+        def handle_browse(self, _event):
+            self._show_browser = not self._show_browser
+            if self._show_browser:
+                self._refresh_file_list()
+            self.refresh()
+
+        @on(ListView.Selected, "#mp3-file-list")
+        def handle_file_select(self, event):
+            # Get selected file/folder
+            idx = event.index
+            if idx is None or idx < 0 or idx >= len(self._file_list):
+                return
+            item = self._file_list[idx]
+            if item['is_dir']:
+                self._browser_path = item['path']
+                self._refresh_file_list()
+                self.refresh()
+            elif item['is_file'] and (item['name'].lower().endswith('.mp3') or item['name'].lower().endswith('.wav')):
+                # Set input field to selected file
+                try:
+                    self.query_one("#mp3-path", Input).value = item['path']
+                except Exception:
+                    pass
+                self._show_browser = False
+                self.refresh()
 
         def _log(self, message):
             try:
@@ -33390,6 +33577,22 @@ def feature_textual_widget_board(screenshot_path=None):
             if not path:
                 self._log("Enter a file path first.")
                 return
+            import os
+            if os.path.isdir(path):
+                # Directory entered: search for playable files and list below
+                playable = []
+                for name in os.listdir(path):
+                    if name.lower().endswith((".mp3", ".wav")):
+                        playable.append(os.path.join(path, name))
+                self._search_results = playable
+                self.refresh()
+                if not playable:
+                    self._log("No playable files found in directory.")
+                else:
+                    self._log(f"Found {len(playable)} playable files.")
+                return
+            # Otherwise, treat as file
+            self._search_results = []
             if self._load_audio(path):
                 try:
                     self._pygame.mixer.music.play()
@@ -33398,6 +33601,19 @@ def feature_textual_widget_board(screenshot_path=None):
                     self._log(f"▶️ Playing {label}")
                 except Exception as exc:
                     self._log(f"❌ {exc}")
+
+        @on(ListView.Selected, "#mp3-search-list")
+        def handle_search_select(self, event):
+            idx = event.index
+            if idx is None or not self._search_results or idx < 0 or idx >= len(self._search_results):
+                return
+            path = self._search_results[idx]
+            try:
+                self.query_one("#mp3-path", Input).value = path
+            except Exception:
+                pass
+            self._search_results = []
+            self.refresh()
 
         @on(Button.Pressed, "#mp3-toggle")
         def handle_toggle(self, _event):
@@ -35270,17 +35486,24 @@ def feature_textual_widget_board(screenshot_path=None):
     widgets = {**default_widgets, **TEXTUAL_WIDGET_REGISTRY}
 
     class WidgetBoard(App):
+        """Textual Widget Board - main app container for widgets"""
+
+        BINDINGS = [
+            ("q", "quit", "Quit"),
+            ("escape", "quit", "Quit"),
+        ]
+
         CSS = """
         #widget-body { height: 1fr; }
         #widget-nav-container { width: 32; }
         #widget-nav { 
-            border: solid $primary;
+            border: round $primary;
             overflow-y: scroll;
             scrollbar-size: 2 1;
         }
         #widget-panel { 
             padding: 1; 
-            border: solid $secondary;
+            border: round $secondary;
             overflow-y: scroll;
             scrollbar-size: 2 1;
         }
@@ -35315,6 +35538,8 @@ def feature_textual_widget_board(screenshot_path=None):
             if self.selected in self._nav_index:
                 self.nav.index = self._nav_index[self.selected]
             self._load_widget(self.selected)
+            # Make information live by refreshing every 2 seconds
+            self.set_interval(2.0, self._refresh_current_widget)
 
         def _load_widget(self, key):
             if not self.panel:
@@ -35356,7 +35581,31 @@ def feature_textual_widget_board(screenshot_path=None):
 
         @on(Button.Pressed, "#widget-quit")
         def handle_quit(self, _event):
-            self.exit()
+            """Exit the WidgetBoard when Quit button is pressed."""
+            # Graceful exit
+            try:
+                self.exit()
+            except Exception:
+                # Fallback: raise SystemExit to ensure the app closes
+                raise SystemExit
+
+        def action_quit(self) -> None:
+            """Keyboard binding action to quit the app."""
+            try:
+                self.exit()
+            except Exception:
+                raise SystemExit
+
+        def _refresh_current_widget(self):
+            """Refresh the currently displayed widget to keep information live."""
+            if self.panel and self.selected:
+                # Get the current widget
+                children = list(self.panel.children)
+                if children:
+                    widget = children[0]
+                    # If the widget has a _refresh method, call it
+                    if hasattr(widget, '_refresh'):
+                        widget._refresh()
 
     try:
         app = WidgetBoard(widgets)
@@ -36874,7 +37123,19 @@ def feature_curses_file_browser():
 
     try:
         browser = FileBrowser()
-        curses.wrapper(browser.run)
+        # Prefer curses.wrapper when available; fall back to safe initscr()/endwin() for stub mode
+        if hasattr(curses, 'wrapper') and callable(getattr(curses, 'wrapper')):
+            curses.wrapper(browser.run)
+        else:
+            try:
+                stdscr = curses.initscr() if hasattr(curses, 'initscr') else None
+                browser.run(stdscr)
+            finally:
+                try:
+                    if hasattr(curses, 'endwin'):
+                        curses.endwin()
+                except Exception:
+                    pass
     except Exception as e:
         print(f"{get_current_color()}✗{RESET} Error: {e}")
         input("\nPress Enter to return...")
@@ -37572,7 +37833,10 @@ FEATURES:
 
 
 def feature_textual_file_manager():
-    """Modern enhanced file manager using Textual framework - 600% enhancement with 31 tools"""
+    """Modern enhanced file manager using Textual framework - 600% enhancement with 31 tools
+
+    Detects optional libraries and enables "max features" when present.
+    """
     try:
         from textual.app import App, ComposeResult
         from textual.widgets import DirectoryTree, Header, Footer, Static, Label, Button, Input
@@ -37585,6 +37849,25 @@ def feature_textual_file_manager():
         print("\nInstall with: pip install textual")
         input("\nPress Enter to return...")
         return
+
+    # Detect optional features (will enable 'max features' when present)
+    import importlib.util
+    OPTIONAL_MODULES = {
+        'pypdf': 'pypdf',
+        'requests': 'requests',
+        'openpyxl': 'openpyxl',
+        'pandas': 'pandas',
+        'python_magic': 'magic',
+        'plotext': 'plotext',
+        'pillow': 'PIL',
+    }
+
+    enabled_optional = {k: bool(importlib.util.find_spec(v)) for k, v in OPTIONAL_MODULES.items()}
+    enabled_features = [name for name, ok in enabled_optional.items() if ok]
+    enabled_features_summary = (
+        f"Enabled optional features: {', '.join(enabled_features)}" if enabled_features else
+        "Optional features missing: install pypdf, requests, openpyxl, pandas, python-magic, plotext, pillow to enable full capabilities"
+    )
 
     import json
     import csv
@@ -38021,7 +38304,8 @@ def feature_textual_file_manager():
                     yield Button("🔍 Search", id="btn-search", variant="primary", classes="action-button")
                 
                 with Container(id="info-panel"):
-                    yield Label(f"📁 Full-Featured File Browser | Path: {self.current_path} | Press 'T' for tools", id="info")
+                    # Show active optional features and path
+                    yield Label(f"📁 Full-Featured File Browser | Path: {self.current_path} | Press 'T' for tools\n{enabled_features_summary}", id="info")
                 yield Input(placeholder="Type command values here and press Enter", id="command-input")
             yield Footer()
 
@@ -39226,7 +39510,7 @@ def feature_file_manager_suite():
         print("   • Archive, backup, sync, permissions, hashing")
         print("   • CSV/JSON/Log viewers, binary editor")
         print("")
-        print("3. ✨ Textual File Manager (Modern UI)")
+        print("3. ✨ Textual File Manager (Modern UI) — Requires: pip install textual (enables full features)")
         print("   • Beautiful interface")
         print("   • Tree view navigation")
         print("   • 31 tools (16 core + 15 AI apps)")
