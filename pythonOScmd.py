@@ -8445,18 +8445,25 @@ except ImportError as e:
 class PerformanceMonitor:
     """Monitor memory, CPU, and performance metrics."""
     def __init__(self):
-        self.process = psutil.Process()
+        if PSUTIL_AVAILABLE and psutil is not None:
+            self.process = psutil.Process()
+        else:
+            self.process = None
         self.start_time = time.time()
         self.memory_snapshots = deque(maxlen=100)  # Keep last 100 snapshots
         self.peak_memory = 0
 
     def get_memory_usage(self):
-        """Get current memory usage in MB."""
-        return self.process.memory_info().rss / 1024 / 1024
+        """Get current memory usage in MB. Returns 0 if psutil is unavailable."""
+        if self.process:
+            return self.process.memory_info().rss / 1024 / 1024
+        return 0
 
     def get_cpu_percent(self):
-        """Get current CPU usage percentage."""
-        return self.process.cpu_percent(interval=0.1)
+        """Get current CPU usage percentage. Returns 0 if psutil is unavailable."""
+        if self.process:
+            return self.process.cpu_percent(interval=0.1)
+        return 0
 
     def record_snapshot(self):
         """Record memory snapshot."""
