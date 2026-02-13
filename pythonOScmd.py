@@ -69,17 +69,33 @@
 
 # Handle encoding for Windows console
 import sys
+import os as _os_enc
 if sys.platform == 'win32':
+    # Force UTF-8 for all Python I/O
+    _os_enc.environ.setdefault('PYTHONIOENCODING', 'utf-8')
     try:
-        # Try to set UTF-8 mode for Windows
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        # Enable UTF-8 code page on Windows console (65001 = CP_UTF8)
+        import ctypes as _ctypes_enc
+        _ctypes_enc.windll.kernel32.SetConsoleOutputCP(65001)
+        _ctypes_enc.windll.kernel32.SetConsoleCP(65001)
     except Exception:
         pass
+    try:
+        # Python 3.7+: reconfigure existing streams (preserves buffer linkage)
+        if hasattr(sys.stdout, 'reconfigure'):
+            sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        if hasattr(sys.stderr, 'reconfigure'):
+            sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        # Fallback: wrap the raw buffer
+        try:
+            import io
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+            sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+        except Exception:
+            pass
 
 # Standard Library Imports
-import sys
 import subprocess
 import os
 import time
@@ -8009,8 +8025,8 @@ try:
     PSUTIL_AVAILABLE = True
 except ModuleNotFoundError:
     PSUTIL_AVAILABLE = False
-    print("⚠️  WARNING: Psutil not available - process monitoring will be limited")
-    print("   Install: pip install psutil")
+    print("[*] WARNING: Psutil not available - process monitoring will be limited")
+    print("    Install: pip install psutil")
     psutil = None
 
 import uuid
@@ -8033,11 +8049,8 @@ try:
     NUMPY_AVAILABLE = True
 except ModuleNotFoundError:
     NUMPY_AVAILABLE = False
-    try:
-        print("[*] WARNING: NumPy not available - numeric operations will be limited")
-        print("    Install: pip install numpy")
-    except UnicodeEncodeError:
-        print("[*] WARNING: NumPy not available - numeric operations will be limited")
+    print("[*] WARNING: NumPy not available - numeric operations will be limited")
+    print("    Install: pip install numpy")
     np = None
 
 # Requests - HTTP library
@@ -8046,11 +8059,8 @@ try:
     REQUESTS_AVAILABLE = True
 except ModuleNotFoundError:
     REQUESTS_AVAILABLE = False
-    try:
-        print("[*] WARNING: Requests not available - network features will be limited")
-    except UnicodeEncodeError:
-        print("[*] WARNING: Requests not available - network features will be limited")
-    print("   Install: pip install requests")
+    print("[*] WARNING: Requests not available - network features will be limited")
+    print("    Install: pip install requests")
     requests = None
 
 # BeautifulSoup - HTML parsing
@@ -8059,11 +8069,8 @@ try:
     BEAUTIFULSOUP_AVAILABLE = True
 except ModuleNotFoundError:
     BEAUTIFULSOUP_AVAILABLE = False
-    try:
-        print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
-        print("    Install: pip install beautifulsoup4")
-    except UnicodeEncodeError:
-        print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
+    print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
+    print("    Install: pip install beautifulsoup4")
     BeautifulSoup = None
 
 # Pillow - Image processing
@@ -8072,11 +8079,8 @@ try:
     PILLOW_AVAILABLE = True
 except ModuleNotFoundError:
     PILLOW_AVAILABLE = False
-    try:
-        print("[*] WARNING: Pillow not available - image processing disabled")
-        print("    Install: pip install pillow")
-    except UnicodeEncodeError:
-        print("[*] WARNING: Pillow not available - image processing disabled")
+    print("[*] WARNING: Pillow not available - image processing disabled")
+    print("    Install: pip install pillow")
     Image = None
 
 # GPUtil - GPU utilities
@@ -8085,11 +8089,8 @@ try:
     GPUTIL_AVAILABLE = True
 except ModuleNotFoundError:
     GPUTIL_AVAILABLE = False
-    try:
-        print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
-        print("    Install: pip install gputil")
-    except UnicodeEncodeError:
-        print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
+    print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
+    print("    Install: pip install gputil")
     GPUtil = None
 
 from io import BytesIO
@@ -8387,7 +8388,7 @@ except ImportError as e:
         sys.path.insert(0, SCRIPT_DIR)
         from logger_system import LOGGER, LogLevel, log_info, log_error, log_warning, log_debug, LogAnalyzer
     except ImportError:
-        print("⚠️  Warning: logger_system module not found. Using basic logging.")
+        print("[*] Warning: logger_system module not found. Using basic logging.")
         LOGGER = None
 
 # Import enhanced plugin system (from script directory)
@@ -8405,7 +8406,7 @@ except ImportError as e:
             initialize_plugin_system, get_plugin_manager
         )
     except ImportError:
-        print("⚠️  Warning: plugin_system module not found.")
+        print("[*] Warning: plugin_system module not found.")
         PluginManager = None
 
 # ================================================================================
@@ -10190,8 +10191,8 @@ except ModuleNotFoundError:
             return b'dummy-key-for-fallback-mode' * 2
     
     Fernet = FernetStub
-    print("⚠️  WARNING: Cryptography module not available - using stub encryption (no real encryption)")
-    print("   Install: pip install cryptography")
+    print("[*] WARNING: Cryptography module not available - using stub encryption (no real encryption)")
+    print("    Install: pip install cryptography")
 
 from collections import defaultdict, deque
 import hashlib
@@ -40793,6 +40794,7 @@ def feature_enhanced_display_suite():
     import platform
     import socket
     import threading
+    import importlib
     from datetime import datetime
 
     class EnhancedDisplaySuite(App):
@@ -40806,13 +40808,18 @@ def feature_enhanced_display_suite():
 
         CSS = """
         Screen { background: $background; }
-        #suite-header { height: 3; border: solid $primary; padding: 1; }
-        #status-bar { height: 3; border: solid $primary; padding: 1; }
-        #app-list { width: 34%; border: solid $primary; }
-        #detail-panel { width: 66%; border: solid $primary; padding: 1; }
-        #detail-body { height: 1fr; overflow-y: auto; }
-        #tool-panel { height: auto; border-top: solid $primary; padding: 1; }
+        #suite-header-container { height: 3; background: $boost; padding: 0 1; }
+        #suite-header { color: $text; text-style: bold; }
+        #status-bar { height: 3; background: $panel; border: solid $accent; padding: 0 1; color: $text-muted; }
+        #app-list { width: 34%; border: solid $primary; min-width: 28; }
+        #detail-panel { width: 66%; border: solid $accent; padding: 1 2; }
+        #detail-title { text-style: bold; color: $accent; height: 2; }
+        #detail-body { height: 1fr; overflow-y: auto; padding: 0 1; }
+        #tool-panel { height: auto; max-height: 50%; border-top: dashed $primary; padding: 1; }
         #tabs { height: 3; }
+        ListView { scrollbar-size: 1 1; }
+        ListItem { height: 2; padding: 0 1; }
+        ListItem:hover { background: $boost; }
         """
 
         status_text = reactive("Initializing...")
@@ -40823,12 +40830,15 @@ def feature_enhanced_display_suite():
             self._apps = self._build_apps()
             self._list_items = {}
             self._selected_launch = None
+            self._cpu_history = []
+            self._auto_refresh_active = False
+            self._last_selected_handler = None
 
         def compose(self) -> ComposeResult:
             yield Header(show_clock=True)
             yield Container(
-                Label("💫 Enhanced Display Suite | 600% Mode", id="suite-header"),
-                id="suite-header",
+                Label("Enhanced Display Suite | 600% Mode", id="suite-header"),
+                id="suite-header-container",
             )
             yield Tabs(
                 Tab("System", id="tab-system"),
@@ -40837,6 +40847,7 @@ def feature_enhanced_display_suite():
                 Tab("AI", id="tab-ai"),
                 Tab("Files", id="tab-files"),
                 Tab("UX", id="tab-ux"),
+                Tab("Advanced", id="tab-advanced"),
                 id="tabs",
             )
             with Horizontal():
@@ -40851,15 +40862,17 @@ def feature_enhanced_display_suite():
 
         def on_mount(self) -> None:
             self._populate_list()
-            try:
-                self.workers._new_worker(self._status_worker, self, name="status", group="status", exclusive=True)
-            except Exception:
-                self.set_interval(1.0, self._update_status)
+            self.set_interval(1.0, self._update_status)
+            self.set_interval(3.0, self._auto_refresh_detail)
 
-        async def _status_worker(self) -> None:
-            while True:
-                self._update_status()
-                await asyncio.sleep(1.0)
+        def _auto_refresh_detail(self) -> None:
+            """Auto-refresh the detail panel with live data every 3s."""
+            if self._last_selected_handler:
+                try:
+                    title, body = self._last_selected_handler()
+                    self.query_one("#detail-body", Static).update(body)
+                except Exception:
+                    pass
 
         def _update_status(self) -> None:
             try:
@@ -40867,11 +40880,15 @@ def feature_enhanced_display_suite():
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage("/")
                 net = psutil.net_io_counters()
+                self._cpu_history.append(cpu)
+                if len(self._cpu_history) > 30:
+                    self._cpu_history = self._cpu_history[-30:]
+                spark = self._mini_spark(self._cpu_history)
                 status = (
-                    f"CPU {_render_usage_bar(cpu)} {_fmt_pct(cpu)} | "
+                    f"CPU {spark} {_fmt_pct(cpu)} | "
                     f"RAM {_render_usage_bar(mem.percent)} {_fmt_pct(mem.percent)} | "
-                    f"Disk {_render_usage_bar(disk.percent)} {_fmt_pct(disk.percent)} | "
-                    f"Net ⬇ {net.bytes_recv//1024}KB ⬆ {net.bytes_sent//1024}KB"
+                    f"Disk {_fmt_pct(disk.percent)} | "
+                    f"Net {net.bytes_recv//(1024*1024)}MB rx / {net.bytes_sent//(1024*1024)}MB tx"
                 )
             except Exception:
                 status = "Live stats unavailable"
@@ -40880,6 +40897,14 @@ def feature_enhanced_display_suite():
                 self.query_one("#status-bar", Label).update(self.status_text)
             except Exception:
                 pass
+
+        @staticmethod
+        def _mini_spark(values):
+            """Render a tiny sparkline from a list of 0-100 values."""
+            if not values:
+                return ""
+            chars = " _.-~*=#"
+            return "".join(chars[min(len(chars)-1, int(v / 100 * (len(chars)-1)))] for v in values[-15:])
 
         def _build_apps(self):
             return [
@@ -40972,7 +40997,8 @@ def feature_enhanced_display_suite():
             if item in self._list_items:
                 title, handler, launch, widget_factory = self._list_items[item]
                 detail_title, detail_body = handler()
-                self.query_one("#detail-title", Static).update(f"📌 {title}")
+                self._last_selected_handler = handler
+                self.query_one("#detail-title", Static).update(f"[{title}]")
                 if launch:
                     detail_body = f"{detail_body}\n\nPress Enter to launch"
                 self.query_one("#detail-body", Static).update(detail_body)
@@ -40996,43 +41022,84 @@ def feature_enhanced_display_suite():
                 panel.mount(widget)
 
         def _app_system_pulse(self):
-            cpu = psutil.cpu_percent(interval=0.1)
-            mem = psutil.virtual_memory()
-            disk = psutil.disk_usage("/")
-            body = (
-                f"CPU: {cpu}%\n"
-                f"Memory: {mem.used//(1024**2)}MB / {mem.total//(1024**2)}MB\n"
-                f"Disk: {disk.used//(1024**3)}GB / {disk.total//(1024**3)}GB\n"
-                f"Boot: {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M')}"
-            )
-            return "System Pulse", body
+            try:
+                cpu = psutil.cpu_percent(interval=0.1)
+                mem = psutil.virtual_memory()
+                disk = psutil.disk_usage("/")
+                swap = psutil.swap_memory()
+                net = psutil.net_io_counters()
+                uptime_sec = time.time() - psutil.boot_time()
+                days = int(uptime_sec // 86400)
+                hrs = int((uptime_sec % 86400) // 3600)
+                mins = int((uptime_sec % 3600) // 60)
+                body = (
+                    f"CPU:    {_render_usage_bar(cpu)} {_fmt_pct(cpu)}\n"
+                    f"Memory: {_render_usage_bar(mem.percent)} {_fmt_pct(mem.percent)}  ({mem.used//(1024**2)}MB / {mem.total//(1024**2)}MB)\n"
+                    f"Disk:   {_render_usage_bar(disk.percent)} {_fmt_pct(disk.percent)}  ({disk.used//(1024**3)}GB / {disk.total//(1024**3)}GB)\n"
+                    f"Swap:   {_render_usage_bar(swap.percent)} {_fmt_pct(swap.percent)}\n"
+                    f"\n"
+                    f"Network: rx {net.bytes_recv//(1024**2)}MB / tx {net.bytes_sent//(1024**2)}MB\n"
+                    f"Processes: {len(psutil.pids())}\n"
+                    f"Uptime: {days}d {hrs}h {mins}m\n"
+                    f"Boot: {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M')}"
+                )
+                return "System Pulse", body
+            except Exception as e:
+                return "System Pulse", f"Error: {e}"
 
         def _app_process_lens(self):
             lines = ["Top processes by memory:"]
+            lines.append(f"{'PID':>6}  {'Name':<25} {'MEM%':>6}  {'CPU%':>6}")
+            lines.append("-" * 50)
             try:
                 procs = []
-                for p in psutil.process_iter(["pid", "name", "memory_percent"]):
+                for p in psutil.process_iter(["pid", "name", "memory_percent", "cpu_percent"]):
                     procs.append(p.info)
-                for p in sorted(procs, key=lambda x: x.get("memory_percent", 0), reverse=True)[:10]:
-                    lines.append(f"{p['pid']:>6} {p['name']:<20} {p['memory_percent']:.1f}%")
+                for p in sorted(procs, key=lambda x: x.get("memory_percent", 0), reverse=True)[:15]:
+                    lines.append(f"{p['pid']:>6}  {(p['name'] or '?')[:25]:<25} {p.get('memory_percent', 0):5.1f}%  {p.get('cpu_percent', 0):5.1f}%")
+                lines.append(f"\nTotal processes: {len(procs)}")
             except Exception:
                 lines.append("Unable to read process table")
             return "Process Lens", "\n".join(lines)
 
         def _app_memory_map(self):
-            mem = psutil.virtual_memory()
-            swap = psutil.swap_memory()
-            body = (
-                f"RAM: {mem.percent}%\n"
-                f"Available: {mem.available//(1024**2)}MB\n"
-                f"Swap: {swap.used//(1024**2)}MB / {swap.total//(1024**2)}MB"
-            )
-            return "Memory Map", body
+            try:
+                mem = psutil.virtual_memory()
+                swap = psutil.swap_memory()
+                lines = [
+                    f"Physical RAM:",
+                    f"  {_render_usage_bar(mem.percent)} {_fmt_pct(mem.percent)}",
+                    f"  Total:     {mem.total//(1024**2):>8} MB",
+                    f"  Used:      {mem.used//(1024**2):>8} MB",
+                    f"  Available: {mem.available//(1024**2):>8} MB",
+                    f"  Active:    {getattr(mem, 'active', 0)//(1024**2):>8} MB",
+                    f"  Inactive:  {getattr(mem, 'inactive', 0)//(1024**2):>8} MB",
+                    f"",
+                    f"Swap:",
+                    f"  {_render_usage_bar(swap.percent)} {_fmt_pct(swap.percent)}",
+                    f"  Total:     {swap.total//(1024**2):>8} MB",
+                    f"  Used:      {swap.used//(1024**2):>8} MB",
+                    f"  Free:      {swap.free//(1024**2):>8} MB",
+                ]
+                # Top memory consumers
+                lines.append("")
+                lines.append("Top Memory Consumers:")
+                procs = sorted(
+                    [p.info for p in psutil.process_iter(['name', 'memory_percent'])],
+                    key=lambda x: x.get('memory_percent', 0), reverse=True
+                )[:5]
+                for p in procs:
+                    lines.append(f"  {(p['name'] or '?')[:25]:<25} {p.get('memory_percent', 0):.1f}%")
+                return "Memory Map", "\n".join(lines)
+            except Exception as e:
+                return "Memory Map", f"Error: {e}"
 
         def _app_disk_hotspots(self):
             try:
                 usage = {}
-                for dirpath, _, filenames in os.walk(self.app.cwd or "."):
+                scan_root = os.getcwd()
+                count = 0
+                for dirpath, _, filenames in os.walk(scan_root):
                     for filename in filenames:
                         filepath = os.path.join(dirpath, filename)
                         try:
@@ -41040,12 +41107,23 @@ def feature_enhanced_display_suite():
                             usage[ext] = usage.get(ext, 0) + os.path.getsize(filepath)
                         except Exception:
                             pass
+                        count += 1
+                        if count > 5000:
+                            break
+                    if count > 5000:
+                        break
                 top = sorted(usage.items(), key=lambda x: x[1], reverse=True)[:10]
-                lines = ["Top file types by size:"]
+                lines = [f"Top file types by size (scanned {count} files in {scan_root}):"]
                 for ext, size in top:
-                    lines.append(f"{ext:>8} {size//(1024**2)}MB")
-            except Exception:
-                lines = ["Disk hotspots unavailable"]
+                    if size > 1024**3:
+                        sz = f"{size/(1024**3):.1f}GB"
+                    elif size > 1024**2:
+                        sz = f"{size/(1024**2):.1f}MB"
+                    else:
+                        sz = f"{size/1024:.0f}KB"
+                    lines.append(f"  {ext:>8}  {sz:>10}")
+            except Exception as e:
+                lines = [f"Disk hotspots unavailable: {e}"]
             return "Disk Hotspots", "\n".join(lines)
 
         def _app_filesystem_map(self):
@@ -41059,52 +41137,138 @@ def feature_enhanced_display_suite():
             return "Filesystem Map", "\n".join(lines)
 
         def _app_log_insight(self):
-            paths = ["/var/log/syslog", "/var/log/messages"]
-            target = next((p for p in paths if os.path.exists(p)), None)
-            if not target:
-                return "Log Insight", "No system log found"
+            lines = []
+            # Try Linux system logs first
+            log_paths = ["/var/log/syslog", "/var/log/messages"]
+            target = next((p for p in log_paths if os.path.exists(p)), None)
+            if target:
+                try:
+                    with open(target, "r", errors="ignore") as f:
+                        tail = f.readlines()[-20:]
+                    return "Log Insight", "".join(tail)
+                except Exception:
+                    pass
+            # Windows: Try pythonOS own log
             try:
-                with open(target, "r", errors="ignore") as f:
-                    lines = f.readlines()[-20:]
-                return "Log Insight", "".join(lines)
+                log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pythonOS_data")
+                log_files = [f for f in os.listdir(log_dir) if f.endswith('.log')] if os.path.exists(log_dir) else []
+                if log_files:
+                    latest = os.path.join(log_dir, sorted(log_files)[-1])
+                    with open(latest, "r", errors="ignore") as f:
+                        tail = f.readlines()[-20:]
+                    return "Log Insight", f"[{latest}]\n" + "".join(tail)
             except Exception:
-                return "Log Insight", "Unable to read log"
+                pass
+            # Windows: Try Event Log via PowerShell
+            if sys.platform == 'win32':
+                try:
+                    result = subprocess.run(
+                        ["powershell", "-Command", "Get-EventLog -LogName System -Newest 15 | Format-Table -AutoSize -Wrap"],
+                        capture_output=True, text=True, timeout=5
+                    )
+                    if result.stdout.strip():
+                        return "Log Insight", result.stdout.strip()[:2000]
+                except Exception:
+                    pass
+            return "Log Insight", "No system logs found on this platform"
 
         def _app_network_radar(self):
-            lines = ["Active connections:"]
+            lines = ["Active Connections:", ""]
+            lines.append(f"{'Status':<14} {'Local Address':<24} {'Remote Address':<24}")
+            lines.append("-" * 64)
             try:
-                conns = psutil.net_connections(kind="inet")[:15]
+                conns = psutil.net_connections(kind="inet")
+                # Count by status
+                status_count = {}
                 for c in conns:
+                    status_count[c.status] = status_count.get(c.status, 0) + 1
+                for c in conns[:20]:
                     laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "-"
                     raddr = f"{c.raddr.ip}:{c.raddr.port}" if c.raddr else "-"
-                    lines.append(f"{c.status:<12} {laddr:<22} -> {raddr}")
+                    lines.append(f"{c.status:<14} {laddr:<24} {raddr:<24}")
+                if len(conns) > 20:
+                    lines.append(f"... and {len(conns)-20} more connections")
+                lines.append("")
+                lines.append(f"Summary ({len(conns)} total connections):")
+                for status, count in sorted(status_count.items(), key=lambda x: x[1], reverse=True):
+                    lines.append(f"  {status:<16} {count}")
             except Exception:
-                lines.append("Unable to read connections")
+                lines.append("Unable to read connections (may need admin)")
             return "Network Radar", "\n".join(lines)
 
         def _app_port_snapshot(self):
-            lines = ["Listening ports:"]
+            lines = ["Listening Ports:", ""]
+            lines.append(f"{'Address':<28} {'PID':>6}  Process")
+            lines.append("-" * 55)
             try:
                 conns = [c for c in psutil.net_connections(kind="inet") if c.status == "LISTEN"]
-                for c in conns[:20]:
+                for c in sorted(conns, key=lambda x: x.laddr.port if x.laddr else 0)[:25]:
                     laddr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "-"
-                    lines.append(laddr)
+                    pid = c.pid or 0
+                    name = "-"
+                    if pid:
+                        try:
+                            name = psutil.Process(pid).name()[:20]
+                        except Exception:
+                            name = "?"
+                    lines.append(f"{laddr:<28} {pid:>6}  {name}")
+                if len(conns) > 25:
+                    lines.append(f"... and {len(conns)-25} more")
+                lines.append(f"\nTotal listening: {len(conns)}")
             except Exception:
-                lines.append("Unable to read ports")
+                lines.append("Unable to read ports (may need admin)")
             return "Port Snapshot", "\n".join(lines)
 
         def _app_traffic_pulse(self):
             try:
                 net = psutil.net_io_counters()
-                body = f"Bytes Sent: {net.bytes_sent}\nBytes Recv: {net.bytes_recv}\nPackets Sent: {net.packets_sent}\nPackets Recv: {net.packets_recv}"
-            except Exception:
-                body = "Network counters unavailable"
-            return "Traffic Pulse", body
+                lines = [
+                    f"Network Traffic:",
+                    f"",
+                    f"  Bytes Sent:     {net.bytes_sent//(1024**2):>10,} MB  ({net.bytes_sent:,} bytes)",
+                    f"  Bytes Recv:     {net.bytes_recv//(1024**2):>10,} MB  ({net.bytes_recv:,} bytes)",
+                    f"  Packets Sent:   {net.packets_sent:>10,}",
+                    f"  Packets Recv:   {net.packets_recv:>10,}",
+                    f"  Errors In:      {net.errin:>10,}",
+                    f"  Errors Out:     {net.errout:>10,}",
+                    f"  Drops In:       {net.dropin:>10,}",
+                    f"  Drops Out:      {net.dropout:>10,}",
+                ]
+                # Ratio
+                total = net.bytes_sent + net.bytes_recv
+                if total > 0:
+                    lines.append(f"")
+                    lines.append(f"  Upload Ratio:   {net.bytes_sent/total*100:.1f}%")
+                    lines.append(f"  Download Ratio: {net.bytes_recv/total*100:.1f}%")
+                return "Traffic Pulse", "\n".join(lines)
+            except Exception as e:
+                return "Traffic Pulse", f"Error: {e}"
 
         def _app_security_pulse(self):
-            host = socket.gethostname()
-            body = f"Host: {host}\nIP: {socket.gethostbyname(host)}\nUsers: {len(psutil.users())}"
-            return "Security Pulse", body
+            try:
+                host = socket.gethostname()
+                ip = socket.gethostbyname(host)
+                users = psutil.users()
+                lines = [
+                    f"Security Status:",
+                    f"  Hostname:  {host}",
+                    f"  IP:        {ip}",
+                    f"  Platform:  {platform.system()} {platform.release()}",
+                    f"  Users:     {len(users)} active",
+                ]
+                for u in users:
+                    started = datetime.fromtimestamp(u.started).strftime('%m/%d %H:%M')
+                    lines.append(f"    {u.name} on {u.terminal or 'console'} since {started}")
+                lines.append(f"")
+                try:
+                    listen = [c for c in psutil.net_connections(kind='inet') if c.status == 'LISTEN']
+                    lines.append(f"  Listening Services: {len(listen)}")
+                except Exception:
+                    lines.append(f"  Listening Services: N/A (admin required)")
+                lines.append(f"  Running Processes:  {len(psutil.pids())}")
+                return "Security Pulse", "\n".join(lines)
+            except Exception as e:
+                return "Security Pulse", f"Error: {e}"
 
         def _app_permission_risks(self):
             risky = []
@@ -41171,11 +41335,47 @@ Press Enter to launch"""
         def _app_resource_forecast(self):
             try:
                 disk = psutil.disk_usage("/")
-                forecast = int(disk.used * 1.05)
-                body = f"Current: {disk.used//(1024**3)}GB\nForecast (5%): {forecast//(1024**3)}GB"
-            except Exception:
-                body = "Forecast unavailable"
-            return "Resource Forecast", body
+                mem = psutil.virtual_memory()
+                lines = [
+                    f"Resource Usage Forecast:",
+                    f"",
+                    f"Disk Space:",
+                    f"  Current:   {disk.used//(1024**3)} GB / {disk.total//(1024**3)} GB ({_fmt_pct(disk.percent)})",
+                    f"  Free:      {disk.free//(1024**3)} GB",
+                ]
+                # Estimate days until full based on typical growth
+                free_gb = disk.free / (1024**3)
+                if free_gb < 10:
+                    lines.append(f"  [!!] LOW DISK SPACE - only {free_gb:.1f}GB free")
+                elif free_gb < 50:
+                    lines.append(f"  [!!] Disk space getting low - {free_gb:.1f}GB free")
+                else:
+                    lines.append(f"  [OK] {free_gb:.1f}GB available")
+                lines.append(f"")
+                lines.append(f"Memory:")
+                lines.append(f"  Current:   {mem.used//(1024**2)} MB / {mem.total//(1024**2)} MB ({_fmt_pct(mem.percent)})")
+                avail_mb = mem.available / (1024**2)
+                if avail_mb < 1024:
+                    lines.append(f"  [!!] LOW MEMORY - only {avail_mb:.0f}MB available")
+                elif avail_mb < 4096:
+                    lines.append(f"  [!!] Memory getting tight - {avail_mb:.0f}MB available")
+                else:
+                    lines.append(f"  [OK] {avail_mb:.0f}MB available")
+                lines.append(f"")
+                lines.append(f"CPU Trend (recent history):")
+                if self._cpu_history:
+                    avg = sum(self._cpu_history) / len(self._cpu_history)
+                    peak = max(self._cpu_history)
+                    lines.append(f"  Average:   {_fmt_pct(avg)}")
+                    lines.append(f"  Peak:      {_fmt_pct(peak)}")
+                    lines.append(f"  Samples:   {len(self._cpu_history)}")
+                    spark = self._mini_spark(self._cpu_history)
+                    lines.append(f"  History:   {spark}")
+                else:
+                    lines.append(f"  (gathering data...)")
+                return "Resource Forecast", "\n".join(lines)
+            except Exception as e:
+                return "Resource Forecast", f"Error: {e}"
 
         def _app_calculator_widget(self):
             body = "Interactive calculator widget using Textual buttons and keyboard input."
@@ -41416,70 +41616,612 @@ Press Enter to launch"""
 
             return ChessWidget()
 
-        # NEW HANDLER METHODS FOR 20 COMMAND CENTER WIDGETS
+        # NEW HANDLER METHODS FOR 20 COMMAND CENTER WIDGETS (LIVE DATA)
         def _app_health_score(self):
-            return "Health Score", f"Overall System Health: ✅ EXCELLENT\nCPU: {_fmt_pct(psutil.cpu_percent(interval=None))} | RAM: {_fmt_pct(psutil.virtual_memory().percent)}\nDisk: {_fmt_pct(psutil.disk_usage('/').percent)} | Status: All systems nominal"
+            try:
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory().percent
+                disk = psutil.disk_usage('/').percent
+                swap = psutil.swap_memory().percent
+                # Weighted health: lower resource usage = higher score
+                score = max(0, 100 - (cpu * 0.35 + mem * 0.30 + disk * 0.25 + swap * 0.10))
+                if score >= 80:
+                    grade, icon = "EXCELLENT", "[OK]"
+                elif score >= 60:
+                    grade, icon = "GOOD", "[OK]"
+                elif score >= 40:
+                    grade, icon = "FAIR", "[!!]"
+                else:
+                    grade, icon = "CRITICAL", "[XX]"
+                bar = _render_usage_bar(score)
+                lines = [
+                    f"Health Score: {score:.0f}/100 {icon} {grade}",
+                    f"  {bar}",
+                    f"",
+                    f"Component Breakdown:",
+                    f"  CPU Load:    {_fmt_pct(cpu):>8}  {'OK' if cpu < 70 else 'HIGH' if cpu < 90 else 'CRITICAL'}",
+                    f"  Memory:      {_fmt_pct(mem):>8}  {'OK' if mem < 70 else 'HIGH' if mem < 90 else 'CRITICAL'}",
+                    f"  Disk:        {_fmt_pct(disk):>8}  {'OK' if disk < 80 else 'HIGH' if disk < 95 else 'CRITICAL'}",
+                    f"  Swap:        {_fmt_pct(swap):>8}  {'OK' if swap < 50 else 'HIGH'}",
+                    f"",
+                    f"Processes:     {len(psutil.pids())}",
+                    f"Boot Time:     {datetime.fromtimestamp(psutil.boot_time()).strftime('%Y-%m-%d %H:%M')}",
+                ]
+                return "Health Score", "\n".join(lines)
+            except Exception as e:
+                return "Health Score", f"Error computing health: {e}"
 
         def _app_health_status(self):
-            return "Health Status", "Hardware Status: ✅ NOMINAL\nSensors: All within normal range\nTemperature: Normal | Fans: Normal\nDiagnostics: ✅ PASS"
+            try:
+                lines = ["Hardware Diagnostics:", ""]
+                # CPU temps (if available)
+                try:
+                    temps = psutil.sensors_temperatures()
+                    if temps:
+                        for name, entries in temps.items():
+                            for t in entries[:3]:
+                                status = "OK" if t.current < (t.high or 85) else "HOT"
+                                lines.append(f"  Temp [{name}/{t.label or 'core'}]: {t.current:.0f}C  {status}")
+                    else:
+                        lines.append("  Temperatures: Sensors not available")
+                except Exception:
+                    lines.append("  Temperatures: Not supported on this platform")
+                # Fans
+                try:
+                    fans = psutil.sensors_fans()
+                    if fans:
+                        for name, entries in fans.items():
+                            for f in entries[:3]:
+                                lines.append(f"  Fan [{name}/{f.label}]: {f.current} RPM")
+                    else:
+                        lines.append("  Fans: Sensor data not available")
+                except Exception:
+                    lines.append("  Fans: Not supported on this platform")
+                # Battery
+                try:
+                    batt = psutil.sensors_battery()
+                    if batt:
+                        plug = "Charging" if batt.power_plugged else "On Battery"
+                        lines.append(f"  Battery: {batt.percent}% ({plug})")
+                        if batt.secsleft > 0:
+                            hrs = batt.secsleft // 3600
+                            mins = (batt.secsleft % 3600) // 60
+                            lines.append(f"  Time Left: {hrs}h {mins}m")
+                    else:
+                        lines.append("  Battery: Desktop (no battery)")
+                except Exception:
+                    lines.append("  Battery: Not available")
+                lines.append("")
+                lines.append(f"  CPU Cores: {psutil.cpu_count(logical=False)} physical / {psutil.cpu_count()} logical")
+                lines.append(f"  CPU Freq: {psutil.cpu_freq().current:.0f} MHz" if psutil.cpu_freq() else "  CPU Freq: N/A")
+                return "Health Status", "\n".join(lines)
+            except Exception as e:
+                return "Health Status", f"Diagnostics error: {e}"
 
         def _app_performance_stats(self):
-            mem = psutil.virtual_memory()
-            return "Performance Stats", f"CPU Usage: {_fmt_pct(psutil.cpu_percent(interval=None))}\nMemory: {mem.used//(1024**2)}MB / {mem.total//(1024**2)}MB\nUptime: System running\nLoad: Calculating..."
+            try:
+                cpu_pct = psutil.cpu_percent(interval=None, percpu=True)
+                mem = psutil.virtual_memory()
+                ctx = psutil.cpu_stats()
+                lines = [
+                    f"Per-Core CPU Usage ({len(cpu_pct)} cores):",
+                ]
+                for i, pct in enumerate(cpu_pct):
+                    bar = _render_usage_bar(pct)
+                    lines.append(f"  Core {i:>2}: {bar} {pct:>5.1f}%")
+                lines.append("")
+                lines.append(f"Memory Detailed:")
+                lines.append(f"  Total:     {mem.total//(1024**2):>8} MB")
+                lines.append(f"  Used:      {mem.used//(1024**2):>8} MB ({_fmt_pct(mem.percent)})")
+                lines.append(f"  Available: {mem.available//(1024**2):>8} MB")
+                lines.append(f"  Cached:    {getattr(mem, 'cached', 0)//(1024**2):>8} MB")
+                lines.append("")
+                lines.append(f"CPU Statistics:")
+                lines.append(f"  Context Switches: {ctx.ctx_switches:,}")
+                lines.append(f"  Interrupts:       {ctx.interrupts:,}")
+                lines.append(f"  Soft Interrupts:  {ctx.soft_interrupts:,}")
+                lines.append(f"  Syscalls:         {ctx.syscalls:,}")
+                return "Performance Stats", "\n".join(lines)
+            except Exception as e:
+                return "Performance Stats", f"Stats error: {e}"
 
         def _app_environment_probe(self):
-            import sys, platform, os
-            return "Environment Probe", f"Python: {sys.version.split()[0]}\nOS: {platform.system()} {platform.release()}\nEnvironment Variables: {len(os.environ)} loaded\nArchitecture: {platform.machine()}"
+            try:
+                freq = psutil.cpu_freq()
+                lines = [
+                    f"System Environment:",
+                    f"  Python:       {sys.version.split()[0]}",
+                    f"  Platform:     {platform.system()} {platform.release()}",
+                    f"  Machine:      {platform.machine()}",
+                    f"  Processor:    {platform.processor()[:50]}",
+                    f"  Node:         {platform.node()}",
+                    f"  CPU Freq:     {freq.current:.0f} MHz (max: {freq.max:.0f} MHz)" if freq else "  CPU Freq:     N/A",
+                    f"  Logical CPUs: {psutil.cpu_count()}",
+                    f"  Physical:     {psutil.cpu_count(logical=False)}",
+                    f"",
+                    f"Python Details:",
+                    f"  Executable:   {sys.executable}",
+                    f"  Prefix:       {sys.prefix}",
+                    f"  Encoding:     {sys.getdefaultencoding()}",
+                    f"  Stdout Enc:   {sys.stdout.encoding}",
+                    f"",
+                    f"Environment Variables: {len(os.environ)} loaded",
+                    f"  PATH entries: {len(os.environ.get('PATH', '').split(os.pathsep))}",
+                    f"  HOME:         {os.path.expanduser('~')}",
+                    f"  CWD:          {os.getcwd()}",
+                ]
+                return "Environment Probe", "\n".join(lines)
+            except Exception as e:
+                return "Environment Probe", f"Probe error: {e}"
 
         def _app_disk_io(self):
-            disk = psutil.disk_usage('/')
-            return "Disk I/O", f"Disk Usage: {_fmt_pct(disk.percent)}\nUsed: {disk.used//(1024**3)}GB / {disk.total//(1024**3)}GB\nFree: {disk.free//(1024**3)}GB\nI/O Monitoring: Active"
+            try:
+                disk = psutil.disk_usage('/')
+                lines = [
+                    f"Disk Usage:",
+                    f"  {_render_usage_bar(disk.percent)} {_fmt_pct(disk.percent)}",
+                    f"  Total:  {disk.total//(1024**3):>6} GB",
+                    f"  Used:   {disk.used//(1024**3):>6} GB",
+                    f"  Free:   {disk.free//(1024**3):>6} GB",
+                    f"",
+                ]
+                try:
+                    io = psutil.disk_io_counters()
+                    if io:
+                        lines.append(f"I/O Counters:")
+                        lines.append(f"  Read Count:   {io.read_count:>12,}")
+                        lines.append(f"  Write Count:  {io.write_count:>12,}")
+                        lines.append(f"  Read Bytes:   {io.read_bytes//(1024**2):>8} MB")
+                        lines.append(f"  Write Bytes:  {io.write_bytes//(1024**2):>8} MB")
+                        lines.append(f"  Read Time:    {io.read_time:>8} ms")
+                        lines.append(f"  Write Time:   {io.write_time:>8} ms")
+                except Exception:
+                    lines.append("  I/O counters not available")
+                return "Disk I/O", "\n".join(lines)
+            except Exception as e:
+                return "Disk I/O", f"Disk error: {e}"
 
         def _app_downloads(self):
-            return "Download Center", "Download Manager Ready\nActive Downloads: None\nSpeed: Idle\nHistory: Available"
+            try:
+                dl_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+                if not os.path.exists(dl_dir):
+                    return "Download Center", f"Downloads folder not found at {dl_dir}"
+                files = []
+                for f in os.listdir(dl_dir):
+                    fp = os.path.join(dl_dir, f)
+                    try:
+                        stat = os.stat(fp)
+                        files.append((f, stat.st_size, stat.st_mtime))
+                    except Exception:
+                        pass
+                files.sort(key=lambda x: x[2], reverse=True)
+                total_size = sum(f[1] for f in files)
+                lines = [
+                    f"Downloads Directory: {dl_dir}",
+                    f"Total Files: {len(files)} ({total_size//(1024**2)} MB)",
+                    f"",
+                    f"Recent Downloads (newest first):",
+                ]
+                for name, size, mtime in files[:15]:
+                    dt = datetime.fromtimestamp(mtime).strftime('%m/%d %H:%M')
+                    if size > 1024**2:
+                        sz = f"{size/(1024**2):.1f}MB"
+                    else:
+                        sz = f"{size/1024:.0f}KB"
+                    lines.append(f"  {dt}  {sz:>8}  {name[:40]}")
+                if len(files) > 15:
+                    lines.append(f"  ... and {len(files)-15} more files")
+                return "Download Center", "\n".join(lines)
+            except Exception as e:
+                return "Download Center", f"Error: {e}"
 
         def _app_log_viewer(self):
-            return "Log Viewer", "System Logs: Available\nFilter: All logs\nRefresh: Real-time\nStatistics: Computing..."
+            try:
+                if LOGGER:
+                    recent = LOGGER.get_recent_logs(count=20)
+                    stats = LOGGER.get_statistics()
+                    lines = [
+                        f"PythonOS Log Viewer (buffer: {stats.get('buffer_size', 0)} entries)",
+                        f"Total Logs: {stats.get('total_logs', 0)}",
+                        f"By Level: {stats.get('by_level', {})}",
+                        f"",
+                        f"Recent Entries:",
+                    ]
+                    for log in recent[-15:]:
+                        ts = log.get('timestamp', '')[-8:]
+                        lvl = log.get('level', 'INFO')[:4]
+                        msg = log.get('message', '')[:60]
+                        lines.append(f"  [{ts}] {lvl:>4} {msg}")
+                    if not recent:
+                        lines.append("  (no log entries yet)")
+                    return "Log Viewer", "\n".join(lines)
+                else:
+                    return "Log Viewer", "Logger not initialized.\nLogs will appear here once the system starts logging."
+            except Exception as e:
+                return "Log Viewer", f"Log viewer error: {e}"
 
         def _app_text_editor(self):
-            return "Text Editor", "Editor: Ready\nFiles: Open recent\nSyntax Highlighting: Enabled\nStatus: ✅ Operational"
+            try:
+                cwd = os.getcwd()
+                files = [f for f in os.listdir(cwd) if os.path.isfile(os.path.join(cwd, f))]
+                text_exts = {'.py', '.txt', '.md', '.json', '.yaml', '.yml', '.cfg', '.ini', '.log', '.csv', '.xml', '.html'}
+                text_files = [f for f in files if os.path.splitext(f)[1].lower() in text_exts]
+                lines = [
+                    f"Text Files in {cwd}:",
+                    f"Total files: {len(files)} | Text files: {len(text_files)}",
+                    "",
+                ]
+                for f in sorted(text_files)[:20]:
+                    try:
+                        size = os.path.getsize(os.path.join(cwd, f))
+                        sz = f"{size/1024:.0f}KB" if size > 1024 else f"{size}B"
+                        lines.append(f"  {sz:>8}  {f}")
+                    except Exception:
+                        lines.append(f"           {f}")
+                if len(text_files) > 20:
+                    lines.append(f"  ... and {len(text_files)-20} more")
+                lines.append("")
+                lines.append("Tip: Use the main menu File Manager for full editing")
+                return "Text Editor", "\n".join(lines)
+            except Exception as e:
+                return "Text Editor", f"Error: {e}"
 
         def _app_latency(self):
-            return "Latency Monitor", "Network Latency: Monitoring\nPing: Testing servers\nStats: Real-time\nJitter: Measuring..."
+            try:
+                targets = [
+                    ("DNS Google", "8.8.8.8"),
+                    ("DNS Cloudflare", "1.1.1.1"),
+                    ("Localhost", "127.0.0.1"),
+                ]
+                lines = ["Network Latency Test:", ""]
+                for label, host in targets:
+                    try:
+                        start = time.time()
+                        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                        sock.settimeout(2)
+                        result = sock.connect_ex((host, 53))
+                        elapsed = (time.time() - start) * 1000
+                        sock.close()
+                        status = f"{elapsed:.1f}ms" if result == 0 else "TIMEOUT"
+                        lines.append(f"  {label:<20} {host:<16} {status}")
+                    except Exception:
+                        lines.append(f"  {label:<20} {host:<16} ERROR")
+                lines.append("")
+                # Also show current connections count
+                try:
+                    conns = psutil.net_connections(kind='inet')
+                    by_status = {}
+                    for c in conns:
+                        by_status[c.status] = by_status.get(c.status, 0) + 1
+                    lines.append(f"Active Connections: {len(conns)}")
+                    for status, count in sorted(by_status.items(), key=lambda x: x[1], reverse=True)[:5]:
+                        lines.append(f"  {status:<16} {count}")
+                except Exception:
+                    pass
+                return "Latency Monitor", "\n".join(lines)
+            except Exception as e:
+                return "Latency Monitor", f"Error: {e}"
 
         def _app_wifi(self):
-            return "WiFi Tools", "WiFi: Available\nNetworks: Scanning\nSignal Strength: Real-time\nStatus: Connected"
+            try:
+                lines = ["Network Interfaces:", ""]
+                addrs = psutil.net_if_addrs()
+                stats = psutil.net_if_stats()
+                for iface, addr_list in sorted(addrs.items()):
+                    iface_stat = stats.get(iface)
+                    is_up = iface_stat.isup if iface_stat else False
+                    speed = f"{iface_stat.speed}Mbps" if iface_stat and iface_stat.speed else "N/A"
+                    status = "UP" if is_up else "DOWN"
+                    lines.append(f"  [{status:>4}] {iface} ({speed})")
+                    for addr in addr_list:
+                        if addr.family.name == 'AF_INET':
+                            lines.append(f"         IPv4: {addr.address}")
+                        elif addr.family.name == 'AF_INET6':
+                            lines.append(f"         IPv6: {addr.address[:30]}...")
+                lines.append("")
+                # WiFi scan on Windows
+                if sys.platform == 'win32':
+                    try:
+                        result = subprocess.run(
+                            ["netsh", "wlan", "show", "interfaces"],
+                            capture_output=True, text=True, timeout=5
+                        )
+                        if result.stdout.strip():
+                            lines.append("WiFi Interface Details:")
+                            for line in result.stdout.strip().split('\n')[-10:]:
+                                lines.append(f"  {line.strip()}")
+                    except Exception:
+                        lines.append("  WiFi details: netsh not available")
+                return "WiFi Tools", "\n".join(lines)
+            except Exception as e:
+                return "WiFi Tools", f"Error: {e}"
 
         def _app_ram_drive(self):
-            return "RAM Drive", "RAM Drive: Ready\nSize: Configurable\nPerformance: Maximum\nStatus: ✅ Mounted"
+            try:
+                mem = psutil.virtual_memory()
+                swap = psutil.swap_memory()
+                lines = [
+                    f"Memory Overview:",
+                    f"",
+                    f"Physical RAM:",
+                    f"  Total:     {mem.total//(1024**3):>6} GB",
+                    f"  Used:      {mem.used//(1024**3):>6} GB  {_render_usage_bar(mem.percent)} {_fmt_pct(mem.percent)}",
+                    f"  Available: {mem.available//(1024**3):>6} GB",
+                    f"  Buffers:   {getattr(mem, 'buffers', 0)//(1024**2):>6} MB",
+                    f"  Cached:    {getattr(mem, 'cached', 0)//(1024**2):>6} MB",
+                    f"",
+                    f"Swap / Virtual Memory:",
+                    f"  Total:     {swap.total//(1024**3):>6} GB",
+                    f"  Used:      {swap.used//(1024**3):>6} GB  {_render_usage_bar(swap.percent)} {_fmt_pct(swap.percent)}",
+                    f"  Free:      {swap.free//(1024**3):>6} GB",
+                    f"  Sin:       {swap.sin//(1024**2):>6} MB swapped in",
+                    f"  Sout:      {swap.sout//(1024**2):>6} MB swapped out",
+                ]
+                return "RAM Drive", "\n".join(lines)
+            except Exception as e:
+                return "RAM Drive", f"Error: {e}"
 
         def _app_security(self):
-            return "Security Audit", "Security: Scanning\nVulnerabilities: Checking\nFirewall: Active\nStatus: ✅ Secure"
+            try:
+                lines = ["Security Audit Summary:", ""]
+                # Check listening ports
+                try:
+                    listen = [c for c in psutil.net_connections(kind='inet') if c.status == 'LISTEN']
+                    lines.append(f"Open Listening Ports: {len(listen)}")
+                    for c in listen[:10]:
+                        addr = f"{c.laddr.ip}:{c.laddr.port}" if c.laddr else "?"
+                        lines.append(f"  LISTEN  {addr}")
+                    if len(listen) > 10:
+                        lines.append(f"  ... and {len(listen)-10} more")
+                except Exception:
+                    lines.append("  Port scan: Permission denied")
+                lines.append("")
+                # User sessions
+                lines.append(f"Active Users: {len(psutil.users())}")
+                for u in psutil.users():
+                    started = datetime.fromtimestamp(u.started).strftime('%m/%d %H:%M')
+                    lines.append(f"  {u.name} on {u.terminal or 'console'} since {started}")
+                lines.append("")
+                # Elevated check
+                try:
+                    is_admin = ctypes.windll.shell32.IsUserAnAdmin() != 0 if sys.platform == 'win32' else os.geteuid() == 0
+                    lines.append(f"Running as Admin/Root: {'YES' if is_admin else 'No'}")
+                except Exception:
+                    lines.append("  Privilege check: N/A")
+                return "Security Audit", "\n".join(lines)
+            except Exception as e:
+                return "Security Audit", f"Error: {e}"
 
         def _app_bluetooth(self):
-            return "Bluetooth Manager", "Bluetooth: Available\nDevices: Scanning\nPaired: Managing\nStatus: Connected"
+            try:
+                lines = ["Bluetooth Status:", ""]
+                if sys.platform == 'win32':
+                    try:
+                        result = subprocess.run(
+                            ["powershell", "-Command",
+                             "Get-PnpDevice -Class Bluetooth -ErrorAction SilentlyContinue | Select-Object Status, Name | Format-Table -AutoSize"],
+                            capture_output=True, text=True, timeout=8
+                        )
+                        if result.stdout.strip():
+                            lines.append("Bluetooth Devices (PnP):")
+                            for line in result.stdout.strip().split('\n'):
+                                lines.append(f"  {line.strip()}")
+                        else:
+                            lines.append("  No Bluetooth devices detected")
+                    except Exception:
+                        lines.append("  Bluetooth query failed (PowerShell)")
+                else:
+                    lines.append("  Bluetooth scanning requires platform-specific tools")
+                    lines.append("  Try: hcitool scan (Linux)")
+                return "Bluetooth Manager", "\n".join(lines)
+            except Exception as e:
+                return "Bluetooth Manager", f"Error: {e}"
 
         def _app_colors(self):
-            return "Color Scheme", "Themes: 6+ Available\nANSI: Full Support\nCustomization: Enabled\nCurrent: Theme Active"
+            lines = [
+                "ANSI Color Test & Theme Preview:",
+                "",
+                "Standard Colors:",
+                "  \x1b[30m  Black  \x1b[0m  \x1b[31m  Red    \x1b[0m  \x1b[32m  Green  \x1b[0m  \x1b[33m  Yellow \x1b[0m",
+                "  \x1b[34m  Blue   \x1b[0m  \x1b[35m  Magenta\x1b[0m  \x1b[36m  Cyan   \x1b[0m  \x1b[37m  White  \x1b[0m",
+                "",
+                "Bright Colors:",
+                "  \x1b[90m  Gray   \x1b[0m  \x1b[91m  B.Red  \x1b[0m  \x1b[92m  B.Green\x1b[0m  \x1b[93m  B.Yel  \x1b[0m",
+                "  \x1b[94m  B.Blue \x1b[0m  \x1b[95m  B.Mag  \x1b[0m  \x1b[96m  B.Cyan \x1b[0m  \x1b[97m  B.White\x1b[0m",
+                "",
+                "Block Characters:",
+                "  Full:  ████████████████████",
+                "  Dense: ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓",
+                "  Med:   ▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒",
+                "  Light: ░░░░░░░░░░░░░░░░░░░░",
+                "",
+                "Box Drawing: +--+--+   Arrows: <- -> v ^",
+                "Progress:    [========>         ] 45%",
+            ]
+            return "Color Scheme", "\n".join(lines)
 
         def _app_ai_probe(self):
-            return "AI Probe", "AI: Detected\nCapabilities: Checking\nModels: Available\nStatus: ✅ Operational"
+            try:
+                lines = ["AI System Capabilities:", ""]
+                # Check for pyAI
+                try:
+                    from pythonOS_data.swap import pyAI
+                    manifest = pyAI.manifest()
+                    lines.append(f"pyAI Engine: LOADED v{manifest.get('version', '?')}")
+                    lines.append(f"  Tasks: {len(manifest.get('tasks', []))}")
+                    lines.append(f"  NumPy: {'Yes' if manifest.get('numpy') else 'No'}")
+                    lines.append(f"  SciPy: {'Yes' if manifest.get('scipy') else 'No'}")
+                except ImportError:
+                    lines.append("pyAI Engine: Not loaded (standalone mode)")
+                lines.append("")
+                # Check available ML/AI libraries
+                ai_libs = ['numpy', 'scipy', 'sklearn', 'torch', 'tensorflow', 'transformers']
+                lines.append("AI/ML Libraries Available:")
+                for lib in ai_libs:
+                    try:
+                        mod = importlib.import_module(lib)
+                        ver = getattr(mod, '__version__', 'installed')
+                        lines.append(f"  [OK] {lib:<15} v{ver}")
+                    except ImportError:
+                        lines.append(f"  [--] {lib:<15} not installed")
+                return "AI Probe", "\n".join(lines)
+            except Exception as e:
+                return "AI Probe", f"Error: {e}"
 
         def _app_ai_command(self):
-            return "AI Command Center", "AI Control: Ready\nCommands: Available\nExecution: Enabled\nStatus: ✅ Ready"
+            try:
+                lines = [
+                    "AI Command Center:",
+                    "",
+                    "Available AI Operations:",
+                    "  [1] Physics Calculator   (pyAI engine)",
+                    "  [2] System Optimization  (performance tuning)",
+                    "  [3] Security Analysis    (threat detection)",
+                    "  [4] Resource Prediction  (usage forecasts)",
+                    "  [5] Log Analysis         (pattern detection)",
+                    "",
+                    "System Intelligence:",
+                ]
+                # Quick AI-like analysis
+                cpu = psutil.cpu_percent(interval=None)
+                mem = psutil.virtual_memory().percent
+                if cpu > 80:
+                    lines.append("  [!!] High CPU detected - consider closing heavy processes")
+                elif cpu < 10:
+                    lines.append("  [OK] CPU usage is very low - system is idle")
+                else:
+                    lines.append(f"  [OK] CPU normal at {_fmt_pct(cpu)}")
+                if mem > 85:
+                    lines.append(f"  [!!] Memory pressure detected ({_fmt_pct(mem)}) - close unused apps")
+                else:
+                    lines.append(f"  [OK] Memory usage normal at {_fmt_pct(mem)}")
+                top_procs = sorted(
+                    [p.info for p in psutil.process_iter(['name', 'memory_percent'])],
+                    key=lambda x: x.get('memory_percent', 0), reverse=True
+                )[:3]
+                lines.append("")
+                lines.append("Top Memory Consumers:")
+                for p in top_procs:
+                    lines.append(f"  {p['name']:<25} {p.get('memory_percent', 0):.1f}%")
+                return "AI Command Center", "\n".join(lines)
+            except Exception as e:
+                return "AI Command Center", f"Error: {e}"
 
         def _app_weather_live(self):
-            return "Weather Live", "Live Updates: Streaming\nForecasts: Available\nAlerts: Active\nData: Real-time"
+            try:
+                lines = ["Weather Data (via API):"]
+                if not REQUESTS_AVAILABLE:
+                    lines.append("")
+                    lines.append("  Requests library not installed.")
+                    lines.append("  Install: pip install requests")
+                    return "Weather Live", "\n".join(lines)
+                try:
+                    # Try wttr.in for quick weather
+                    resp = requests.get("https://wttr.in/?format=%l:+%c+%t+%h+%w", timeout=5)
+                    if resp.status_code == 200 and resp.text.strip():
+                        lines.append(f"  Current: {resp.text.strip()}")
+                    # Get detailed forecast
+                    resp2 = requests.get("https://wttr.in/?format=%l\\n%C+%t+Humidity:+%h\\nWind:+%w\\nPrecip:+%p\\nPressure:+%P\\nMoon:+%m", timeout=5)
+                    if resp2.status_code == 200:
+                        lines.append("")
+                        lines.append("  Detailed:")
+                        for line in resp2.text.strip().split('\n'):
+                            lines.append(f"    {line}")
+                except requests.exceptions.Timeout:
+                    lines.append("  API timeout - check internet connection")
+                except Exception as e:
+                    lines.append(f"  API error: {e}")
+                return "Weather Live", "\n".join(lines)
+            except Exception as e:
+                return "Weather Live", f"Error: {e}"
 
         def _app_python(self):
-            import sys
-            return "Python Power", f"Python: {sys.version.split()[0]}\nREPL: Ready\nPackages: Manageable\nExecutor: Active"
+            try:
+                import importlib
+                lines = [
+                    f"Python Runtime:",
+                    f"  Version:    {sys.version.split()[0]}",
+                    f"  Build:      {sys.version.split('[')[1].rstrip(']') if '[' in sys.version else 'N/A'}",
+                    f"  Executable: {sys.executable}",
+                    f"  Platform:   {sys.platform}",
+                    f"  Max Int:    {sys.maxsize}",
+                    f"  Recursion:  {sys.getrecursionlimit()}",
+                    f"  Encoding:   {sys.getdefaultencoding()}",
+                    f"",
+                    f"Installed Key Packages:",
+                ]
+                pkgs = ['psutil', 'requests', 'numpy', 'textual', 'rich', 'pillow', 'flask', 'pygame', 'beautifulsoup4']
+                for pkg in pkgs:
+                    try:
+                        mod = importlib.import_module(pkg.replace('-', '_').split('4')[0] if pkg == 'beautifulsoup4' else pkg)
+                        ver = getattr(mod, '__version__', 'installed')
+                        lines.append(f"  [OK] {pkg:<18} v{ver}")
+                    except ImportError:
+                        lines.append(f"  [--] {pkg:<18} not installed")
+                lines.append(f"")
+                lines.append(f"sys.path ({len(sys.path)} entries):")
+                for p in sys.path[:5]:
+                    lines.append(f"  {p[:60]}")
+                if len(sys.path) > 5:
+                    lines.append(f"  ... and {len(sys.path)-5} more")
+                return "Python Power", "\n".join(lines)
+            except Exception as e:
+                return "Python Power", f"Error: {e}"
 
         def _app_tui_tools(self):
-            return "TUI Tools", "Textual: Ready\nFrameworks: Multiple\nThemes: Available\nStatus: ✅ Configured"
+            try:
+                lines = ["TUI Framework Status:", ""]
+                tui_libs = {
+                    'textual': 'Textual (modern TUI framework)',
+                    'rich': 'Rich (terminal formatting)',
+                    'pygments': 'Pygments (syntax highlighting)',
+                    'prompt_toolkit': 'Prompt Toolkit (input/completion)',
+                    'blessed': 'Blessed (terminal capabilities)',
+                    'urwid': 'Urwid (console UI library)',
+                }
+                for mod_name, desc in tui_libs.items():
+                    try:
+                        mod = importlib.import_module(mod_name)
+                        ver = getattr(mod, '__version__', 'installed')
+                        lines.append(f"  [OK] {desc:<40} v{ver}")
+                    except ImportError:
+                        lines.append(f"  [--] {desc}")
+                lines.append("")
+                # External TUI tools
+                ext_tools = ['btop', 'htop', 'bpytop', 'gtop']
+                lines.append("External TUI Tools:")
+                for tool in ext_tools:
+                    found = shutil.which(tool) is not None
+                    lines.append(f"  {'[OK]' if found else '[--]'} {tool}")
+                return "TUI Tools", "\n".join(lines)
+            except Exception as e:
+                return "TUI Tools", f"Error: {e}"
 
         def _app_api_metrics(self):
-            return "API Metrics", "API: Monitoring\nPerformance: Tracked\nEndpoints: Available\nStatus: ✅ Healthy"
+            try:
+                lines = [
+                    "API & Network Metrics:",
+                    "",
+                ]
+                net = psutil.net_io_counters()
+                lines.append(f"Network I/O Counters:")
+                lines.append(f"  Bytes Sent:     {net.bytes_sent//(1024**2):>10,} MB")
+                lines.append(f"  Bytes Recv:     {net.bytes_recv//(1024**2):>10,} MB")
+                lines.append(f"  Packets Sent:   {net.packets_sent:>10,}")
+                lines.append(f"  Packets Recv:   {net.packets_recv:>10,}")
+                lines.append(f"  Errors In:      {net.errin:>10,}")
+                lines.append(f"  Errors Out:     {net.errout:>10,}")
+                lines.append(f"  Drop In:        {net.dropin:>10,}")
+                lines.append(f"  Drop Out:       {net.dropout:>10,}")
+                lines.append("")
+                # Per-interface stats
+                per_nic = psutil.net_io_counters(pernic=True)
+                lines.append(f"Per Interface ({len(per_nic)} interfaces):")
+                for iface, counters in sorted(per_nic.items(), key=lambda x: x[1].bytes_recv, reverse=True)[:5]:
+                    lines.append(f"  {iface[:20]:<20} rx:{counters.bytes_recv//(1024**2)}MB tx:{counters.bytes_sent//(1024**2)}MB")
+                return "API Metrics", "\n".join(lines)
+            except Exception as e:
+                return "API Metrics", f"Error: {e}"
 
     EnhancedDisplaySuite().run()
 
