@@ -8057,7 +8057,7 @@ try:
 except ModuleNotFoundError:
     PSUTIL_AVAILABLE = False
     print("[*] WARNING: Psutil not available - process monitoring will be limited")
-    print("    Install: pip install psutil")
+    print(f"    Install: {sys.executable} -m pip install psutil")
     psutil = None
 
 import uuid
@@ -8081,7 +8081,7 @@ try:
 except ModuleNotFoundError:
     NUMPY_AVAILABLE = False
     print("[*] WARNING: NumPy not available - numeric operations will be limited")
-    print("    Install: pip install numpy")
+    print(f"    Install: {sys.executable} -m pip install numpy")
     np = None
 
 # Requests - HTTP library
@@ -8091,7 +8091,7 @@ try:
 except ModuleNotFoundError:
     REQUESTS_AVAILABLE = False
     print("[*] WARNING: Requests not available - network features will be limited")
-    print("    Install: pip install requests")
+    print(f"    Install: {sys.executable} -m pip install requests")
     requests = None
 
 # BeautifulSoup - HTML parsing
@@ -8101,7 +8101,7 @@ try:
 except ModuleNotFoundError:
     BEAUTIFULSOUP_AVAILABLE = False
     print("[*] WARNING: BeautifulSoup not available - web scraping disabled")
-    print("    Install: pip install beautifulsoup4")
+    print(f"    Install: {sys.executable} -m pip install beautifulsoup4")
     BeautifulSoup = None
 
 # Pillow - Image processing
@@ -8111,7 +8111,7 @@ try:
 except ModuleNotFoundError:
     PILLOW_AVAILABLE = False
     print("[*] WARNING: Pillow not available - image processing disabled")
-    print("    Install: pip install pillow")
+    print(f"    Install: {sys.executable} -m pip install pillow")
     Image = None
 
 # GPUtil - GPU utilities
@@ -8121,7 +8121,7 @@ try:
 except ModuleNotFoundError:
     GPUTIL_AVAILABLE = False
     print("[*] WARNING: GPUtil not available - GPU monitoring disabled")
-    print("    Install: pip install gputil")
+    print(f"    Install: {sys.executable} -m pip install gputil")
     GPUtil = None
 
 from io import BytesIO
@@ -11109,7 +11109,8 @@ class UniversalInstallManager:
    pacman: {'✓ Available' if shutil.which('pacman') else '✗ Not found'}
    apk: {'✓ Available' if shutil.which('apk') else '✗ Not found'}
    brew: {'✓ Available' if shutil.which('brew') else '✗ Not found'}
-   pip/pip3: {'✓ Available' if shutil.which('pip') or shutil.which('pip3') else '✗ Not found'}
+   pip/pip3: {shutil.which('pip') or shutil.which('pip3') or '✗ Not found'}
+   Recommended pip: {sys.executable} -m pip
 
 📊 INSTALLATION LOG ENTRIES: {len(self.install_log)}
 """
@@ -19277,7 +19278,9 @@ def _python_power_require(package, import_name, link):
         print(f"Link: {link}")
         install = input("Install now? (y/n): ").strip().lower()
         if install == 'y':
-            os.system(_pip_install_cmd(package))
+            ok = safe_install_package(package)
+            if not ok:
+                print(f"{COLORS['1'][0]}❌ Auto-install failed. Try running: {sys.executable} -m pip install {package}{RESET}")
         return False
 
 def _python_power_translator():
@@ -20575,27 +20578,27 @@ def feature_devsecops():
             print(f"\n{COLORS['6'][0]}Running pytest security tests...{RESET}")
             os.system(f"pytest {test_path} -v")
         else:
-            print(f"{COLORS['1'][0]}❌ pytest not installed. Install: pip install pytest{RESET}")
+            print(f"{COLORS['1'][0]}❌ pytest not installed. Install: {sys.executable} -m pip install pytest{RESET}")
     elif choice == '2':
         if check_pentest_tool('bandit'):
             target = input("📂 Enter path to scan [.]: ").strip() or "."
             print(f"\n{COLORS['6'][0]}Running Bandit security scanner...{RESET}")
             os.system(f"bandit -r {target}")
         else:
-            print(f"{COLORS['1'][0]}❌ Bandit not installed. Install: pip install bandit{RESET}")
+            print(f"{COLORS['1'][0]}❌ Bandit not installed. Install: {sys.executable} -m pip install bandit{RESET}")
     elif choice == '3':
         if check_pentest_tool('safety'):
             print(f"\n{COLORS['6'][0]}Checking dependencies for vulnerabilities...{RESET}")
             os.system("safety check")
         else:
-            print(f"{COLORS['1'][0]}❌ Safety not installed. Install: pip install safety{RESET}")
+            print(f"{COLORS['1'][0]}❌ Safety not installed. Install: {sys.executable} -m pip install safety{RESET}")
     elif choice == '4':
         if check_pentest_tool('trufflehog'):
             repo = input("📂 Enter repo path [.]: ").strip() or "."
             print(f"\n{COLORS['6'][0]}Scanning for secrets...{RESET}")
             os.system(f"trufflehog filesystem {repo}")
         else:
-            print(f"{COLORS['1'][0]}❌ TruffleHog not installed. Install: pip install trufflehog{RESET}")
+            print(f"{COLORS['1'][0]}❌ TruffleHog not installed. Install: {sys.executable} -m pip install trufflehog{RESET}")
     elif choice == '5':
         image = input("🐳 Enter Docker image name: ").strip()
         if image:
@@ -20614,7 +20617,7 @@ def feature_devsecops():
     elif choice == '7':
         print(f"\n{BOLD}Installation Commands:{RESET}\n")
         print(f"{COLORS['6'][0]}Python Security Tools:{RESET}")
-        print("  pip install pytest bandit safety trufflehog")
+        print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog")
         print(f"\n{COLORS['6'][0]}System Tools:{RESET}")
         print("  sudo apt-get install docker.io clamav")
 
@@ -20757,7 +20760,12 @@ def feature_devsecops():
             defence_ai.analyze_threat('SECURITY', 'HIGH', 'Secret scanning in progress')
     elif choice == '4':
         print(f"\n{COLORS['2'][0]}Running Safety check...{RESET}")
-        os.system("safety check 2>/dev/null || pip install -q safety && safety check")
+        # Prefer native safety check; if missing try safe installer (handles PEP 668)
+        if os.system("safety check 2>/dev/null") != 0:
+            if safe_install_package('safety'):
+                os.system('safety check')
+            else:
+                print(f"{COLORS['1'][0]}Safety not available and auto-install failed{RESET}")
     input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 def defence_defence_center():
@@ -20829,12 +20837,12 @@ def feature_defence_center():
             print("  sudo apt-get update")
             print("  sudo apt-get install wireguard openvpn clamav clamav-daemon")
             print("  sudo apt-get install whois dnsutils")
-            print("  pip install pytest bandit safety trufflehog")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog")
             print(f"\n{COLORS['6'][0]}Pi-hole:{RESET}")
             print("  curl -sSL https://install.pi-hole.net | bash")
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install wireguard-tools openvpn clamav")
-            print("  pip install pytest bandit safety trufflehog")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '9':
             feature_download_center()
@@ -20884,11 +20892,187 @@ def _detect_os_key():
     return "unknown"
 
 def _pip_install_cmd(package):
-    exe = sys.executable.replace("\\", "/")
+    # Use the current Python interpreter so pip is resolved reliably across OS/venvs.
+    exe = sys.executable or "python3"
+    # Install via the interpreter's pip module (works when 'pip' binary isn't on PATH).
     return f"{exe} -m pip install --upgrade {package}"
 
 def _pip_install_cmds(packages):
     return [_pip_install_cmd(pkg) for pkg in packages]
+
+
+# --- SAFE INSTALLER (handles PEP 668 / externally-managed envs) ---
+def _parse_pip_packages_from_cmd(cmd: str):
+    import shlex
+    tokens = shlex.split(cmd)
+    if 'install' in tokens:
+        idx = tokens.index('install')
+        return [t for t in tokens[idx+1:] if not t.startswith('-')]
+    return []
+
+
+def _run_cmd_capture(cmd, shell=False, timeout=900):
+    import subprocess, shlex
+    if isinstance(cmd, str) and not shell:
+        cmd = shlex.split(cmd)
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, shell=shell, timeout=timeout)
+    except Exception as e:
+        class _R: pass
+        r = _R()
+        r.returncode = 1
+        r.stdout = ''
+        r.stderr = str(e)
+        return r
+
+
+def _map_pip_to_system_candidates(pkg: str):
+    # Common mappings (best-effort); fallback candidates appended
+    p = pkg.lower().replace('_', '-').replace('.', '-')
+    mapping = {
+        'pillow': ['python3-pil', 'python3-pillow'],
+        'psutil': ['python3-psutil'],
+        'numpy': ['python3-numpy'],
+        'requests': ['python3-requests'],
+        'beautifulsoup4': ['python3-bs4', 'python3-beautifulsoup4'],
+        'cryptography': ['python3-cryptography'],
+        'pytest': ['python3-pytest', 'pytest'],
+        'bandit': ['bandit'],
+        'safety': ['safety'],
+    }
+    candidates = mapping.get(p, [])
+    # Generic candidates for multiple distros
+    candidates += [f'python3-{p}', f'python-{p}', p, f'py3-{p}']
+    # Deduplicate while preserving order
+    seen = set()
+    out = []
+    for c in candidates:
+        if c not in seen:
+            out.append(c)
+            seen.add(c)
+    return out
+
+
+def _attempt_system_pkg_install(package: str) -> bool:
+    """Try to install an OS-native package that corresponds to the pip package."""
+    os_key = _detect_os_key()
+    candidates = _map_pip_to_system_candidates(package)
+
+    # Debian-family (apt)
+    if shutil.which('apt') or shutil.which('apt-get') or os_key in ('debian', 'ubuntu', 'kali'):
+        for cand in candidates:
+            # quick availability check
+            chk = _run_cmd_capture(['apt-cache', 'show', cand])
+            if chk.returncode == 0 and chk.stdout:
+                print(f"🔁 Found OS package '{cand}' — installing with apt...")
+                inst = _run_cmd_capture(['sudo', 'apt-get', 'install', '-y', cand])
+                if inst.returncode == 0:
+                    return True
+        return False
+
+    # Fedora-family (dnf)
+    if shutil.which('dnf') or os_key in ('fedora', 'rhel', 'centos'):
+        for cand in candidates:
+            chk = _run_cmd_capture(['dnf', 'info', cand])
+            if chk.returncode == 0 and 'Available Packages' in (chk.stdout or ''):
+                inst = _run_cmd_capture(['sudo', 'dnf', 'install', '-y', cand])
+                if inst.returncode == 0:
+                    return True
+        return False
+
+    # Arch (pacman uses python-<pkg>)
+    if shutil.which('pacman') or os_key == 'arch':
+        for cand in candidates:
+            chk = _run_cmd_capture(['pacman', '-Si', cand])
+            if chk.returncode == 0:
+                inst = _run_cmd_capture(['sudo', 'pacman', '-S', '--noconfirm', cand])
+                if inst.returncode == 0:
+                    return True
+        return False
+
+    # Alpine (apk)
+    if shutil.which('apk') or os_key == 'alpine':
+        for cand in candidates:
+            chk = _run_cmd_capture(['apk', 'info', cand])
+            if chk.returncode == 0:
+                inst = _run_cmd_capture(['sudo', 'apk', 'add', cand])
+                if inst.returncode == 0:
+                    return True
+        return False
+
+    # macOS Homebrew (best-effort)
+    if shutil.which('brew') or os_key == 'macos':
+        for cand in candidates:
+            # brew package names vary widely — only try the direct package name
+            chk = _run_cmd_capture(['brew', 'info', cand])
+            if chk.returncode == 0:
+                inst = _run_cmd_capture(['brew', 'install', cand])
+                if inst.returncode == 0:
+                    return True
+        return False
+
+    # Windows winget is not a reliable mapping for Python packages; decline
+    return False
+
+
+def _create_and_install_in_venv(package: str, venv_path: str | None = None) -> tuple[bool, str]:
+    import venv
+    if not venv_path:
+        venv_path = os.path.expanduser('~/.pythonOS/venv')
+    try:
+        if not os.path.exists(venv_path):
+            print(f"🔧 Creating virtual environment at {venv_path}...")
+            res = _run_cmd_capture([sys.executable, '-m', 'venv', venv_path])
+            if res.returncode != 0:
+                return False, venv_path
+        py = os.path.join(venv_path, 'Scripts', 'python.exe') if os.name == 'nt' else os.path.join(venv_path, 'bin', 'python')
+        res = _run_cmd_capture([py, '-m', 'pip', 'install', '--upgrade', 'pip'])
+        if res.returncode != 0:
+            return False, venv_path
+        res2 = _run_cmd_capture([py, '-m', 'pip', 'install', package])
+        return (res2.returncode == 0), venv_path
+    except Exception:
+        return False, venv_path
+
+
+def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool = True) -> bool:
+    """Try pip install; on PEP-668 errors attempt OS package then virtualenv fallback."""
+    print(f"📥 Installing package: {package}")
+    pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', package]
+    res = _run_cmd_capture(pip_cmd)
+    if res.returncode == 0:
+        return True
+
+    output = (res.stderr or '') + '\n' + (res.stdout or '')
+    if 'externally-managed-environment' in output.lower():
+        print("⚠️ Detected externally-managed environment (PEP 668). Trying safe fallbacks...")
+        # 1) Try OS package manager mapping
+        if _attempt_system_pkg_install(package):
+            print(f"✅ Installed '{package}' via OS package manager.")
+            return True
+
+        # 2) Offer / create a virtual environment and install there
+        if auto_venv:
+            if prompt_user:
+                ans = input(f"Create a virtual environment and install '{package}' there? [Y/n]: ").strip().lower()
+                if ans not in ('', 'y', 'yes'):
+                    print("Skipped virtual environment installation.")
+                    return False
+            ok, path = _create_and_install_in_venv(package)
+            if ok:
+                print(f"✅ Installed '{package}' inside virtualenv: {path}")
+                print(f"Activate with: source {path}/bin/activate")
+                return True
+            print("❌ Virtualenv install failed.")
+
+        # 3) Show --break-system-packages as last-resort (do not run automatically)
+        print("If you truly need a system install, you can re-run pip with '--break-system-packages' (risky).")
+        return False
+
+    # fallback: other pip error
+    print((res.stderr or res.stdout or 'pip install failed').strip().splitlines()[-1])
+    return False
+
 
 def _download_center_catalog():
     return {
@@ -23233,6 +23417,15 @@ def feature_download_center():
             print(f"  {COLORS['1'][0]}Your system uses x86_64 architecture{RESET}")
             print("  Install ARM packages on ARM devices using standard syntax")
 
+        print(f"\n{BOLD}Python & pip installation (recommended commands):{RESET}")
+        print("  Debian/Ubuntu: sudo apt update && sudo apt install -y python3 python3-venv python3-pip")
+        print("  Fedora/RHEL:   sudo dnf install -y python3 python3-pip")
+        print("  Arch Linux:    sudo pacman -Syu python python-pip")
+        print("  Alpine:        sudo apk add python3 py3-pip")
+        print("  macOS (Homebrew): brew install python")
+        print("  Windows (winget): winget install Python.Python.3 --scope machine")
+        print(f"  If 'pip' not found: use {sys.executable} -m pip install <package> or python3 -m pip install <package>")
+
         print(f"\n{BOLD}DOWNLOAD LINKS FOR COMMON TOOLS:{RESET}")
         links_info = [
             ("Node.js", "https://nodejs.org/en/download/package-manager/"),
@@ -23406,9 +23599,23 @@ def feature_download_center():
 
         # Execute install command
         print(f"\n{BOLD}📥 Executing:{RESET} {install_cmd[:80]}...")
-        result = os.system(install_cmd)
+        # If this is a pip-style command, parse package names and use safe installer (handles PEP 668)
+        if ' -m pip ' in install_cmd or 'pip install' in install_cmd:
+            pkgs = _parse_pip_packages_from_cmd(install_cmd)
+            ok = True
+            if pkgs:
+                for pkg in pkgs:
+                    if not safe_install_package(pkg):
+                        ok = False
+                        break
+            else:
+                r = _run_cmd_capture(install_cmd, shell=True)
+                ok = (r.returncode == 0)
+        else:
+            r = _run_cmd_capture(install_cmd, shell=True)
+            ok = (r.returncode == 0)
 
-        if result == 0:
+        if ok:
             print(f"{COLORS['2'][0]}✓ Installation succeeded{RESET}")
             return True
         else:
