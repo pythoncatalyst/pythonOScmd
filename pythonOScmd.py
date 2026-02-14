@@ -7984,6 +7984,23 @@ def boot_loader():
                         def __getattr__(self, name): return self
                         def __call__(self, *args, **kwargs): return self
                         def __iter__(self): return iter([])
+                        def __str__(self): return "N/A"
+                        def __repr__(self): return "N/A"
+                        def __int__(self): return 0
+                        def __float__(self): return 0.0
+                        def __bool__(self): return False
+                        def __add__(self, other): return 0
+                        def __sub__(self, other): return 0
+                        def __mul__(self, other): return 0
+                        def __truediv__(self, other): return 0
+                        def __floordiv__(self, other): return 0
+                        def __mod__(self, other): return 0
+                        def __radd__(self, other): return 0
+                        def __rsub__(self, other): return 0
+                        def __rmul__(self, other): return 0
+                        def __rtruediv__(self, other): return 0
+                        def __rfloordiv__(self, other): return 0
+                        def __rmod__(self, other): return 0
                     for lib in missing:
                         globals()[lib] = MockModule()
                     break
@@ -26962,7 +26979,13 @@ def get_advanced_hardware_stats():
     return gpu_data, fan_data
 
 def live_system_identity_clock():
-    last_net = psutil.net_io_counters()
+    try:
+        last_net = psutil.net_io_counters()
+    except:
+        class MockNet:
+            bytes_recv = 0
+            bytes_sent = 0
+        last_net = MockNet()
     last_recv = _safe_float(getattr(last_net, "bytes_recv", None), 0.0)
     last_sent = _safe_float(getattr(last_net, "bytes_sent", None), 0.0)
     ticker_count = 0
@@ -26972,14 +26995,29 @@ def live_system_identity_clock():
             threading.Thread(target=get_weather_data, daemon=True).start()
 
         current_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        cpu_live = psutil.cpu_percent()
-        ram_live = psutil.virtual_memory().percent
-        disk_live = psutil.disk_usage('/').percent
+        try:
+            cpu_live = psutil.cpu_percent()
+        except:
+            cpu_live = 0
+        try:
+            ram_live = psutil.virtual_memory().percent
+        except:
+            ram_live = 0
+        try:
+            disk_live = psutil.disk_usage('/').percent
+        except:
+            disk_live = 0
         gpu_live, fan_live = get_advanced_hardware_stats()
 
         time.sleep(1)
         ticker_count += 1
-        now_net = psutil.net_io_counters()
+        try:
+            now_net = psutil.net_io_counters()
+        except:
+            class MockNet:
+                bytes_recv = 0
+                bytes_sent = 0
+            now_net = MockNet()
         now_recv = _safe_float(getattr(now_net, "bytes_recv", None))
         now_sent = _safe_float(getattr(now_net, "bytes_sent", None))
         if now_recv is None or now_sent is None:
@@ -44553,9 +44591,22 @@ def run_classic_command_center():
             else:
                 total_threads = 'psutil not installed'
             print(f"🧵 Total Threads:   {total_threads}")
-            cpufreq = psutil.cpu_freq()
+            if psutil is not None:
+                try:
+                    cpufreq = psutil.cpu_freq()
+                except Exception:
+                    cpufreq = None
+            else:
+                cpufreq = None
             if cpufreq: print(f"⚡ Max Frequency:   {cpufreq.max:.2f}Mhz")
-            print(f"📈 Current Usage:   {draw_bar(psutil.cpu_percent(interval=None))}")
+            if psutil is not None:
+                try:
+                    cpu_percent = psutil.cpu_percent(interval=None)
+                except Exception:
+                    cpu_percent = 0
+            else:
+                cpu_percent = 0
+            print(f"📈 Current Usage:   {draw_bar(cpu_percent)}")
             print_header("🌡️ Thermal Sensors")
             try:
                 temps = psutil.sensors_temperatures()
@@ -44604,14 +44655,32 @@ def run_classic_command_center():
             except: print("🌀 Fan Probing:     N/A")
 
             print_header("🧠 Memory Status")
-            mem = psutil.virtual_memory()
-            swap = psutil.swap_memory()
+            try:
+                mem = psutil.virtual_memory()
+                swap = psutil.swap_memory()
+            except:
+                class MockMem:
+                    total = 0
+                    available = 0
+                    percent = 0
+                mem = MockMem()
+                class MockSwap:
+                    total = 0
+                swap = MockSwap()
             print(f"📏 Total RAM:       {_format_gb(mem.total)}")
             print(f"🔓 Available RAM:   {_format_gb(mem.available)}")
             print(f"📈 RAM Usage:       {draw_bar(mem.percent)}")
             print(f"🔄 Swap Total:      {_format_gb(swap.total)}")
             print_header("💽 Storage & Disk")
-            disk = psutil.disk_usage('/')
+            try:
+                disk = psutil.disk_usage('/')
+            except:
+                class MockDisk:
+                    total = 0
+                    used = 0
+                    free = 0
+                    percent = 0
+                disk = MockDisk()
             print(f"📏 Total Space:     {_format_gb(disk.total)}")
             print(f"📈 Used Space:      {draw_bar(disk.percent)} ({_format_gb(disk.used)})")
             print(f"🔓 Free Space:      {_format_gb(disk.free)}")
@@ -44622,16 +44691,29 @@ def run_classic_command_center():
             except: print("📍 Local IP:          Unknown")
             mac = ':'.join(['{:02x}'.format((uuid.getnode() >> ele) & 0xff) for ele in range(0,8*6,8)][::-1])
             print(f"🆔 MAC Address:     {mac}")
-            net_io = psutil.net_io_counters()
+            try:
+                net_io = psutil.net_io_counters()
+            except:
+                class MockNet:
+                    bytes_sent = 0
+                    bytes_recv = 0
+                net_io = MockNet()
             print(f"⬆️ Data Sent:       {_format_mb(net_io.bytes_sent)}")
             print(f"⬇️ Data Received:   {_format_mb(net_io.bytes_recv)}")
             print_header("🐍 Python Context")
             print(f"🐍 Python Version:  {platform.python_version()}")
             print_header("🔮 Miscellaneous")
-            boot_str, uptime_str = _format_boot_info(psutil.boot_time())
+            try:
+                boot_time = psutil.boot_time()
+            except:
+                boot_time = 0
+            boot_str, uptime_str = _format_boot_info(boot_time)
             print(f"🏁 System Boot:     {boot_str}")
             print(f"⏱️ Uptime:          {uptime_str}")
-            battery = psutil.sensors_battery()
+            try:
+                battery = psutil.sensors_battery()
+            except:
+                battery = None
             if battery:
                 try:
                     status = "🔌 Charging" if battery.power_plugged else "🔋 Discharging"
