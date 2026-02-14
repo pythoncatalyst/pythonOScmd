@@ -1589,8 +1589,240 @@ def manifest():
     return {'name': 'media_manager', 'version': '1.0', 'description': 'Media management system', 'type': 'media_utility'}
 '''
 
+EMBEDDED_MEDIA_PLAYER = r'''#!/usr/bin/env python3
+"""media_player - MP3 Streamer & Player for pythonOS
+
+Supports: HTTP(s) MP3 streams and local playback.
+Backends: ffplay/mpg123 (external), pygame (local-only).
+
+API: MediaPlayer(play_url|play_file|stop|pause|resume|status), manifest()
+"""
+
+from __future__ import annotations
+import os
+import sys
+import subprocess
+import threading
+import time
+import shutil
+import signal
+from typing import List, Optional, Dict
+
+# Optional dependencies
+try:
+    import pygame
+    _HAS_PYGAME = True
+except Exception:
+    pygame = None
+    _HAS_PYGAME = False
+
+try:
+    from tinytag import TinyTag
+    _HAS_TINYTAG = True
+except Exception:
+    TinyTag = None
+    _HAS_TINYTAG = False
+
+AUDIO_EXTS = ('.mp3', '.wav', '.flac', '.ogg', '.m4a', '.aac')
+
+
+def detect_backends() -> Dict[str, bool]:
+    """Detect which backends are available on this host."""
+    return {
+        'ffplay': bool(shutil.which('ffplay') or shutil.which('ffmpeg')),
+        'mpg123': bool(shutil.which('mpg123')),
+        'pygame': _HAS_PYGAME,
+    }
+
+
+class MediaPlayer:
+    """Simple MP3 streamer/player with multiple backend fallbacks.
+
+    - For streaming URLs prefers `ffplay` or `mpg123`.
+    - For local files prefers `pygame` if available, otherwise external player.
+    """
+
+    def __init__(self, backend: Optional[str] = 'auto'):
+        self._proc: Optional[subprocess.Popen] = None
+        self._lock = threading.Lock()
+        self._state = {'playing': False, 'paused': False, 'current': None, 'backend': None}
+        self.set_backend(backend)
+
+    def available_backends(self) -> List[str]:
+        return [k for k, v in detect_backends().items() if v]
+
+    def set_backend(self, backend: Optional[str]):
+        available = detect_backends()
+        if backend in (None, 'auto'):
+            # auto-select: prefer ffplay -> mpg123 -> pygame
+            if available['ffplay']:
+                self._backend = 'ffplay'
+            elif available['mpg123']:
+                self._backend = 'mpg123'
+            elif available['pygame']:
+                self._backend = 'pygame'
+            else:
+                self._backend = None
+        else:
+            if backend == 'pygame' and not available['pygame']:
+                raise RuntimeError('pygame backend not available')
+            if backend == 'ffplay' and not available['ffplay']:
+                raise RuntimeError('ffplay not available')
+            if backend == 'mpg123' and not available['mpg123']:
+                raise RuntimeError('mpg123 not available')
+            self._backend = backend
+        self._state['backend'] = self._backend
+        return self._backend
+
+    def _launch_process(self, cmd: List[str], current: Optional[str] = None):
+        self.stop()
+        try:
+            proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to start player process: {exc}")
+
+        with self._lock:
+            self._proc = proc
+            self._state.update({'playing': True, 'paused': False, 'current': current})
+
+        def _watch():
+            try:
+                proc.wait()
+            finally:
+                with self._lock:
+                    self._proc = None
+                    self._state.update({'playing': False, 'paused': False, 'current': None})
+
+        threading.Thread(target=_watch, daemon=True).start()
+
+    def play_url(self, url: str, backend: Optional[str] = 'auto'):
+        """Play an HTTP(s) MP3 stream or direct MP3 URL.
+        backend: 'ffplay' | 'mpg123' | 'pygame' (pygame doesn't support remote streams)
+        """
+        self.set_backend(backend)
+        if self._backend == 'pygame':
+            raise RuntimeError('pygame backend cannot play remote streams')
+        if self._backend == 'ffplay':
+            cmd = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', url]
+        else:
+            cmd = ['mpg123', '-q', url]
+        self._launch_process(cmd, current=url)
+
+    def play_file(self, path: str, backend: Optional[str] = 'auto'):
+        if not os.path.exists(path):
+            raise FileNotFoundError(path)
+        self.set_backend(backend)
+        if self._backend == 'pygame':
+            if not _HAS_PYGAME:
+                raise RuntimeError('pygame missing')
+            try:
+                pygame.mixer.init()
+                pygame.mixer.music.load(path)
+                pygame.mixer.music.play()
+                self._state.update({'playing': True, 'paused': False, 'current': path})
+            except Exception as exc:
+                raise RuntimeError(f'pygame playback failed: {exc}')
+            return
+        if self._backend == 'ffplay':
+            cmd = ['ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet', path]
+        else:
+            cmd = ['mpg123', '-q', path]
+        self._launch_process(cmd, current=path)
+
+    def play_playlist(self, paths: List[str], backend: Optional[str] = 'auto'):
+        for p in paths:
+            if not os.path.exists(p):
+                continue
+            self.play_file(p, backend=backend)
+            # wait until current finishes
+            while self.status().get('playing'):
+                time.sleep(0.2)
+
+    def pause(self):
+        with self._lock:
+            if self._backend == 'pygame' and _HAS_PYGAME:
+                pygame.mixer.music.pause()
+                self._state['paused'] = True
+                return
+            if self._proc and hasattr(os, 'kill') and sys.platform != 'win32':
+                try:
+                    os.kill(self._proc.pid, signal.SIGSTOP)
+                    self._state['paused'] = True
+                except Exception:
+                    pass
+
+    def resume(self):
+        with self._lock:
+            if self._backend == 'pygame' and _HAS_PYGAME:
+                pygame.mixer.music.unpause()
+                self._state['paused'] = False
+                return
+            if self._proc and hasattr(os, 'kill') and sys.platform != 'win32':
+                try:
+                    os.kill(self._proc.pid, signal.SIGCONT)
+                    self._state['paused'] = False
+                except Exception:
+                    pass
+
+    def stop(self):
+        with self._lock:
+            if self._backend == 'pygame' and _HAS_PYGAME:
+                try:
+                    pygame.mixer.music.stop()
+                except Exception:
+                    pass
+                self._state.update({'playing': False, 'paused': False, 'current': None})
+                return
+            if self._proc:
+                try:
+                    self._proc.terminate()
+                except Exception:
+                    try:
+                        self._proc.kill()
+                    except Exception:
+                        pass
+                self._proc = None
+            self._state.update({'playing': False, 'paused': False, 'current': None})
+
+    def status(self) -> Dict[str, object]:
+        with self._lock:
+            s = dict(self._state)
+            s['has_proc'] = bool(self._proc)
+            if self._proc:
+                s['pid'] = getattr(self._proc, 'pid', None)
+            return s
+
+    def list_local(self, directory: str, exts: Optional[List[str]] = None) -> List[str]:
+        exts = exts or list(AUDIO_EXTS)
+        out = []
+        if not os.path.isdir(directory):
+            return out
+        for root, _, files in os.walk(directory):
+            for f in files:
+                if any(f.lower().endswith(e) for e in exts):
+                    out.append(os.path.join(root, f))
+        return sorted(out)
+
+    def metadata(self, path: str) -> Dict[str, object]:
+        if _HAS_TINYTAG and TinyTag:
+            try:
+                t = TinyTag.get(path)
+                return {'title': t.title, 'artist': t.artist, 'duration': t.duration}
+            except Exception:
+                pass
+        return {'title': os.path.basename(path), 'artist': None, 'duration': None}
+
+
+def manifest() -> Dict[str, object]:
+    return {"name": "media_player", "version": "1.0", "description": "MP3 streamer/player (HTTP streams + local playback)", "backends": detect_backends(), "exports": ["MediaPlayer", "manifest"]}
+'''
+
 EMBEDDED_SYSTEM_UTILITIES = r'''#!/usr/bin/env python3
 """System Utility Functions and Helpers."""
+import os, sys, json, platform, shutil
+from pathlib import Path
+from typing import Dict, List, Any
+
 import os, sys, json, platform, shutil
 from pathlib import Path
 from typing import Dict, List, Any
@@ -3846,6 +4078,14 @@ FEATURES_REGISTRY = {
             "description": "Media management system for images, videos, and audio files",
             "exports": ["MediaManager", "manifest"],
             "dependencies": ["os", "pathlib", "mimetypes"],
+            "created": "on_first_run"
+        },
+        "media_player": {
+            "type": "media_utility",
+            "location": "pythonOS_data",
+            "description": "MP3 streamer/player (HTTP streams + local playback)",
+            "exports": ["MediaPlayer", "manifest"],
+            "dependencies": ["subprocess", "pygame (optional)", "tinytag (optional)"],
             "created": "on_first_run"
         },
         "system_utilities": {
@@ -7783,6 +8023,7 @@ def extract_embedded_files():
             ("dependency_visualizer.py", EMBEDDED_DEPENDENCY_VISUALIZER),
             ("module_discovery.py", EMBEDDED_MODULE_DISCOVERY),
             ("media_manager.py", EMBEDDED_MEDIA_MANAGER),
+            ("media_player.py", EMBEDDED_MEDIA_PLAYER),
             ("system_utilities.py", EMBEDDED_SYSTEM_UTILITIES),
             ("theme_manager.py", EMBEDDED_THEME_MANAGER),
             ("file_explorer.py", EMBEDDED_FILE_EXPLORER),
@@ -35897,6 +36138,7 @@ def feature_media_menu():
         print(" [5] Textual Media Lounge PRO (Full Media Powerhouse: Queue, Playlists, Search, Metadata)")
         print(" [6] Open Download Center (Media Tools)")
         print(" [7] Return to Main Menu")
+        print(" [8] MP3 Streamer (HTTP streams + local playback)")
 
         sel = input("\n🎯 Select: ").strip()
         if sel == '1':
@@ -35928,9 +36170,176 @@ def feature_media_menu():
             feature_download_center()
         elif sel == '7':
             break
+        elif sel == '8':
+            try:
+                feature_mp3_streamer_menu()
+            except NameError:
+                print("[!] MP3 Streamer module not available. Run extract_embedded_files on next start to install.")
+                input("\n[ ⌨️ Press Enter to return... ]")
         else:
             print(f"{get_current_color()}✗{RESET} Invalid option")
             time.sleep(1)
+
+def feature_mp3_streamer_menu():
+    """MP3 Streamer menu — choose HTTP stream, local files, or both."""
+    print_header("🎵 MP3 Streamer")
+    # ensure embedded module is importable
+    sys.path.insert(0, os.path.join(SCRIPT_DIR, 'pythonOS_data'))
+    try:
+        from media_player import MediaPlayer, manifest as media_manifest
+    except Exception as e:
+        # Inform user and offer to extract + install dependencies
+        print(f"[!] media_player not available: {e}")
+        print("Run pythonOScmd once to extract embedded modules or ensure pythonOS_data/media_player.py exists.")
+
+        # If module missing, offer to extract and auto‑install (with permission)
+        missing_module = isinstance(e, ModuleNotFoundError) or 'No module named' in str(e)
+        if missing_module:
+            ans = input("Would you like pythonOScmd to extract the embedded media_player and try to install required dependencies now? [Y/n]: ").strip().lower()
+            if ans in ('', 'y', 'yes'):
+                try:
+                    extract_embedded_files()
+                    import importlib, shutil
+                    importlib.invalidate_caches()
+                    try:
+                        mp_mod = importlib.import_module('media_player')
+                    except Exception:
+                        # second chance after extraction: try to import from data dir
+                        sys.path.insert(0, os.path.join(SCRIPT_DIR, 'pythonOS_data'))
+                        mp_mod = importlib.import_module('media_player')
+
+                    # offer to install optional Python packages
+                    py_missing = []
+                    try:
+                        import pygame  # type: ignore
+                    except Exception:
+                        py_missing.append('pygame')
+                    try:
+                        import tinytag  # type: ignore
+                    except Exception:
+                        py_missing.append('tinytag')
+
+                    if py_missing:
+                        ans2 = input(f"Install Python packages {py_missing}? (recommended) [y/N]: ").strip().lower()
+                        if ans2 in ('y', 'yes'):
+                            for pkg in py_missing:
+                                ok = safe_install_package(pkg)
+                                print(f"  • {pkg}: {'installed' if ok else 'failed'}")
+
+                    # offer to install common system backends (ffmpeg/mpg123)
+                    backends = getattr(mp_mod, 'detect_backends', lambda: {})()
+                    sys_missing = []
+                    if not backends.get('ffplay') and not shutil.which('ffplay') and not shutil.which('ffmpeg'):
+                        sys_missing.append('ffmpeg')
+                    if not backends.get('mpg123') and not shutil.which('mpg123'):
+                        sys_missing.append('mpg123')
+
+                    if sys_missing:
+                        ans3 = input(f"Attempt to install system packages {sys_missing}? [y/N]: ").strip().lower()
+                        if ans3 in ('y', 'yes'):
+                            for s in sys_missing:
+                                ok_sys = _attempt_system_pkg_install(s)
+                                print(f"  • {s}: {'installed' if ok_sys else 'failed or unavailable in package repos'}")
+
+                    # reload module and continue
+                    importlib.reload(mp_mod)
+                    MediaPlayer = getattr(mp_mod, 'MediaPlayer')
+                    print("✅ media_player is now available.")
+                except Exception as exc:
+                    print(f"❌ Failed to prepare media_player: {exc}")
+                    input("\n[ ⌨️ Press Enter to return... ]")
+                    return
+            else:
+                print("Skipping extraction/installation — returning to menu.")
+                input("\n[ ⌨️ Press Enter to return... ]")
+                return
+        else:
+            input("\n[ ⌨️ Press Enter to return... ]")
+            return
+
+    player = MediaPlayer()  # auto backend
+
+    while True:
+        print('\nPlayback mode:')
+        print(' [1] HTTP(s) stream (remote URL)')
+        print(' [2] Local files / directory')
+        print(' [3] Both (choose per-play)')
+        print(' [4] Choose backend (auto/ffplay/mpg123/pygame)')
+        print(' [5] Show available backends')
+        print(' [6] Controls (pause/resume/stop/status)')
+        print(' [7] Return')
+        opt = input('\nSelect: ').strip()
+        if opt == '1':
+            url = input('Stream URL: ').strip()
+            backend = input('Backend (auto/ffplay/mpg123/pygame) [auto]: ').strip() or 'auto'
+            try:
+                player.play_url(url, backend=backend)
+                print('▶️  Playing — use Controls (6) to pause/stop')
+            except Exception as exc:
+                print(f"Error: {exc}")
+        elif opt == '2':
+            path = input('Path to file or directory: ').strip()
+            if os.path.isdir(path):
+                files = player.list_local(path)
+                if not files:
+                    print('[!] No audio files found in directory')
+                    continue
+                for i, f in enumerate(files[:50], 1):
+                    print(f" [{i}] {os.path.basename(f)}")
+                sel = input('Select track number or press Enter to play all: ').strip()
+                if sel.isdigit():
+                    idx = int(sel) - 1
+                    if 0 <= idx < len(files):
+                        try:
+                            player.play_file(files[idx])
+                        except Exception as e:
+                            print(f'Error: {e}')
+                else:
+                    try:
+                        player.play_playlist(files)
+                    except Exception as e:
+                        print(f'Error: {e}')
+            else:
+                try:
+                    player.play_file(path)
+                except Exception as e:
+                    print(f'Error: {e}')
+        elif opt == '3':
+            sub = input('Play (u)rl or (f)ile? [u/f]: ').strip().lower() or 'u'
+            if sub == 'u':
+                url = input('Stream URL: ').strip()
+                player.play_url(url)
+            else:
+                path = input('Path to file: ').strip()
+                player.play_file(path)
+        elif opt == '4':
+            print('Available backends:', ', '.join(player.available_backends()))
+            b = input('Choose backend (ffplay/mpg123/pygame/auto): ').strip() or 'auto'
+            try:
+                player.set_backend(b)
+                print(f'Backend set to: {player._state.get("backend")}')
+            except Exception as e:
+                print(f'Error: {e}')
+        elif opt == '5':
+            print('Detected backends:', detect_backends())
+        elif opt == '6':
+            if not player.status().get('playing'):
+                print('[i] Nothing is playing')
+                continue
+            cmd = input('(p)ause/(r)esume/(s)top/(t)status: ').strip().lower()
+            if cmd == 'p':
+                player.pause(); print('Paused')
+            elif cmd == 'r':
+                player.resume(); print('Resumed')
+            elif cmd == 's':
+                player.stop(); print('Stopped')
+            elif cmd == 't':
+                print(player.status())
+        elif opt == '7':
+            player.stop()
+            break
+        else:
+            print('Invalid option')
 
 # -----------------------------
 # Inlined asciiplayer18 plugin
