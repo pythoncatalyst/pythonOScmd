@@ -36180,6 +36180,189 @@ def feature_media_menu():
             print(f"{get_current_color()}✗{RESET} Invalid option")
             time.sleep(1)
 
+def _extract_stream_urls_from_html(html: str) -> list:
+    import re
+    # look for explicit audio stream URLs and common playlist endpoints
+    patterns = [r'https?://[^\'"\s>]+\.(?:mp3|pls|m3u|m3u8)', r'https?://[^\'"\s>]+/(?:stream|listen)[^\'"\s>]*', r'https?://[^\'"\s>]+:\d{2,5}[^\'"\s>]*']
+    urls = []
+    for pat in patterns:
+        for m in re.findall(pat, html, flags=re.IGNORECASE):
+            if m not in urls:
+                urls.append(m)
+    return urls
+
+
+def _resolve_playlist_url(url: str, timeout: int = 8) -> str:
+    """If URL points to a playlist (.m3u/.pls), try to resolve the first playable stream inside it.
+    Returns the original URL when resolution is not possible.
+    """
+    try:
+        import requests
+    except Exception:
+        return url
+    try:
+        r = requests.get(url, timeout=timeout, headers={'User-Agent': 'pythonOScmd/1.0'})
+        if r.status_code != 200:
+            return url
+        txt = r.text
+        # extract the first http(s) URL in playlist
+        import re
+        found = re.findall(r'https?://[^\s\r\n]+', txt)
+        if found:
+            return found[0].strip()
+    except Exception:
+        pass
+    return url
+
+
+def _ensure_requests_and_bs4() -> bool:
+    """Ensure `requests` and `bs4` are importable — prompt user to install if missing."""
+    missing = []
+    try:
+        import requests  # type: ignore
+    except Exception:
+        missing.append('requests')
+    try:
+        from bs4 import BeautifulSoup  # type: ignore
+    except Exception:
+        missing.append('beautifulsoup4')
+
+    if not missing:
+        return True
+
+    ans = input(f"Required packages missing: {missing}. Install now? [y/N]: ").strip().lower()
+    if ans not in ('y', 'yes'):
+        return False
+
+    ok_all = True
+    for pkg in missing:
+        ok = safe_install_package(pkg)
+        ok_all = ok_all and ok
+        print(f"  • {pkg}: {'installed' if ok else 'failed'}")
+    return ok_all
+
+
+def _scrape_shoutcast(limit: int = 30) -> list[tuple[str, str]]:
+    """Try to gather public stream URLs from directory.shoutcast.com (best-effort)."""
+    streams: list[tuple[str, str]] = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+    except Exception:
+        # fallback: try urllib and regex if requests/bs4 not available
+        try:
+            import urllib.request as _ur
+            html = _ur.urlopen('https://directory.shoutcast.com/', timeout=6).read().decode(errors='ignore')
+        except Exception:
+            return streams
+        urls = _extract_stream_urls_from_html(html)
+        for u in urls[:limit]:
+            streams.append((u, u))
+        return streams
+
+    try:
+        resp = requests.get('https://directory.shoutcast.com/', timeout=8, headers={'User-Agent': 'pythonOScmd/1.0'})
+        if resp.status_code != 200:
+            return streams
+        html = resp.text
+        soup = BeautifulSoup(html, 'html.parser')
+        # Look for station links and any explicit audio URLs
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if href.startswith('http') and any(x in href.lower() for x in ('.mp3', '.pls', '.m3u', '/stream', '/listen')):
+                label = (a.get_text(strip=True) or href)
+                streams.append((label, href))
+        # Regex fallback inside page content
+        if len(streams) < limit:
+            for u in _extract_stream_urls_from_html(html):
+                if u not in [s[1] for s in streams]:
+                    streams.append((u, u))
+        # Limit and deduplicate
+        out = []
+        seen = set()
+        for name, u in streams:
+            if u in seen:
+                continue
+            seen.add(u)
+            out.append((name or u, u))
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:
+        return streams
+
+
+def _scrape_radiomast(limit: int = 30) -> list[tuple[str, str]]:
+    """Fetch the Radiomast reference streams page and extract known streams."""
+    streams: list[tuple[str, str]] = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+    except Exception:
+        try:
+            import urllib.request as _ur
+            html = _ur.urlopen('https://www.radiomast.io/reference-streams', timeout=6).read().decode(errors='ignore')
+        except Exception:
+            return streams
+        for u in _extract_stream_urls_from_html(html)[:limit]:
+            streams.append((u, u))
+        return streams
+
+    try:
+        resp = requests.get('https://www.radiomast.io/reference-streams', timeout=8, headers={'User-Agent': 'pythonOScmd/1.0'})
+        if resp.status_code != 200:
+            return streams
+        html = resp.text
+        soup = BeautifulSoup(html, 'html.parser')
+        # Radiomast page often lists streaming URLs directly in <code> or <a>
+        for tag in soup.find_all(['a', 'code', 'pre']):
+            txt = (tag.get_text() or '').strip()
+            for u in _extract_stream_urls_from_html(txt):
+                streams.append((txt[:40] or u, u))
+        # fallback: regex across page
+        if len(streams) < limit:
+            for u in _extract_stream_urls_from_html(html):
+                if u not in [s[1] for s in streams]:
+                    streams.append((u, u))
+        # dedupe
+        out = []
+        seen = set()
+        for name, u in streams:
+            if u in seen:
+                continue
+            seen.add(u)
+            out.append((name or u, u))
+            if len(out) >= limit:
+                break
+        return out
+    except Exception:
+        return streams
+
+
+def _discover_test_streams(limit: int = 60) -> list[tuple[str, str]]:
+    """Combine shoutcast + radiomast curated streams (best-effort)."""
+    out = []
+    # ensure network parsers available or prompt to install
+    try:
+        import requests  # type: ignore
+    except Exception:
+        ok = _ensure_requests_and_bs4()
+        if not ok:
+            return out
+    # collect
+    try:
+        s1 = _scrape_shoutcast(limit=limit//2)
+        s2 = _scrape_radiomast(limit=limit//2)
+        for s in s1 + s2:
+            if s[1] not in [o[1] for o in out]:
+                out.append(s)
+            if len(out) >= limit:
+                break
+    except Exception:
+        pass
+    return out
+
+
 def feature_mp3_streamer_menu():
     """MP3 Streamer menu — choose HTTP stream, local files, or both."""
     print_header("🎵 MP3 Streamer")
@@ -36268,6 +36451,8 @@ def feature_mp3_streamer_menu():
         print(' [5] Show available backends')
         print(' [6] Controls (pause/resume/stop/status)')
         print(' [7] Return')
+        print(' [8] Browse curated test streams (Shoutcast / Radiomast)')
+        print(' [9] MicroPhoney (microphone tools)')
         opt = input('\nSelect: ').strip()
         if opt == '1':
             url = input('Stream URL: ').strip()
@@ -36337,6 +36522,267 @@ def feature_mp3_streamer_menu():
                 print(player.status())
         elif opt == '7':
             player.stop()
+            break
+        elif opt == '8':
+            print('\n🔎 Fetching curated streams from Shoutcast and Radiomast (best-effort)...')
+            streams = _discover_test_streams(limit=80)
+            if not streams:
+                print('[!] No curated streams found (network or parsing error).')
+                continue
+            print('\nAvailable test streams:')
+            for i, (name, url) in enumerate(streams[:80], 1):
+                short = url if len(url) < 80 else url[:77] + '...'
+                print(f" [{i:2}] {name} — {short}")
+            sel = input('\nSelect stream number to play or press Enter to cancel: ').strip()
+            if not sel:
+                continue
+            if not sel.isdigit():
+                print('Invalid selection')
+                continue
+            idx = int(sel) - 1
+            if idx < 0 or idx >= len(streams):
+                print('Invalid selection')
+                continue
+            chosen = streams[idx][1]
+            # resolve simple playlists if needed
+            resolved = _resolve_playlist_url(chosen)
+            try:
+                # force auto backend for selected curated streams and show what will be used
+                try:
+                    player.set_backend('auto')
+                except Exception:
+                    pass
+                backend_used = player._state.get('backend', 'auto')
+                print(f"Using backend: {backend_used}")
+
+                # display and play the resolved URL (auto backend)
+                print(f'Playing URL: {resolved}')
+                player.play_url(resolved, backend='auto')
+                print(f'▶️  Playing: {resolved} (backend: {backend_used})')
+            except Exception as e:
+                print(f'Error playing stream: {e}')
+        elif opt == '9':
+            try:
+                feature_microphoney_menu()
+            except NameError:
+                print('[!] MicroPhoney not available.')
+        else:
+            print('Invalid option')
+
+def feature_microphoney_menu():
+    """MicroPhoney — microphone discovery, capture, transcription, and streaming."""
+    print_header("🎤 MicroPhoney - Microphone tools")
+
+    def _list_mics():
+        try:
+            import speech_recognition as sr
+            mics = sr.Microphone.list_microphone_names()
+            if not mics:
+                print('[i] No microphones reported by SpeechRecognition.')
+                return
+            print('\nAvailable Microphones:')
+            for idx, name in enumerate(mics):
+                print(f' {idx}: {name}')
+        except Exception:
+            try:
+                import sounddevice as sd
+                devs = sd.query_devices()
+                found = [d for d in devs if d.get('max_input_channels', 0) > 0]
+                if not found:
+                    print('[i] No input devices found via sounddevice.')
+                    return
+                print('\nAvailable Microphones (sounddevice):')
+                for i, d in enumerate(found):
+                    print(f' {i}: {d.get("name")}')
+            except Exception:
+                print('[!] Could not list microphones — install SpeechRecognition or python-sounddevice.')
+
+    def _capture_and_transcribe(duration=4):
+        try:
+            import speech_recognition as sr
+            r = sr.Recognizer()
+            with sr.Microphone() as source:
+                print('Listening...')
+                r.adjust_for_ambient_noise(source, duration=0.5)
+                audio = r.listen(source, phrase_time_limit=duration)
+            try:
+                text = r.recognize_google(audio)
+                print(f'You said: {text}')
+            except sr.UnknownValueError:
+                print('Sorry, could not understand the audio.')
+            except sr.RequestError as e:
+                print(f'Google API error: {e}')
+            return
+        except Exception:
+            # fallback to sounddevice -> write wav in-memory -> use recognizer.AudioFile
+            try:
+                import sounddevice as sd, numpy as np, wave, io
+                samplerate = 16000
+                channels = 1
+                print(f'Recording {duration}s...')
+                rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+                sd.wait()
+                buf = io.BytesIO()
+                wf = wave.open(buf, 'wb')
+                wf.setnchannels(channels)
+                wf.setsampwidth(2)
+                wf.setframerate(samplerate)
+                wf.writeframes(rec.tobytes())
+                wf.close()
+                buf.seek(0)
+                try:
+                    import speech_recognition as sr
+                    r = sr.Recognizer()
+                    with sr.AudioFile(buf) as src:
+                        audio = r.record(src)
+                    try:
+                        text = r.recognize_google(audio)
+                        print(f'You said: {text}')
+                    except Exception as e:
+                        print(f'Transcription failed: {e}')
+                except Exception:
+                    print('SpeechRecognition not installed — cannot transcribe.')
+            except Exception:
+                print('[!] No audio capture backend available (install PyAudio or sounddevice).')
+
+    def _stream_to_ip(ip: str, port: int, duration: int = 10, proto: str = 'udp'):
+        import socket, io, wave
+        try:
+            import sounddevice as sd
+        except Exception:
+            print('[!] sounddevice not available; please install sounddevice or PyAudio.')
+            return
+        samplerate = 16000
+        channels = 1
+        print(f'Recording {duration}s and streaming to {ip}:{port} via {proto.upper()}...')
+        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+        sd.wait()
+        data = rec.tobytes()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if proto=='udp' else socket.AF_INET)
+        if proto == 'udp':
+            chunk = 4096
+            for i in range(0, len(data), chunk):
+                sock.sendto(data[i:i+chunk], (ip, port))
+            print('Streaming complete.')
+        else:
+            try:
+                sock.connect((ip, port))
+                sock.sendall(data)
+                print('Streaming complete (TCP).')
+            except Exception as e:
+                print(f'Error streaming TCP: {e}')
+        sock.close()
+
+    def _start_udp_listener(port: int, out_wav: str = 'mic_stream_received.wav'):
+        import socket, threading, wave
+        samplerate = 16000
+        channels = 1
+        running = True
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        sock.bind(('0.0.0.0', port))
+        print(f'Listening on UDP port {port} — press Enter to stop and save to {out_wav}')
+        frames = []
+        def _recv_loop():
+            while running:
+                try:
+                    data, addr = sock.recvfrom(8192)
+                    frames.append(data)
+                except Exception:
+                    break
+        t = threading.Thread(target=_recv_loop, daemon=True)
+        t.start()
+        input('\n[ ⌨️ Press Enter to stop listener ]')
+        # stop
+        try:
+            sock.close()
+        except Exception:
+            pass
+        # write wav
+        try:
+            wf = wave.open(out_wav, 'wb')
+            wf.setnchannels(channels)
+            wf.setsampwidth(2)
+            wf.setframerate(samplerate)
+            wf.writeframes(b''.join(frames))
+            wf.close()
+            print(f'Saved stream to: {out_wav} — play with: ffplay -f s16le -ar {samplerate} -ac {channels} {out_wav}')
+        except Exception as e:
+            print(f'Could not save WAV: {e}')
+
+    def _post_snippet(url: str, duration: int = 4):
+        try:
+            import requests, io, wave, sounddevice as sd
+        except Exception:
+            print('[!] Missing requests or sounddevice to post audio.')
+            return
+        samplerate = 16000
+        channels = 1
+        print(f'Recording {duration}s...')
+        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+        sd.wait()
+        buf = io.BytesIO()
+        wf = wave.open(buf, 'wb')
+        wf.setnchannels(channels)
+        wf.setsampwidth(2)
+        wf.setframerate(samplerate)
+        wf.writeframes(rec.tobytes())
+        wf.close()
+        buf.seek(0)
+        files = {'file': ('mic.wav', buf.read(), 'audio/wav')}
+        try:
+            r = requests.post(url, files=files, timeout=15)
+            print(f'POST status: {r.status_code} {r.reason}')
+        except Exception as e:
+            print(f'POST failed: {e}')
+
+    while True:
+        print('\nMicroPhoney options:')
+        print(' [1] List microphones')
+        print(' [2] Capture & transcribe (short sample)')
+        print(' [3] Stream microphone to IP (UDP/TCP, duration)')
+        print(' [4] Start local UDP listener (save to WAV)')
+        print(' [5] POST short snippet to URL (HTTP upload)')
+        print(' [6] Install dependencies (SpeechRecognition / sounddevice / pyaudio)')
+        print(' [7] Return')
+        sel = input('\nSelect: ').strip()
+        if sel == '1':
+            _list_mics()
+        elif sel == '2':
+            dur = input('Duration seconds [4]: ').strip() or '4'
+            try:
+                dur_i = int(dur)
+            except Exception:
+                dur_i = 4
+            _capture_and_transcribe(duration=dur_i)
+        elif sel == '3':
+            tgt = input('Target IP (default 127.0.0.1): ').strip() or '127.0.0.1'
+            prt = input('Port (default 9999): ').strip() or '9999'
+            proto = input('Protocol (udp/tcp) [udp]: ').strip().lower() or 'udp'
+            dur = input('Duration seconds [10]: ').strip() or '10'
+            try:
+                _stream_to_ip(tgt, int(prt), duration=int(dur), proto=proto)
+            except Exception as e:
+                print(f'Error streaming: {e}')
+        elif sel == '4':
+            port = input('Listen port (default 9999): ').strip() or '9999'
+            try:
+                _start_udp_listener(int(port))
+            except Exception as e:
+                print(f'Listener error: {e}')
+        elif sel == '5':
+            url = input('Target HTTP URL: ').strip()
+            dur = input('Duration seconds [4]: ').strip() or '4'
+            try:
+                _post_snippet(url, duration=int(dur))
+            except Exception as e:
+                print(f'POST failed: {e}')
+        elif sel == '6':
+            print('Installing SpeechRecognition and sounddevice (optional: pyaudio).')
+            ok1 = safe_install_package('SpeechRecognition')
+            ok2 = safe_install_package('sounddevice')
+            ok3 = safe_install_package('pyaudio')
+            print(f'Results: SpeechRecognition={ok1}, sounddevice={ok2}, pyaudio={ok3}')
+        elif sel == '7':
             break
         else:
             print('Invalid option')
