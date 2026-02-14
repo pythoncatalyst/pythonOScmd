@@ -7960,7 +7960,7 @@ def boot_loader():
         print("💡 Tip: Install 'textual' and 'rich' for enhanced display modes\n")
 
     # 5. Handle remaining missing libraries
-    if missing:
+    while missing:
         print(f"\033[93m[!] 📦 Missing Libraries detected: {', '.join(missing)}\033[0m")
         choice = input("📥 Do you want to install them now? (y/n): ").strip().lower()
 
@@ -7971,33 +7971,47 @@ def boot_loader():
                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 print("✅ Setup complete. Launching Application...\n")
                 time.sleep(1)
+                missing.clear()
             except Exception as e:
                 print(f"❌ Auto-install failed. Try running: pip install {' '.join(missing)}")
-                if DISPLAY_MODE == "classic":
-                    print("🛡️ Continuing in Classic Mode...\n")
+                fail_safe = input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
+                if fail_safe == 'y':
+                    print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
                     time.sleep(2)
+                    # Define a Mock Class to prevent 'ImportError' crashes
+                    class MockModule:
+                        def __init__(self, *args, **kwargs): pass
+                        def __getattr__(self, name): return self
+                        def __call__(self, *args, **kwargs): return self
+                        def __iter__(self): return iter([])
+                    for lib in missing:
+                        globals()[lib] = MockModule()
+                    break
                 else:
+                    print("❌ Exiting due to missing utilities.")
                     sys.exit(1)
         else:
-            # 6. User said NO - Enable Safe Mode (Mocking)
             print("\n\033[91m[!] ⚠️ WARNING: You chose not to install dependencies.\033[0m")
-
             # Specific warning for Pillow
             if 'Pillow' in missing:
                 print("\033[91m[!] 🖼️ NOTE: Pillow is missing. Web Image/ASCII functionality will be REDUCED.\033[0m")
-
             if DISPLAY_MODE != "classic":
                 print("⚠️ Some display features may be unavailable.\n")
-
-            print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
-            time.sleep(2)
-
-            # Define a Mock Class to prevent 'ImportError' crashes
-            class MockModule:
-                def __init__(self, *args, **kwargs): pass
-                def __getattr__(self, name): return self
-                def __call__(self, *args, **kwargs): return self
-                def __iter__(self): return iter([]) # Return empty list for loops
+            fail_safe = input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
+            if fail_safe == 'y':
+                print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
+                time.sleep(2)
+                class MockModule:
+                    def __init__(self, *args, **kwargs): pass
+                    def __getattr__(self, name): return self
+                    def __call__(self, *args, **kwargs): return self
+                    def __iter__(self): return iter([])
+                for lib in missing:
+                    globals()[lib] = MockModule()
+                break
+            else:
+                print("❌ Exiting due to missing utilities.")
+                sys.exit(1)
                 def __bool__(self): return False    # Treat as False in boolean checks
 
             # Inject fake modules into system memory
@@ -44523,8 +44537,22 @@ def run_classic_command_center():
             print(f"📛 Node Name:       {platform.node()}")
             print_header("⚙️ CPU Architecture")
             print(f"🖥️ Processor:       {platform.processor()}")
-            print(f"🧠 Physical Cores:  {psutil.cpu_count(logical=False)}")
-            print(f"🧵 Total Threads:   {psutil.cpu_count(logical=True)}")
+            if psutil is not None:
+                try:
+                    physical_cores = psutil.cpu_count(logical=False)
+                except Exception:
+                    physical_cores = 'Unavailable'
+            else:
+                physical_cores = 'psutil not installed'
+            print(f"🧠 Physical Cores:  {physical_cores}")
+            if psutil is not None:
+                try:
+                    total_threads = psutil.cpu_count(logical=True)
+                except Exception:
+                    total_threads = 'Unavailable'
+            else:
+                total_threads = 'psutil not installed'
+            print(f"🧵 Total Threads:   {total_threads}")
             cpufreq = psutil.cpu_freq()
             if cpufreq: print(f"⚡ Max Frequency:   {cpufreq.max:.2f}Mhz")
             print(f"📈 Current Usage:   {draw_bar(psutil.cpu_percent(interval=None))}")
