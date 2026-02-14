@@ -8,7 +8,7 @@
 # Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
 # Version: pythonOScmd201 (Base: pythonOS70, Version 21.1)
 # Description: Terminal OS with monitoring, security tools, media capabilities
-#
+# What if the OS can be like a game and a learning experience Like a terminal-based T.V. with all the features you could want?
 # TABLE OF CONTENTS:
 # ------------------
 # SECTION 1:  Imports & Core Dependencies
@@ -4086,6 +4086,14 @@ FEATURES_REGISTRY = {
             "description": "MP3 streamer/player (HTTP streams + local playback)",
             "exports": ["MediaPlayer", "manifest"],
             "dependencies": ["subprocess", "pygame (optional)", "tinytag (optional)"],
+            "created": "on_first_run"
+        },
+        "microphoney": {
+            "type": "input_utility",
+            "location": "pythonOS_data",
+            "description": "Microphone discovery, capture, transcription and streaming (MicroPhoney)",
+            "exports": ["feature_microphoney_menu", "manifest"],
+            "dependencies": ["sounddevice (optional)", "SpeechRecognition (optional)", "requests (optional)"],
             "created": "on_first_run"
         },
         "system_utilities": {
@@ -36570,19 +36578,28 @@ def feature_mp3_streamer_menu():
             print('Invalid option')
 
 def feature_microphoney_menu():
-    """MicroPhoney — microphone discovery, capture, transcription, and streaming."""
+    """MicroPhoney — microphone discovery, capture, transcription, consented streaming, and continuous mode."""
     print_header("🎤 MicroPhoney - Microphone tools")
 
-    def _list_mics():
+    # persistent local state for the menu session
+    micro_state = {
+        'selected_device': None,
+        'continuous': {'running': False, 'thread': None, 'sock': None, 'stream': None, 'target': None, 'proto': 'udp'}
+    }
+
+    def _list_mics(return_list: bool = False):
+        mics_out = []
         try:
             import speech_recognition as sr
             mics = sr.Microphone.list_microphone_names()
             if not mics:
                 print('[i] No microphones reported by SpeechRecognition.')
-                return
-            print('\nAvailable Microphones:')
-            for idx, name in enumerate(mics):
-                print(f' {idx}: {name}')
+            else:
+                print('\nAvailable Microphones:')
+                for idx, name in enumerate(mics):
+                    tag = ' (selected)' if micro_state['selected_device'] == idx else ''
+                    print(f' {idx}: {name}{tag}')
+                mics_out = list(mics)
         except Exception:
             try:
                 import sounddevice as sd
@@ -36590,18 +36607,67 @@ def feature_microphoney_menu():
                 found = [d for d in devs if d.get('max_input_channels', 0) > 0]
                 if not found:
                     print('[i] No input devices found via sounddevice.')
-                    return
-                print('\nAvailable Microphones (sounddevice):')
-                for i, d in enumerate(found):
-                    print(f' {i}: {d.get("name")}')
+                else:
+                    print('\nAvailable Microphones (sounddevice):')
+                    for i, d in enumerate(found):
+                        tag = ' (selected)' if micro_state['selected_device'] == i else ''
+                        print(f' {i}: {d.get("name")}{tag}')
+                    mics_out = [d.get('name') for d in found]
             except Exception:
                 print('[!] Could not list microphones — install SpeechRecognition or python-sounddevice.')
 
+        # AI recommendation (if available)
+        try:
+            pyai = _load_pyai_plugin()
+            if pyai and hasattr(pyai, 'recommend_microphone') and mics_out:
+                rec = pyai.recommend_microphone(mics_out)
+                if rec and rec.get('index') is not None:
+                    print(f"\n💡 pyAI recommends device {rec['index']}: {rec.get('name')} — {rec.get('reason')}")
+        except Exception:
+            pass
+
+        # notify plugins
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.listed', {'mics': mics_out, 'selected': micro_state['selected_device']})
+        except Exception:
+            pass
+
+        if return_list:
+            return mics_out
+
+    def _select_device():
+        mics = _list_mics(return_list=True)
+        if not mics:
+            return
+        sel = input('\nEnter device index to select (or Enter to keep current): ').strip()
+        if not sel:
+            return
+        if not sel.isdigit():
+            print('Invalid index')
+            return
+        idx = int(sel)
+        if idx < 0 or idx >= len(mics):
+            print('Index out of range')
+            return
+        micro_state['selected_device'] = idx
+        print(f'Selected device {idx}: {mics[idx]}')
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.device_selected', {'index': idx, 'name': mics[idx]})
+        except Exception:
+            pass
+
     def _capture_and_transcribe(duration=4):
+        device = micro_state.get('selected_device')
+        # primary: SpeechRecognition with optional device index
         try:
             import speech_recognition as sr
             r = sr.Recognizer()
-            with sr.Microphone() as source:
+            mic_args = {'device_index': device} if device is not None else {}
+            with sr.Microphone(**mic_args) as source:
                 print('Listening...')
                 r.adjust_for_ambient_noise(source, duration=0.5)
                 audio = r.listen(source, phrase_time_limit=duration)
@@ -36619,8 +36685,11 @@ def feature_microphoney_menu():
                 import sounddevice as sd, numpy as np, wave, io
                 samplerate = 16000
                 channels = 1
+                rec_args = {'samplerate': samplerate, 'channels': channels, 'dtype': 'int16'}
+                if device is not None:
+                    rec_args['device'] = device
                 print(f'Recording {duration}s...')
-                rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+                rec = sd.rec(int(duration * samplerate), **rec_args)
                 sd.wait()
                 buf = io.BytesIO()
                 wf = wave.open(buf, 'wb')
@@ -36646,19 +36715,48 @@ def feature_microphoney_menu():
                 print('[!] No audio capture backend available (install PyAudio or sounddevice).')
 
     def _stream_to_ip(ip: str, port: int, duration: int = 10, proto: str = 'udp'):
-        import socket, io, wave
+        # privacy/advice via pyAI
+        try:
+            pyai = _load_pyai_plugin()
+            if pyai and hasattr(pyai, 'microphoney_privacy_advice'):
+                advice = pyai.microphoney_privacy_advice(ip)
+                print(f'Privacy advice: {advice}')
+        except Exception:
+            pass
+
+        # explicit consent
+        if not ip.startswith('127.') and ip != 'localhost':
+            ans = input('You are about to send microphone audio to a remote host. Continue? [y/N]: ').strip().lower()
+            if ans != 'y':
+                print('Aborted by user.')
+                return
+
         try:
             import sounddevice as sd
         except Exception:
             print('[!] sounddevice not available; please install sounddevice or PyAudio.')
             return
+
         samplerate = 16000
         channels = 1
+        device = micro_state.get('selected_device')
+        rec_args = {'samplerate': samplerate, 'channels': channels, 'dtype': 'int16'}
+        if device is not None:
+            rec_args['device'] = device
         print(f'Recording {duration}s and streaming to {ip}:{port} via {proto.upper()}...')
-        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+        rec = sd.rec(int(duration * samplerate), **rec_args)
         sd.wait()
         data = rec.tobytes()
-        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if proto=='udp' else socket.AF_INET)
+
+        # notify plugins stream will start
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.stream_prepare', {'target': f'{ip}:{port}', 'proto': proto, 'duration': duration})
+        except Exception:
+            pass
+
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if proto == 'udp' else socket.AF_INET)
         if proto == 'udp':
             chunk = 4096
             for i in range(0, len(data), chunk):
@@ -36672,6 +36770,13 @@ def feature_microphoney_menu():
             except Exception as e:
                 print(f'Error streaming TCP: {e}')
         sock.close()
+
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.stream_complete', {'target': f'{ip}:{port}', 'proto': proto, 'duration': duration})
+        except Exception:
+            pass
 
     def _start_udp_listener(port: int, out_wav: str = 'mic_stream_received.wav'):
         import socket, threading, wave
@@ -36710,6 +36815,22 @@ def feature_microphoney_menu():
             print(f'Could not save WAV: {e}')
 
     def _post_snippet(url: str, duration: int = 4):
+        # privacy/advice via pyAI
+        try:
+            pyai = _load_pyai_plugin()
+            if pyai and hasattr(pyai, 'microphoney_privacy_advice'):
+                advice = pyai.microphoney_privacy_advice(url)
+                print(f'Privacy advice: {advice}')
+        except Exception:
+            pass
+
+        # explicit consent for remote POST
+        if not url.startswith('http://127.') and 'localhost' not in url:
+            ans = input('You are about to upload microphone audio to a remote service. Continue? [y/N]: ').strip().lower()
+            if ans != 'y':
+                print('Aborted by user.')
+                return
+
         try:
             import requests, io, wave, sounddevice as sd
         except Exception:
@@ -36717,8 +36838,12 @@ def feature_microphoney_menu():
             return
         samplerate = 16000
         channels = 1
+        device = micro_state.get('selected_device')
+        rec_args = {'samplerate': samplerate, 'channels': channels, 'dtype': 'int16'}
+        if device is not None:
+            rec_args['device'] = device
         print(f'Recording {duration}s...')
-        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+        rec = sd.rec(int(duration * samplerate), **rec_args)
         sd.wait()
         buf = io.BytesIO()
         wf = wave.open(buf, 'wb')
@@ -36735,26 +36860,235 @@ def feature_microphoney_menu():
         except Exception as e:
             print(f'POST failed: {e}')
 
+    # ----- favorites & sample helpers -----
+    def _favorites_path():
+        sdir = os.path.join(SCRIPT_DIR, 'pythonOS_data')
+        return os.path.join(sdir, 'microphoney_favorites.json')
+
+    def _samples_dir():
+        sdir = os.path.join(SCRIPT_DIR, 'pythonOS_data')
+        out = os.path.join(sdir, 'microphoney_samples')
+        os.makedirs(out, exist_ok=True)
+        return out
+
+    def _load_favorites() -> list:
+        path = _favorites_path()
+        try:
+            if os.path.exists(path):
+                with open(path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+        except Exception:
+            pass
+        return []
+
+    def _save_favorites(favs: list) -> bool:
+        path = _favorites_path()
+        try:
+            with open(path, 'w', encoding='utf-8') as f:
+                json.dump(favs, f, indent=2)
+            return True
+        except Exception:
+            return False
+
+    def _add_favorite(item: dict) -> bool:
+        favs = _load_favorites()
+        favs = [f for f in favs if f.get('name') != item.get('name')]
+        favs.append(item)
+        return _save_favorites(favs)
+
+    def _remove_favorite(name: str) -> bool:
+        favs = _load_favorites()
+        new = [f for f in favs if f.get('name') != name]
+        return _save_favorites(new)
+
+    def _save_sample(duration: int = 4, filename: str | None = None) -> str:
+        try:
+            import sounddevice as sd, wave, numpy as np
+        except Exception:
+            raise
+        samplerate = 16000
+        channels = 1
+        print(f'Recording {duration}s...')
+        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
+        sd.wait()
+        outdir = _samples_dir()
+        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+        fname = filename or f'mic_sample_{ts}.wav'
+        path = os.path.join(outdir, fname)
+        try:
+            wf = wave.open(path, 'wb')
+            wf.setnchannels(channels)
+            wf.setsampwidth(2)
+            wf.setframerate(samplerate)
+            wf.writeframes(rec.tobytes())
+            wf.close()
+            print(f'Saved sample to: {path}')
+            return path
+        except Exception as e:
+            raise
+
+    def _stream_via_websocket(url: str, duration: int = 6):
+        """Stream a short microphone sample via WebSocket (best-effort).
+        Sends raw PCM frames (s16le, 16kHz, mono) to the websocket server.
+        """
+        try:
+            import websocket
+        except Exception:
+            print('[!] websocket-client not installed. Attempting to install...')
+            ok = safe_install_package('websocket-client')
+            if not ok:
+                print('[!] websocket-client required for WS streaming.')
+                return
+            try:
+                import websocket
+            except Exception:
+                print('[!] Could not import websocket-client after install.')
+                return
+
+        try:
+            import sounddevice as sd
+        except Exception:
+            print('[!] sounddevice required for WS streaming.')
+            return
+
+        samplerate = 16000
+        channels = 1
+        device = micro_state.get('selected_device')
+        rec_args = {'samplerate': samplerate, 'channels': channels, 'dtype': 'int16'}
+        if device is not None:
+            rec_args['device'] = device
+
+        print(f'Opening WebSocket {url} and streaming {duration}s...')
+        ws = websocket.create_connection(url, timeout=10)
+        try:
+            # record in small chunks and send
+            block_ms = 200
+            frames_per_block = int(samplerate * (block_ms / 1000.0))
+            with sd.InputStream(samplerate=samplerate, channels=channels, dtype='int16', device=device) as stream:
+                total_ms = duration * 1000
+                sent = 0
+                while sent < total_ms:
+                    data, _ = stream.read(frames_per_block)
+                    ws.send_binary(data.tobytes())
+                    sent += block_ms
+            print('WS streaming complete.')
+        except Exception as e:
+            print(f'WS error: {e}')
+        finally:
+            try:
+                ws.close()
+            except Exception:
+                pass
+
+    # -- continuous streaming helpers --
+    def _start_continuous_stream(target_ip: str, port: int, proto: str = 'udp', samplerate: int = 16000, channels: int = 1):
+        try:
+            import sounddevice as sd, socket, threading
+        except Exception:
+            print('[!] sounddevice required for continuous streaming.')
+            return
+        if micro_state['continuous']['running']:
+            print('[i] Continuous stream already running.')
+            return
+        device = micro_state.get('selected_device')
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM if proto == 'udp' else socket.AF_INET)
+        if proto != 'udp':
+            try:
+                sock.connect((target_ip, port))
+            except Exception as e:
+                print(f'Could not connect TCP target: {e}')
+                return
+
+        running = True
+        micro_state['continuous']['running'] = True
+        micro_state['continuous']['sock'] = sock
+        micro_state['continuous']['target'] = f'{target_ip}:{port}'
+        micro_state['continuous']['proto'] = proto
+
+        def _callback(indata, frames, time_info, status):
+            if not micro_state['continuous']['running']:
+                return
+            try:
+                data = indata.tobytes()
+                if proto == 'udp':
+                    sock.sendto(data, (target_ip, port))
+                else:
+                    sock.sendall(data)
+            except Exception:
+                pass
+
+        def _stream_thread():
+            try:
+                stream = sd.InputStream(samplerate=samplerate, channels=channels, dtype='int16', callback=_callback, device=device)
+                micro_state['continuous']['stream'] = stream
+                stream.start()
+                print(f'Continuous streaming to {target_ip}:{port} (press Enter in menu to stop)')
+                while micro_state['continuous']['running']:
+                    sd.sleep(200)
+                try:
+                    stream.stop(); stream.close()
+                except Exception:
+                    pass
+            except Exception as e:
+                print(f'Continuous stream error: {e}')
+            finally:
+                try:
+                    sock.close()
+                except Exception:
+                    pass
+                micro_state['continuous']['running'] = False
+                micro_state['continuous']['stream'] = None
+
+        t = threading.Thread(target=_stream_thread, daemon=True)
+        micro_state['continuous']['thread'] = t
+        # notify plugins
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.continuous_start', {'target': micro_state['continuous']['target'], 'proto': proto})
+        except Exception:
+            pass
+        t.start()
+
+    def _stop_continuous_stream():
+        if not micro_state['continuous']['running']:
+            print('[i] No continuous stream running.')
+            return
+        micro_state['continuous']['running'] = False
+        # notify plugins
+        try:
+            pm = get_plugin_manager()
+            if pm:
+                pm.emit_event('microphoney.continuous_stop', {'target': micro_state['continuous']['target']})
+        except Exception:
+            pass
+        print('[i] Stopping continuous stream...')
+
     while True:
         print('\nMicroPhoney options:')
         print(' [1] List microphones')
-        print(' [2] Capture & transcribe (short sample)')
-        print(' [3] Stream microphone to IP (UDP/TCP, duration)')
-        print(' [4] Start local UDP listener (save to WAV)')
-        print(' [5] POST short snippet to URL (HTTP upload)')
-        print(' [6] Install dependencies (SpeechRecognition / sounddevice / pyaudio)')
-        print(' [7] Return')
+        print(' [2] Select capture device')
+        print(' [3] Capture & transcribe (short sample)')
+        print(' [4] Stream microphone to IP (UDP/TCP, duration)')
+        print(' [5] Start continuous stream to IP (real-time)')
+        print(' [6] Stop continuous stream')
+        print(' [7] Start local UDP listener (save to WAV)')
+        print(' [8] POST short snippet to URL (HTTP upload)')
+        print(' [9] Install dependencies (SpeechRecognition / sounddevice / pyaudio)')
+        print(' [0] Return')
         sel = input('\nSelect: ').strip()
         if sel == '1':
             _list_mics()
         elif sel == '2':
+            _select_device()
+        elif sel == '3':
             dur = input('Duration seconds [4]: ').strip() or '4'
             try:
                 dur_i = int(dur)
             except Exception:
                 dur_i = 4
             _capture_and_transcribe(duration=dur_i)
-        elif sel == '3':
+        elif sel == '4':
             tgt = input('Target IP (default 127.0.0.1): ').strip() or '127.0.0.1'
             prt = input('Port (default 9999): ').strip() or '9999'
             proto = input('Protocol (udp/tcp) [udp]: ').strip().lower() or 'udp'
@@ -36763,26 +37097,170 @@ def feature_microphoney_menu():
                 _stream_to_ip(tgt, int(prt), duration=int(dur), proto=proto)
             except Exception as e:
                 print(f'Error streaming: {e}')
-        elif sel == '4':
+        elif sel == '5':
+            tgt = input('Target IP (default 127.0.0.1): ').strip() or '127.0.0.1'
+            prt = input('Port (default 9999): ').strip() or '9999'
+            proto = input('Protocol (udp/tcp) [udp]: ').strip().lower() or 'udp'
+            # privacy advice
+            try:
+                pyai = _load_pyai_plugin()
+                if pyai and hasattr(pyai, 'microphoney_privacy_advice'):
+                    print('Privacy advice:', pyai.microphoney_privacy_advice(tgt))
+            except Exception:
+                pass
+            ans = input('Start continuous streaming to this target? [y/N]: ').strip().lower()
+            if ans == 'y':
+                _start_continuous_stream(tgt, int(prt), proto)
+        elif sel == '6':
+            _stop_continuous_stream()
+        elif sel == '7':
             port = input('Listen port (default 9999): ').strip() or '9999'
             try:
                 _start_udp_listener(int(port))
             except Exception as e:
                 print(f'Listener error: {e}')
-        elif sel == '5':
-            url = input('Target HTTP URL: ').strip()
-            dur = input('Duration seconds [4]: ').strip() or '4'
-            try:
-                _post_snippet(url, duration=int(dur))
-            except Exception as e:
-                print(f'POST failed: {e}')
-        elif sel == '6':
+        elif sel == '8':
+            # Integrations submenu: HTTP POST, local API, WebSocket, favorites/samples
+            while True:
+                print('\nIntegration options:')
+                print(' [1] POST short snippet to URL (HTTP upload)')
+                print(' [2] Stream recorded snippet to local API server (/api/mic-upload)')
+                print(' [3] Stream microphone via WebSocket (ws://...)')
+                print(' [4] Record & save sample to disk')
+                print(' [5] Manage favorites (targets)')
+                print(' [0] Return')
+                sub = input('\nSelect: ').strip()
+                if sub == '1':
+                    url = input('Target HTTP URL: ').strip()
+                    dur = input('Duration seconds [4]: ').strip() or '4'
+                    try:
+                        _post_snippet(url, duration=int(dur))
+                    except Exception as e:
+                        print(f'POST failed: {e}')
+                elif sub == '2':
+                    # send via local API server endpoint
+                    api_host = input('API host (default http://127.0.0.1:5000): ').strip() or 'http://127.0.0.1:5000'
+                    dur = input('Duration seconds [4]: ').strip() or '4'
+                    target_url = api_host.rstrip('/') + '/api/mic-upload'
+                    try:
+                        print(f'Sending {dur}s sample to {target_url} ...')
+                        _post_snippet(target_url, duration=int(dur))
+                    except Exception as e:
+                        print(f'API upload failed: {e}')
+                elif sub == '3':
+                    ws = input('WebSocket URL (ws:// or wss://): ').strip()
+                    if not ws:
+                        print('No URL provided')
+                        continue
+                    dur = input('Duration seconds [6]: ').strip() or '6'
+                    try:
+                        _stream_via_websocket(ws, int(dur))
+                    except Exception as e:
+                        print(f'WebSocket stream failed: {e}')
+                elif sub == '4':
+                    fname = input('Filename (optional, will be timestamped if empty): ').strip() or None
+                    dur = input('Duration seconds [4]: ').strip() or '4'
+                    try:
+                        _save_sample(duration=int(dur), filename=fname)
+                    except Exception as e:
+                        print(f'Could not save sample: {e}')
+                elif sub == '5':
+                    # Favorites manager
+                    while True:
+                        print('\nFavorites — saved targets:')
+                        print(' [1] List favorites')
+                        print(' [2] Add favorite')
+                        print(' [3] Remove favorite')
+                        print(' [4] Stream to favorite')
+                        print(' [0] Return')
+                        fsel = input('\nSelect: ').strip()
+                        if fsel == '1':
+                            favs = _load_favorites()
+                            if not favs:
+                                print('[i] No favorites saved')
+                            else:
+                                for i, f in enumerate(favs, 1):
+                                    print(f" [{i}] {f.get('name')} -> {f.get('target')} ({f.get('proto')})")
+                        elif fsel == '2':
+                            name = input('Name for favorite: ').strip()
+                            target = input('Target (ip/url:port or URL): ').strip()
+                            proto = input('Protocol (udp/tcp/http/ws) [udp]: ').strip() or 'udp'
+                            if not name or not target:
+                                print('Name and target are required')
+                                continue
+                            _add_favorite({'name': name, 'target': target, 'proto': proto})
+                            print('Favorite added')
+                        elif fsel == '3':
+                            favs = _load_favorites()
+                            if not favs:
+                                print('[i] No favorites to remove')
+                                continue
+                            for i, f in enumerate(favs, 1):
+                                print(f" [{i}] {f.get('name')} -> {f.get('target')}")
+                            rem = input('Select number to remove: ').strip()
+                            if not rem.isdigit():
+                                print('Invalid selection')
+                                continue
+                            idx = int(rem) - 1
+                            if idx < 0 or idx >= len(favs):
+                                print('Index out of range')
+                                continue
+                            _remove_favorite(favs[idx]['name'])
+                            print('Removed')
+                        elif fsel == '4':
+                            favs = _load_favorites()
+                            if not favs:
+                                print('[i] No favorites saved')
+                                continue
+                            for i, f in enumerate(favs, 1):
+                                print(f" [{i}] {f.get('name')} -> {f.get('target')} ({f.get('proto')})")
+                            self = input('Select favorite number to stream: ').strip()
+                            if not self.isdigit():
+                                print('Invalid selection')
+                                continue
+                            idx = int(self) - 1
+                            if idx < 0 or idx >= len(favs):
+                                print('Index out of range')
+                                continue
+                            fav = favs[idx]
+                            t = fav.get('target')
+                            proto = fav.get('proto', 'udp')
+                            if proto in ('http', 'https'):
+                                try:
+                                    _post_snippet(t, duration=4)
+                                except Exception as e:
+                                    print(f'POST failed: {e}')
+                            elif proto.startswith('ws'):
+                                try:
+                                    _stream_via_websocket(t, 6)
+                                except Exception as e:
+                                    print(f'WS failed: {e}')
+                            else:
+                                # assume ip:port
+                                parts = t.split(':')
+                                host = parts[0]
+                                port = int(parts[1]) if len(parts) > 1 else 9999
+                                try:
+                                    _stream_to_ip(host, port, duration=4, proto=proto)
+                                except Exception as e:
+                                    print(f'Stream failed: {e}')
+                        elif fsel == '0':
+                            break
+                        else:
+                            print('Invalid option')
+                elif sub == '0':
+                    break
+                else:
+                    print('Invalid option')
+        elif sel == '9':
             print('Installing SpeechRecognition and sounddevice (optional: pyaudio).')
             ok1 = safe_install_package('SpeechRecognition')
             ok2 = safe_install_package('sounddevice')
             ok3 = safe_install_package('pyaudio')
             print(f'Results: SpeechRecognition={ok1}, sounddevice={ok2}, pyaudio={ok3}')
-        elif sel == '7':
+        elif sel == '0':
+            # ensure continuous stream stopped on exit
+            _stop_continuous_stream()
             break
         else:
             print('Invalid option')
