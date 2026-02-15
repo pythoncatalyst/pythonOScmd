@@ -27413,37 +27413,276 @@ def feature_media_scanner():
 # --- RESUME SACRED CORE FUNCTIONS ---
 
 def get_advanced_hardware_stats():
+    """Return (gpu_data, fan_data) using GPUtil/psutil when available or best-effort
+    Linux /proc,/sys and common-command fallbacks so Classic mode remains useful
+    even when optional monitoring libraries are not installed.
+    """
     gpu_data = "N/A"
     fan_data = "N/A"
+
+    # --- GPU: try GPUtil -> nvidia-smi -> lspci/sysfs ---
     try:
-        gpus = GPUtil.getGPUs()
-        if gpus:
-            g = gpus[0]
-            t = g.temperature
-            if temp_unit == "F":
-                t = (t * 9/5) + 32
-            gpu_data = f"{g.load*100:.0f}%|{t:.0f}\u00b0{temp_unit}"
-    except: pass
-    try:
-        fans = psutil.sensors_fans()
-        if fans:
-            for name, entries in fans.items():
-                if entries:
-                    fan_data = f"{entries[0].current}RPM"
+        if 'GPUtil' in globals() and GPUtil is not None:
+            gpus = GPUtil.getGPUs()
+            if gpus:
+                g = gpus[0]
+                t = getattr(g, 'temperature', None)
+                if t is not None and temp_unit == 'F':
+                    t = (t * 9/5) + 32
+                load = getattr(g, 'load', 0) * 100
+                gpu_data = f"{load:.0f}%|{int(t):.0f}\u00b0{temp_unit}" if t is not None else f"{load:.0f}%"
+    except Exception:
+        pass
+
+    if gpu_data == "N/A":
+        try:
+            out = subprocess.check_output(['nvidia-smi', '--query-gpu=utilization.gpu,temperature.gpu', '--format=csv,noheader,nounits'], stderr=subprocess.DEVNULL, timeout=0.8).decode().strip()
+            if out:
+                util, temp = [p.strip() for p in out.split(',')[:2]]
+                gpu_data = f"{util}%|{temp}\u00b0{temp_unit}"
+        except Exception:
+            pass
+
+    if gpu_data == "N/A":
+        try:
+            out = subprocess.check_output(['lspci', '-mm'], stderr=subprocess.DEVNULL, timeout=0.8).decode()
+            for line in out.splitlines():
+                if 'VGA' in line or '3D controller' in line:
+                    gpu_data = line.split(':', 2)[2].strip()
                     break
-    except: pass
+        except Exception:
+            pass
+
+    # --- Fan detection: psutil first, then /sys/class/hwmon ---
+    try:
+        if PSUTIL_AVAILABLE and psutil is not None:
+            fans = psutil.sensors_fans()
+            if fans:
+                for name, entries in fans.items():
+                    if entries:
+                        fan_data = f"{entries[0].current}RPM"
+                        break
+        else:
+            import glob
+            hwmons = glob.glob('/sys/class/hwmon/hwmon*')
+            for hw in hwmons:
+                fpaths = glob.glob(os.path.join(hw, 'fan*_input'))
+                for fp in fpaths:
+                    try:
+                        with open(fp, 'r') as fh:
+                            v = int(fh.read().strip())
+                        fan_data = f"{v}RPM"
+                        raise StopIteration
+                    except StopIteration:
+                        break
+                    except Exception:
+                        continue
+                if fan_data != 'N/A':
+                    break
+    except Exception:
+        pass
+
     return gpu_data, fan_data
 
-def live_system_identity_clock():
+
+# --- Resilient helpers used by Classic UI when psutil/GPUtil are unavailable ---
+def _safe_cpu_counts():
+    """Return (physical_cores, logical_cores) with /proc fallback on Linux."""
+    logical = os.cpu_count() or 1
+    physical = None
+    if PSUTIL_AVAILABLE and psutil is not None:
+        try:
+            physical = psutil.cpu_count(logical=False)
+        except Exception:
+            physical = None
+    if physical is None and platform.system() == 'Linux':
+        try:
+            import re as _re
+            data = open('/proc/cpuinfo', 'r').read()
+            phys = {}
+            for block in data.strip().split('\n\n'):
+                m_phys = _re.search(r'physical id\s+:\s+(\d+)', block)
+                m_cores = _re.search(r'cpu cores\s+:\s+(\d+)', block)
+                if m_phys and m_cores:
+                    phys[int(m_phys.group(1))] = int(m_cores.group(1))
+            if phys:
+                physical = sum(phys.values())
+            else:
+                m = _re.search(r'cpu cores\s+:\s+(\d+)', data)
+                if m:
+                    physical = int(m.group(1))
+        except Exception:
+            physical = None
+    if physical is None:
+        physical = logical
+    return physical, logical
+
+
+def _safe_cpu_freq():
+    """Return max CPU frequency in MHz or None."""
+    if PSUTIL_AVAILABLE and psutil is not None:
+        try:
+            f = psutil.cpu_freq()
+            return getattr(f, 'max', None) if f else None
+        except Exception:
+            pass
+    if platform.system() == 'Linux':
+        try:
+            p = '/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq'
+            if os.path.exists(p):
+                with open(p, 'r') as fh:
+                    return int(fh.read().strip()) / 1000.0
+            with open('/proc/cpuinfo', 'r') as fh:
+                import re as _re
+                m = _re.search(r'cpu MHz\s+:\s+([0-9.]+)', fh.read())
+                if m:
+                    return float(m.group(1))
+        except Exception:
+            pass
+    return None
+
+
+def _safe_cpu_percent(interval: float = 0.1) -> float:
+    """Small /proc/stat sample to approximate CPU utilization (non-blocking for short interval)."""
+    if PSUTIL_AVAILABLE and psutil is not None:
+        try:
+            return _safe_float(psutil.cpu_percent(interval=None), 0.0)
+        except Exception:
+            return 0.0
+    if platform.system() == 'Linux':
+        try:
+            def _read():
+                with open('/proc/stat', 'r') as f:
+                    first = f.readline()
+                parts = first.split()[1:]
+                nums = [int(x) for x in parts]
+                idle = nums[3] + (nums[4] if len(nums) > 4 else 0)
+                total = sum(nums)
+                return total, idle
+            t1, i1 = _read()
+            time.sleep(interval)
+            t2, i2 = _read()
+            dtot = t2 - t1
+            didle = i2 - i1
+            if dtot > 0:
+                return round((1.0 - (didle / dtot)) * 100.0, 1)
+        except Exception:
+            return 0.0
+    return 0.0
+
+
+def _safe_memory_info():
+    """Return memory and swap info as bytes + percent with /proc fallback."""
+    if PSUTIL_AVAILABLE and psutil is not None:
+        try:
+            vm = psutil.virtual_memory()
+            sw = psutil.swap_memory()
+            return {'total': vm.total, 'available': vm.available, 'percent': vm.percent, 'swap_total': getattr(sw, 'total', 0)}
+        except Exception:
+            pass
+    if platform.system() == 'Linux':
+        try:
+            import re as _re
+            mm = open('/proc/meminfo', 'r').read()
+            m_total = int(_re.search(r'MemTotal:\s+(\d+)', mm).group(1)) * 1024
+            m_avail = int(_re.search(r'MemAvailable:\s+(\d+)', mm).group(1)) * 1024
+            swap_total = int(_re.search(r'SwapTotal:\s+(\d+)', mm).group(1)) * 1024
+            percent = round((1.0 - (m_avail / m_total)) * 100.0, 1) if m_total > 0 else 0.0
+            return {'total': m_total, 'available': m_avail, 'percent': percent, 'swap_total': swap_total}
+        except Exception:
+            pass
+    return {'total': 0, 'available': 0, 'percent': 0.0, 'swap_total': 0}
+
+
+def _safe_temperatures():
+    """Best-effort temperature readings from /sys/class/thermal (Linux)."""
+    out = {}
     try:
-        last_net = psutil.net_io_counters()
-    except:
+        import glob
+        zones = glob.glob('/sys/class/thermal/thermal_zone*')
+        for zone in zones:
+            try:
+                with open(os.path.join(zone, 'temp'), 'r') as fh:
+                    raw = fh.read().strip()
+                    t = int(raw) / 1000.0
+                label = None
+                ttype = os.path.join(zone, 'type')
+                if os.path.exists(ttype):
+                    with open(ttype, 'r') as th: label = th.read().strip()
+                name = label or os.path.basename(zone)
+                out.setdefault(name, []).append({'current': t, 'label': label})
+            except Exception:
+                continue
+    except Exception:
+        pass
+    return out
+
+
+def live_system_identity_clock():
+    """Update the small status line. Uses psutil when available, otherwise
+    falls back to /proc on Linux so the classic view still shows live numbers.
+    """
+    def _read_proc_cpu():
+        try:
+            with open('/proc/stat', 'r') as f:
+                first = f.readline()
+            parts = first.split()[1:]
+            nums = [int(x) for x in parts]
+            idle = nums[3] + (nums[4] if len(nums) > 4 else 0)
+            total = sum(nums)
+            return total, idle
+        except Exception:
+            return 0, 0
+
+    def _read_proc_net_io():
+        try:
+            rx = 0
+            tx = 0
+            with open('/proc/net/dev', 'r') as f:
+                lines = f.readlines()[2:]
+            for line in lines:
+                parts = line.split()
+                if not parts:
+                    continue
+                iface = parts[0].strip(':')
+                if iface == 'lo':
+                    continue
+                rx += int(parts[1])
+                tx += int(parts[9])
+            return rx, tx
+        except Exception:
+            return 0, 0
+
+    # initial net snapshot
+    try:
+        if PSUTIL_AVAILABLE and psutil is not None:
+            last_net = psutil.net_io_counters()
+        elif platform.system() == 'Linux':
+            r, t = _read_proc_net_io()
+            class _N:
+                pass
+            last_net = _N()
+            last_net.bytes_recv = r
+            last_net.bytes_sent = t
+        else:
+            class MockNet:
+                bytes_recv = 0
+                bytes_sent = 0
+            last_net = MockNet()
+    except Exception:
         class MockNet:
             bytes_recv = 0
             bytes_sent = 0
         last_net = MockNet()
+
     last_recv = _safe_float(getattr(last_net, "bytes_recv", None), 0.0)
     last_sent = _safe_float(getattr(last_net, "bytes_sent", None), 0.0)
+
+    # prepare /proc cpu state when psutil isn't available
+    prev_cpu_total = prev_cpu_idle = None
+    if not (PSUTIL_AVAILABLE and psutil is not None) and platform.system() == 'Linux':
+        prev_cpu_total, prev_cpu_idle = _read_proc_cpu()
+
     ticker_count = 0
     while not stop_clock:
         # Update weather cache every 300 seconds (5 mins)
@@ -27451,31 +27690,77 @@ def live_system_identity_clock():
             threading.Thread(target=get_weather_data, daemon=True).start()
 
         current_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # CPU (psutil preferred, /proc fallback on Linux)
+        cpu_live = 0.0
+        if PSUTIL_AVAILABLE and psutil is not None:
+            try:
+                cpu_live = _safe_float(psutil.cpu_percent(), 0.0)
+            except Exception:
+                cpu_live = 0.0
+        elif platform.system() == 'Linux':
+            cur_total, cur_idle = _read_proc_cpu()
+            if prev_cpu_total and cur_total > prev_cpu_total:
+                dtot = cur_total - prev_cpu_total
+                didle = cur_idle - prev_cpu_idle
+                cpu_live = (1.0 - (didle / dtot)) * 100.0 if dtot > 0 else 0.0
+            prev_cpu_total, prev_cpu_idle = cur_total, cur_idle
+            cpu_live = round(cpu_live, 1)
+        else:
+            cpu_live = 0.0
+
+        # RAM
+        if PSUTIL_AVAILABLE and psutil is not None:
+            try:
+                ram_live = _safe_float(psutil.virtual_memory().percent, 0.0)
+            except Exception:
+                ram_live = 0.0
+        elif platform.system() == 'Linux':
+            try:
+                with open('/proc/meminfo', 'r') as f:
+                    mm = f.read()
+                import re as _re
+                m_total = _re.search(r'MemTotal:\s+(\d+)', mm)
+                m_avail = _re.search(r'MemAvailable:\s+(\d+)', mm)
+                if m_total and m_avail:
+                    total_kb = int(m_total.group(1))
+                    avail_kb = int(m_avail.group(1))
+                    ram_live = round((1.0 - (avail_kb / total_kb)) * 100.0, 1) if total_kb > 0 else 0.0
+                else:
+                    ram_live = 0.0
+            except Exception:
+                ram_live = 0.0
+        else:
+            ram_live = 0.0
+
+        # Disk
         try:
-            cpu_live = psutil.cpu_percent()
-        except:
-            cpu_live = 0
-        try:
-            ram_live = psutil.virtual_memory().percent
-        except:
-            ram_live = 0
-        try:
-            disk_live = psutil.disk_usage('/').percent
-        except:
-            disk_live = 0
+            if PSUTIL_AVAILABLE and psutil is not None:
+                disk_live = _safe_float(psutil.disk_usage('/').percent, 0.0)
+            else:
+                du = shutil.disk_usage('/')
+                disk_live = round((du.used / du.total) * 100.0, 1) if du.total > 0 else 0.0
+        except Exception:
+            disk_live = 0.0
+
         gpu_live, fan_live = get_advanced_hardware_stats()
 
         time.sleep(1)
         ticker_count += 1
+
+        # Network I/O (psutil preferred, /proc fallback)
         try:
-            now_net = psutil.net_io_counters()
-        except:
-            class MockNet:
-                bytes_recv = 0
-                bytes_sent = 0
-            now_net = MockNet()
-        now_recv = _safe_float(getattr(now_net, "bytes_recv", None))
-        now_sent = _safe_float(getattr(now_net, "bytes_sent", None))
+            if PSUTIL_AVAILABLE and psutil is not None:
+                now_net = psutil.net_io_counters()
+                now_recv = _safe_float(getattr(now_net, "bytes_recv", None))
+                now_sent = _safe_float(getattr(now_net, "bytes_sent", None))
+            elif platform.system() == 'Linux':
+                now_recv, now_sent = _read_proc_net_io()
+            else:
+                now_recv = now_sent = 0.0
+        except Exception:
+            now_recv = now_sent = 0.0
+
         if now_recv is None or now_sent is None:
             down_speed = 0
             up_speed = 0
@@ -27487,7 +27772,10 @@ def live_system_identity_clock():
 
         avg_temp_display = "N/A"
         try:
-            temps = psutil.sensors_temperatures()
+            temps = None
+            if PSUTIL_AVAILABLE and psutil is not None:
+                temps = psutil.sensors_temperatures()
+            # no reliable generic /proc fallback for temperatures here
             if temps:
                 core_vals = []
                 for name, entries in temps.items():
@@ -36860,126 +37148,6 @@ def feature_microphoney_menu():
         except Exception as e:
             print(f'POST failed: {e}')
 
-    # ----- favorites & sample helpers -----
-    def _favorites_path():
-        sdir = os.path.join(SCRIPT_DIR, 'pythonOS_data')
-        return os.path.join(sdir, 'microphoney_favorites.json')
-
-    def _samples_dir():
-        sdir = os.path.join(SCRIPT_DIR, 'pythonOS_data')
-        out = os.path.join(sdir, 'microphoney_samples')
-        os.makedirs(out, exist_ok=True)
-        return out
-
-    def _load_favorites() -> list:
-        path = _favorites_path()
-        try:
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception:
-            pass
-        return []
-
-    def _save_favorites(favs: list) -> bool:
-        path = _favorites_path()
-        try:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(favs, f, indent=2)
-            return True
-        except Exception:
-            return False
-
-    def _add_favorite(item: dict) -> bool:
-        favs = _load_favorites()
-        favs = [f for f in favs if f.get('name') != item.get('name')]
-        favs.append(item)
-        return _save_favorites(favs)
-
-    def _remove_favorite(name: str) -> bool:
-        favs = _load_favorites()
-        new = [f for f in favs if f.get('name') != name]
-        return _save_favorites(new)
-
-    def _save_sample(duration: int = 4, filename: str | None = None) -> str:
-        try:
-            import sounddevice as sd, wave, numpy as np
-        except Exception:
-            raise
-        samplerate = 16000
-        channels = 1
-        print(f'Recording {duration}s...')
-        rec = sd.rec(int(duration * samplerate), samplerate=samplerate, channels=channels, dtype='int16')
-        sd.wait()
-        outdir = _samples_dir()
-        ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-        fname = filename or f'mic_sample_{ts}.wav'
-        path = os.path.join(outdir, fname)
-        try:
-            wf = wave.open(path, 'wb')
-            wf.setnchannels(channels)
-            wf.setsampwidth(2)
-            wf.setframerate(samplerate)
-            wf.writeframes(rec.tobytes())
-            wf.close()
-            print(f'Saved sample to: {path}')
-            return path
-        except Exception as e:
-            raise
-
-    def _stream_via_websocket(url: str, duration: int = 6):
-        """Stream a short microphone sample via WebSocket (best-effort).
-        Sends raw PCM frames (s16le, 16kHz, mono) to the websocket server.
-        """
-        try:
-            import websocket
-        except Exception:
-            print('[!] websocket-client not installed. Attempting to install...')
-            ok = safe_install_package('websocket-client')
-            if not ok:
-                print('[!] websocket-client required for WS streaming.')
-                return
-            try:
-                import websocket
-            except Exception:
-                print('[!] Could not import websocket-client after install.')
-                return
-
-        try:
-            import sounddevice as sd
-        except Exception:
-            print('[!] sounddevice required for WS streaming.')
-            return
-
-        samplerate = 16000
-        channels = 1
-        device = micro_state.get('selected_device')
-        rec_args = {'samplerate': samplerate, 'channels': channels, 'dtype': 'int16'}
-        if device is not None:
-            rec_args['device'] = device
-
-        print(f'Opening WebSocket {url} and streaming {duration}s...')
-        ws = websocket.create_connection(url, timeout=10)
-        try:
-            # record in small chunks and send
-            block_ms = 200
-            frames_per_block = int(samplerate * (block_ms / 1000.0))
-            with sd.InputStream(samplerate=samplerate, channels=channels, dtype='int16', device=device) as stream:
-                total_ms = duration * 1000
-                sent = 0
-                while sent < total_ms:
-                    data, _ = stream.read(frames_per_block)
-                    ws.send_binary(data.tobytes())
-                    sent += block_ms
-            print('WS streaming complete.')
-        except Exception as e:
-            print(f'WS error: {e}')
-        finally:
-            try:
-                ws.close()
-            except Exception:
-                pass
-
     # -- continuous streaming helpers --
     def _start_continuous_stream(target_ip: str, port: int, proto: str = 'udp', samplerate: int = 16000, channels: int = 1):
         try:
@@ -37120,138 +37288,12 @@ def feature_microphoney_menu():
             except Exception as e:
                 print(f'Listener error: {e}')
         elif sel == '8':
-            # Integrations submenu: HTTP POST, local API, WebSocket, favorites/samples
-            while True:
-                print('\nIntegration options:')
-                print(' [1] POST short snippet to URL (HTTP upload)')
-                print(' [2] Stream recorded snippet to local API server (/api/mic-upload)')
-                print(' [3] Stream microphone via WebSocket (ws://...)')
-                print(' [4] Record & save sample to disk')
-                print(' [5] Manage favorites (targets)')
-                print(' [0] Return')
-                sub = input('\nSelect: ').strip()
-                if sub == '1':
-                    url = input('Target HTTP URL: ').strip()
-                    dur = input('Duration seconds [4]: ').strip() or '4'
-                    try:
-                        _post_snippet(url, duration=int(dur))
-                    except Exception as e:
-                        print(f'POST failed: {e}')
-                elif sub == '2':
-                    # send via local API server endpoint
-                    api_host = input('API host (default http://127.0.0.1:5000): ').strip() or 'http://127.0.0.1:5000'
-                    dur = input('Duration seconds [4]: ').strip() or '4'
-                    target_url = api_host.rstrip('/') + '/api/mic-upload'
-                    try:
-                        print(f'Sending {dur}s sample to {target_url} ...')
-                        _post_snippet(target_url, duration=int(dur))
-                    except Exception as e:
-                        print(f'API upload failed: {e}')
-                elif sub == '3':
-                    ws = input('WebSocket URL (ws:// or wss://): ').strip()
-                    if not ws:
-                        print('No URL provided')
-                        continue
-                    dur = input('Duration seconds [6]: ').strip() or '6'
-                    try:
-                        _stream_via_websocket(ws, int(dur))
-                    except Exception as e:
-                        print(f'WebSocket stream failed: {e}')
-                elif sub == '4':
-                    fname = input('Filename (optional, will be timestamped if empty): ').strip() or None
-                    dur = input('Duration seconds [4]: ').strip() or '4'
-                    try:
-                        _save_sample(duration=int(dur), filename=fname)
-                    except Exception as e:
-                        print(f'Could not save sample: {e}')
-                elif sub == '5':
-                    # Favorites manager
-                    while True:
-                        print('\nFavorites — saved targets:')
-                        print(' [1] List favorites')
-                        print(' [2] Add favorite')
-                        print(' [3] Remove favorite')
-                        print(' [4] Stream to favorite')
-                        print(' [0] Return')
-                        fsel = input('\nSelect: ').strip()
-                        if fsel == '1':
-                            favs = _load_favorites()
-                            if not favs:
-                                print('[i] No favorites saved')
-                            else:
-                                for i, f in enumerate(favs, 1):
-                                    print(f" [{i}] {f.get('name')} -> {f.get('target')} ({f.get('proto')})")
-                        elif fsel == '2':
-                            name = input('Name for favorite: ').strip()
-                            target = input('Target (ip/url:port or URL): ').strip()
-                            proto = input('Protocol (udp/tcp/http/ws) [udp]: ').strip() or 'udp'
-                            if not name or not target:
-                                print('Name and target are required')
-                                continue
-                            _add_favorite({'name': name, 'target': target, 'proto': proto})
-                            print('Favorite added')
-                        elif fsel == '3':
-                            favs = _load_favorites()
-                            if not favs:
-                                print('[i] No favorites to remove')
-                                continue
-                            for i, f in enumerate(favs, 1):
-                                print(f" [{i}] {f.get('name')} -> {f.get('target')}")
-                            rem = input('Select number to remove: ').strip()
-                            if not rem.isdigit():
-                                print('Invalid selection')
-                                continue
-                            idx = int(rem) - 1
-                            if idx < 0 or idx >= len(favs):
-                                print('Index out of range')
-                                continue
-                            _remove_favorite(favs[idx]['name'])
-                            print('Removed')
-                        elif fsel == '4':
-                            favs = _load_favorites()
-                            if not favs:
-                                print('[i] No favorites saved')
-                                continue
-                            for i, f in enumerate(favs, 1):
-                                print(f" [{i}] {f.get('name')} -> {f.get('target')} ({f.get('proto')})")
-                            self = input('Select favorite number to stream: ').strip()
-                            if not self.isdigit():
-                                print('Invalid selection')
-                                continue
-                            idx = int(self) - 1
-                            if idx < 0 or idx >= len(favs):
-                                print('Index out of range')
-                                continue
-                            fav = favs[idx]
-                            t = fav.get('target')
-                            proto = fav.get('proto', 'udp')
-                            if proto in ('http', 'https'):
-                                try:
-                                    _post_snippet(t, duration=4)
-                                except Exception as e:
-                                    print(f'POST failed: {e}')
-                            elif proto.startswith('ws'):
-                                try:
-                                    _stream_via_websocket(t, 6)
-                                except Exception as e:
-                                    print(f'WS failed: {e}')
-                            else:
-                                # assume ip:port
-                                parts = t.split(':')
-                                host = parts[0]
-                                port = int(parts[1]) if len(parts) > 1 else 9999
-                                try:
-                                    _stream_to_ip(host, port, duration=4, proto=proto)
-                                except Exception as e:
-                                    print(f'Stream failed: {e}')
-                        elif fsel == '0':
-                            break
-                        else:
-                            print('Invalid option')
-                elif sub == '0':
-                    break
-                else:
-                    print('Invalid option')
+            url = input('Target HTTP URL: ').strip()
+            dur = input('Duration seconds [4]: ').strip() or '4'
+            try:
+                _post_snippet(url, duration=int(dur))
+            except Exception as e:
+                print(f'POST failed: {e}')
         elif sel == '9':
             print('Installing SpeechRecognition and sounddevice (optional: pyaudio).')
             ok1 = safe_install_package('SpeechRecognition')
@@ -46115,42 +46157,23 @@ def run_classic_command_center():
             print(f"📛 Node Name:       {platform.node()}")
             print_header("⚙️ CPU Architecture")
             print(f"🖥️ Processor:       {platform.processor()}")
-            if psutil is not None:
-                try:
-                    physical_cores = psutil.cpu_count(logical=False)
-                except Exception:
-                    physical_cores = 'Unavailable'
-            else:
-                physical_cores = 'psutil not installed'
-            print(f"🧠 Physical Cores:  {physical_cores}")
-            if psutil is not None:
-                try:
-                    total_threads = psutil.cpu_count(logical=True)
-                except Exception:
-                    total_threads = 'Unavailable'
-            else:
-                total_threads = 'psutil not installed'
-            print(f"🧵 Total Threads:   {total_threads}")
-            if psutil is not None:
-                try:
-                    cpufreq = psutil.cpu_freq()
-                except Exception:
-                    cpufreq = None
-            else:
-                cpufreq = None
-            if cpufreq: print(f"⚡ Max Frequency:   {cpufreq.max:.2f}Mhz")
-            if psutil is not None:
-                try:
-                    cpu_percent = psutil.cpu_percent(interval=None)
-                except Exception:
-                    cpu_percent = 0
-            else:
-                cpu_percent = 0
+            pcores, lcores = _safe_cpu_counts()
+            print(f"🧠 Physical Cores:  {pcores}")
+            print(f"🧵 Total Threads:   {lcores}")
+            maxfreq = _safe_cpu_freq()
+            if maxfreq:
+                print(f"⚡ Max Frequency:   {maxfreq:.2f}Mhz")
+            cpu_percent = _safe_cpu_percent()
             print(f"📈 Current Usage:   {draw_bar(cpu_percent)}")
             print_header("🌡️ Thermal Sensors")
             try:
-                temps = psutil.sensors_temperatures()
-                if not temps: print("🚦 Status:          No thermal sensors detected")
+                temps = None
+                if PSUTIL_AVAILABLE and psutil is not None:
+                    temps = psutil.sensors_temperatures()
+                else:
+                    temps = _safe_temperatures()
+                if not temps:
+                    print("🚦 Status:          No thermal sensors detected")
                 else:
                     unit_label = "\u00b0F" if temp_unit == "F" else "\u00b0C"
                     if truncated_thermal:
@@ -46158,21 +46181,36 @@ def run_classic_command_center():
                         other_temps = []
                         for name, entries in temps.items():
                             for entry in entries:
-                                c_temp = entry.current
+                                if isinstance(entry, dict):
+                                    c_temp = entry.get('current', None)
+                                    label = entry.get('label') or name
+                                else:
+                                    c_temp = getattr(entry, 'current', None)
+                                    label = getattr(entry, 'label', name)
+                                if c_temp is None:
+                                    continue
                                 val = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
-                                label = entry.label or name
                                 if any(x in label.lower() for x in ["core", "thermal", "soc"]):
                                     core_temps.append(val)
-                                else: other_temps.append(f"{label}: {val:.1f}{unit_label}")
+                                else:
+                                    other_temps.append(f"{label}: {val:.1f}{unit_label}")
                         if core_temps: print(f"🌡️ Avg Sensor Temp: {sum(core_temps) / len(core_temps):.1f}{unit_label}")
                         if other_temps: print(f"🌡️ Other:                 {' | '.join(other_temps)}")
                     else:
                         for name, entries in temps.items():
                             for entry in entries:
-                                label = entry.label or name
-                                disp_t = (entry.current * 9/5) + 32 if temp_unit == "F" else entry.current
+                                if isinstance(entry, dict):
+                                    c_temp = entry.get('current', None)
+                                    label = entry.get('label') or name
+                                else:
+                                    c_temp = getattr(entry, 'current', None)
+                                    label = getattr(entry, 'label', name)
+                                if c_temp is None:
+                                    continue
+                                disp_t = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
                                 print(f"🌡️ {label}: ".ljust(17) + f"{disp_t:.1f}{unit_label}")
-            except: print("🚦 Status:          Temperature sensors not supported on this OS")
+            except:
+                print("🚦 Status:          Temperature sensors not supported on this OS")
 
             print_header("🔍 Advanced Hardware Probing")
             try:
@@ -46195,25 +46233,26 @@ def run_classic_command_center():
             except: print("🌀 Fan Probing:     N/A")
 
             print_header("🧠 Memory Status")
-            try:
-                mem = psutil.virtual_memory()
-                swap = psutil.swap_memory()
-            except:
-                class MockMem:
-                    total = 0
-                    available = 0
-                    percent = 0
-                mem = MockMem()
-                class MockSwap:
-                    total = 0
-                swap = MockSwap()
+            mem_info = _safe_memory_info()
+            class _M: pass
+            mem = _M(); mem.total = mem_info['total']; mem.available = mem_info['available']; mem.percent = mem_info['percent']
+            swap = _M(); swap.total = mem_info.get('swap_total', 0)
             print(f"📏 Total RAM:       {_format_gb(mem.total)}")
             print(f"🔓 Available RAM:   {_format_gb(mem.available)}")
             print(f"📈 RAM Usage:       {draw_bar(mem.percent)}")
             print(f"🔄 Swap Total:      {_format_gb(swap.total)}")
             print_header("💽 Storage & Disk")
             try:
-                disk = psutil.disk_usage('/')
+                if PSUTIL_AVAILABLE and psutil is not None:
+                    disk = psutil.disk_usage('/')
+                else:
+                    du = shutil.disk_usage('/')
+                    class _D: pass
+                    disk = _D()
+                    disk.total = du.total
+                    disk.used = du.used
+                    disk.free = du.free
+                    disk.percent = round((du.used / du.total) * 100.0, 1) if du.total > 0 else 0.0
             except:
                 class MockDisk:
                     total = 0
