@@ -6,7 +6,7 @@
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
 # Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
-# Version: pythonOScmd201 (Base: pythonOS70, Version 21.1)
+# Version: pythonOScmd (Version 22.2)
 # Description: Terminal OS with monitoring, security tools, media capabilities
 # What if the OS can be like a game and a learning experience Like a terminal-based T.V. with all the features you could want?
 # TABLE OF CONTENTS:
@@ -432,6 +432,72 @@ def log_error(message: str, component: str = "System", exception: Optional[Excep
 def log_critical(message: str, component: str = "System", exception: Optional[Exception] = None, **context):
     LOGGER.critical(message, component, exception, **context)
 '''
+
+class PythonOSCore:
+    """Lightweight core orchestrator — groups common initialization while preserving
+    single-file execution and backwards compatibility.
+
+    - keeps the module-global `LOGGER` available for existing consumers
+    - provides a single entrypoint `initialize()` to perform safe startup steps
+    """
+
+    def __init__(self, name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", plugins_dir: str = None, display_mode_default: str = "classic"):
+        self.name = name
+        self.log_dir = log_dir
+        self.plugins_dir = plugins_dir
+        self.display_mode_default = display_mode_default
+        # reference to the module-level logger (may be reconfigured by init_logger)
+        self.logger = LOGGER
+
+    def init_logger(self) -> "CentralizedLogger":
+        """Initialize or reconfigure the centralized logger and return it."""
+        self.logger = setup_logger(name=self.name, log_dir=self.log_dir)
+        return self.logger
+
+    def init_plugins(self) -> 'PluginManager':
+        """Initialize the plugin manager (safe — returns existing manager on error)."""
+        try:
+            if self.plugins_dir:
+                pm = initialize_plugin_system(self.plugins_dir)
+            else:
+                pm = initialize_plugin_system()
+            return pm
+        except Exception as exc:
+            log_warning(f"Failed to init plugin system: {exc}", component="PythonOSCore")
+            try:
+                return get_plugin_manager()
+            except Exception:
+                return None
+
+    def detect_display(self) -> str:
+        """Detect and set global display mode; returns detected mode."""
+        try:
+            mode = detect_display_capabilities()
+            global DISPLAY_MODE, DISPLAY_INITIALIZED
+            DISPLAY_MODE = mode
+            DISPLAY_INITIALIZED = True
+            return mode
+        except Exception as exc:
+            log_warning(f"Display detection failed: {exc}", component="PythonOSCore")
+            return DISPLAY_MODE
+
+    def initialize(self) -> None:
+        """Run the full, safe initialization sequence (logger -> display -> plugins)."""
+        self.init_logger()
+        self.detect_display()
+        try:
+            self.init_plugins()
+        except Exception:
+            pass
+        log_info("PythonOSCore initialization complete", component="PythonOSCore")
+
+
+def initialize_core(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", plugins_dir: str = None) -> PythonOSCore:
+    """Convenience function: create and initialize a PythonOSCore instance."""
+    core = PythonOSCore(name=name, log_dir=log_dir, plugins_dir=plugins_dir)
+    core.initialize()
+    return core
+
 
 EMBEDDED_PLUGIN_SYSTEM = r'''"""🔌 Enhanced Plugin System for PythonOS"""
 import os, re, sys, json, hashlib
@@ -28055,8 +28121,205 @@ def feature_web_browser_center():
                 print(f"❌ Error: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
-        elif choice == '4':  # Open in Browser
-            _open_url(url)
+        elif choice == '4':  # Open in Terminal Text Browser (full-text)
+            def _text_browser(start_url: str):
+                """Minimal terminal text browser: fetch -> scrape -> paginate -> navigate.
+
+                - Works with requests+BeautifulSoup when available, falls back to urllib/html-stripping.
+                - Numbered links can be opened by typing the link number.
+                - Controls: n (next), p (prev), # (open link), s (show links), b (back), r (reload), g <url> (go), q (quit).
+                """
+                import shutil
+                import time
+                from urllib.parse import urljoin
+
+                try:
+                    import requests as _req
+                except Exception:
+                    _req = None
+
+                try:
+                    from bs4 import BeautifulSoup as _BS
+                except Exception:
+                    _BS = None
+
+                def _fetch(u: str, max_bytes: int = 1024 * 1024):
+                    headers = {'User-Agent': 'pythonOScmd-text-browser/1.0'}
+                    if _req:
+                        r = _req.get(u, headers=headers, timeout=12)
+                        ct = r.headers.get('content-type', '')
+                        # basic size guard
+                        if 'text' not in ct and 'html' not in ct:
+                            return r.url, r.status_code, ct, r.text[:max_bytes], dict(r.headers)
+                        return r.url, r.status_code, ct, r.text[:max_bytes], dict(r.headers)
+                    else:
+                        # urllib fallback
+                        from urllib.request import Request, urlopen
+                        req = Request(u, headers=headers)
+                        with urlopen(req, timeout=12) as resp:
+                            ct = resp.getheader('Content-Type', '') or ''
+                            raw = resp.read(max_bytes + 1)
+                            text = raw.decode(errors='replace')
+                            return resp.geturl(), getattr(resp, 'status', 200), ct, text, dict(resp.getheaders())
+
+                def _parse_to_lines(html: str, base: str):
+                    lines = []
+                    raw_links = []
+                    if _BS:
+                        soup = _BS(html, 'html.parser')
+                        for s in soup(['script', 'style', 'noscript']):
+                            s.decompose()
+
+                        # Treat headings and paragraphs as 'topics' (each starts on new line)
+                        for tag in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'article', 'section', 'p', 'li', 'pre']):
+                            text = tag.get_text(separator=' ', strip=True)
+                            if not text:
+                                continue
+                            if tag.name.startswith('h'):
+                                lines.append('')
+                                lines.append(text)
+                                lines.append('-' * min(len(text), 80))
+                            elif tag.name in ('article', 'section'):
+                                lines.append('')
+                                lines.append(text)
+                            elif tag.name == 'pre':
+                                lines.append('')
+                                for ln in text.splitlines():
+                                    lines.append('    ' + ln)
+                            else:
+                                lines.append(text)
+
+                            # collect anchors inside this tag
+                            for a in tag.find_all('a', href=True):
+                                href = a['href'].strip()
+                                atext = a.get_text(strip=True) or href
+                                raw_links.append((href, atext))
+
+                        # add any anchors not already collected
+                        for a in soup.find_all('a', href=True):
+                            href = a['href'].strip()
+                            atext = a.get_text(strip=True) or href
+                            raw_links.append((href, atext))
+
+                    else:
+                        # very small fallback: strip tags and split lines
+                        import re
+                        txt = re.sub(r'<(script|style).*?>.*?</\1>', '', html, flags=re.S | re.I)
+                        txt = re.sub(r'<[^>]+>', '', txt)
+                        for ln in txt.splitlines():
+                            ln = ln.strip()
+                            if ln:
+                                lines.append(ln)
+
+                    # normalize and dedupe links
+                    links = []
+                    seen = set()
+                    for href, atext in raw_links:
+                        abs_href = urljoin(base, href)
+                        if abs_href in seen:
+                            continue
+                        seen.add(abs_href)
+                        links.append((abs_href, atext))
+
+                    return lines, links
+
+                history = []
+                current = start_url
+
+                while True:
+                    try:
+                        final_url, status, ctype, html, headers = _fetch(current)
+                    except Exception as e:
+                        print(f"❌ Failed to fetch {current}: {e}")
+                        input("[Enter to continue]")
+                        return
+
+                    lines, links = _parse_to_lines(html, final_url)
+
+                    # paginate by terminal height
+                    rows, cols = shutil.get_terminal_size((80, 24))
+                    footer_lines = 6
+                    page_h = max(5, rows - footer_lines)
+                    pages = [lines[i:i + page_h] for i in range(0, max(1, len(lines)), page_h)]
+                    page_idx = 0
+
+                    while True:
+                        os.system('cls' if os.name == 'nt' else 'clear')
+                        print_header('📖 Text Browser', extra_info=final_url)
+                        page = pages[page_idx] if pages else []
+                        for ln in page:
+                            print(ln)
+
+                        print('\n' + '-' * min(cols, 100))
+                        # show a short links summary
+                        if links:
+                            print('Links:', end=' ')
+                            for i, (href, text) in enumerate(links[:10], start=1):
+                                short = text if len(text) <= 30 else text[:27] + '...'
+                                print(f'[{i}] {short}', end='  ')
+                            if len(links) > 10:
+                                print(f'(+{len(links) - 10} more)')
+                            else:
+                                print()
+                        else:
+                            print('No links found on this page.')
+
+                        print('\nControls: [n] Next  [p] Prev  [#] Open link  [s] Show links  [b] Back  [r] Reload  [g URL] Go to URL  [q] Quit')
+                        cmd = input('Input: ').strip()
+
+                        if cmd == '' or cmd.lower() == 'n':
+                            if page_idx + 1 < len(pages):
+                                page_idx += 1
+                            else:
+                                # already at last page
+                                pass
+                            continue
+                        if cmd.lower() == 'p':
+                            if page_idx > 0:
+                                page_idx -= 1
+                            continue
+                        if cmd.lower() == 'r':
+                            break  # reload
+                        if cmd.lower().startswith('g '):
+                            new = cmd[2:].strip()
+                            if not new.startswith('http'):
+                                new = 'https://' + new
+                            history.append(current)
+                            current = new
+                            break
+                        if cmd.lower() == 's':
+                            os.system('cls' if os.name == 'nt' else 'clear')
+                            print_header('🔗 Links', extra_info=final_url)
+                            for i, (href, text) in enumerate(links, start=1):
+                                print(f'{i:3d}. {text} - {href}')
+                            input('\n[Enter to return]')
+                            continue
+                        if cmd.lower() == 'b':
+                            if history:
+                                current = history.pop()
+                                break
+                            else:
+                                return
+                        if cmd.lower() in ('q', 'x'):
+                            return
+                        # try opening a link number
+                        try:
+                            n = int(cmd)
+                            if 1 <= n <= len(links):
+                                history.append(current)
+                                current = links[n - 1][0]
+                                break
+                            else:
+                                print('Invalid link number')
+                                time.sleep(0.5)
+                                continue
+                        except ValueError:
+                            print('Unknown command')
+                            time.sleep(0.5)
+                            continue
+
+            # call the text browser
+            _text_browser(url)
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         # ========== HTTP & API TESTING ==========
