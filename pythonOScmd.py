@@ -6,7 +6,7 @@
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
 # Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
-# Version: pythonOScmd (Version 22.2)
+# Version: pythonOScmd (Version 23)
 # Description: Terminal OS with monitoring, security tools, media capabilities
 # What if the OS can be like a game and a learning experience Like a terminal-based T.V. with all the features you could want?
 # TABLE OF CONTENTS:
@@ -996,7 +996,7 @@ def register_api_endpoints(gateway) -> None:
         from pythonOS_data.api_gateway import APIEndpoint, HTTPMethod, APIVersion, DeprecationStatus
     except ImportError:
         return
-    
+
     # Register physics calculation endpoints
     endpoints = [
         APIEndpoint(
@@ -1023,7 +1023,7 @@ def register_api_endpoints(gateway) -> None:
             tags=["ai", "metadata"]
         ),
     ]
-    
+
     for endpoint in endpoints:
         gateway.register_endpoint(endpoint)
 
@@ -1033,7 +1033,7 @@ def integrate_with_microservices(orchestrator) -> None:
         from pythonOS_data.microservices import LoadBalancingStrategy
     except ImportError:
         return
-    
+
     # Register AI service
     service_id = orchestrator.register_service(
         service_name="pyai-calculator",
@@ -1046,7 +1046,7 @@ def integrate_with_microservices(orchestrator) -> None:
             "timeout_ms": 5000
         }
     )
-    
+
     # Register additional AI service instances for load balancing
     orchestrator.register_service(
         service_name="pyai-calculator",
@@ -1059,7 +1059,7 @@ def integrate_with_microservices(orchestrator) -> None:
             "timeout_ms": 5000
         }
     )
-    
+
     orchestrator.register_service(
         service_name="pyai-calculator",
         host="127.0.0.1",
@@ -1071,7 +1071,7 @@ def integrate_with_microservices(orchestrator) -> None:
             "timeout_ms": 5000
         }
     )
-    
+
     return service_id
 
 def run_task(name: str, **kwargs: Any) -> Dict[str, Any]:
@@ -2028,12 +2028,12 @@ class CacheEntry:
     last_accessed: float
     access_count: int
     ttl_seconds: int
-    
+
     def is_expired(self) -> bool:
         if self.ttl_seconds <= 0:
             return False
         return time.time() > (self.created_at + self.ttl_seconds)
-    
+
     def update_access(self):
         self.last_accessed = time.time()
         self.access_count += 1
@@ -2046,26 +2046,26 @@ class CacheEngine:
         self.hits = 0
         self.misses = 0
         self.evictions = 0
-    
+
     def get(self, key: str) -> Optional[Any]:
         if key not in self.cache:
             self.misses += 1
             return None
-        
+
         entry = self.cache[key]
         if entry.is_expired():
             del self.cache[key]
             self.misses += 1
             return None
-        
+
         entry.update_access()
         self.cache.move_to_end(key)
         self.hits += 1
         return entry.value
-    
+
     def set(self, key: str, value: Any, ttl: int = 300) -> None:
         now = time.time()
-        
+
         if key in self.cache:
             entry = self.cache[key]
             entry.value = value
@@ -2079,7 +2079,7 @@ class CacheEngine:
             entry = CacheEntry(key=key, value=value, created_at=now, last_accessed=now, access_count=1, ttl_seconds=ttl)
             self.cache[key] = entry
             self.cache.move_to_end(key)
-    
+
     def _evict_one(self) -> None:
         if not self.cache:
             return
@@ -2091,7 +2091,7 @@ class CacheEngine:
             key = next(iter(self.cache))
         del self.cache[key]
         self.evictions += 1
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         total = self.hits + self.misses
         hit_rate = (self.hits / total * 100) if total > 0 else 0
@@ -2142,11 +2142,11 @@ class EventStreamEngine:
         self.event_queue = Queue()
         self.running = False
         self.processing_thread = None
-    
+
     def subscribe(self, topic: str, callback: Callable) -> str:
         self.subscribers[topic].append(callback)
         return f"{topic}_{id(callback)}"
-    
+
     def publish(self, topic: str, data: Dict[str, Any], source: str = "system", priority: int = 5) -> Event:
         event = Event(topic=topic, data=data, timestamp=time.time(), source=source, priority=priority)
         self.event_history.append(event)
@@ -2154,7 +2154,7 @@ class EventStreamEngine:
             self.event_history.pop(0)
         self.event_queue.put(event)
         return event
-    
+
     def _process_events(self):
         while self.running:
             try:
@@ -2166,13 +2166,13 @@ class EventStreamEngine:
                         pass
             except:
                 pass
-    
+
     def start_processor(self):
         if not self.running:
             self.running = True
             self.processing_thread = threading.Thread(target=self._process_events, daemon=True)
             self.processing_thread.start()
-    
+
     def get_statistics(self) -> Dict[str, Any]:
         topics = defaultdict(int)
         for event in self.event_history:
@@ -2217,17 +2217,17 @@ class MediaAIEngine:
     def __init__(self):
         self.media_items: Dict[str, MediaItem] = {}
         self.duplicate_groups: List[List[str]] = []
-    
+
     def scan_media_directory(self, directory: str, recursive: bool = True) -> List[MediaItem]:
         MEDIA_EXTENSIONS = {
             'images': {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'},
             'videos': {'.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv'},
             'audio': {'.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a'}
         }
-        
+
         media_items = []
         pattern = "**/*" if recursive else "*"
-        
+
         for file_path in Path(directory).glob(pattern):
             if not file_path.is_file():
                 continue
@@ -2242,7 +2242,7 @@ class MediaAIEngine:
                 media_items.append(item)
                 self.media_items[str(file_path)] = item
         return media_items
-    
+
     def suggest_organization(self, items: List[MediaItem]) -> Dict[str, List[MediaItem]]:
         organization = defaultdict(list)
         for item in items:
@@ -2256,7 +2256,7 @@ class MediaAIEngine:
                 folder = "Other"
             organization[folder].append(item)
         return organization
-    
+
     def get_quality_stats(self, items: List[MediaItem]) -> Dict[str, Any]:
         total_size = sum(item.size_mb for item in items)
         counts = defaultdict(int)
@@ -2299,7 +2299,7 @@ class AIAssistant:
         self.event_stream = None
         self.cache_engine = None
         self._load_scripts_registry()
-    
+
     def _load_scripts_registry(self):
         """Registry of all available scripts for task execution."""
         self.scripts = {
@@ -2312,13 +2312,13 @@ class AIAssistant:
             "plugins": {"module": "plugin_system", "functions": ["load_plugin", "list_plugins"], "description": "Plugin management"},
             "logs": {"module": "logger_system", "functions": ["log_entry", "query_logs"], "description": "Logging"},
         }
-    
+
     def register_dependencies(self, ai_brain=None, event_stream=None, cache_engine=None):
         """Register references to other modules."""
         self.ai_brain = ai_brain
         self.event_stream = event_stream
         self.cache_engine = cache_engine
-    
+
     def create_task(self, name: str, description: str, category: str, priority: int = 5) -> Task:
         """Create a new task with AI assistance."""
         task = Task(name=name, description=description, category=category, priority=priority, created_at=time.time())
@@ -2326,7 +2326,7 @@ class AIAssistant:
         if self.event_stream:
             self.event_stream.publish("task.created", {"task": name, "category": category})
         return task
-    
+
     def suggest_scripts(self, task_name: str) -> List[Dict[str, Any]]:
         """Suggest scripts that could help with a task."""
         task = self.tasks.get(task_name)
@@ -2337,7 +2337,7 @@ class AIAssistant:
             if task.category.lower() in script_type or script_type in task.category.lower():
                 suggestions.append({"script": script_info["module"], "functions": script_info["functions"], "match": task.category})
         return suggestions
-    
+
     def execute_task(self, task_name: str, script_module: str, function: str, **kwargs) -> Dict[str, Any]:
         """Execute a task using specified script function."""
         result = {"task": task_name, "script": script_module, "function": function, "status": "pending"}
@@ -2356,18 +2356,18 @@ class AIAssistant:
             result["status"] = "error"
             result["error"] = str(e)
         return result
-    
+
     def get_task_status(self, task_name: str) -> Dict[str, Any]:
         """Get status of a task."""
         task = self.tasks.get(task_name)
         if not task:
             return {"status": "not_found"}
         return {"name": task.name, "status": task.status, "category": task.category, "priority": task.priority, "created": datetime.fromtimestamp(task.created_at).isoformat()}
-    
+
     def get_available_scripts(self) -> Dict[str, Any]:
         """Get list of all available scripts."""
         return {name: info["description"] for name, info in self.scripts.items()}
-    
+
     def get_script_details(self, script_type: str) -> Dict[str, Any]:
         """Get detailed info about a script."""
         if script_type not in self.scripts:
@@ -2376,6 +2376,132 @@ class AIAssistant:
 
 def manifest():
     return {"name": "ai_assistant", "version": "1.0", "type": "task_management", "description": "AI Assistant for task management and script integration"}
+'''
+
+EMBEDDED_SATELLITE_LINKS = r'''#!/usr/bin/env python3
+"""Satellite Links receiver and matcher (embedded)
+
+Auto-extracted copy of pythonOS_data/satellite_links.py
+"""
+
+from __future__ import annotations
+import json
+import math
+import time
+from pathlib import Path
+from typing import List, Dict
+
+# Optional deps intentionally not imported at embed-time (runtime may be different)
+try:
+    import serial
+except Exception:
+    serial = None
+
+try:
+    import pynmea2
+except Exception:
+    pynmea2 = None
+
+_HAS_SKYFIELD = False
+try:
+    from skyfield.api import EarthSatellite, load, wgs84
+    _HAS_SKYFIELD = True
+except Exception:
+    _HAS_SKYFIELD = False
+
+THIS_DIR = Path(__file__).resolve().parent
+ORBITAL_DB = THIS_DIR / "orbital_memory.json"
+OBSERVATION_DB = THIS_DIR / "orbital_observations.json"
+DEFAULT_PORT = "/dev/ttyUSB0"
+DEFAULT_BAUD = 9600
+DEFAULT_ELEVATION_THRESHOLD_DEG = 10.0
+
+def _haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * (2 * math.atan2(math.sqrt(a), math.sqrt(1 - a)))
+
+def _load_tles_from_orbital_memory(path: Path = ORBITAL_DB) -> List[Dict[str, str]]:
+    if not path.exists():
+        return []
+    with open(path, "r") as f:
+        data = json.load(f)
+    sats = []
+    for name, raw in (data.get("satellites") or {}).items():
+        if not isinstance(raw, str):
+            continue
+        lines = [ln for ln in raw.splitlines() if ln.strip()]
+        if len(lines) >= 3 and lines[0].strip().startswith(name.split()[0]):
+            line1, line2 = lines[1], lines[2]
+        elif len(lines) >= 2 and (lines[0].startswith('1 ') and lines[1].startswith('2 ')):
+            line1, line2 = lines[0], lines[1]
+        else:
+            continue
+        sats.append({"name": name, "line1": line1, "line2": line2})
+    return sats
+
+def _load_or_create_obs_db(path: Path = OBSERVATION_DB) -> Dict:
+    if not path.exists():
+        return {"observations": []}
+    try:
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {"observations": []}
+
+def _append_observation(entry: Dict, path: Path = OBSERVATION_DB) -> None:
+    db = _load_or_create_obs_db(path)
+    db.setdefault("observations", []).append(entry)
+    try:
+        with open(path, "w") as f:
+            json.dump(db, f, indent=2)
+    except Exception:
+        pass
+
+class SatelliteMatcher:
+    def __init__(self, tle_list: List[Dict[str, str]]):
+        self.tle_list = tle_list
+        self._sat_objs = []
+        if _HAS_SKYFIELD and self.tle_list:
+            ts = load.timescale()
+            for tle in self.tle_list:
+                try:
+                    sat = EarthSatellite(tle["line1"], tle["line2"], tle["name"], ts=ts)
+                    self._sat_objs.append((tle["name"], sat))
+                except Exception:
+                    continue
+
+    def match(self, lat: float, lon: float, elevation_m: float = 0.0, elevation_threshold_deg: float = 10.0, max_results: int = 6) -> List[Dict]:
+        if not _HAS_SKYFIELD or not self._sat_objs:
+            return []
+        ts = load.timescale()
+        t = ts.now()
+        observer = wgs84.latlon(latitude_degrees=lat, longitude_degrees=lon, elevation_m=elevation_m)
+        results = []
+        for name, sat in self._sat_objs:
+            try:
+                topocentric = sat.at(t).observe_from(observer)
+                alt, az, distance = topocentric.altaz()
+                elevation_deg = alt.degrees
+                if elevation_deg >= elevation_threshold_deg:
+                    sub = sat.at(t).subpoint()
+                    results.append({
+                        "name": name,
+                        "elevation_deg": elevation_deg,
+                        "azimuth_deg": az.degrees,
+                        "distance_km": distance.km,
+                        "subpoint_lat": sub.latitude.degrees,
+                        "subpoint_lon": sub.longitude.degrees,
+                        "subpoint_height_km": sub.elevation.km,
+                    })
+            except Exception:
+                continue
+        results.sort(key=lambda r: r["elevation_deg"], reverse=True)
+        return results[:max_results]
 '''
 # ================================================================================
 # EMBEDDED ADVANCED WIDGETS (DataTable, Sparkline, ProgressBar, Digits)
@@ -2401,41 +2527,41 @@ class DataTable:
     def __init__(self, config: DataTableConfig):
         self.config = config
         self.current_page = config.page
-    
+
     def render_ascii(self) -> str:
         """Render table in ASCII format (all devices)."""
         if not self.config.rows:
             return f"{self.config.title}\n[No data]"
-        
+
         lines = [f"╔═ {self.config.title} ═╗"]
         col_widths = [max(len(str(c)), 10) for c in self.config.columns]
         header = " │ ".join(f"{c:<{w}}" for c, w in zip(self.config.columns, col_widths))
         lines.append(f"║ {header} ║")
         lines.append("╠" + "═".join("═" * (w + 2) for w in col_widths) + "╣")
-        
+
         start = (self.current_page - 1) * self.config.max_rows
         end = min(start + self.config.max_rows, len(self.config.rows))
-        
+
         for row in self.config.rows[start:end]:
             row_str = " │ ".join(f"{str(v):<{w}}" for v, w in zip(row, col_widths))
             lines.append(f"║ {row_str} ║")
-        
+
         lines.append("╚" + "═".join("═" * (w + 2) for w in col_widths) + "╝")
         return "\n".join(lines)
-    
+
     def next_page(self) -> bool:
         max_pages = math.ceil(len(self.config.rows) / self.config.max_rows)
         if self.current_page < max_pages:
             self.current_page += 1
             return True
         return False
-    
+
     def prev_page(self) -> bool:
         if self.current_page > 1:
             self.current_page -= 1
             return True
         return False
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON for cross-device compatibility."""
         return {
@@ -2452,17 +2578,17 @@ class Sparkline:
         self.data = data
         self.width = width
         self.chars = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█']
-    
+
     def render_ascii(self) -> str:
         """Render sparkline using Unicode (fallback to ASCII)."""
         if not self.data or len(self.data) < 2:
             return "N/A"
-        
+
         try:
             min_val = min(self.data)
             max_val = max(self.data)
             range_val = max_val - min_val or 1
-            
+
             sampled = self._sample_data(len(self.chars))
             sparkline = ""
             for val in sampled:
@@ -2472,14 +2598,14 @@ class Sparkline:
             return sparkline
         except:
             return "".join(['▄' if x > sum(self.data)/len(self.data) else '▁' for x in self.data[:self.width]])
-    
+
     def _sample_data(self, num_points: int) -> List[float]:
         """Sample data to fit width."""
         if len(self.data) <= num_points:
             return self.data
         step = len(self.data) / num_points
         return [self.data[int(i * step)] for i in range(num_points)]
-    
+
     def get_stats(self) -> Dict[str, float]:
         """Get trend statistics."""
         return {
@@ -2495,24 +2621,24 @@ class ProgressBar:
         self.total = total
         self.current = 0
         self.label = label
-    
+
     def update(self, amount: int) -> None:
         """Update progress."""
         self.current = min(amount, self.total)
-    
+
     def render_ascii(self, width: int = 30) -> str:
         """Render progress bar (ASCII safe)."""
         percentage = (self.current / self.total * 100) if self.total > 0 else 0
         filled = int(width * self.current / self.total) if self.total > 0 else 0
-        
+
         bar = "█" * filled + "░" * (width - filled)
         return f"{self.label} [{bar}] {percentage:.1f}%"
-    
+
     def render_minimal(self) -> str:
         """Minimal render for low-resource devices."""
         percentage = (self.current / self.total * 100) if self.total > 0 else 0
         return f"{self.label}: {percentage:.0f}%"
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -2538,10 +2664,10 @@ class DigitsDisplay:
         ':': ['', '██', '', '██', ''],
         ' ': ['   ', '   ', '   ', '   ', '   '],
     }
-    
+
     def __init__(self, value: str):
         self.value = str(value).upper()
-    
+
     def render_ascii(self) -> str:
         """Render large digits."""
         lines = ['', '', '', '', '']
@@ -2551,7 +2677,7 @@ class DigitsDisplay:
                 for i, line in enumerate(digit_lines):
                     lines[i] += line + "  "
         return "\n".join(lines)
-    
+
     def render_minimal(self) -> str:
         """Simple text render."""
         return f"[{self.value}]"
@@ -2581,7 +2707,7 @@ class ExecutionMode(Enum):
 
 class ScriptOrchestrator:
     """Coordinates execution of all embedded scripts."""
-    
+
     def __init__(self):
         self.scripts: Dict[str, Dict[str, Any]] = {}
         self.execution_mode = ExecutionMode.LOCAL
@@ -2589,19 +2715,19 @@ class ScriptOrchestrator:
         self.cache = {}
         self.execution_log: List[Dict[str, Any]] = []
         self.dependencies: Dict[str, List[str]] = defaultdict(list)
-    
+
     def _detect_device(self) -> Dict[str, Any]:
         """Detect device capabilities."""
         import platform
         import psutil
-        
+
         try:
             cpu_count = psutil.cpu_count()
             memory_mb = psutil.virtual_memory().total / (1024 * 1024)
         except:
             cpu_count = 1
             memory_mb = 64
-        
+
         device_type = "unknown"
         if "arm" in platform.machine().lower():
             device_type = "arm"
@@ -2609,7 +2735,7 @@ class ScriptOrchestrator:
             device_type = "x86"
         elif "esp" in platform.machine().lower():
             device_type = "esp32"
-        
+
         return {
             "machine": platform.machine(),
             "system": platform.system(),
@@ -2618,7 +2744,7 @@ class ScriptOrchestrator:
             "device_type": device_type,
             "is_low_resource": memory_mb < 512 or cpu_count < 2
         }
-    
+
     def register_script(self, name: str, script_data: Dict[str, Any], dependencies: List[str] = None):
         """Register a script with orchestrator."""
         self.scripts[name] = {
@@ -2630,48 +2756,48 @@ class ScriptOrchestrator:
         }
         if dependencies:
             self.dependencies[name] = dependencies
-    
+
     def set_execution_mode(self, mode: ExecutionMode):
         """Set execution mode based on device capability."""
         self.execution_mode = mode
-    
+
     def auto_select_mode(self):
         """Automatically select best execution mode."""
         if self.device_profile["is_low_resource"]:
             self.execution_mode = ExecutionMode.MINIMAL
         else:
             self.execution_mode = ExecutionMode.LOCAL
-    
+
     def execute_script(self, script_name: str, params: Dict[str, Any] = None, use_cache: bool = True) -> Dict[str, Any]:
         """Execute a script with optimal settings."""
         if params is None:
             params = {}
-        
+
         cache_key = f"{script_name}:{json.dumps(params, sort_keys=True, default=str)}"
-        
+
         if use_cache and cache_key in self.cache:
             return {"status": "cached", "result": self.cache[cache_key], "mode": "cached"}
-        
+
         if script_name not in self.scripts:
             return {"status": "error", "message": f"Script '{script_name}' not registered"}
-        
+
         try:
             script_info = self.scripts[script_name]
-            
+
             # Check dependencies
             for dep in self.dependencies.get(script_name, []):
                 if dep not in self.scripts:
                     return {"status": "error", "message": f"Missing dependency: {dep}"}
-            
+
             # Execute based on mode
             if self.execution_mode == ExecutionMode.MINIMAL:
                 result = self._execute_minimal(script_name, params)
             else:
                 result = self._execute_normal(script_name, params)
-            
+
             script_info["executions"] += 1
             self.cache[cache_key] = result
-            
+
             self.execution_log.append({
                 "script": script_name,
                 "timestamp": time.time(),
@@ -2679,9 +2805,9 @@ class ScriptOrchestrator:
                 "status": "success",
                 "device": self.device_profile["device_type"]
             })
-            
+
             return {"status": "success", "result": result, "mode": self.execution_mode.value}
-        
+
         except Exception as e:
             script_info["failures"] += 1
             self.execution_log.append({
@@ -2691,15 +2817,15 @@ class ScriptOrchestrator:
                 "error": str(e)
             })
             return {"status": "error", "message": str(e)}
-    
+
     def _execute_normal(self, script_name: str, params: Dict[str, Any]) -> Any:
         """Normal execution mode."""
         return f"Executing {script_name} with {params}"
-    
+
     def _execute_minimal(self, script_name: str, params: Dict[str, Any]) -> Any:
         """Minimal execution for low-resource devices."""
         return f"Minimal: {script_name}"
-    
+
     def get_device_optimized_config(self, script_name: str) -> Dict[str, Any]:
         """Get device-optimized configuration for a script."""
         config = {
@@ -2710,7 +2836,7 @@ class ScriptOrchestrator:
             "use_cache": self.device_profile["is_low_resource"]
         }
         return config
-    
+
     def get_compatibility_report(self) -> Dict[str, Any]:
         """Get compatibility report for all registered scripts."""
         return {
@@ -2742,19 +2868,19 @@ from typing import Dict, List, Any, Optional, Callable
 
 class DeviceAdapter:
     """Adapts code execution for different device types."""
-    
+
     SUPPORTED_DEVICES = ["x86", "arm", "esp32", "riscv", "mips", "amd", "intel"]
-    
+
     def __init__(self):
         self.device_type = self._detect_device()
         self.capabilities = self._get_capabilities()
         self.fallbacks = self._setup_fallbacks()
-    
+
     def _detect_device(self) -> str:
         """Detect device type."""
         machine = sys.platform.lower()
         arch = os.uname()[4] if hasattr(os, 'uname') else 'unknown'
-        
+
         if 'arm' in arch or 'aarch' in arch:
             return 'arm'
         elif 'x86' in arch or 'amd64' in arch or 'x64' in arch:
@@ -2767,7 +2893,7 @@ class DeviceAdapter:
             return 'mips'
         else:
             return 'unknown'
-    
+
     def _get_capabilities(self) -> Dict[str, bool]:
         """Get device capabilities."""
         capabilities = {
@@ -2777,14 +2903,14 @@ class DeviceAdapter:
             "has_filesystem": True,
             "has_gui": True,
         }
-        
+
         # Low-resource devices
         if self.device_type in ['esp32', 'arm']:
             capabilities["has_multiprocessing"] = False
             capabilities["has_gui"] = False
-        
+
         return capabilities
-    
+
     def _setup_fallbacks(self) -> Dict[str, Callable]:
         """Setup fallback implementations."""
         return {
@@ -2792,23 +2918,23 @@ class DeviceAdapter:
             "multiprocessing": self._fallback_multiprocessing,
             "gui": self._fallback_gui,
         }
-    
+
     def _fallback_threading(self, func: Callable) -> Callable:
         """Fallback for threading on limited devices."""
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         return wrapper
-    
+
     def _fallback_multiprocessing(self, func: Callable) -> Callable:
         """Fallback for multiprocessing (run sequentially)."""
         def wrapper(*args, **kwargs):
             return func(*args, **kwargs)
         return wrapper
-    
+
     def _fallback_gui(self) -> Dict[str, str]:
         """Fallback for GUI (text-based)."""
         return {"mode": "text", "renderer": "ascii"}
-    
+
     def adapt_import(self, module_name: str, fallback_module: Optional[str] = None) -> Any:
         """Safely import with fallback."""
         try:
@@ -2820,7 +2946,7 @@ class DeviceAdapter:
                 except ImportError:
                     return None
             return None
-    
+
     def get_optimal_settings(self) -> Dict[str, Any]:
         """Get optimal settings for device."""
         return {
@@ -2830,11 +2956,11 @@ class DeviceAdapter:
             "threading_enabled": self.capabilities["has_threading"],
             "multiprocessing_enabled": self.capabilities["has_multiprocessing"]
         }
-    
+
     def is_compatible(self, required_features: List[str]) -> bool:
         """Check if device is compatible with required features."""
         return all(self.capabilities.get(f, False) for f in required_features)
-    
+
     def get_compatibility_matrix(self) -> Dict[str, Dict[str, bool]]:
         """Get full compatibility matrix."""
         matrix = {}
@@ -4467,21 +4593,21 @@ class CollapsibleSection:
     event_handler: Optional[Callable] = None
     level: int = 0  # Nesting level
     children: List['CollapsibleSection'] = field(default_factory=list)
-    
+
     def render_ascii(self) -> str:
         """Render collapsible section."""
         indicator = "▼" if self.expanded else "▶"
         indent = "  " * self.level
         lines = [f"{indent}{indicator} {self.title}"]
-        
+
         if self.expanded:
             for line in self.content.split('\n'):
                 lines.append(f"{indent}  {line}")
             for child in self.children:
                 lines.extend(child.render_ascii().split('\n'))
-        
+
         return '\n'.join(lines)
-    
+
     def toggle(self) -> bool:
         """Toggle expanded state."""
         self.expanded = not self.expanded
@@ -4492,12 +4618,12 @@ class CollapsibleSection:
                 'expanded': self.expanded
             })
         return self.expanded
-    
+
     def add_child(self, section: 'CollapsibleSection') -> None:
         """Add nested section."""
         section.level = self.level + 1
         self.children.append(section)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4516,17 +4642,17 @@ class ModalDialog:
     result: Optional[str] = None
     visible: bool = False
     on_close: Optional[Callable] = None
-    
+
     def render_ascii(self, width: int = 60) -> str:
         """Render modal dialog in ASCII."""
         if not self.visible:
             return ""
-        
+
         border = "┌" + "─" * (width - 2) + "┐"
         lines = [border]
         lines.append(f"│ {self.title:<{width-4}} │")
         lines.append("├" + "─" * (width - 2) + "┤")
-        
+
         # Word wrap message
         words = self.message.split()
         current_line = ""
@@ -4538,24 +4664,24 @@ class ModalDialog:
                 current_line = word + " "
         if current_line:
             lines.append(f"│ {current_line:<{width-4}} │")
-        
+
         lines.append("├" + "─" * (width - 2) + "┤")
-        
+
         # Buttons
         button_line = " | ".join(f"[{b}]" for b in self.buttons)
         lines.append(f"│ {button_line:<{width-4}} │")
         lines.append("└" + "─" * (width - 2) + "┘")
-        
+
         return '\n'.join(lines)
-    
+
     def show(self) -> None:
         """Show modal dialog."""
         self.visible = True
-    
+
     def hide(self) -> None:
         """Hide modal dialog."""
         self.visible = False
-    
+
     def click_button(self, button: str) -> None:
         """Handle button click."""
         if button in self.buttons:
@@ -4563,7 +4689,7 @@ class ModalDialog:
             self.visible = False
             if self.on_close:
                 self.on_close({'button': button, 'dialog': self.title})
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4576,22 +4702,22 @@ class ModalDialog:
 
 class ContextMenu:
     """Context menu for right-click interactions."""
-    
+
     def __init__(self, items: Optional[List[Dict[str, Any]]] = None):
         """Initialize context menu.
-        
+
         items: [{"label": "Copy", "action": func, "enabled": True}, ...]
         """
         self.items = items or []
         self.visible = False
         self.position = (0, 0)
         self.selected_index = -1
-    
+
     def render_ascii(self) -> str:
         """Render context menu."""
         if not self.visible or not self.items:
             return ""
-        
+
         lines = ["┌─────────────────────┐"]
         for i, item in enumerate(self.items):
             enabled = item.get('enabled', True)
@@ -4600,20 +4726,20 @@ class ContextMenu:
             state = label if enabled else f"({label})"
             lines.append(f"│ {marker} {state:<17} │")
         lines.append("└─────────────────────┘")
-        
+
         return '\n'.join(lines)
-    
+
     def show(self, x: int = 0, y: int = 0) -> None:
         """Show context menu at position."""
         self.visible = True
         self.position = (x, y)
         self.selected_index = 0
-    
+
     def hide(self) -> None:
         """Hide context menu."""
         self.visible = False
         self.selected_index = -1
-    
+
     def select_item(self, index: int) -> Any:
         """Select menu item and execute action."""
         if 0 <= index < len(self.items):
@@ -4625,8 +4751,8 @@ class ContextMenu:
                     return action()
             return None
         return None
-    
-    def add_item(self, label: str, action: Optional[Callable] = None, 
+
+    def add_item(self, label: str, action: Optional[Callable] = None,
                  enabled: bool = True) -> None:
         """Add menu item."""
         self.items.append({
@@ -4634,14 +4760,14 @@ class ContextMenu:
             'action': action,
             'enabled': enabled
         })
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
             'items_count': len(self.items),
             'visible': self.visible,
             'position': self.position,
-            'items': [{'label': item['label'], 'enabled': item.get('enabled', True)} 
+            'items': [{'label': item['label'], 'enabled': item.get('enabled', True)}
                      for item in self.items]
         }
 
@@ -4654,26 +4780,26 @@ class DragDropHandler:
     target: Optional[str] = None
     data: Dict[str, Any] = field(default_factory=dict)
     on_drop: Optional[Callable] = None
-    
+
     def start_drag(self, source_id: str, data: Dict[str, Any]) -> None:
         """Start drag operation."""
         if self.enabled:
             self.dragging = True
             self.source = source_id
             self.data = data
-    
+
     def drag_over(self, target_id: str) -> None:
         """Handle drag over target."""
         if self.dragging:
             self.target = target_id
-    
+
     def end_drag(self) -> None:
         """End drag operation without drop."""
         self.dragging = False
         self.source = None
         self.target = None
         self.data = {}
-    
+
     def drop(self, target_id: str) -> Dict[str, Any]:
         """Drop on target."""
         if self.dragging and self.source:
@@ -4692,7 +4818,7 @@ class DragDropHandler:
             self.target = None
             return result
         return {'success': False}
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4758,7 +4884,7 @@ class TabPanel:
     tabs: List[Tab] = field(default_factory=list)
     active_tab_id: Optional[str] = None
     on_tab_change: Optional[Callable] = None
-    
+
     def add_tab(self, title: str, content: str, icon: Optional[str] = None) -> str:
         """Add new tab and return its ID."""
         tab_id = f"tab_{len(self.tabs)}_{int(time.time() * 1000)}"
@@ -4767,7 +4893,7 @@ class TabPanel:
         if self.active_tab_id is None:
             self.active_tab_id = tab_id
         return tab_id
-    
+
     def select_tab(self, tab_id: str) -> bool:
         """Select a tab by ID."""
         if any(t.id == tab_id for t in self.tabs):
@@ -4776,27 +4902,27 @@ class TabPanel:
                 self.on_tab_change({'tab_id': tab_id, 'event': 'tab_changed'})
             return True
         return False
-    
+
     def render_ascii(self) -> str:
         """Render tabs as ASCII."""
         if not self.tabs:
             return "[No tabs]"
-        
+
         tab_headers = []
         for tab in self.tabs:
             indicator = "▶" if tab.id == self.active_tab_id else " "
             icon = f"{tab.icon} " if tab.icon else ""
             tab_headers.append(f"{indicator} {icon}{tab.title}")
-        
+
         header_line = " | ".join(tab_headers)
         separator = "─" * len(header_line)
-        
+
         active_tab = next((t for t in self.tabs if t.id == self.active_tab_id), None)
         content = active_tab.content if active_tab else ""
-        
+
         lines = [header_line, separator, content]
         return "\n".join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4816,29 +4942,29 @@ class TreeNode:
     level: int = 0
     icon: str = "●"
     on_select: Optional[Callable] = None
-    
+
     def toggle(self) -> bool:
         """Toggle expanded state."""
         self.expanded = not self.expanded
         return self.expanded
-    
+
     def add_child(self, child: 'TreeNode') -> None:
         """Add child node."""
         child.level = self.level + 1
         self.children.append(child)
-    
+
     def render_ascii(self) -> str:
         """Render tree node and children."""
         indent = "  " * self.level
         indicator = "▼" if self.expanded else "▶"
         lines = [f"{indent}{indicator} {self.icon} {self.label}"]
-        
+
         if self.expanded:
             for child in self.children:
                 lines.extend(child.render_ascii().split('\n'))
-        
+
         return '\n'.join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4855,19 +4981,19 @@ class TreeView:
     root_node: Optional[TreeNode] = None
     title: str = "Tree"
     on_node_select: Optional[Callable] = None
-    
+
     def add_root(self, label: str, value: Any = None, icon: str = "📁") -> TreeNode:
         """Add root node."""
         self.root_node = TreeNode(label=label, value=value, icon=icon)
         return self.root_node
-    
+
     def render_ascii(self) -> str:
         """Render entire tree."""
         lines = [f"📊 {self.title}"]
         if self.root_node:
             lines.extend(self.root_node.render_ascii().split('\n'))
         return '\n'.join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4891,17 +5017,17 @@ class Toolbar:
     buttons: List[ToolbarButton] = field(default_factory=list)
     title: str = "Toolbar"
     on_action: Optional[Callable] = None
-    
+
     def add_button(self, label: str, action: Callable, icon: str = "□", tooltip: Optional[str] = None) -> None:
         """Add button to toolbar."""
         button = ToolbarButton(label=label, action=action, icon=icon, tooltip=tooltip)
         self.buttons.append(button)
-    
+
     def render_ascii(self) -> str:
         """Render toolbar."""
         buttons_str = " | ".join([f"[{b.icon} {b.label}]" for b in self.buttons if b.enabled])
         return f"[{self.title}] {buttons_str}"
-    
+
     def click_button(self, label: str) -> bool:
         """Simulate button click."""
         for button in self.buttons:
@@ -4914,7 +5040,7 @@ class Toolbar:
                 except:
                     return False
         return False
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4932,26 +5058,26 @@ class StatusBar:
     right_text: str = ""
     status_icon: str = "●"
     status_color: str = "green"
-    
+
     def set_status(self, text: str, icon: str = "●") -> None:
         """Set status message."""
         self.left_text = text
         self.status_icon = icon
-    
+
     def render_ascii(self) -> str:
         """Render status bar."""
         left = f"{self.status_icon} {self.left_text}"
         center = self.center_text
         right = self.right_text
-        
+
         total_width = 80
         left_width = len(left)
         right_width = len(right)
         center_width = total_width - left_width - right_width - 4
-        
+
         bar = f"{left} | {center:^{center_width}} | {right}"
         return f"[{bar}]"
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -4970,37 +5096,37 @@ class SplitterPanel:
     left_width: float = 0.5
     divider: str = "│"
     resizable: bool = True
-    
+
     def set_panels(self, left: str, right: str) -> None:
         """Set panel contents."""
         self.left_panel = left
         self.right_panel = right
-    
+
     def resize(self, left_width: float) -> bool:
         """Resize panels (0.0 to 1.0)."""
         if 0.0 <= left_width <= 1.0:
             self.left_width = left_width
             return True
         return False
-    
+
     def render_ascii(self) -> str:
         """Render splitter with both panels."""
         total_width = 80
         left_w = int(total_width * self.left_width)
         right_w = total_width - left_w - 1
-        
+
         lines = []
         left_lines = self.left_panel.split('\n') if self.left_panel else [""]
         right_lines = self.right_panel.split('\n') if self.right_panel else [""]
-        
+
         max_lines = max(len(left_lines), len(right_lines))
         for i in range(max_lines):
             left = (left_lines[i] if i < len(left_lines) else "").ljust(left_w)
             right = (right_lines[i] if i < len(right_lines) else "").ljust(right_w)
             lines.append(f"{left}{self.divider}{right}")
-        
+
         return '\n'.join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -5019,32 +5145,32 @@ class PopupMenu:
     visible: bool = False
     position: Tuple[int, int] = (0, 0)
     on_select: Optional[Callable] = None
-    
+
     def add_item(self, item: str) -> None:
         """Add menu item."""
         self.items.append(item)
-    
+
     def show(self, x: int = 0, y: int = 0) -> None:
         """Show menu at position."""
         self.visible = True
         self.position = (x, y)
         self.selected_index = 0
-    
+
     def hide(self) -> None:
         """Hide menu."""
         self.visible = False
         self.selected_index = -1
-    
+
     def select_next(self) -> None:
         """Select next item."""
         if self.visible and self.items:
             self.selected_index = (self.selected_index + 1) % len(self.items)
-    
+
     def select_previous(self) -> None:
         """Select previous item."""
         if self.visible and self.items:
             self.selected_index = (self.selected_index - 1) % len(self.items)
-    
+
     def activate_selected(self) -> Optional[str]:
         """Activate selected menu item."""
         if self.visible and 0 <= self.selected_index < len(self.items):
@@ -5053,20 +5179,20 @@ class PopupMenu:
                 self.on_select({'item': selected, 'index': self.selected_index})
             return selected
         return None
-    
+
     def render_ascii(self) -> str:
         """Render popup menu."""
         if not self.visible:
             return ""
-        
+
         lines = [f"┌─ Popup Menu ─────────┐"]
         for i, item in enumerate(self.items):
             indicator = "►" if i == self.selected_index else " "
             lines.append(f"│ {indicator} {item:<19} │")
         lines.append(f"└──────────────────────┘")
-        
+
         return '\n'.join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -5085,7 +5211,7 @@ class Tooltip:
     position: Tuple[int, int] = (0, 0)
     delay_ms: int = 500
     last_trigger: float = 0.0
-    
+
     def trigger(self, x: int = 0, y: int = 0) -> None:
         """Trigger tooltip at position."""
         current_time = time.time() * 1000
@@ -5093,25 +5219,25 @@ class Tooltip:
             self.visible = True
             self.position = (x, y)
             self.last_trigger = current_time
-    
+
     def hide(self) -> None:
         """Hide tooltip."""
         self.visible = False
-    
+
     def render_ascii(self) -> str:
         """Render tooltip."""
         if not self.visible:
             return ""
-        
+
         lines = [f"┌─ Info ──────────────────┐"]
         text_lines = self.text.split('\n')
         for line in text_lines[:5]:
             truncated = line[:25].ljust(25)
             lines.append(f"│ {truncated} │")
         lines.append(f"└──────────────────────────┘")
-        
+
         return '\n'.join(lines)
-    
+
     def get_json(self) -> Dict[str, Any]:
         """Export as JSON."""
         return {
@@ -5188,25 +5314,25 @@ class TimeSeries:
     color: str = "cyan"
     min_value: float = 0.0
     max_value: float = 100.0
-    
+
     def add_point(self, value: float, label: Optional[str] = None, timestamp: Optional[float] = None) -> None:
         """Add data point."""
         ts = timestamp or time.time()
         point = DataPoint(timestamp=ts, value=value, label=label)
         self.points.append(point)
-    
+
     def get_latest(self) -> Optional[float]:
         """Get latest value."""
         if self.points:
             return self.points[-1].value
         return None
-    
+
     def get_average(self) -> float:
         """Calculate average."""
         if not self.points:
             return 0.0
         return sum(p.value for p in self.points) / len(self.points)
-    
+
     def get_trend(self) -> str:
         """Get trend indicator."""
         if len(self.points) < 2:
@@ -5226,25 +5352,25 @@ class LineChart:
         self.height = height
         self.title = title
         self.series: Dict[str, TimeSeries] = {}
-    
+
     def add_series(self, name: str, series: TimeSeries) -> None:
         """Add data series."""
         self.series[name] = series
-    
+
     def render(self) -> str:
         """Render chart as ASCII."""
         if not self.series or not any(s.points for s in self.series.values()):
             return f"[{self.title}]\nNo data"
-        
+
         lines = [f"╔{'═' * (self.width + 2)}╗"]
         lines.append(f"║ {self.title:<{self.width}} ║")
         lines.append(f"╠{'═' * (self.width + 2)}╣")
-        
+
         for _ in range(self.height):
             lines.append(f"║{' ' * self.width}│║")
-        
+
         lines.append(f"╚{'═' * (self.width + 2)}╝")
-        
+
         return '\n'.join(lines)
 
 class BarChart:
@@ -5253,55 +5379,55 @@ class BarChart:
         self.title = title
         self.width = width
         self.data: Dict[str, float] = {}
-    
+
     def add_bar(self, label: str, value: float) -> None:
         """Add bar."""
         self.data[label] = max(0, min(value, 100))
-    
+
     def render(self) -> str:
         """Render chart as ASCII."""
         if not self.data:
             return f"[{self.title}]\nNo data"
-        
+
         lines = [f"╔{self.title:^{self.width}}╗"]
-        
+
         max_val = max(self.data.values()) if self.data else 100
-        
+
         for label, value in self.data.items():
             bar_width = int((value / max_val) * (self.width - len(label) - 5)) if max_val > 0 else 0
             bar = "█" * bar_width + "░" * (self.width - len(label) - 5 - bar_width)
             lines.append(f"║{label:8}│{bar}│{value:5.1f}║")
-        
+
         lines.append(f"╚{'═' * self.width}╝")
-        
+
         return '\n'.join(lines)
 
 class SparklineChart:
     """Compact sparkline generator."""
     SPARKLINE_CHARS = "▁▂▃▄▅▆▇█"
-    
+
     def __init__(self, title: str = "Sparkline"):
         self.title = title
         self.values: deque = deque(maxlen=50)
-    
+
     def add_value(self, value: float) -> None:
         """Add value."""
         self.values.append(value)
-    
+
     def render(self) -> str:
         """Render as sparkline."""
         if not self.values:
             return f"{self.title}: [no data]"
-        
+
         min_val = min(self.values)
         max_val = max(self.values)
         range_val = max_val - min_val if max_val > min_val else 1
-        
+
         sparkline = ""
         for val in self.values:
             idx = int(((val - min_val) / range_val) * (len(self.SPARKLINE_CHARS) - 1))
             sparkline += self.SPARKLINE_CHARS[idx]
-        
+
         return f"{self.title}: {sparkline} {max(self.values):.1f}"
 
 class GaugeChart:
@@ -5311,43 +5437,43 @@ class GaugeChart:
         self.min_val = min_val
         self.max_val = max_val
         self.current_val = min_val
-    
+
     def set_value(self, value: float) -> None:
         """Set current value."""
         self.current_val = max(self.min_val, min(self.max_val, value))
-    
+
     def render(self) -> str:
         """Render gauge."""
         percentage = ((self.current_val - self.min_val) / (self.max_val - self.min_val)) * 100
-        
+
         arc_chars = "◐◓◑◒"
         arc_idx = int((percentage / 100) * len(arc_chars)) - 1
         arc_char = arc_chars[max(0, arc_idx)] if percentage > 0 else "◐"
-        
+
         filled = int((percentage / 100) * 30)
         gauge_bar = "█" * filled + "░" * (30 - filled)
-        
+
         return f"[{self.title}]\n{arc_char} {gauge_bar} {percentage:.1f}%\n{self.min_val:.0f}{'─' * 28}{self.max_val:.0f}"
 
 class HeatmapChart:
     """ASCII heatmap generator."""
     HEAT_CHARS = " ·:!#"
-    
+
     def __init__(self, width: int = 20, height: int = 10, title: str = "Heatmap"):
         self.width = width
         self.height = height
         self.title = title
         self.data: List[List[float]] = [[0.0] * width for _ in range(height)]
-    
+
     def set_value(self, x: int, y: int, value: float) -> None:
         """Set cell value."""
         if 0 <= x < self.width and 0 <= y < self.height:
             self.data[y][x] = max(0, min(1.0, value))
-    
+
     def render(self) -> str:
         """Render heatmap."""
         lines = [f"┌{self.title:^{self.width}}┐"]
-        
+
         for row in self.data:
             line = "│"
             for val in row:
@@ -5355,7 +5481,7 @@ class HeatmapChart:
                 line += self.HEAT_CHARS[idx]
             line += "│"
             lines.append(line)
-        
+
         lines.append(f"└{'─' * self.width}┘")
         return '\n'.join(lines)
 
@@ -5365,20 +5491,20 @@ class Renderer3D:
         self.width = width
         self.height = height
         self.canvas = [[' ' for _ in range(width)] for _ in range(height)]
-    
+
     def project_3d(self, x: float, y: float, z: float) -> Tuple[int, int]:
         """Project 3D point to 2D screen."""
         scale = 1.0 / (1.0 + z / 10.0)
         screen_x = int((x * scale + 1) * self.width / 2)
         screen_y = int((y * scale + 1) * self.height / 2)
         return max(0, min(self.width - 1, screen_x)), max(0, min(self.height - 1, screen_y))
-    
+
     def draw_point(self, x: float, y: float, z: float, char: str = "●") -> None:
         """Draw 3D point."""
         sx, sy = self.project_3d(x, y, z)
         if 0 <= sy < self.height and 0 <= sx < self.width:
             self.canvas[sy][sx] = char
-    
+
     def draw_line_3d(self, x1: float, y1: float, z1: float, x2: float, y2: float, z2: float) -> None:
         """Draw 3D line."""
         steps = 10
@@ -5388,7 +5514,7 @@ class Renderer3D:
             y = y1 + (y2 - y1) * t
             z = z1 + (z2 - z1) * t
             self.draw_point(x, y, z, "─" if i % 2 == 0 else "·")
-    
+
     def render(self) -> str:
         """Render canvas."""
         return '\n'.join(''.join(row) for row in self.canvas)
@@ -5400,25 +5526,25 @@ class AnimatedElement:
         self.style = style
         self.duration = duration
         self.start_time = time.time()
-    
+
     def get_frame(self) -> str:
         """Get current animation frame."""
         elapsed = (time.time() - self.start_time) % self.duration
         progress = elapsed / self.duration
-        
+
         if self.style == AnimationStyle.PULSE:
             opacity = int(3 + math.sin(progress * math.pi * 2) * 2)
             return "▓" * opacity + " " * (5 - opacity) + self.content
-        
+
         elif self.style == AnimationStyle.BOUNCE:
             offset = int(math.sin(progress * math.pi * 2) * 3)
             return " " * (3 + offset) + self.content
-        
+
         elif self.style == AnimationStyle.ROTATE:
             chars = ["◐", "◓", "◑", "◒"]
             idx = int(progress * len(chars))
             return chars[idx] + " " + self.content
-        
+
         return self.content
 
 class RealTimeDashboard:
@@ -5430,38 +5556,38 @@ class RealTimeDashboard:
         self.metrics: Dict[str, float] = {}
         self.refresh_rate = 1.0
         self.last_update = time.time()
-    
+
     def add_metric(self, name: str, value: float) -> None:
         """Add or update metric."""
         self.metrics[name] = value
-    
+
     def add_chart(self, name: str, chart: Any) -> None:
         """Add chart to dashboard."""
         self.charts[name] = chart
-    
+
     def render(self) -> str:
         """Render full dashboard."""
         lines = [
             "╔" + "═" * (self.width - 2) + "╗",
             f"║ {'PYTHONOS REAL-TIME DASHBOARD':^{self.width - 4}} ║"
         ]
-        
+
         lines.append("╠" + "═" * (self.width - 2) + "╣")
-        
+
         for name, value in list(self.metrics.items())[:5]:
             line = f"║ {name:20} │ {value:10.2f} │"
             lines.append(line.ljust(self.width - 1) + "║")
-        
+
         lines.append("╠" + "═" * (self.width - 2) + "╣")
         lines.append("║ " + "Charts & Visualizations".ljust(self.width - 4) + " ║")
-        
+
         for chart in list(self.charts.values())[:3]:
             chart_lines = chart.render().split('\n')
             for cl in chart_lines[:5]:
                 lines.append("║ " + cl.ljust(self.width - 4) + " ║")
-        
+
         lines.append("╚" + "═" * (self.width - 2) + "╝")
-        
+
         return '\n'.join(lines[:self.height])
 
 def manifest() -> Dict[str, Any]:
@@ -5527,28 +5653,28 @@ class PerformanceMetric:
 
 class VisualizationAIBridge:
     """Bridge between visualization and AI systems."""
-    
+
     def __init__(self):
         self.dashboard = RealTimeDashboard(width=120, height=35)
         self.metrics: Dict[str, PerformanceMetric] = {}
         self.charts: Dict[str, Any] = {}
         self.ai_brain = None
         self.analysis_history: List[Dict[str, Any]] = []
-        
+
         # Try to initialize AI brain
         try:
             self.ai_brain = PyAIBrain()
         except:
             self.ai_brain = None
-    
-    def add_performance_metric(self, name: str, value: float, unit: str = "", 
+
+    def add_performance_metric(self, name: str, value: float, unit: str = "",
                               min_val: float = 0.0, max_val: float = 100.0) -> None:
         """Add performance metric with thresholds."""
         metric = PerformanceMetric(
             name=name, value=value, unit=unit,
             min_threshold=min_val, max_threshold=max_val
         )
-        
+
         # Calculate trend
         if name in self.metrics:
             prev_val = self.metrics[name].value
@@ -5556,18 +5682,18 @@ class VisualizationAIBridge:
                 metric.trend = "↑"
             elif value < prev_val:
                 metric.trend = "↓"
-        
+
         # Add AI recommendation if available
         metric.recommendation = self._get_ai_recommendation(name, value, min_val, max_val)
-        
+
         self.metrics[name] = metric
         self.dashboard.add_metric(f"{name} {metric.unit}", value)
-    
-    def _get_ai_recommendation(self, name: str, value: float, 
+
+    def _get_ai_recommendation(self, name: str, value: float,
                               min_val: float, max_val: float) -> Optional[str]:
         """Get AI recommendation for metric."""
         percentage = ((value - min_val) / (max_val - min_val)) * 100 if max_val > min_val else 0
-        
+
         if "cpu" in name.lower():
             if percentage > 80:
                 return "🔴 High CPU usage - Consider optimizing hot functions"
@@ -5575,7 +5701,7 @@ class VisualizationAIBridge:
                 return "🟡 Moderate CPU usage - Monitor for issues"
             else:
                 return "🟢 CPU usage normal"
-        
+
         elif "memory" in name.lower():
             if percentage > 85:
                 return "🔴 Memory critical - Increase heap or optimize memory usage"
@@ -5583,7 +5709,7 @@ class VisualizationAIBridge:
                 return "🟡 High memory - Consider cleanup"
             else:
                 return "🟢 Memory usage healthy"
-        
+
         elif "disk" in name.lower():
             if percentage > 90:
                 return "🔴 Disk critical - Free up space immediately"
@@ -5591,7 +5717,7 @@ class VisualizationAIBridge:
                 return "🟡 Disk usage high - Plan cleanup"
             else:
                 return "🟢 Disk space available"
-        
+
         elif "latency" in name.lower() or "response" in name.lower():
             if value > 1000:
                 return "🔴 High latency - Check network/database"
@@ -5599,9 +5725,9 @@ class VisualizationAIBridge:
                 return "🟡 Latency elevated - Investigate"
             else:
                 return "🟢 Response time acceptable"
-        
+
         return None
-    
+
     def create_performance_chart(self, name: str, metrics_dict: Dict[str, float]) -> None:
         """Create bar chart from metrics dictionary."""
         chart = BarChart(title=f"{name} Breakdown", width=60)
@@ -5609,28 +5735,28 @@ class VisualizationAIBridge:
             chart.add_bar(label, min(100, value))
         self.charts[name] = chart
         self.dashboard.add_chart(name, chart)
-    
+
     def create_timeseries_chart(self, name: str, data_points: List[float]) -> None:
         """Create sparkline from time series data."""
         chart = SparklineChart(title=name)
         for point in data_points:
             chart.add_value(point)
         self.charts[name] = chart
-    
+
     def create_gauge(self, name: str, value: float, min_val: float = 0.0, max_val: float = 100.0) -> None:
         """Create gauge chart."""
         gauge = GaugeChart(title=name, min_val=min_val, max_val=max_val)
         gauge.set_value(value)
         self.charts[name] = gauge
         self.dashboard.add_chart(name, gauge)
-    
+
     def create_heatmap(self, name: str, width: int = 20, height: int = 10) -> HeatmapChart:
         """Create heatmap."""
         heatmap = HeatmapChart(width=width, height=height, title=name)
         self.charts[name] = heatmap
         self.dashboard.add_chart(name, heatmap)
         return heatmap
-    
+
     def analyze_performance_with_ai(self) -> Dict[str, Any]:
         """Use AI to analyze current performance."""
         analysis = {
@@ -5640,62 +5766,62 @@ class VisualizationAIBridge:
             "recommendations": [],
             "analysis": {}
         }
-        
+
         # Analyze each metric
         for name, metric in self.metrics.items():
-            percentage = ((metric.value - metric.min_threshold) / 
+            percentage = ((metric.value - metric.min_threshold) /
                          (metric.max_threshold - metric.min_threshold)) * 100
-            
+
             if percentage > 90:
                 analysis["critical_alerts"].append(f"{name}: CRITICAL ({percentage:.1f}%)")
             elif percentage > 70:
                 analysis["critical_alerts"].append(f"{name}: WARNING ({percentage:.1f}%)")
-            
+
             if metric.recommendation:
                 analysis["recommendations"].append(metric.recommendation)
-            
+
             analysis["analysis"][name] = {
                 "value": metric.value,
                 "percentage": round(percentage, 2),
                 "trend": metric.trend,
                 "status": "critical" if percentage > 90 else "warning" if percentage > 70 else "healthy"
             }
-        
+
         self.analysis_history.append(analysis)
         return analysis
-    
+
     def render_intelligent_dashboard(self) -> str:
         """Render dashboard with AI analysis."""
         lines = ["╔" + "═" * 118 + "╗"]
         lines.append(f"║ {'🚀 PYTHONOS INTELLIGENT PERFORMANCE DASHBOARD - POWERED BY pyAI':^116} ║")
         lines.append("╠" + "═" * 118 + "╣")
-        
+
         # System metrics
         lines.append("║ 📊 SYSTEM METRICS".ljust(119) + "║")
         for name, metric in list(self.metrics.items())[:8]:
             status_icon = "🔴" if metric.value > metric.max_threshold * 0.9 else "🟡" if metric.value > metric.max_threshold * 0.7 else "🟢"
             line = f"║ {status_icon} {name:20} │ {metric.value:8.2f} {metric.unit:6} │ {metric.trend} │ {metric.recommendation or '':40}"
             lines.append(line[:119].ljust(119) + "║")
-        
+
         lines.append("╠" + "═" * 118 + "╣")
-        
+
         # AI Analysis
         if self.analysis_history:
             latest = self.analysis_history[-1]
             lines.append("║ 🧠 AI ANALYSIS & RECOMMENDATIONS".ljust(119) + "║")
-            
+
             if latest["critical_alerts"]:
                 for alert in latest["critical_alerts"][:3]:
                     line = f"║   ⚠️  {alert:110}"
                     lines.append(line[:119].ljust(119) + "║")
-            
+
             if latest["recommendations"]:
                 for rec in latest["recommendations"][:3]:
                     line = f"║   💡 {rec:110}"
                     lines.append(line[:119].ljust(119) + "║")
-        
+
         lines.append("╠" + "═" * 118 + "╣")
-        
+
         # Charts
         lines.append("║ 📈 VISUALIZATIONS".ljust(119) + "║")
         for chart_name, chart in list(self.charts.items())[:2]:
@@ -5703,19 +5829,19 @@ class VisualizationAIBridge:
             for cl in chart_lines[:3]:
                 line = f"║ {cl:116}"
                 lines.append(line[:119].ljust(119) + "║")
-        
+
         lines.append("╚" + "═" * 118 + "╝")
-        
+
         return '\n'.join(lines)
-    
+
     def get_system_health_score(self) -> float:
         """Calculate overall system health score (0-100)."""
         if not self.metrics:
             return 100.0
-        
+
         scores = []
         for metric in self.metrics.values():
-            percentage = ((metric.value - metric.min_threshold) / 
+            percentage = ((metric.value - metric.min_threshold) /
                          (metric.max_threshold - metric.min_threshold)) * 100
             # Invert for metrics where lower is better (like latency)
             if "latency" in metric.name.lower() or "response" in metric.name.lower():
@@ -5723,13 +5849,13 @@ class VisualizationAIBridge:
             else:
                 health = max(0, 100 - percentage)
             scores.append(health)
-        
+
         return sum(scores) / len(scores) if scores else 100.0
-    
+
     def generate_performance_report(self) -> str:
         """Generate comprehensive performance report."""
         health_score = self.get_system_health_score()
-        
+
         report = f"""
 ╔════════════════════════════════════════════════════════════════╗
 ║         PYTHONOS PERFORMANCE REPORT - AI ANALYSIS              ║
@@ -5740,16 +5866,16 @@ class VisualizationAIBridge:
 📈 DETAILED METRICS:
 """
         for name, metric in self.metrics.items():
-            percentage = ((metric.value - metric.min_threshold) / 
+            percentage = ((metric.value - metric.min_threshold) /
                          (metric.max_threshold - metric.min_threshold)) * 100
             status = "✅ OK" if percentage < 70 else "⚠️  WARNING" if percentage < 90 else "🔴 CRITICAL"
             report += f"\n  • {name:25} {metric.trend} {metric.value:8.2f} {metric.unit:6} {status}"
             if metric.recommendation:
                 report += f"\n    → {metric.recommendation}"
-        
+
         report += "\n\n💾 ANALYSIS HISTORY: " + str(len(self.analysis_history)) + " updates\n"
         report += "╚════════════════════════════════════════════════════════════════╝\n"
-        
+
         return report
 
 def manifest() -> Dict[str, Any]:
@@ -5889,12 +6015,12 @@ class APIMetrics:
 
 class Middleware(ABC):
     """Base middleware class."""
-    
+
     @abstractmethod
     def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
         """Process request before handler."""
         pass
-    
+
     @abstractmethod
     def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
         """Process response after handler."""
@@ -5902,30 +6028,30 @@ class Middleware(ABC):
 
 class AuthenticationMiddleware(Middleware):
     """Authentication middleware."""
-    
+
     def __init__(self, secret_key: str = "default-secret"):
         self.secret_key = secret_key
         self.valid_tokens: Dict[str, float] = {}
-    
+
     def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
         """Check authentication."""
         if "Authorization" not in request.headers:
             return True, None
-        
+
         auth_header = request.headers.get("Authorization", "")
         if not auth_header.startswith("Bearer "):
             return False, APIResponse(401, error="Invalid authorization header")
-        
+
         token = auth_header[7:]
         if token not in self.valid_tokens or self.valid_tokens[token] < time.time():
             return False, APIResponse(401, error="Invalid or expired token")
-        
+
         return True, None
-    
+
     def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
         """Pass through."""
         return response
-    
+
     def generate_token(self, client_id: str, expires_in: int = 3600) -> str:
         """Generate API token."""
         token = hashlib.sha256(f"{client_id}-{time.time()}".encode()).hexdigest()
@@ -5934,21 +6060,21 @@ class AuthenticationMiddleware(Middleware):
 
 class RateLimitMiddleware(Middleware):
     """Rate limiting middleware."""
-    
+
     def __init__(self):
         self.clients: Dict[str, RateLimitInfo] = defaultdict(
             lambda: RateLimitInfo(client_id="unknown")
         )
-    
+
     def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
         """Check rate limits."""
         client_id = request.client_ip
         info = self.clients[client_id]
-        
+
         if time.time() > info.reset_time:
             info.request_count = 0
             info.reset_time = time.time() + info.window_seconds
-        
+
         if info.request_count >= info.max_requests:
             headers = {
                 "X-RateLimit-Limit": str(info.max_requests),
@@ -5956,10 +6082,10 @@ class RateLimitMiddleware(Middleware):
                 "X-RateLimit-Reset": str(int(info.reset_time))
             }
             return False, APIResponse(429, error="Rate limit exceeded", headers=headers)
-        
+
         info.request_count += 1
         return True, None
-    
+
     def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
         """Add rate limit headers."""
         client_id = request.client_ip
@@ -5971,10 +6097,10 @@ class RateLimitMiddleware(Middleware):
 
 class LoggingMiddleware(Middleware):
     """Logging middleware."""
-    
+
     def __init__(self):
         self.logs: deque = deque(maxlen=1000)
-    
+
     def before_request(self, request: APIRequest) -> Tuple[bool, Optional[APIResponse]]:
         """Log incoming request."""
         self.logs.append({
@@ -5985,7 +6111,7 @@ class LoggingMiddleware(Middleware):
             "timestamp": request.timestamp
         })
         return True, None
-    
+
     def after_response(self, request: APIRequest, response: APIResponse) -> APIResponse:
         """Log response."""
         self.logs.append({
@@ -5998,7 +6124,7 @@ class LoggingMiddleware(Middleware):
 
 class APIGateway:
     """Main API Gateway with REST support."""
-    
+
     def __init__(self, host: str = "0.0.0.0", port: int = 8000, api_key: str = ""):
         self.host = host
         self.port = port
@@ -6010,50 +6136,50 @@ class APIGateway:
         self.service_registry: Dict[str, Dict[str, Any]] = {}
         self.deprecation_tracker: Dict[str, DeprecationStatus] = {}
         self._lock = threading.Lock()
-        
+
         self.add_middleware(LoggingMiddleware())
         self.add_middleware(RateLimitMiddleware())
         self.auth_middleware = AuthenticationMiddleware()
         self.add_middleware(self.auth_middleware)
-    
+
     def register_endpoint(self, endpoint: APIEndpoint) -> None:
         """Register API endpoint."""
         with self._lock:
             key = f"{endpoint.method.value}:{endpoint.version.value}:{endpoint.path}"
             self.endpoints[key] = endpoint
-            
+
             if endpoint.deprecated != DeprecationStatus.ACTIVE:
                 self.deprecation_tracker[key] = endpoint.deprecated
-    
+
     def add_middleware(self, middleware: Middleware) -> None:
         """Add middleware to pipeline."""
         with self._lock:
             self.middlewares.append(middleware)
-    
+
     def handle_request(self, path: str, method: str = "GET", headers: Optional[Dict[str, str]] = None,
                       body: Optional[Dict[str, Any]] = None, query_params: Optional[Dict[str, Any]] = None,
                       client_ip: str = "127.0.0.1") -> Dict[str, Any]:
         """Handle API request."""
         request_id = str(uuid.uuid4())[:8]
         version = self._extract_version(path, headers)
-        
+
         request = APIRequest(
             request_id=request_id, path=path, method=HTTPMethod[method.upper()],
             headers=headers or {}, body=body, query_params=query_params or {},
             client_ip=client_ip, version=version
         )
-        
+
         start_time = time.time()
-        
+
         for middleware in self.middlewares:
             success, rejected_response = middleware.before_request(request)
             if not success:
                 response = rejected_response or APIResponse(400, error="Request rejected")
                 return self._finalize_response(request, response, start_time)
-        
+
         endpoint_key = f"{request.method.value}:{version.value}:{path}"
         endpoint = self.endpoints.get(endpoint_key)
-        
+
         if not endpoint:
             response = APIResponse(404, error=f"Endpoint not found: {path}")
         else:
@@ -6063,7 +6189,7 @@ class APIGateway:
                     headers_out["X-Deprecation-Replacement"] = endpoint.replacement
                 if endpoint.sunset_date:
                     headers_out["X-Sunset"] = endpoint.sunset_date.isoformat()
-            
+
             try:
                 if endpoint.handler:
                     handler_response = endpoint.handler(request, endpoint)
@@ -6072,39 +6198,39 @@ class APIGateway:
                     response = APIResponse(501, error="Handler not implemented")
             except Exception as e:
                 response = APIResponse(500, error=str(e))
-        
+
         for middleware in self.middlewares:
             response = middleware.after_response(request, response)
-        
+
         response_time_ms = (time.time() - start_time) * 1000
         metric = APIMetrics(
             endpoint_path=path, method=request.method, status_code=response.status_code,
             response_time_ms=response_time_ms, client_id=client_ip, version=version
         )
         self.metrics.append(metric)
-        
+
         return self._finalize_response(request, response, start_time)
-    
+
     def _extract_version(self, path: str, headers: Optional[Dict[str, str]]) -> APIVersion:
         """Extract API version from path or headers."""
         headers = headers or {}
-        
+
         if "Accept-Version" in headers:
             version_str = headers["Accept-Version"].lower()
             for version in APIVersion:
                 if version_str == version.value:
                     return version
-        
+
         for version in APIVersion:
             if path.startswith(f"/{version.value}/"):
                 return version
-        
+
         return APIVersion.V1
-    
+
     def _finalize_response(self, request: APIRequest, response: APIResponse, start_time: float) -> Dict[str, Any]:
         """Finalize response object."""
         response_time_ms = (time.time() - start_time) * 1000
-        
+
         result = {
             "request_id": request.request_id,
             "status": response.status_code,
@@ -6113,17 +6239,17 @@ class APIGateway:
             "response_time_ms": response_time_ms,
             "headers": response.headers
         }
-        
+
         if response.data:
             result["data"] = response.data
         if response.error:
             result["error"] = response.error
         if response.message:
             result["message"] = response.message
-        
+
         self.request_history.append(result)
         return result
-    
+
     def register_service(self, service_id: str, metadata: Dict[str, Any]) -> None:
         """Register microservice in mesh."""
         with self._lock:
@@ -6133,12 +6259,12 @@ class APIGateway:
                 "metadata": metadata,
                 "health": "healthy"
             }
-    
+
     def get_service_status(self) -> Dict[str, Any]:
         """Get status of all registered services."""
         with self._lock:
             return dict(self.service_registry)
-    
+
     def generate_deprecation_report(self) -> Dict[str, Any]:
         """Generate report on deprecated endpoints."""
         report = {
@@ -6149,7 +6275,7 @@ class APIGateway:
             "retired": 0,
             "endpoints": {}
         }
-        
+
         for key, endpoint in self.endpoints.items():
             report["endpoints"][key] = {
                 "path": endpoint.path,
@@ -6159,7 +6285,7 @@ class APIGateway:
                 "sunset_date": endpoint.sunset_date.isoformat() if endpoint.sunset_date else None,
                 "replacement": endpoint.replacement
             }
-            
+
             if endpoint.deprecated == DeprecationStatus.ACTIVE:
                 report["active"] += 1
             elif endpoint.deprecated == DeprecationStatus.DEPRECATED:
@@ -6168,25 +6294,25 @@ class APIGateway:
                 report["sunset"] += 1
             else:
                 report["retired"] += 1
-        
+
         return report
-    
+
     def get_metrics_summary(self) -> Dict[str, Any]:
         """Get API metrics summary."""
         if not self.metrics:
             return {"total_requests": 0}
-        
+
         total_requests = len(self.metrics)
         avg_response_time = sum(m.response_time_ms for m in self.metrics) / total_requests
-        
+
         status_codes = defaultdict(int)
         for metric in self.metrics:
             status_codes[metric.status_code] += 1
-        
+
         endpoints_usage = defaultdict(int)
         for metric in self.metrics:
             endpoints_usage[metric.endpoint_path] += 1
-        
+
         return {
             "total_requests": total_requests,
             "avg_response_time_ms": round(avg_response_time, 2),
@@ -6196,24 +6322,24 @@ class APIGateway:
 
 class GraphQLSchema:
     """GraphQL Schema definition."""
-    
+
     def __init__(self):
         self.types: Dict[str, Dict[str, Any]] = {}
         self.queries: Dict[str, Dict[str, Any]] = {}
         self.mutations: Dict[str, Dict[str, Any]] = {}
-    
+
     def define_type(self, name: str, fields: Dict[str, str]) -> None:
         """Define GraphQL type."""
         self.types[name] = fields
-    
+
     def define_query(self, name: str, return_type: str, fields: Dict[str, str]) -> None:
         """Define GraphQL query."""
         self.queries[name] = {"return_type": return_type, "fields": fields}
-    
+
     def define_mutation(self, name: str, return_type: str, fields: Dict[str, str]) -> None:
         """Define GraphQL mutation."""
         self.mutations[name] = {"return_type": return_type, "fields": fields}
-    
+
     def to_schema_string(self) -> str:
         """Convert to GraphQL schema string."""
         schema = "type Query {\\n"
@@ -6229,15 +6355,15 @@ class GraphQLSchema:
 
 class GraphQLExecutor:
     """GraphQL Query Executor."""
-    
+
     def __init__(self, schema: GraphQLSchema):
         self.schema = schema
         self.resolvers: Dict[str, Callable] = {}
-    
+
     def register_resolver(self, field_name: str, resolver: Callable) -> None:
         """Register field resolver."""
         self.resolvers[field_name] = resolver
-    
+
     def execute(self, query: str) -> Dict[str, Any]:
         """Execute GraphQL query."""
         try:
@@ -6249,12 +6375,12 @@ class GraphQLExecutor:
                 return {"data": None, "errors": ["Invalid query"]}
         except Exception as e:
             return {"data": None, "errors": [str(e)]}
-    
+
     def _parse_query(self, query: str) -> Dict[str, Any]:
         """Parse GraphQL query."""
         lines = [l.strip() for l in query.split("\\n") if l.strip()]
         return {"query_text": query, "lines": lines}
-    
+
     def _resolve_query(self, parsed: Dict[str, Any]) -> Dict[str, Any]:
         """Resolve query using resolvers."""
         result = {}
@@ -6267,13 +6393,13 @@ class GraphQLExecutor:
 
 class ServiceMesh:
     """Service mesh for microservices orchestration."""
-    
+
     def __init__(self):
         self.services: Dict[str, Dict[str, Any]] = {}
         self.routes: List[Dict[str, Any]] = []
         self.circuit_breakers: Dict[str, Dict[str, Any]] = {}
         self.health_checks: Dict[str, bool] = {}
-    
+
     def register_service(self, name: str, endpoints: List[str], port: int = 8000,
                         metadata: Optional[Dict] = None) -> None:
         """Register service in mesh."""
@@ -6284,21 +6410,21 @@ class ServiceMesh:
         }
         self.health_checks[name] = True
         self.circuit_breakers[name] = {"state": "closed", "failures": 0, "threshold": 5, "timeout": 60}
-    
+
     def add_route(self, source: str, destination: str, weight: float = 1.0) -> None:
         """Add route between services."""
         self.routes.append({
             "source": source, "destination": destination, "weight": weight,
             "created_at": datetime.now().isoformat()
         })
-    
+
     def check_circuit_breaker(self, service_name: str) -> bool:
         """Check circuit breaker status."""
         if service_name not in self.circuit_breakers:
             return True
         cb = self.circuit_breakers[service_name]
         return cb["state"] != "open"
-    
+
     def record_failure(self, service_name: str) -> None:
         """Record service failure."""
         if service_name in self.circuit_breakers:
@@ -6306,12 +6432,12 @@ class ServiceMesh:
             cb["failures"] += 1
             if cb["failures"] >= cb["threshold"]:
                 cb["state"] = "open"
-    
+
     def reset_circuit_breaker(self, service_name: str) -> None:
         """Reset circuit breaker."""
         if service_name in self.circuit_breakers:
             self.circuit_breakers[service_name] = {"state": "closed", "failures": 0, "threshold": 5, "timeout": 60}
-    
+
     def get_mesh_status(self) -> Dict[str, Any]:
         """Get complete mesh status."""
         return {
@@ -6425,12 +6551,12 @@ class HealthCheckResult:
 
 class ServiceRegistry:
     """Service discovery and registration."""
-    
+
     def __init__(self):
         self.services: Dict[str, List[ServiceInstance]] = defaultdict(list)
         self.service_metadata: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
-    
+
     def register(self, service_name: str, instance: ServiceInstance) -> None:
         """Register service instance."""
         with self._lock:
@@ -6442,7 +6568,7 @@ class ServiceRegistry:
                     "instances": 0
                 }
             self.service_metadata[service_name]["instances"] += 1
-    
+
     def deregister(self, service_name: str, instance_id: str) -> bool:
         """Deregister service instance."""
         with self._lock:
@@ -6454,17 +6580,17 @@ class ServiceRegistry:
                 self.service_metadata[service_name]["instances"] -= 1
                 return True
             return False
-    
+
     def discover(self, service_name: str) -> List[ServiceInstance]:
         """Discover service instances."""
         with self._lock:
             return list(self.services.get(service_name, []))
-    
+
     def get_healthy_instances(self, service_name: str) -> List[ServiceInstance]:
         """Get only healthy instances."""
         instances = self.discover(service_name)
         return [i for i in instances if i.status == ServiceStatus.HEALTHY]
-    
+
     def update_instance_status(self, service_name: str, instance_id: str, status: ServiceStatus) -> bool:
         """Update instance status."""
         with self._lock:
@@ -6478,18 +6604,18 @@ class ServiceRegistry:
 
 class LoadBalancer:
     """Load balancer for service instances."""
-    
+
     def __init__(self, strategy: LoadBalancingStrategy = LoadBalancingStrategy.ROUND_ROBIN):
         self.strategy = strategy
         self.round_robin_index: Dict[str, int] = defaultdict(int)
         self.call_history: deque = deque(maxlen=1000)
-    
+
     def select_instance(self, service_name: str, instances: List[ServiceInstance],
                        client_ip: Optional[str] = None) -> Optional[ServiceInstance]:
         """Select instance based on strategy."""
         if not instances:
             return None
-        
+
         if self.strategy == LoadBalancingStrategy.ROUND_ROBIN:
             return self._round_robin(service_name, instances)
         elif self.strategy == LoadBalancingStrategy.LEAST_CONNECTIONS:
@@ -6502,18 +6628,18 @@ class LoadBalancer:
             return self._ip_hash(instances, client_ip)
         else:
             return instances[0]
-    
+
     def _round_robin(self, service_name: str, instances: List[ServiceInstance]) -> ServiceInstance:
         """Round robin selection."""
         idx = self.round_robin_index[service_name]
         selected = instances[idx % len(instances)]
         self.round_robin_index[service_name] = (idx + 1) % len(instances)
         return selected
-    
+
     def _least_connections(self, instances: List[ServiceInstance]) -> ServiceInstance:
         """Select instance with least connections."""
         return min(instances, key=lambda x: x.load)
-    
+
     def _weighted_selection(self, instances: List[ServiceInstance]) -> ServiceInstance:
         """Weighted random selection."""
         total_weight = sum(i.weight for i in instances)
@@ -6524,35 +6650,35 @@ class LoadBalancer:
             if choice <= current:
                 return instance
         return instances[0]
-    
+
     def _ip_hash(self, instances: List[ServiceInstance], client_ip: Optional[str]) -> ServiceInstance:
         """IP hash selection."""
         if not client_ip:
             return instances[0]
         hash_val = int(hashlib.md5(client_ip.encode()).hexdigest(), 16)
         return instances[hash_val % len(instances)]
-    
+
     def record_call(self, call: ServiceCall) -> None:
         """Record service call."""
         self.call_history.append(call)
 
 class HealthChecker:
     """Health checking system."""
-    
+
     def __init__(self, check_interval: int = 30, timeout: int = 5):
         self.check_interval = check_interval
         self.timeout = timeout
         self.health_history: deque = deque(maxlen=1000)
         self._running = False
         self._thread: Optional[threading.Thread] = None
-    
+
     def check_instance(self, instance: ServiceInstance) -> HealthCheckResult:
         """Check instance health."""
         start_time = time.time()
-        
+
         try:
             time_since_heartbeat = time.time() - instance.last_heartbeat
-            
+
             if time_since_heartbeat > 120:
                 status = ServiceStatus.OFFLINE
             elif time_since_heartbeat > 60:
@@ -6561,9 +6687,9 @@ class HealthChecker:
                 status = ServiceStatus.DEGRADED
             else:
                 status = ServiceStatus.HEALTHY
-            
+
             response_time_ms = (time.time() - start_time) * 1000
-            
+
             result = HealthCheckResult(
                 instance_id=instance.instance_id,
                 service_name=instance.service_name,
@@ -6575,10 +6701,10 @@ class HealthChecker:
                     "uptime_seconds": time.time() - instance.registered_at
                 }
             )
-            
+
             self.health_history.append(result)
             return result
-        
+
         except Exception as e:
             return HealthCheckResult(
                 instance_id=instance.instance_id,
@@ -6590,7 +6716,7 @@ class HealthChecker:
 
 class ServiceOrchestrator:
     """Main service mesh orchestrator."""
-    
+
     def __init__(self, lb_strategy: LoadBalancingStrategy = LoadBalancingStrategy.ROUND_ROBIN):
         self.registry = ServiceRegistry()
         self.load_balancer = LoadBalancer(lb_strategy)
@@ -6599,14 +6725,14 @@ class ServiceOrchestrator:
         self.traffic_splits: Dict[str, List[Tuple[str, float]]] = defaultdict(list)
         self.call_trace: deque = deque(maxlen=5000)
         self._lock = threading.Lock()
-    
+
     def register_service(self, service_name: str, host: str, port: int,
                         instance_id: Optional[str] = None,
                         metadata: Optional[Dict[str, Any]] = None) -> str:
         """Register service instance."""
         if instance_id is None:
             instance_id = f"{service_name}-{int(time.time() * 1000)}"
-        
+
         instance = ServiceInstance(
             instance_id=instance_id,
             service_name=service_name,
@@ -6614,41 +6740,41 @@ class ServiceOrchestrator:
             port=port,
             metadata=metadata or {}
         )
-        
+
         self.registry.register(service_name, instance)
         return instance_id
-    
+
     def call_service(self, caller: str, service_name: str, endpoint: str,
                     method: str = "GET", client_ip: Optional[str] = None) -> Dict[str, Any]:
         """Call service through mesh."""
-        
+
         instances = self.registry.get_healthy_instances(service_name)
-        
+
         if not instances:
             return {
                 "success": False,
                 "error": f"No healthy instances for {service_name}",
                 "status_code": 503
             }
-        
+
         instance = self.load_balancer.select_instance(service_name, instances, client_ip)
-        
+
         if not instance:
             return {
                 "success": False,
                 "error": "Load balancer failed to select instance",
                 "status_code": 503
             }
-        
+
         start_time = time.time()
         try:
             response_time_ms = random.uniform(10, 100)
             status_code = 200 if random.random() > 0.05 else 500
             success = status_code == 200
-            
+
             if not success:
                 instance.load = max(0, instance.load - 1)
-            
+
             call = ServiceCall(
                 caller_service=caller,
                 called_service=service_name,
@@ -6658,10 +6784,10 @@ class ServiceOrchestrator:
                 response_time_ms=response_time_ms,
                 success=success
             )
-            
+
             self.load_balancer.record_call(call)
             self.call_trace.append(call)
-            
+
             return {
                 "success": success,
                 "instance": instance.instance_id,
@@ -6669,34 +6795,34 @@ class ServiceOrchestrator:
                 "status_code": status_code,
                 "response_time_ms": response_time_ms
             }
-        
+
         except Exception as e:
             return {
                 "success": False,
                 "error": str(e),
                 "status_code": 500
             }
-    
+
     def set_policy(self, service_name: str, policy_name: str, policy_config: Dict[str, Any]) -> None:
         """Set service policy."""
         if service_name not in self.service_policies:
             self.service_policies[service_name] = {}
         self.service_policies[service_name][policy_name] = policy_config
-    
+
     def set_traffic_split(self, service_name: str, splits: List[Tuple[str, float]]) -> None:
         """Set traffic split between service versions."""
         self.traffic_splits[service_name] = splits
-    
+
     def get_mesh_stats(self) -> Dict[str, Any]:
         """Get mesh statistics."""
         total_calls = len(self.call_trace)
         successful_calls = sum(1 for c in self.call_trace if c.success)
         success_rate = (successful_calls / total_calls * 100) if total_calls > 0 else 0
-        
+
         avg_response_time = 0.0
         if self.call_trace:
             avg_response_time = sum(c.response_time_ms for c in self.call_trace) / len(self.call_trace)
-        
+
         return {
             "total_services": len(self.registry.services),
             "total_instances": sum(len(v) for v in self.registry.services.values()),
@@ -6706,11 +6832,11 @@ class ServiceOrchestrator:
             "avg_response_time_ms": round(avg_response_time, 2),
             "services": dict(self.registry.service_metadata)
         }
-    
+
     def get_service_details(self, service_name: str) -> Dict[str, Any]:
         """Get details about service."""
         instances = self.registry.discover(service_name)
-        
+
         return {
             "service_name": service_name,
             "instances": [
@@ -6787,28 +6913,28 @@ class Vector3:
     x: float
     y: float
     z: float
-    
+
     def rotate_x(self, angle: float) -> 'Vector3':
         """Rotate around X axis."""
         cos_a, sin_a = math.cos(angle), math.sin(angle)
         y = self.y * cos_a - self.z * sin_a
         z = self.y * sin_a + self.z * cos_a
         return Vector3(self.x, y, z)
-    
+
     def rotate_y(self, angle: float) -> 'Vector3':
         """Rotate around Y axis."""
         cos_a, sin_a = math.cos(angle), math.sin(angle)
         x = self.x * cos_a + self.z * sin_a
         z = -self.x * sin_a + self.z * cos_a
         return Vector3(x, self.y, z)
-    
+
     def rotate_z(self, angle: float) -> 'Vector3':
         """Rotate around Z axis."""
         cos_a, sin_a = math.cos(angle), math.sin(angle)
         x = self.x * cos_a - self.y * sin_a
         y = self.x * sin_a + self.y * cos_a
         return Vector3(x, y, self.z)
-    
+
     def project_2d(self, distance: float = 5.0) -> Tuple[float, float]:
         """Project to 2D screen coordinates."""
         scale = distance / (distance + self.z)
@@ -6816,29 +6942,29 @@ class Vector3:
 
 class TextualRenderer3D:
     """3D ASCII renderer for Textual."""
-    
+
     def __init__(self, width: int = 40, height: int = 20):
         self.width = width
         self.height = height
         self.frame_buffer = [[' ' for _ in range(width)] for _ in range(height)]
         self.z_buffer = [[float('inf') for _ in range(width)] for _ in range(height)]
-    
+
     def clear(self):
         """Clear frame buffer."""
         self.frame_buffer = [[' ' for _ in range(self.width)] for _ in range(self.height)]
         self.z_buffer = [[float('inf') for _ in range(self.width)] for _ in range(self.height)]
-    
+
     def draw_point(self, x: float, y: float, z: float, char: str = '●'):
         """Draw a point on the frame buffer."""
         screen_x = int((x + 1) * self.width / 2)
         screen_y = int((y + 1) * self.height / 2)
-        
+
         if 0 <= screen_x < self.width and 0 <= screen_y < self.height:
             if z < self.z_buffer[screen_y][screen_x]:
                 self.frame_buffer[screen_y][screen_x] = char
                 self.z_buffer[screen_y][screen_x] = z
-    
-    def draw_line(self, x1: float, y1: float, z1: float, 
+
+    def draw_line(self, x1: float, y1: float, z1: float,
                  x2: float, y2: float, z2: float, char: str = '─'):
         """Draw a line using Bresenham's algorithm."""
         steps = 20
@@ -6848,11 +6974,11 @@ class TextualRenderer3D:
             y = y1 + (y2 - y1) * t
             z = z1 + (z2 - z1) * t
             self.draw_point(x, y, z, char)
-    
+
     def render_cube(self, rot_x: float, rot_y: float, rot_z: float) -> str:
         """Render a rotating cube."""
         self.clear()
-        
+
         # Define cube vertices
         vertices = [
             Vector3(1, 1, 1), Vector3(1, -1, 1),
@@ -6860,70 +6986,70 @@ class TextualRenderer3D:
             Vector3(1, 1, -1), Vector3(1, -1, -1),
             Vector3(-1, 1, -1), Vector3(-1, -1, -1),
         ]
-        
+
         # Apply rotations
         rotated = []
         for v in vertices:
             v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
             rotated.append(v)
-        
+
         # Draw edges
         edges = [
             (0, 1), (0, 2), (1, 3), (2, 3),
             (4, 5), (4, 6), (5, 7), (6, 7),
             (0, 4), (1, 5), (2, 6), (3, 7),
         ]
-        
+
         for start, end in edges:
             v1, v2 = rotated[start], rotated[end]
             x1, y1 = v1.project_2d()
             x2, y2 = v2.project_2d()
             self.draw_line(x1, y1, v1.z, x2, y2, v2.z, '─')
-        
+
         # Draw vertices
         for v in rotated:
             x, y = v.project_2d()
             self.draw_point(x, y, v.z, '●')
-        
+
         # Convert buffer to string
         return '\n'.join(''.join(row) for row in self.frame_buffer)
-    
+
     def render_pyramid(self, rot_x: float, rot_y: float, rot_z: float) -> str:
         """Render a rotating pyramid."""
         self.clear()
-        
+
         vertices = [
             Vector3(0, 1.5, 0),  # Top
             Vector3(1, -1, 1), Vector3(-1, -1, 1),
             Vector3(-1, -1, -1), Vector3(1, -1, -1),
         ]
-        
+
         rotated = []
         for v in vertices:
             v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
             rotated.append(v)
-        
+
         edges = [
             (0, 1), (0, 2), (0, 3), (0, 4),
             (1, 2), (2, 3), (3, 4), (4, 1),
         ]
-        
+
         for start, end in edges:
             v1, v2 = rotated[start], rotated[end]
             x1, y1 = v1.project_2d()
             x2, y2 = v2.project_2d()
             self.draw_line(x1, y1, v1.z, x2, y2, v2.z, '╱')
-        
+
         for v in rotated:
             x, y = v.project_2d()
             self.draw_point(x, y, v.z, '◆')
-        
+
         return '\n'.join(''.join(row) for row in self.frame_buffer)
-    
+
     def render_sphere(self, rot_x: float, rot_y: float, rot_z: float) -> str:
         """Render a rotating sphere."""
         self.clear()
-        
+
         # Generate sphere points
         for lat in range(0, 180, 30):
             for lon in range(0, 360, 30):
@@ -6932,12 +7058,12 @@ class TextualRenderer3D:
                 x = math.sin(lat_rad) * math.cos(lon_rad)
                 y = math.cos(lat_rad)
                 z = math.sin(lat_rad) * math.sin(lon_rad)
-                
+
                 v = Vector3(x, y, z)
                 v = v.rotate_x(rot_x).rotate_y(rot_y).rotate_z(rot_z)
                 screen_x, screen_y = v.project_2d()
                 self.draw_point(screen_x, screen_y, v.z, '·')
-        
+
         return '\n'.join(''.join(row) for row in self.frame_buffer)
 
 # ============================================================================
@@ -6947,13 +7073,13 @@ class TextualRenderer3D:
 if TEXTUAL_AVAILABLE:
     class Interactive3DViewer(Static):
         """Interactive 3D viewer with keyboard controls."""
-        
+
         rotation_x = reactive(0.0)
         rotation_y = reactive(0.0)
         rotation_z = reactive(0.0)
         model_type = reactive("cube")
         fps = reactive(0.0)
-        
+
         BINDINGS = [
             ("w", "rot_x_up", "Rotate X+"),
             ("s", "rot_x_down", "Rotate X-"),
@@ -6965,7 +7091,7 @@ if TEXTUAL_AVAILABLE:
             ("c", "cycle_model", "Cycle Model"),
             ("space", "toggle_auto", "Auto Rotate"),
         ]
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.renderer = TextualRenderer3D(50, 25)
@@ -6974,56 +7100,56 @@ if TEXTUAL_AVAILABLE:
             self.last_time = time.time()
             self.models = ["cube", "pyramid", "sphere"]
             self.model_idx = 0
-        
+
         def on_mount(self):
             """Start animation timer."""
             self.set_interval(0.05, self._animate)
-        
+
         def _animate(self):
             """Update animation frame."""
             if self.auto_rotating:
                 self.rotation_x += 0.02
                 self.rotation_y += 0.03
                 self.rotation_z += 0.01
-            
+
             self.frame_count += 1
             if self.frame_count % 20 == 0:
                 current_time = time.time()
                 self.fps = 20 / (current_time - self.last_time)
                 self.last_time = current_time
-            
+
             self.refresh()
-        
+
         def action_rot_x_up(self):
             self.rotation_x += 0.1
-        
+
         def action_rot_x_down(self):
             self.rotation_x -= 0.1
-        
+
         def action_rot_y_left(self):
             self.rotation_y -= 0.1
-        
+
         def action_rot_y_right(self):
             self.rotation_y += 0.1
-        
+
         def action_rot_z_left(self):
             self.rotation_z -= 0.1
-        
+
         def action_rot_z_right(self):
             self.rotation_z += 0.1
-        
+
         def action_reset(self):
             self.rotation_x = 0.0
             self.rotation_y = 0.0
             self.rotation_z = 0.0
-        
+
         def action_cycle_model(self):
             self.model_idx = (self.model_idx + 1) % len(self.models)
             self.model_type = self.models[self.model_idx]
-        
+
         def action_toggle_auto(self):
             self.auto_rotating = not self.auto_rotating
-        
+
         def render(self) -> str:
             if self.model_type == "cube":
                 model_view = self.renderer.render_cube(self.rotation_x, self.rotation_y, self.rotation_z)
@@ -7031,9 +7157,9 @@ if TEXTUAL_AVAILABLE:
                 model_view = self.renderer.render_pyramid(self.rotation_x, self.rotation_y, self.rotation_z)
             else:
                 model_view = self.renderer.render_sphere(self.rotation_x, self.rotation_y, self.rotation_z)
-            
+
             status = "AUTO" if self.auto_rotating else "MANUAL"
-            
+
             return f"""╔═══════════════════════════════════════════════════╗
 ║  3D ASCII VIEWER - {self.model_type.upper():13}  [{status:6}]    ║
 ╠═══════════════════════════════════════════════════╣
@@ -7049,13 +7175,13 @@ if TEXTUAL_AVAILABLE:
 
     class StatsPanel(Static):
         """Display real-time statistics."""
-        
+
         rotation_x = reactive(0.0)
         rotation_y = reactive(0.0)
         rotation_z = reactive(0.0)
         model_type = reactive("cube")
         fps = reactive(0.0)
-        
+
         def render(self) -> str:
             return f"""╔════════════════════════════════════╗
 ║         VIEWER STATISTICS          ║
@@ -7078,27 +7204,27 @@ if TEXTUAL_AVAILABLE:
 
     class Textual3DDashboard(Static):
         """Complete 3D visualization dashboard."""
-        
+
         def compose(self) -> ComposeResult:
             yield Header()
-            
+
             with Horizontal(id="main-container"):
                 with Vertical(id="viewer-section"):
                     yield Static("3D ASCII Visualization Engine", id="title")
                     viewer = Interactive3DViewer(id="viewer")
                     yield viewer
-                
+
                 with Vertical(id="stats-section"):
                     stats = StatsPanel(id="stats")
                     yield stats
-            
+
             yield Footer()
-        
+
         def on_mount(self):
             """Link reactive properties."""
             viewer = self.query_one("#viewer", Interactive3DViewer)
             stats = self.query_one("#stats", StatsPanel)
-            
+
             # Watch viewer changes
             viewer.watch_rotation_x = lambda value: setattr(stats, "rotation_x", value)
             viewer.watch_rotation_y = lambda value: setattr(stats, "rotation_y", value)
@@ -7114,7 +7240,7 @@ def get_ascii_model(model_type: str, rot_x: float, rot_y: float, rot_z: float,
                     width: int = 40, height: int = 20) -> str:
     """Get ASCII representation of a 3D model."""
     renderer = TextualRenderer3D(width, height)
-    
+
     if model_type == "cube":
         return renderer.render_cube(rot_x, rot_y, rot_z)
     elif model_type == "pyramid":
@@ -7199,15 +7325,15 @@ class SystemMetric:
 
 class MetricsAggregator:
     """Aggregate metrics from all systems."""
-    
+
     def __init__(self):
         self.api_metrics: Dict[str, Any] = {}
         self.service_metrics: Dict[str, Any] = {}
         self.visualization_metrics: Dict[str, Any] = {}
         self.system_metrics: List[SystemMetric] = []
         self.health_score = 100.0
-    
-    def add_metric(self, name: str, value: float, unit: str = "", 
+
+    def add_metric(self, name: str, value: float, unit: str = "",
                   threshold_warn: float = 70.0, threshold_crit: float = 90.0):
         """Add a metric."""
         status = self._get_status(value, threshold_warn, threshold_crit)
@@ -7218,7 +7344,7 @@ class MetricsAggregator:
             threshold_crit=threshold_crit
         )
         self.system_metrics.append(metric)
-    
+
     def _get_status(self, value: float, warn: float, crit: float) -> str:
         """Get status based on thresholds."""
         if value >= crit:
@@ -7227,12 +7353,12 @@ class MetricsAggregator:
             return "warning"
         else:
             return "healthy"
-    
+
     def calculate_health_score(self) -> float:
         """Calculate overall health score (0-100)."""
         if not self.system_metrics:
             return 100.0
-        
+
         scores = []
         for metric in self.system_metrics:
             if metric.status == "healthy":
@@ -7241,18 +7367,18 @@ class MetricsAggregator:
                 scores.append(70)
             else:
                 scores.append(30)
-        
+
         self.health_score = sum(scores) / len(scores) if scores else 100.0
         return self.health_score
-    
+
     def get_summary(self) -> Dict[str, Any]:
         """Get metrics summary."""
         health = self.calculate_health_score()
-        
+
         status_counts = defaultdict(int)
         for metric in self.system_metrics:
             status_counts[metric.status] += 1
-        
+
         return {
             "health_score": round(health, 1),
             "total_metrics": len(self.system_metrics),
@@ -7269,15 +7395,15 @@ class MetricsAggregator:
 if TEXTUAL_AVAILABLE:
     class HealthScoreWidget(Static):
         """Display system health score."""
-        
+
         def __init__(self, aggregator: MetricsAggregator, **kwargs):
             super().__init__(**kwargs)
             self.aggregator = aggregator
-        
+
         def render(self) -> str:
             summary = self.aggregator.get_summary()
             health = summary["health_score"]
-            
+
             if health >= 80:
                 status_icon = "🟢"
                 status_text = "HEALTHY"
@@ -7287,11 +7413,11 @@ if TEXTUAL_AVAILABLE:
             else:
                 status_icon = "🔴"
                 status_text = "CRITICAL"
-            
+
             bar_len = 30
             filled = int(bar_len * health / 100)
             bar = "█" * filled + "░" * (bar_len - filled)
-            
+
             return f"""╔════════════════════════════════════╗
 ║  SYSTEM HEALTH SCORE               ║
 ╠════════════════════════════════════╣
@@ -7304,7 +7430,7 @@ if TEXTUAL_AVAILABLE:
 
     class APIMetricsWidget(Static):
         """Display API Gateway metrics."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.metrics = {
@@ -7314,7 +7440,7 @@ if TEXTUAL_AVAILABLE:
                 "active_endpoints": 12,
                 "rate_limit_hits": 3
             }
-        
+
         def render(self) -> str:
             return f"""╔════════════════════════════════════╗
 ║     API GATEWAY METRICS            ║
@@ -7330,7 +7456,7 @@ if TEXTUAL_AVAILABLE:
 
     class MicroservicesWidget(Static):
         """Display microservices status."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.services = {
@@ -7339,30 +7465,30 @@ if TEXTUAL_AVAILABLE:
                 "cache-layer": {"instances": 1, "status": "healthy"},
                 "analytics": {"instances": 2, "status": "degraded"},
             }
-        
+
         def render(self) -> str:
             lines = [
                 "╔════════════════════════════════════╗",
                 "║   MICROSERVICES STATUS             ║",
                 "╠════════════════════════════════════╣",
             ]
-            
+
             for service, info in self.services.items():
                 icon = "🟢" if info["status"] == "healthy" else "🟡"
                 lines.append(f"║ {icon} {service:20} ×{info['instances']}        ║")
-            
+
             lines.extend([
                 "╠════════════════════════════════════╣",
                 f"║ Total Services: {len(self.services):15}        ║",
                 f"║ All Healthy: {'YES' if all(s['status']=='healthy' for s in self.services.values()) else 'NO':18}        ║",
                 "╚════════════════════════════════════╝"
             ])
-            
+
             return '\n'.join(lines)
 
     class VisualizationStatsWidget(Static):
         """Display visualization engine stats."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.stats = {
@@ -7371,7 +7497,7 @@ if TEXTUAL_AVAILABLE:
                 "active_charts": 8,
                 "total_datapoints": 3547
             }
-        
+
         def render(self) -> str:
             return f"""╔════════════════════════════════════╗
 ║  VISUALIZATION ENGINE              ║
@@ -7386,7 +7512,7 @@ if TEXTUAL_AVAILABLE:
 
     class EventLogWidget(Static):
         """Display recent system events."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.events = [
@@ -7395,20 +7521,20 @@ if TEXTUAL_AVAILABLE:
                 ("Visualization", "Render frame complete", "info"),
                 ("System", "Cache hit ratio 92%", "success"),
             ]
-        
+
         def render(self) -> str:
             lines = [
                 "╔════════════════════════════════════╗",
                 "║      RECENT EVENTS                 ║",
                 "╠════════════════════════════════════╣",
             ]
-            
+
             for system, event, level in self.events[-5:]:
                 icon_map = {"info": "ℹ️", "success": "✅", "error": "❌"}
                 icon = icon_map.get(level, "•")
                 event_text = f"{system}: {event}"
                 lines.append(f"║ {icon} {event_text:30} ║")
-            
+
             lines.append("╚════════════════════════════════════╝")
             return '\n'.join(lines)
 
@@ -7418,34 +7544,34 @@ if TEXTUAL_AVAILABLE:
 
     class UnifiedDashboard(Static):
         """Complete unified system dashboard."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.aggregator = MetricsAggregator()
             self._init_sample_metrics()
-        
+
         def _init_sample_metrics(self):
             """Initialize sample metrics."""
             self.aggregator.add_metric("CPU Usage", 45.2, "%")
             self.aggregator.add_metric("Memory Usage", 62.1, "%")
             self.aggregator.add_metric("Disk Usage", 38.5, "%")
             self.aggregator.add_metric("Network I/O", 23.7, "Mbps")
-        
+
         def compose(self) -> ComposeResult:
             yield Header()
-            
+
             with Horizontal(id="dashboard-main"):
                 with Vertical(id="left-column"):
                     yield HealthScoreWidget(self.aggregator, id="health")
                     yield APIMetricsWidget(id="api-metrics")
-                
+
                 with Vertical(id="center-column"):
                     yield MicroservicesWidget(id="services")
                     yield VisualizationStatsWidget(id="viz-stats")
-                
+
                 with Vertical(id="right-column"):
                     yield EventLogWidget(id="events")
-            
+
             yield Footer()
 
 def manifest() -> Dict[str, Any]:
@@ -7520,13 +7646,13 @@ class Command:
 
 class CommandProcessor:
     """Process and execute system commands."""
-    
+
     def __init__(self):
         self.commands: Dict[str, Command] = {}
         self.history: List[str] = []
         self.output_buffer: List[str] = []
         self._register_default_commands()
-    
+
     def _register_default_commands(self):
         """Register default system commands."""
         self.register_command(
@@ -7565,8 +7691,8 @@ class CommandProcessor:
             self._cmd_metrics,
             "monitoring"
         )
-    
-    def register_command(self, name: str, description: str, 
+
+    def register_command(self, name: str, description: str,
                         handler: Callable, category: str):
         """Register a command."""
         self.commands[name] = Command(
@@ -7575,41 +7701,41 @@ class CommandProcessor:
             handler=handler,
             category=category
         )
-    
+
     def execute(self, command: str, args: str = "") -> str:
         """Execute a command."""
         self.history.append(f"{command} {args}".strip())
-        
+
         if command not in self.commands:
             return f"❌ Unknown command: {command}"
-        
+
         try:
             result = self.commands[command].handler(args)
             return result
         except Exception as e:
             return f"❌ Error: {str(e)}"
-    
+
     def _cmd_help(self, args: str) -> str:
         """Show help."""
         lines = ["╔════════════════════════════════════╗"]
         lines.append("║     AVAILABLE COMMANDS             ║")
         lines.append("╠════════════════════════════════════╣")
-        
+
         categories = {}
         for cmd in self.commands.values():
             if cmd.category not in categories:
                 categories[cmd.category] = []
             categories[cmd.category].append(cmd)
-        
+
         for category in sorted(categories.keys()):
             lines.append(f"║ [{category.upper():15}]                ║")
             for cmd in categories[category]:
                 lines.append(f"║  • {cmd.name:10} - {cmd.description:20} ║")
             lines.append("║                                    ║")
-        
+
         lines.append("╚════════════════════════════════════╝")
         return '\n'.join(lines)
-    
+
     def _cmd_status(self, args: str) -> str:
         """Show system status."""
         return f"""✅ SYSTEM STATUS
@@ -7622,7 +7748,7 @@ Events:            🟢 STREAMING (247 events/min)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Overall Health:    🟢 EXCELLENT (94.2/100)
 Timestamp:         {datetime.now().isoformat()}"""
-    
+
     def _cmd_api(self, args: str) -> str:
         """API Gateway commands."""
         if not args:
@@ -7631,7 +7757,7 @@ Timestamp:         {datetime.now().isoformat()}"""
   api versions  - Show API versions
   api metrics   - Display metrics
   api reset     - Reset counters"""
-        
+
         if "list" in args:
             return """Active API Endpoints:
   GET  /api/v1/health
@@ -7640,14 +7766,14 @@ Timestamp:         {datetime.now().isoformat()}"""
   POST /api/v2/events
   GET  /api/v3/analytics
   ... and 7 more"""
-        
+
         elif "versions" in args:
             return """API Versions:
   v1:   Stable (27 endpoints, 2 deprecated)
   v2:   Current (35 endpoints)
   v3:   Beta (12 endpoints)
   beta: Development (8 endpoints)"""
-        
+
         elif "metrics" in args:
             return """API Metrics:
   Total Requests:    1,247
@@ -7655,9 +7781,9 @@ Timestamp:         {datetime.now().isoformat()}"""
   Success Rate:      99.2%
   Error Rate:        0.8%
   Rate Limits Hit:   3"""
-        
+
         return "API command executed"
-    
+
     def _cmd_services(self, args: str) -> str:
         """Microservices commands."""
         if not args:
@@ -7666,7 +7792,7 @@ Timestamp:         {datetime.now().isoformat()}"""
   services health   - Health report
   services policies - Show policies
   services traffic  - Traffic splitting"""
-        
+
         if "list" in args:
             return """Registered Services:
   backend-api    3 instances  🟢 HEALTHY
@@ -7675,7 +7801,7 @@ Timestamp:         {datetime.now().isoformat()}"""
   analytics      2 instances  🟡 DEGRADED
   queue-worker   3 instances  🟢 HEALTHY
   notification   2 instances  🟢 HEALTHY"""
-        
+
         elif "health" in args:
             return """Service Health Report:
   Success Rate:        99.8%
@@ -7683,9 +7809,9 @@ Timestamp:         {datetime.now().isoformat()}"""
   Circuit Breaker:     0 open
   Failed Calls:        2 (out of 1,500)
   Last Check:          2 seconds ago"""
-        
+
         return "Services command executed"
-    
+
     def _cmd_visualize(self, args: str) -> str:
         """Visualization commands."""
         return """🚀 Launching 3D ASCII Viewer...
@@ -7698,7 +7824,7 @@ Controls:
 
 Models: Cube | Pyramid | Sphere
 Status: READY"""
-    
+
     def _cmd_metrics(self, args: str) -> str:
         """Display metrics."""
         return """System Metrics:
@@ -7714,12 +7840,12 @@ Health Score:      94.2/100 🟢 EXCELLENT"""
 if TEXTUAL_AVAILABLE:
     class CommandInput(Static):
         """Command input field."""
-        
+
         def __init__(self, processor: CommandProcessor, **kwargs):
             super().__init__(**kwargs)
             self.processor = processor
             self.input_buffer = ""
-        
+
         def render(self) -> str:
             return f"""╔════════════════════════════════════╗
 ║ COMMAND CENTER                     ║
@@ -7729,11 +7855,11 @@ if TEXTUAL_AVAILABLE:
 
     class CommandOutput(Static):
         """Command output display."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.output = "Welcome to Classic Command Center\\nType '\''help'\'' for available commands"
-        
+
         def render(self) -> str:
             return f"""╔════════════════════════════════════╗
 ║         OUTPUT                     ║
@@ -7743,38 +7869,38 @@ if TEXTUAL_AVAILABLE:
 
     class CommandHistory(Static):
         """Show command history."""
-        
+
         def __init__(self, processor: CommandProcessor, **kwargs):
             super().__init__(**kwargs)
             self.processor = processor
-        
+
         def render(self) -> str:
             lines = ["╔════════════════════════════════════╗"]
             lines.append("║    COMMAND HISTORY                 ║")
             lines.append("╠════════════════════════════════════╣")
-            
+
             for cmd in self.processor.history[-5:]:
                 lines.append(f"║ $ {cmd:30} ║")
-            
+
             lines.append("╚════════════════════════════════════╝")
             return '\n'.join(lines)
 
     class ClassicCommandCenter(Static):
         """Classic terminal-style command center."""
-        
+
         def __init__(self, **kwargs):
             super().__init__(**kwargs)
             self.processor = CommandProcessor()
-        
+
         def compose(self) -> ComposeResult:
             yield Header()
-            
+
             with Vertical(id="center-main"):
                 yield Label("PYTHONOS COMMAND CENTER", id="title")
                 yield CommandInput(self.processor, id="input")
                 yield CommandOutput(id="output", styles="height: 15")
                 yield CommandHistory(self.processor, id="history", styles="height: 10")
-            
+
             yield Footer()
 
 def manifest() -> Dict[str, Any]:
@@ -7850,7 +7976,7 @@ if errorlevel 1 (
     echo pythonOS encountered an error. Attempting recovery...
     echo ===================================================================
     echo.
-    
+
     REM Try to run recovery console
     if exist "pythonOS_data\recovery_console.py" (
         echo Starting recovery console...
@@ -7906,7 +8032,7 @@ if [ $EXIT_CODE -ne 0 ]; then
     echo "pythonOS encountered an error. Attempting recovery..."
     echo "==================================================================="
     echo ""
-    
+
     # Try recovery console
     if [ -f "pythonOS_data/recovery_console.py" ]; then
         echo "Starting recovery console..."
@@ -7955,7 +8081,7 @@ def recover():
     safe_print("pythonOS RECOVERY CONSOLE")
     safe_print("=" * 60)
     safe_print("")
-    
+
     while True:
         try:
             safe_print("")
@@ -7967,21 +8093,21 @@ def recover():
             safe_print("5. Run Main Script Anyway")
             safe_print("6. Exit")
             safe_print("")
-            
+
             choice = input("Select (1-6): ").strip()
-            
+
             if choice == '1':
                 safe_print("")
                 safe_print("System Information:")
                 safe_print(f"  Platform: {sys.platform}")
                 safe_print(f"  Python: {sys.version}")
                 safe_print(f"  Executable: {sys.executable}")
-                
+
             elif choice == '2':
                 safe_print("")
                 safe_print("Testing Python...")
                 safe_print("  Version: " + str(sys.version_info.major) + "." + str(sys.version_info.minor))
-                
+
                 # Test basic imports
                 safe_print("  Checking imports...")
                 try:
@@ -7989,24 +8115,24 @@ def recover():
                     safe_print("    - json: OK")
                 except:
                     safe_print("    - json: FAILED")
-                
+
                 try:
                     import sqlite3
                     safe_print("    - sqlite3: OK")
                 except:
                     safe_print("    - sqlite3: FAILED")
-                
+
                 try:
                     import subprocess
                     safe_print("    - subprocess: OK")
                 except:
                     safe_print("    - subprocess: FAILED")
-                    
+
             elif choice == '3':
                 safe_print("")
                 safe_print("Terminal Capabilities Test:")
                 safe_print("")
-                
+
                 # Test ANSI codes
                 safe_print("ANSI Colors: ", end="")
                 try:
@@ -8015,7 +8141,7 @@ def recover():
                     safe_print(" (OK)")
                 except:
                     safe_print(" (FAILED - Use plain text mode)")
-                
+
                 # Test Unicode
                 safe_print("Unicode: ", end="")
                 try:
@@ -8024,18 +8150,18 @@ def recover():
                     safe_print(" (OK)")
                 except:
                     safe_print(" (FAILED - Use ASCII mode)")
-                
+
                 # Basic terminal info
                 safe_print("")
                 safe_print("Terminal Environment:")
                 term = os.environ.get('TERM', 'not set')
                 safe_print(f"  TERM={term}")
-                
+
             elif choice == '4':
                 safe_print("")
                 safe_print("Attempting repairs...")
                 safe_print("  [This feature would reset problematic settings]")
-                
+
             elif choice == '5':
                 safe_print("")
                 safe_print("Attempting to run main script...")
@@ -8049,13 +8175,13 @@ def recover():
                         safe_print("ERROR: Main script not found")
                 except Exception as e:
                     safe_print("ERROR: " + str(e))
-                    
+
             elif choice == '6':
                 safe_print("Exiting recovery console...")
                 break
             else:
                 safe_print("Invalid choice")
-                
+
         except KeyboardInterrupt:
             safe_print("")
             safe_print("Exiting...")
@@ -8117,6 +8243,7 @@ def extract_embedded_files():
             ("textual_3d_viewer.py", EMBEDDED_TEXTUAL_3D_VIEWER),
             ("unified_dashboard.py", EMBEDDED_UNIFIED_DASHBOARD),
             ("command_center.py", EMBEDDED_COMMAND_CENTER),
+            ("satellite_links.py", EMBEDDED_SATELLITE_LINKS),
             ("recovery_console.py", EMBEDDED_RECOVERY_SCRIPT),  # Universal fallback
         ]
 
@@ -8133,7 +8260,7 @@ def extract_embedded_files():
                 extracted_count += 1
             else:
                 print(f"ℹ️  {filename} already exists in script dir, skipping...")
-        
+
         # Extract launcher scripts to SCRIPT_DIR (for easy access)
         launcher_files = [
             ("run.bat", EMBEDDED_LAUNCHER_BAT) if os.name == 'nt' else ("run.sh", EMBEDDED_LAUNCHER_SH),
@@ -8501,7 +8628,7 @@ except ModuleNotFoundError:
             A_NORMAL = 0
             A_REVERSE = 0
             A_UNDERLINE = 0
-            
+
             # Line drawing characters
             ACS_HLINE = '-'
             ACS_VLINE = '|'
@@ -8513,7 +8640,7 @@ except ModuleNotFoundError:
             ACS_URCORNER = '┐'
             ACS_LLCORNER = '└'
             ACS_LRCORNER = '┘'
-            
+
             # Key codes
             KEY_UP = 259
             KEY_DOWN = 258
@@ -8521,53 +8648,53 @@ except ModuleNotFoundError:
             KEY_RIGHT = 261
             KEY_ENTER = 10
             KEY_BACKSPACE = 263
-            
+
             ERR = -1
             OK = 0
-            
+
             @staticmethod
             def initscr():
                 """Dummy window object."""
                 return StubWindow()
-            
+
             @staticmethod
             def endwin():
                 pass
-            
+
             @staticmethod
             def cbreak():
                 pass
-            
+
             @staticmethod
             def noecho():
                 pass
-            
+
             @staticmethod
             def start_color():
                 pass
-            
+
             @staticmethod
             def init_pair(pair_id, fg, bg):
                 pass
-        
+
         class StubWindow:
             """Fallback window object with stub methods."""
             def __init__(self):
                 self.width = 80
                 self.height = 24
-            
+
             def erase(self):
                 print("\033[2J\033[H")  # Clear screen ANSI
-            
+
             def attron(self, attr):
                 return 0
-            
+
             def attroff(self, attr):
                 return 0
-            
+
             def box(self):
                 pass
-            
+
             def addstr(self, *args):
                 if len(args) >= 2:
                     if isinstance(args[0], int) and isinstance(args[1], int):
@@ -8576,29 +8703,29 @@ except ModuleNotFoundError:
                     else:
                         # addstr(string, [attr])
                         print(args[0] if len(args) > 0 else "", end="")
-            
+
             def addch(self, *args):
                 if len(args) >= 2:
                     print(args[2] if len(args) > 2 else " ", end="")
-            
+
             def getmaxyx(self):
                 return (self.height, self.width)
-            
+
             def refresh(self):
                 pass
-            
+
             def getch(self):
                 return -1
-            
+
             def timeout(self, ms):
                 pass
-            
+
             def clear(self):
                 print("\033[2J\033[H")
-            
+
             def move(self, y, x):
                 pass
-        
+
         curses = StubCurses()
         CURSES_AVAILABLE = False
         try:
@@ -8635,12 +8762,12 @@ def detect_terminal_capabilities():
     Disables graphics features that would crash on ancient terminals.
     """
     global TERMINAL_TYPE, SUPPORTS_ANSI, SUPPORTS_UNICODE, SUPPORTS_COLORS, SUPPORTS_VT100, SAFE_MODE_ENABLED
-    
+
     # Check environment variables
     term_env = os.environ.get('TERM', '').lower()
     conemu = os.environ.get('ConEmuANSI', '').lower() == 'on'
     ansicon = os.environ.get('ANSICON', '')
-    
+
     # Check if running in old cmd.exe (Windows Command Prompt)
     if term_env == 'dumb' or (os.name == 'nt' and not conemu and not ansicon):
         TERMINAL_TYPE = "cmd.exe (ancient)"
@@ -8649,44 +8776,44 @@ def detect_terminal_capabilities():
         SUPPORTS_COLORS = True  # Basic 16 colors only
         SUPPORTS_VT100 = False
         SAFE_MODE_ENABLED = True
-        
+
         # Disable problematic features
         os.environ['TERM'] = 'win32'
         print("[*] Detected old CMD.exe - running in SAFE MODE")
         print("    Graphics & ANSI codes disabled for compatibility")
-        
+
     elif term_env.startswith('vt'):
         TERMINAL_TYPE = "VT100 compatible"
         SUPPORTS_VT100 = True
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = False  # VT100 may not support emoji
-        
+
     elif term_env in ('xterm', 'xterm-256color', 'xterm-kitty'):
         TERMINAL_TYPE = "xterm (modern)"
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = True
         SUPPORTS_COLORS = True
         SUPPORTS_VT100 = False
-        
+
     elif 'powershell' in term_env.lower() or 'pwsh' in term_env:
         TERMINAL_TYPE = "PowerShell"
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = True
         SUPPORTS_COLORS = True
         SUPPORTS_VT100 = False
-        
+
     elif 'cygwin' in term_env:
         TERMINAL_TYPE = "Cygwin"
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = True
         SUPPORTS_VT100 = False
-        
+
     elif 'linux' in term_env or 'screen' in term_env:
         TERMINAL_TYPE = "Linux Terminal"
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = True
         SUPPORTS_VT100 = True
-        
+
     elif os.name == 'nt':
         # Windows but unknown terminal - be conservative
         TERMINAL_TYPE = "Windows (unknown)"
@@ -8694,14 +8821,14 @@ def detect_terminal_capabilities():
         SUPPORTS_UNICODE = False
         SUPPORTS_COLORS = True
         SAFE_MODE_ENABLED = True
-        
+
     elif os.name == 'posix':
         # Unix-like but minimal info
         TERMINAL_TYPE = "POSIX Terminal"
         SUPPORTS_ANSI = True
         SUPPORTS_UNICODE = True
         SUPPORTS_VT100 = True
-        
+
     print(f"[✓] Terminal: {TERMINAL_TYPE}")
 
 # Detect terminal on startup
@@ -8723,7 +8850,7 @@ if not SUPPORTS_ANSI:
     REVERSE = ""
     HIDDEN = ""
     STRIKETHROUGH = ""
-    
+
 else:
     # Keep normal ANSI codes
     pass
@@ -10554,24 +10681,24 @@ except ModuleNotFoundError:
         """Fallback stub for Fernet encryption when cryptography is unavailable."""
         def __init__(self, key):
             self.key = key
-        
+
         def encrypt(self, data):
             """Dummy encryption - returns data unchanged."""
             if isinstance(data, str):
                 return data.encode()
             return data
-        
+
         def decrypt(self, data):
             """Dummy decryption - returns data unchanged."""
             if isinstance(data, bytes):
                 return data.decode()
             return data
-        
+
         @staticmethod
         def generate_key():
             """Dummy key generation."""
             return b'dummy-key-for-fallback-mode' * 2
-    
+
     Fernet = FernetStub
     print("[*] WARNING: Cryptography module not available - using stub encryption (no real encryption)")
     print("    Install: pip install cryptography")
@@ -11558,7 +11685,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def _get_data_dir():
     """Get a writable data directory, with fallback to user AppData if script dir is not writable."""
     primary_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
-    
+
     # Try to create in script directory first
     try:
         os.makedirs(primary_dir, exist_ok=True)
@@ -11686,7 +11813,7 @@ def _load_user_config():
         os.makedirs(DB_DIR, exist_ok=True)
     except (OSError, IOError, PermissionError) as e:
         pass  # Directory creation failed, config will return empty
-    
+
     if not os.path.exists(CONFIG_FILE):
         return {}
     try:
@@ -11704,7 +11831,7 @@ def _save_user_config(config, allow_create=False):
         os.makedirs(DB_DIR, exist_ok=True)
     except (OSError, IOError, PermissionError):
         return  # Cannot create directory, skip saving
-    
+
     try:
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
@@ -15304,11 +15431,11 @@ class EncryptedMessagingServer:
         if not self.cipher_suite:
             print(f"{COLORS['1'][0]}[ERROR] No cipher available{RESET}")
             return
-        
+
         try:
             encrypted_msg = self.cipher_suite.encrypt(message.encode())
             disconnected = []
-            
+
             for addr, client_socket in self.client_sockets.items():
                 if exclude_addr and addr == exclude_addr:
                     continue
@@ -15316,7 +15443,7 @@ class EncryptedMessagingServer:
                     client_socket.sendall(encrypted_msg)
                 except:
                     disconnected.append(addr)
-            
+
             # Remove disconnected clients
             for addr in disconnected:
                 if addr in self.client_sockets:
@@ -15397,7 +15524,7 @@ class EncryptedMessagingServer:
                 pass
             if addr in self.connected_clients:
                 self.connected_clients.remove(addr)
-        
+
         if self.server_socket:
             self.server_socket.close()
         print(f"{COLORS['2'][0]}✓ Server stopped{RESET}")
@@ -15443,7 +15570,7 @@ class EncryptedMessagingClient:
                         encrypted_msg = self.socket.recv(1024)
                         if not encrypted_msg:
                             break
-                        
+
                         try:
                             if self.cipher_suite:
                                 decrypted_msg = self.cipher_suite.decrypt(encrypted_msg).decode()
@@ -15459,7 +15586,7 @@ class EncryptedMessagingClient:
                     print(f"\n{COLORS['1'][0]}Connection lost{RESET}")
             finally:
                 self.running = False
-        
+
         receiver_thread = threading.Thread(target=receiver, daemon=True)
         receiver_thread.start()
 
@@ -15612,15 +15739,15 @@ def _feature_messaging_submenu():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("💬 Messaging Center")
-        
+
         print(f"\n{BOLD}Messaging Options:{RESET}")
         print(f" {BOLD}[1]{RESET} 🔐 Server/Client Chat - Real-time two-way communication")
         print(f" {BOLD}[2]{RESET} 📱 Send SMS via Email - Text messages using carrier gateways")
         print(f" {BOLD}[3]{RESET} 🚀 Advanced Messaging - External APIs (Twilio, Vonage, etc.)")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Server/Client Menu")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
         elif choice == '1':
@@ -15637,25 +15764,25 @@ def _messaging_server_client_chat():
     """Real-time server/client chat using sockets."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔐 Server/Client Chat - Real-Time Communication")
-    
+
     print(f"\n{BOLD}Chat Server/Client Module:{RESET}")
     print(f"\n{COLORS['2'][0]}This module enables real-time two-way communication between systems.{RESET}")
-    
+
     print(f"\n{BOLD}Features:{RESET}")
     print(f"  • Direct socket-based peer-to-peer communication")
     print(f"  • Message encryption support")
     print(f"  • Connection persistence until user exits")
     print(f"  • Multi-client connection capability")
     print(f"  • Local network and internet support")
-    
+
     print(f"\n{BOLD}Implementation Methods:{RESET}")
     print(f" {BOLD}[1]{RESET} 🖥️  Start Chat Server")
     print(f" {BOLD}[2]{RESET} 💻 Connect as Chat Client")
     print(f" {BOLD}[3]{RESET} 📚 Socket Programming Guide")
     print(f" {BOLD}[0]{RESET} Back")
-    
+
     choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-    
+
     if choice == '0':
         return
     elif choice == '1':
@@ -15671,13 +15798,13 @@ def _chat_server_mode():
     """Start a chat server for accepting client connections."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🖥️  Chat Server - Accepting Connections")
-    
+
     try:
         import socket
-        
+
         port = input("Enter port to listen on [9000]: ").strip() or "9000"
         max_clients = input("Enter max clients [10]: ").strip() or "10"
-        
+
         try:
             port = int(port)
             max_clients = int(max_clients)
@@ -15685,23 +15812,23 @@ def _chat_server_mode():
             print(f"{COLORS['1'][0]}Invalid port or max clients{RESET}")
             input("\nPress Enter to return...")
             return
-        
+
         print(f"\n{COLORS['6'][0]}Starting chat server...{RESET}")
         print(f"  Listening on port: {port}")
         print(f"  Max clients: {max_clients}")
         print(f"  Status: Ready to accept connections")
-        
+
         # Create server socket
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server_socket.bind(('0.0.0.0', port))
         server_socket.listen(max_clients)
-        
+
         print(f"\n{COLORS['2'][0]}✓ Server running. Press Ctrl+C to stop.{RESET}")
         print(f"{BOLD}Waiting for connections...{RESET}\n")
-        
+
         connected_clients = []
-        
+
         try:
             while True:
                 # Accept connection with timeout to allow Ctrl+C
@@ -15710,11 +15837,11 @@ def _chat_server_mode():
                     client_socket, client_address = server_socket.accept()
                     connected_clients.append((client_socket, client_address))
                     print(f"{COLORS['2'][0]}✓ Client connected: {client_address[0]}:{client_address[1]}{RESET}")
-                    
+
                     # Send welcome message
                     welcome_msg = f"Welcome to pythonOS Chat! ({len(connected_clients)} clients online)\n"
                     client_socket.send(welcome_msg.encode('utf-8'))
-                    
+
                     # Broadcast to other clients
                     broadcast_msg = f"[{client_address[0]}:{client_address[1]}] joined the chat\n"
                     for other_client, _ in connected_clients[:-1]:
@@ -15722,10 +15849,10 @@ def _chat_server_mode():
                             other_client.send(broadcast_msg.encode('utf-8'))
                         except:
                             pass
-                
+
                 except socket.timeout:
                     pass
-                
+
                 # Try to receive messages from connected clients
                 disconnected = []
                 for client_socket, client_address in connected_clients:
@@ -15746,13 +15873,13 @@ def _chat_server_mode():
                         pass
                     except:
                         disconnected.append((client_socket, client_address))
-                
+
                 # Remove disconnected clients
                 for client_socket, client_address in disconnected:
                     connected_clients.remove((client_socket, client_address))
                     client_socket.close()
                     print(f"{COLORS['1'][0]}✗ Client disconnected: {client_address[0]}:{client_address[1]}{RESET}")
-        
+
         except KeyboardInterrupt:
             print(f"\n\n{COLORS['1'][0]}Shutting down server...{RESET}")
         finally:
@@ -15760,44 +15887,44 @@ def _chat_server_mode():
                 client_socket.close()
             server_socket.close()
             print(f"{COLORS['2'][0]}✓ Server stopped{RESET}")
-    
+
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _chat_client_mode():
     """Connect to a chat server as a client."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("💻 Chat Client - Connect to Server")
-    
+
     try:
         import socket
         import threading
-        
+
         host = input("Enter server address [localhost]: ").strip() or "localhost"
         port = input("Enter server port [9000]: ").strip() or "9000"
-        
+
         try:
             port = int(port)
         except ValueError:
             print(f"{COLORS['1'][0]}Invalid port{RESET}")
             input("\nPress Enter to return...")
             return
-        
+
         print(f"\n{COLORS['6'][0]}Connecting to {host}:{port}...{RESET}")
-        
+
         # Create client socket
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         client_socket.connect((host, port))
-        
+
         print(f"{COLORS['2'][0]}✓ Connected to server!{RESET}")
         print(f"{BOLD}Type messages and press Enter. Type 'exit' to disconnect.{RESET}\n")
-        
+
         # Receive initial welcome message
         welcome = client_socket.recv(1024).decode('utf-8')
         print(f"{COLORS['2'][0]}{welcome}{RESET}")
-        
+
         # Thread to receive messages
         def receive_messages():
             while True:
@@ -15809,10 +15936,10 @@ def _chat_client_mode():
                         break
                 except:
                     break
-        
+
         receive_thread = threading.Thread(target=receive_messages, daemon=True)
         receive_thread.start()
-        
+
         # Send messages
         try:
             while True:
@@ -15827,23 +15954,23 @@ def _chat_client_mode():
             print(f"\n{COLORS['1'][0]}Disconnecting...{RESET}")
             client_socket.close()
             print(f"{COLORS['2'][0]}✓ Disconnected{RESET}")
-    
+
     except ConnectionRefusedError:
         print(f"{COLORS['1'][0]}❌ Connection refused. Is the server running?{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _socket_programming_guide():
     """Display socket programming guide and concepts."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📚 Socket Programming Guide")
-    
+
     print(f"\n{BOLD}What is Socket Programming?{RESET}")
     print(f"{COLORS['2'][0]}Socket programming enables direct communication between computers over")
     print(f"a network. Python's socket library provides low-level networking interface.{RESET}")
-    
+
     print(f"\n{BOLD}Key Concepts:{RESET}")
     print(f"  1. {BOLD}Socket{RESET}: Endpoint for communication (like a telephone)")
     print(f"  2. {BOLD}Server{RESET}: Listens for incoming connections")
@@ -15851,7 +15978,7 @@ def _socket_programming_guide():
     print(f"  4. {BOLD}Port{RESET}: Unique address on a machine (0-65535)")
     print(f"  5. {BOLD}TCP/IP{RESET}: Connection-oriented, reliable protocol")
     print(f"  6. {BOLD}UDP{RESET}: Connectionless, faster but unreliable")
-    
+
     print(f"\n{BOLD}Basic Server Code:{RESET}")
     print(f"""{COLORS['6'][0]}
 import socket
@@ -15862,7 +15989,7 @@ conn, addr = server.accept()
 data = conn.recv(1024)
 conn.send(b"Response")
 conn.close(){RESET}""")
-    
+
     print(f"\n{BOLD}Basic Client Code:{RESET}")
     print(f"""{COLORS['6'][0]}
 import socket
@@ -15871,24 +15998,24 @@ client.connect(('localhost', 9000))
 client.send(b"Hello Server")
 response = client.recv(1024)
 client.close(){RESET}""")
-    
+
     print(f"\n{BOLD}Best Practices:{RESET}")
     print(f"  ✓ Always close sockets after use")
     print(f"  ✓ Use try/except for network errors")
     print(f"  ✓ Set socket timeouts to prevent blocking")
     print(f"  ✓ Handle client disconnections gracefully")
     print(f"  ✓ Use threading for multiple clients")
-    
+
     input("\nPress Enter to return...")
 
 def _messaging_sms_via_email():
     """Send SMS via email using carrier gateways."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📱 SMS via Email Gateway")
-    
+
     print(f"\n{BOLD}Send Text Messages Using Email:{RESET}")
     print(f"{COLORS['2'][0]}This method sends SMS messages by emailing a carrier gateway{RESET}")
-    
+
     print(f"\n{BOLD}Supported Carriers & Gateways:{RESET}")
     carriers = {
         "Verizon": "@vtext.com",
@@ -15899,18 +16026,18 @@ def _messaging_sms_via_email():
         "Virgin Mobile": "@vmobl.com",
         "MetroPCS": "@metropcs.sms.com",
     }
-    
+
     for carrier, gateway in carriers.items():
         print(f"  • {carrier}: phone_number{gateway}")
-    
+
     print(f"\n{BOLD}Implementation:{RESET}")
     print(f" {BOLD}[1]{RESET} 📬 Send SMS Message")
     print(f" {BOLD}[2]{RESET} 🔧 Setup Email Account")
     print(f" {BOLD}[3]{RESET} 📚 Code Examples")
     print(f" {BOLD}[0]{RESET} Back")
-    
+
     choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-    
+
     if choice == '0':
         return
     elif choice == '1':
@@ -15924,106 +16051,106 @@ def _send_sms_via_email():
     """Send actual SMS via email."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📬 Send SMS Message")
-    
+
     try:
         import smtplib
         from email.mime.text import MIMEText
-        
+
         print(f"\n{BOLD}Carrier & Phone Number:{RESET}")
         print(f"  Verizon (@vtext.com)")
         print(f"  AT&T (@txt.att.net)")
         print(f"  T-Mobile (@tmomail.net)")
         print(f"  Sprint (@messaging.sprintpcs.com)")
-        
+
         phone = input("\nEnter recipient phone number (10 digits): ").strip()
         carrier = input("Enter carrier gateway (e.g., vtext.com): ").strip()
-        
+
         if not phone or not carrier:
             print(f"{COLORS['1'][0]}Invalid input{RESET}")
             input("\nPress Enter to return...")
             return
-        
+
         # Format recipient email
         recipient_email = f"{phone}@{carrier}"
-        
+
         message = input("\nEnter SMS message (max 160 chars): ").strip()
         if not message:
             print(f"{COLORS['1'][0]}Message cannot be empty{RESET}")
             input("\nPress Enter to return...")
             return
-        
+
         if len(message) > 160:
             print(f"{COLORS['4'][0]}⚠️  Message will be split into multiple SMS{RESET}")
-        
+
         # Email configuration
         sender_email = input("\nEnter your Gmail address: ").strip()
         password = getpass.getpass("Enter Gmail app password: ")
-        
+
         if not sender_email or not password:
             print(f"{COLORS['1'][0]}Email credentials required{RESET}")
             input("\nPress Enter to return...")
             return
-        
+
         print(f"\n{COLORS['6'][0]}Sending SMS to {recipient_email}...{RESET}")
-        
+
         # Send email to SMS gateway
         msg = MIMEText(message)
         msg['Subject'] = 'SMS'
         msg['From'] = sender_email
         msg['To'] = recipient_email
-        
+
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
         server.login(sender_email, password)
         server.send_message(msg)
         server.quit()
-        
+
         print(f"{COLORS['2'][0]}✓ SMS sent successfully!{RESET}")
         print(f"  To: {recipient_email}")
         print(f"  Message: {message[:50]}...")
-    
+
     except ImportError:
         print(f"{COLORS['1'][0]}Required modules not available{RESET}")
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Error: {e}{RESET}")
-    
+
     input("\nPress Enter to return...")
 
 def _setup_email_for_sms():
     """Guide for setting up email for SMS."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🔧 Setup Email for SMS")
-    
+
     print(f"\n{BOLD}Gmail Setup Instructions:{RESET}")
     print(f"\n1. {BOLD}Enable 2-Factor Authentication:{RESET}")
     print(f"   • Go to myaccount.google.com")
     print(f"   • Select 'Security' in the left menu")
     print(f"   • Enable 2-Step Verification")
-    
+
     print(f"\n2. {BOLD}Generate App Password:{RESET}")
     print(f"   • Go to myaccount.google.com/apppasswords")
     print(f"   • Select 'Mail' and 'Windows Computer' (or your device)")
     print(f"   • Google will generate a 16-character password")
     print(f"   • Use this password in the SMS sender script")
-    
+
     print(f"\n3. {BOLD}Other Email Providers:{RESET}")
     print(f"   • Outlook: Use your regular password or app password")
     print(f"   • Yahoo: Generate app-specific password")
     print(f"   • Custom SMTP: Configure sender_email and password")
-    
+
     print(f"\n{BOLD}Important Notes:{RESET}")
     print(f"  ⚠️  Never share your app password")
     print(f"  ⚠️  SMS via email may be rate-limited")
     print(f"  ⚠️  Some carriers charge for incoming SMS")
     print(f"  ✓ Completely free method")
     print(f"  ✓ Works worldwide with any carrier")
-    
+
     input("\nPress Enter to return...")
 
 def _sms_email_code_examples():
     """Show code examples for SMS via email."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📚 SMS via Email - Code Examples")
-    
+
     print(f"\n{BOLD}Example 1: Simple SMS{RESET}")
     print(f"""{COLORS['6'][0]}
 import smtplib
@@ -16042,7 +16169,7 @@ server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
 server.login(sender, password)
 server.send_message(msg)
 server.quit(){RESET}""")
-    
+
     print(f"\n{BOLD}Example 2: Multiple Recipients{RESET}")
     print(f"""{COLORS['6'][0]}
 recipients = [
@@ -16054,7 +16181,7 @@ recipients = [
 for recipient in recipients:
     # Send to each recipient
     server.send_message(msg){RESET}""")
-    
+
     print(f"\n{BOLD}Example 3: With Error Handling{RESET}")
     print(f"""{COLORS['6'][0]}
 try:
@@ -16068,54 +16195,54 @@ except smtplib.SMTPException as e:
     print(f"❌ Error: {e}")
 finally:
     server.quit(){RESET}""")
-    
+
     input("\nPress Enter to return...")
 
 def _messaging_advanced_apis():
     """Advanced messaging with external APIs."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🚀 Advanced Messaging APIs")
-    
+
     print(f"\n{BOLD}Professional Messaging Platforms:{RESET}")
     print(f"\n{BOLD}[1] Twilio{RESET}")
     print(f"  • SMS, MMS, WhatsApp, Voice")
     print(f"  • Free credits for new accounts")
     print(f"  • Python SDK available")
     print(f"  • URL: https://www.twilio.com")
-    
+
     print(f"\n{BOLD}[2] Vonage (Nexmo){RESET}")
     print(f"  • SMS, Voice, Verification APIs")
     print(f"  • Global coverage")
     print(f"  • Python SDK available")
     print(f"  • URL: https://www.vonage.com")
-    
+
     print(f"\n{BOLD}[3] PubNub{RESET}")
     print(f"  • Real-time messaging infrastructure")
     print(f"  • Multiple chat rooms")
     print(f"  • Presence detection")
     print(f"  • Message history")
     print(f"  • URL: https://www.pubnub.com")
-    
+
     print(f"\n{BOLD}[4] AWS SNS{RESET}")
     print(f"  • Amazon Simple Notification Service")
     print(f"  • SMS, Email, Push notifications")
     print(f"  • Enterprise-grade reliability")
     print(f"  • URL: https://aws.amazon.com/sns")
-    
+
     print(f"\n{BOLD}[5] Firebase Cloud Messaging{RESET}")
     print(f"  • Real-time messaging")
     print(f"  • Push notifications")
     print(f"  • Offline message queuing")
     print(f"  • URL: https://firebase.google.com")
-    
+
     print(f"\n{BOLD}Implementation Options:{RESET}")
     print(f" {BOLD}[A]{RESET} 📖 Twilio Setup Guide")
     print(f" {BOLD}[B]{RESET} 📖 Vonage Setup Guide")
     print(f" {BOLD}[C]{RESET} 💻 API Code Examples")
     print(f" {BOLD}[0]{RESET} Back")
-    
+
     choice = input(f"\n{BOLD}Select option: {RESET}").strip().upper()
-    
+
     if choice == '0':
         return
     elif choice == 'A':
@@ -16129,20 +16256,20 @@ def _twilio_setup_guide():
     """Twilio setup and usage guide."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("Twilio Setup Guide")
-    
+
     print(f"\n{BOLD}Step 1: Create Account{RESET}")
     print(f"  • Visit: https://www.twilio.com/console")
     print(f"  • Sign up for free account")
     print(f"  • Get free trial credits ($15.50)")
-    
+
     print(f"\n{BOLD}Step 2: Install Python SDK{RESET}")
     print(f"{COLORS['6'][0]}pip install twilio{RESET}")
-    
+
     print(f"\n{BOLD}Step 3: Get Credentials{RESET}")
     print(f"  • Account SID: Find in Console Dashboard")
     print(f"  • Auth Token: Find in Console Dashboard")
     print(f"  • Phone Number: Twilio number (assigned to your account)")
-    
+
     print(f"\n{BOLD}Step 4: Send SMS{RESET}")
     print(f"""{COLORS['6'][0]}
 from twilio.rest import Client
@@ -16156,32 +16283,32 @@ message = client.messages.create(
     from_="+1234567890",  # Your Twilio number
     to="+9876543210"      # Recipient
 ){RESET}""")
-    
+
     print(f"\n{BOLD}Features:{RESET}")
     print(f"  ✓ SMS & MMS support")
     print(f"  ✓ WhatsApp integration")
     print(f"  ✓ Voice calls")
     print(f"  ✓ Message delivery tracking")
-    
+
     input("\nPress Enter to return...")
 
 def _vonage_setup_guide():
     """Vonage (Nexmo) setup and usage guide."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("Vonage Setup Guide")
-    
+
     print(f"\n{BOLD}Step 1: Create Account{RESET}")
     print(f"  • Visit: https://dashboard.nexmo.com")
     print(f"  • Sign up for free account")
     print(f"  • Get free credits")
-    
+
     print(f"\n{BOLD}Step 2: Install Python SDK{RESET}")
     print(f"{COLORS['6'][0]}pip install vonage{RESET}")
-    
+
     print(f"\n{BOLD}Step 3: Get Credentials{RESET}")
     print(f"  • API Key: From Settings")
     print(f"  • API Secret: From Settings")
-    
+
     print(f"\n{BOLD}Step 4: Send SMS{RESET}")
     print(f"""{COLORS['6'][0]}
 from vonage import Client, Auth
@@ -16196,20 +16323,20 @@ response = client.sms.send_message(
         "text": "Hello from pythonOS!",
     }
 ){RESET}""")
-    
+
     print(f"\n{BOLD}Features:{RESET}")
     print(f"  ✓ SMS sending")
     print(f"  ✓ Voice APIs")
     print(f"  ✓ Verification service")
     print(f"  ✓ Global coverage")
-    
+
     input("\nPress Enter to return...")
 
 def _api_code_examples():
     """Show code examples for various messaging APIs."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📚 Advanced Messaging - Code Examples")
-    
+
     print(f"\n{BOLD}Twilio - Send SMS{RESET}")
     print(f"""{COLORS['6'][0]}
 from twilio.rest import Client
@@ -16221,7 +16348,7 @@ msg = client.messages.create(
     to="+9876543210"
 )
 print(f"Sent: {msg.sid}"){RESET}""")
-    
+
     print(f"\n{BOLD}PubNub - Real-time Chat{RESET}")
     print(f"""{COLORS['6'][0]}
 import pubnub
@@ -16237,7 +16364,7 @@ pn.publish(
     channel='chat_room',
     message='Hello PubNub!'
 ){RESET}""")
-    
+
     print(f"\n{BOLD}Error Handling{RESET}")
     print(f"""{COLORS['6'][0]}
 try:
@@ -16248,7 +16375,7 @@ except RateLimitError:
     print("Too many requests")
 except Exception as e:
     print(f"Error: {e}"){RESET}""")
-    
+
     input("\nPress Enter to return...")
 
 def _server_mode_handler(server):
@@ -16276,17 +16403,17 @@ def _server_mode_handler(server):
 
         server_thread = threading.Thread(target=SERVER_INSTANCE.start, daemon=True)
         server_thread.start()
-        
+
         time.sleep(1)  # Give server time to start
         print(f"{COLORS['2'][0]}✓ Server started. Press Ctrl+C to stop.{RESET}")
         print(f"{COLORS['6'][0]}Server listening on port {port}{RESET}\n")
-        
+
         # Interactive chat interface
         try:
             while SERVER_INSTANCE.running:
                 # Check for new connections
                 current_clients = len(SERVER_INSTANCE.connected_clients)
-                
+
                 if current_clients > 0:
                     os.system('cls' if os.name == 'nt' else 'clear')
                     print_header("🖥️  Server Mode - Interactive Chat")
@@ -16294,15 +16421,15 @@ def _server_mode_handler(server):
                     print(f"{COLORS['6'][0]}Connected clients: {current_clients}{RESET}")
                     for addr in SERVER_INSTANCE.connected_clients:
                         print(f"  • {addr[0]}:{addr[1]}")
-                    
+
                     print(f"\n{BOLD}Available Commands:{RESET}")
                     print(f"  • Type a message to broadcast to all clients")
                     print(f"  • Type 'quit' to stop server")
                     print(f"  • Type 'clients' to refresh client list")
                     print(f"  • Type 'clear' to clear screen\n")
-                    
+
                     msg = input(f"{BOLD}[SERVER]: {RESET}").strip()
-                    
+
                     if msg.lower() == 'quit':
                         print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
                         break
@@ -16323,7 +16450,7 @@ def _server_mode_handler(server):
                     print(f"{COLORS['4'][0]}Waiting for client connections...{RESET}")
                     print(f"\n{BOLD}Commands (while waiting):{RESET}")
                     print(f"  • Type 'quit' to stop server\n")
-                    
+
                     msg = input(f"{BOLD}[SERVER (Waiting)]: {RESET}").strip()
                     if msg.lower() == 'quit':
                         print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
@@ -16331,12 +16458,12 @@ def _server_mode_handler(server):
                     elif msg:
                         print(f"{COLORS['1'][0]}⚠️  No clients connected - message not sent{RESET}")
                         time.sleep(1)
-        
+
         except KeyboardInterrupt:
             print(f"\n{COLORS['1'][0]}Stopping server...{RESET}")
         finally:
             SERVER_INSTANCE.stop()
-            
+
     except ValueError:
         print(f"{COLORS['1'][0]}Invalid port number{RESET}")
     except Exception as e:
@@ -16368,7 +16495,7 @@ def _client_mode_handler():
             print(f"\n{BOLD}Commands:{RESET}")
             print(f"  • Type a message and press Enter to send")
             print(f"  • Type 'quit' to disconnect\n")
-            
+
             # Start receiving messages in background
             client.receive_messages_threaded()
             time.sleep(0.5)
@@ -16502,22 +16629,22 @@ class VisualFXFilter:
     def encoding(self):
         """Proxy encoding from original stdout."""
         return getattr(self.stdout, 'encoding', 'utf-8')
-    
+
     @property
     def errors(self):
         """Proxy errors handling mode."""
         return getattr(self.stdout, 'errors', 'strict')
-    
+
     @property
     def mode(self):
         """Get display mode."""
         return self._mode
-    
+
     @mode.setter
     def mode(self, value):
         """Set display mode."""
         self._mode = value
-    
+
     def __getattr__(self, name):
         """Fallback: proxy unknown attributes to original stdout."""
         try:
@@ -16640,31 +16767,31 @@ class VisualFXFilter:
             self.stdout.flush()
         except Exception:
             pass
-    
+
     def isatty(self):
         """Check if stdout is a TTY."""
         return getattr(self.stdout, 'isatty', lambda: True)()
-    
+
     def seek(self, pos, whence=0):
         """Seek in stdout (if supported)."""
         if hasattr(self.stdout, 'seek'):
             return self.stdout.seek(pos, whence)
         raise IOError("seek not supported")
-    
+
     def tell(self):
         """Get current position in stdout (if supported)."""
         if hasattr(self.stdout, 'tell'):
             return self.stdout.tell()
         raise IOError("tell not supported")
-    
+
     def readable(self):
         """Check if stdout is readable."""
         return getattr(self.stdout, 'readable', lambda: False)()
-    
+
     def writable(self):
         """Check if stdout is writable."""
         return getattr(self.stdout, 'writable', lambda: True)()
-    
+
     def seekable(self):
         """Check if stdout is seekable."""
         return getattr(self.stdout, 'seekable', lambda: False)()
@@ -16706,6 +16833,217 @@ except Exception:
 
 # Global weather cache for live ticker
 weather_cache = {"temp": "N/A", "icon": "☁️", "humidity": "N/A", "wind": "N/A"}
+
+# Global crypto cache for live ticker (BTC / ETH)
+crypto_cache = {
+    "bitcoin": {"price": "N/A", "change_24h": None},
+    "ethereum": {"price": "N/A", "change_24h": None},
+    "last_update": 0.0,
+}
+
+# Global metals cache for live ticker (gold, silver, copper, platinum, palladium, rhodium)
+metal_cache = {
+    "gold": {"price": "N/A", "unit": "oz"},
+    "silver": {"price": "N/A", "unit": "oz"},
+    "copper": {"price": "N/A", "unit": "lb"},
+    "platinum": {"price": "N/A", "unit": "oz"},
+    "palladium": {"price": "N/A", "unit": "oz"},
+    "rhodium": {"price": "N/A", "unit": "oz"},
+    "last_update": 0.0,
+}
+
+@retry_with_backoff(max_attempts=3, initial_delay=0.5, backoff_factor=1.5, feature_name="Crypto_API")
+@graceful_degradation(fallback={"bitcoin": {"price": "N/A", "change_24h": None}, "ethereum": {"price": "N/A", "change_24h": None}}, feature_name="Crypto_Ticker")
+def get_crypto_prices(force_refresh: bool = False, ttl: int = 15):
+    """Fetch BTC & ETH prices (USD) with a short TTL. Prefer CoinGecko, fallback to Coinbase.
+
+    Returns a dict stored in `crypto_cache` with numeric `price` and optional `change_24h`.
+    """
+    global crypto_cache
+    now = time.time()
+    if not force_refresh and (now - float(crypto_cache.get("last_update", 0))) < ttl:
+        return crypto_cache
+
+    # Try CoinGecko first (provides 24h change)
+    try:
+        cg_url = "https://api.coingecko.com/api/v3/coins/markets"
+        params = {
+            "vs_currency": "usd",
+            "ids": "bitcoin,ethereum",
+            "order": "market_cap_desc",
+            "per_page": 2,
+            "page": 1,
+            "sparkline": "false",
+            "price_change_percentage": "24h",
+        }
+        resp = requests.get(cg_url, params=params, timeout=4)
+        data = resp.json()
+        for coin in data:
+            cid = coin.get("id")
+            if cid in ("bitcoin", "ethereum"):
+                crypto_cache[cid]["price"] = float(coin.get("current_price", "nan"))
+                crypto_cache[cid]["change_24h"] = _safe_float(coin.get("price_change_percentage_24h"), None)
+        crypto_cache["last_update"] = now
+        return crypto_cache
+    except Exception:
+        # Fallback to Coinbase public spot price (no change percentage)
+        try:
+            for sym in [("bitcoin", "BTC-USD"), ("ethereum", "ETH-USD")]:
+                cid, pair = sym
+                cb_url = f"https://api.coinbase.com/v2/prices/{pair}/spot"
+                r = requests.get(cb_url, timeout=3)
+                j = r.json()
+                amt = j.get("data", {}).get("amount")
+                crypto_cache[cid]["price"] = float(amt) if amt is not None else "N/A"
+                crypto_cache[cid]["change_24h"] = None
+            crypto_cache["last_update"] = now
+            return crypto_cache
+        except Exception:
+            # leave cache as-is
+            return crypto_cache
+
+
+@retry_with_backoff(max_attempts=3, initial_delay=0.5, backoff_factor=1.5, feature_name="Metals_Scraper")
+@graceful_degradation(fallback={
+    "gold": {"price": "N/A", "unit": "oz"},
+    "silver": {"price": "N/A", "unit": "oz"},
+    "copper": {"price": "N/A", "unit": "lb"},
+    "platinum": {"price": "N/A", "unit": "oz"},
+    "palladium": {"price": "N/A", "unit": "oz"},
+    "rhodium": {"price": "N/A", "unit": "oz"},
+}, feature_name="Metals_Ticker")
+def get_metal_prices(force_refresh: bool = False, ttl: int = 60):
+    """Fetch live prices for gold, silver, copper, platinum, palladium and rhodium.
+
+    Strategy (preferred -> fallback):
+      1. Kitco (precious metals)
+      2. LiveGoldSilver (gold/silver fallback)
+      3. CME Group (copper futures)
+
+    Returns/updates `metal_cache` with numeric `price` and `unit`.
+    """
+    global metal_cache
+    now = time.time()
+    if not force_refresh and (now - float(metal_cache.get("last_update", 0))) < ttl:
+        return metal_cache
+
+    # small helper to parse numbers from text
+    import re
+
+    def _parse_number(s: str):
+        try:
+            return float(s.replace(',', '').strip())
+        except Exception:
+            return None
+
+    # Try Kitco for precious metals (gold, silver, platinum, palladium, rhodium)
+    try:
+        kurl = "https://www.kitco.com/price/precious-metals"
+        r = requests.get(kurl, timeout=6, headers={'User-Agent': 'pythonOScmd/1.0'})
+        page_text = BeautifulSoup(r.text, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else r.text
+
+        for key, label in [('gold', 'Gold'), ('silver', 'Silver'), ('platinum', 'Platinum'), ('palladium', 'Palladium'), ('rhodium', 'Rhodium')]:
+            m = re.search(rf'{label}[^0-9\n\r]{{0,40}}([0-9]{{1,3}}(?:,[0-9]{{3}})*(?:\.[0-9]+)?)', page_text, re.I)
+            if m:
+                val = _parse_number(m.group(1))
+                if val is not None:
+                    metal_cache[key]['price'] = val
+    except Exception:
+        # leave what we have in cache and continue to fallbacks
+        pass
+
+    # Copper: try CME Group (futures front-month) as primary copper source
+    try:
+        cme_url = 'https://www.cmegroup.com/markets/metals/base/copper.quotes.html'
+        cr = requests.get(cme_url, timeout=6, headers={'User-Agent': 'pythonOScmd/1.0'})
+        ctext = cr.text
+        # look for patterns like "LAST 5.7880" or "LAST 5.7880 CHANGE"
+        m = re.search(r'LAST\s*([0-9]+\.?[0-9]+)', ctext)
+        if m:
+            val = _parse_number(m.group(1))
+            if val is not None:
+                metal_cache['copper']['price'] = val
+    except Exception:
+        pass
+
+    # Fallback for gold/silver using LiveGoldSilver if still missing
+    try:
+        if any(metal_cache[k]['price'] == 'N/A' for k in ('gold', 'silver')):
+            lurl = 'https://livegoldsilver.com/'
+            lr = requests.get(lurl, timeout=5, headers={'User-Agent': 'pythonOScmd/1.0'})
+            ltext = BeautifulSoup(lr.text, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else lr.text
+            for key, label in [('gold', 'Gold'), ('silver', 'Silver')]:
+                if metal_cache[key]['price'] == 'N/A':
+                    m = re.search(rf'{label}[^0-9\n\r]{{0,40}}\$?([0-9]{{1,3}}(?:,[0-9]{{3}})*(?:\.[0-9]+)?)', ltext, re.I)
+                    if m:
+                        val = _parse_number(m.group(1))
+                        if val is not None:
+                            metal_cache[key]['price'] = val
+    except Exception:
+        pass
+
+    metal_cache['last_update'] = now
+    return metal_cache
+
+
+def _format_metals_ticker_short():
+    """Return a compact single-line metals ticker for REPORT COMPLETE and other displays."""
+    try:
+        prices = get_metal_prices()
+    except Exception:
+        prices = metal_cache
+
+    def _fmt(k, label):
+        entry = (prices.get(k, {}) or {})
+        price = entry.get('price', 'N/A')
+        unit = entry.get('unit', 'oz' if k != 'copper' else 'lb')
+        if isinstance(price, (int, float)):
+            price_str = f"${price:,.2f}"
+        else:
+            price_str = str(price)
+        return f"{BOLD}{label}{RESET} {price_str}/{unit}"
+
+    parts = [
+        _fmt('gold', 'GOLD'),
+        _fmt('silver', 'SILVER'),
+        _fmt('platinum', 'PLAT'),
+        _fmt('palladium', 'PALL'),
+        _fmt('rhodium', 'RHOD'),
+        _fmt('copper', 'COPPER'),
+    ]
+    return "  ".join(parts) + f"  {COLORS['6'][0]}metals{RESET}"
+
+def _format_crypto_ticker_short():
+    """Return a compact, colored single-line ticker for BTC & ETH (used beside REPORT COMPLETE).
+
+    Example: "BTC $26,123 ▲1.2%  ETH $1,623 ▼0.4%  coinbase.com"
+    """
+    try:
+        prices = get_crypto_prices()
+    except Exception:
+        prices = crypto_cache
+
+    def _fmt(symbol_key, label):
+        entry = prices.get(symbol_key, {}) or {}
+        price = entry.get("price", "N/A")
+        change = entry.get("change_24h", None)
+        if isinstance(price, (int, float)):
+            price_str = f"${price:,.2f}"
+        else:
+            price_str = str(price)
+        if change is None:
+            change_str = ""
+        else:
+            arrow = "▲" if change >= 0 else "▼"
+            color = COLORS['2'][0] if change >= 0 else COLORS['1'][0]
+            change_str = f" {color}{arrow}{abs(change):.2f}%{RESET}"
+        return f"{BOLD}{label}{RESET} {price_str}{change_str}"
+
+    btc = _fmt("bitcoin", "BTC")
+    eth = _fmt("ethereum", "ETH")
+    # Reference to Coinbase as requested by user
+    source = f"{COLORS['6'][0]}crypto{RESET}"
+    return f"{btc}  {eth}  {source}"
 
 def get_current_color():
     standard, blink, name = COLORS[active_color_key]
@@ -16761,13 +17099,32 @@ def print_header(title, extra_info=""):
 # --- ENHANCED: WEATHER SYSTEM WITH OPEN-METEO & NWS INTEGRATION ---
 
 def get_weather_data():
-    """Fetch weather data with intelligent caching (5 minute TTL)."""
+    """Fetch weather data with intelligent caching (5 minute TTL).
+
+    This function RETURNS the cached weather dict *and* updates the global
+    `weather_cache` used by the live ticker so background callers don't need
+    to assign the return value manually.
+    """
+    global weather_cache
     # Try to get cached data first using performance cache system (5 minute cache = 300 seconds)
     cached = get_cached_or_compute(
         "weather_data_live",
         _fetch_weather_live,
         ttl=300  # 5 minutes
     )
+
+    # Normalize and push into global `weather_cache` for the live ticker
+    if isinstance(cached, dict):
+        # preserve previously known fields when absent
+        for k in ("temp", "icon", "humidity", "wind", "city", "feels"):
+            if k in cached and cached[k] is not None:
+                weather_cache[k] = cached[k]
+        weather_cache.setdefault("last_update", 0.0)
+        try:
+            weather_cache["last_update"] = float(time.time())
+        except Exception:
+            weather_cache["last_update"] = 0.0
+
     return cached
 
 @retry_with_backoff(max_attempts=3, initial_delay=1, backoff_factor=2, feature_name="Weather_API")
@@ -16840,7 +17197,7 @@ def feature_weather_display():
     """
     global temp_unit
     from datetime import datetime, timedelta
-    
+
     def _get_location_from_ip():
         """Get location from IP address."""
         try:
@@ -16854,7 +17211,7 @@ def feature_weather_display():
             }
         except:
             return {'lat': 0, 'lon': 0, 'city': 'Unknown', 'region': '', 'country': ''}
-    
+
     def _get_live_weather(lat, lon):
         """Get live weather from Open-Meteo (no API key needed)."""
         try:
@@ -16863,7 +17220,7 @@ def feature_weather_display():
             return response
         except Exception as e:
             return None
-    
+
     def _get_aviation_metar(airport_code):
         """Fetch METAR data for aviation."""
         try:
@@ -16872,7 +17229,7 @@ def feature_weather_display():
             return response
         except:
             return None
-    
+
     def _get_aviation_taf(airport_code):
         """Fetch TAF data for aviation."""
         try:
@@ -16881,7 +17238,7 @@ def feature_weather_display():
             return response
         except:
             return None
-    
+
     def _get_weather_icon(code):
         """Convert WMO weather code to emoji."""
         if code == 0: return "☀️ Clear"
@@ -16893,7 +17250,7 @@ def feature_weather_display():
         elif code in [71, 73, 75]: return "❄️ Snow"
         elif code in [95, 96, 99]: return "⛈️ Thunderstorm"
         else: return "❓ Unknown"
-    
+
     def _get_marine_conditions(lat, lon):
         """Get marine/ocean conditions."""
         try:
@@ -16907,7 +17264,7 @@ def feature_weather_display():
             }
         except:
             return None
-    
+
     def _get_city_top_10():
         """Return top 10 popular cities."""
         return [
@@ -16922,7 +17279,7 @@ def feature_weather_display():
             ('Bangkok, Thailand', 13.7563, 100.5018),
             ('Toronto, Canada', 43.6532, -79.3832),
         ]
-    
+
     def _get_nearest_airports(lat, lon, count=5):
         """Get nearest 5 airports using great circle distance."""
         airports = {
@@ -16945,7 +17302,7 @@ def feature_weather_display():
             'KATL': (33.6407, -84.4277, 'Atlanta ATL', 'major'),
             'KMIA': (25.7959, -80.2870, 'Miami MIA', 'major'),
             'KDCA': (38.8516, -77.0375, 'Washington DCA', 'major'),
-            
+
             # MID-SIZE AIRPORTS (Regional, 10-50M passengers/year)
             'KBWI': (39.1754, -76.6683, 'Baltimore-Washington BWI', 'midsize'),
             'KLGA': (40.7769, -73.8740, 'New York LaGuardia LGA', 'midsize'),
@@ -16963,7 +17320,7 @@ def feature_weather_display():
             'KPIT': (40.4915, -80.2324, 'Pittsburgh PIT', 'midsize'),
             'KDAY': (39.9024, -84.2186, 'Dayton DAY', 'midsize'),
             'KCLE': (41.4117, -81.8498, 'Cleveland CLE', 'midsize'),
-            
+
             # SMALL REGIONAL AIRPORTS (<10M passengers/year)
             'KBWI': (39.1754, -76.6683, 'Baltimore Regional', 'small'),
             'KLUX': (38.7502, -75.6107, 'Salisbury Wicomico', 'small'),
@@ -16977,7 +17334,7 @@ def feature_weather_display():
             'KGAI': (39.1361, -77.4719, 'Gaithersburg', 'small'),
             'KJYO': (39.1236, -77.4453, 'Jyo Potomac', 'small'),
         }
-        
+
         def haversine(lat1, lon1, lat2, lon2):
             from math import radians, cos, sin, asin, sqrt
             lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
@@ -16987,14 +17344,14 @@ def feature_weather_display():
             c = 2 * asin(sqrt(a))
             km = 6371 * c
             return km
-        
+
         distances = []
         for code, (apt_lat, apt_lon, name, size) in airports.items():
             dist = haversine(lat, lon, apt_lat, apt_lon)
             distances.append((code, name, apt_lat, apt_lon, dist, size))
-        
+
         return sorted(distances, key=lambda x: x[4])[:count]
-    
+
     def _get_airports_by_category(lat, lon, radius_km=200):
         """Get all airports organized by size category within radius."""
         airports = {
@@ -17017,7 +17374,7 @@ def feature_weather_display():
             'KATLC': (33.6407, -84.4277, 'Atlanta ATL', 'major'),
             'KMIA': (25.7959, -80.2870, 'Miami MIA', 'major'),
             'KDCA': (38.8516, -77.0375, 'Washington DCA', 'major'),
-            
+
             # MID-SIZE AIRPORTS (Regional, 10-50M passengers/year)
             'KBWI': (39.1754, -76.6683, 'Baltimore-Washington BWI', 'midsize'),
             'KLGA': (40.7769, -73.8740, 'New York LaGuardia LGA', 'midsize'),
@@ -17029,7 +17386,7 @@ def feature_weather_display():
             'KDAY': (39.9024, -84.2186, 'Dayton DAY', 'midsize'),
             'KCLE': (41.4117, -81.8498, 'Cleveland CLE', 'midsize'),
             'KIAD': (38.6921, -77.4063, 'Charlottesville VA', 'midsize'),
-            
+
             # SMALL REGIONAL AIRPORTS (<10M passengers/year)
             'KTEB': (40.8502, -74.0608, 'Teterboro TEB', 'small'),
             'KCDW': (40.8859, -74.2671, 'Caldwell CDW', 'small'),
@@ -17044,7 +17401,7 @@ def feature_weather_display():
             'KPWK': (41.8975, -87.9275, 'Chicago Pawnee', 'small'),
             'KMGJ': (39.2236, -76.7453, 'Maryland Business', 'small'),
         }
-        
+
         def haversine(lat1, lon1, lat2, lon2):
             from math import radians, cos, sin, asin, sqrt
             lon1, lat1, lon2, lat2 = map(radians, [lon1, lat1, lon2, lat2])
@@ -17054,26 +17411,26 @@ def feature_weather_display():
             c = 2 * asin(sqrt(a))
             km = 6371 * c
             return km
-        
+
         categorized = {'major': [], 'midsize': [], 'small': []}
-        
+
         for code, (apt_lat, apt_lon, name, size) in airports.items():
             dist = haversine(lat, lon, apt_lat, apt_lon)
             if dist <= radius_km:
                 categorized[size].append((code, name, apt_lat, apt_lon, dist, size))
-        
+
         # Sort each category by distance
         for key in categorized:
             categorized[key].sort(key=lambda x: x[4])
-        
+
         return categorized
-    
+
     def _get_opensky_flights(lat, lon, radius_km=50):
         """Get live flight data from OpenSky Network API."""
         try:
             url = "https://opensky-network.org/api/states/all"
             response = requests.get(url, timeout=8).json()
-            
+
             flights = []
             if response.get('states'):
                 from math import radians, cos, sin, asin, sqrt
@@ -17085,7 +17442,7 @@ def feature_weather_display():
                     c = 2 * asin(sqrt(a))
                     km = 6371 * c
                     return km
-                
+
                 for state in response['states'][:500]:  # Limit to first 500 for performance
                     if state[5] is not None and state[6] is not None:  # lon, lat
                         dist = haversine(lat, lon, state[6], state[5])
@@ -17099,52 +17456,52 @@ def feature_weather_display():
                                 'velocity': state[9],
                                 'country': state[2]
                             })
-            
+
             return sorted(flights, key=lambda x: x['altitude'] if x['altitude'] else 0, reverse=True)[:20]
         except Exception as e:
             return []
-    
+
     def _feature_aviation_submenu(location):
         """Aviation submenu with 3 options."""
         while True:
             try:
                 os.system('cls' if os.name == 'nt' else 'clear')
                 print_header("✈️ Aviation Weather & Traffic")
-                
+
                 # Display nearest 5 airports
                 nearest = _get_nearest_airports(location['lat'], location['lon'], 5)
                 print(f"\n{BOLD}NEAREST AIRPORTS TO {location['city']}{RESET}")
                 print(f"Location: {location['lat']:.4f}, {location['lon']:.4f}\n")
-                
+
                 for i, airport_data in enumerate(nearest, 1):
                     code = airport_data[0]
                     name = airport_data[1]
                     apt_lat = airport_data[2]
                     apt_lon = airport_data[3]
                     dist = airport_data[4]
-                    
+
                     try:
                         metar = _get_aviation_metar(code)
                     except:
                         metar = None
-                    
+
                     temp = "N/A"
                     wind = "N/A"
                     if metar and metar.get('temp'):
                         temp = f"{metar['temp']['value']}°{metar['temp']['unit']}"
                     if metar and metar.get('wind_speed'):
                         wind = f"{metar['wind_speed']['value']} {metar['wind_speed']['unit']}"
-                    
+
                     print(f"  [{i}] {code:6} {name:<30} {dist:>5.0f}km | Temp: {temp:>8} | Wind: {wind}")
-                
+
                 print(f"\n{BOLD}AVIATION MENU:{RESET}")
                 print(f"  [1] 🔍 Search Airport by Code")
                 print(f"  [2] 📊 Air Traffic Data (OpenSky Network)")
                 print(f"  [3] ✈️ Live Flight Tracking (Web Scraped)")
                 print(f"  [B] ◀️ Back to Weather Menu")
-                
+
                 choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-                
+
                 if choice == '1':
                     # Original search
                     os.system('cls' if os.name == 'nt' else 'clear')
@@ -17152,14 +17509,14 @@ def feature_weather_display():
                     airport_code = input("Enter airport code (e.g., KJFK, EGLL, RJTT): ").strip().upper()
                     if not airport_code:
                         airport_code = "KJFK"
-                    
+
                     try:
                         metar = _get_aviation_metar(airport_code)
                         taf = _get_aviation_taf(airport_code)
                     except:
                         metar = None
                         taf = None
-                    
+
                     print(f"\n{BOLD}METAR for {airport_code}:{RESET}")
                     if metar and metar.get('raw'):
                         print(f"  {metar['raw']}")
@@ -17173,21 +17530,21 @@ def feature_weather_display():
                             print(f"  👁️ Visibility: {metar['visibility'][0]['value']} {metar['visibility'][0]['unit']}")
                     else:
                         print("  ℹ️ METAR data not available - check airport code")
-                    
+
                     print(f"\n{BOLD}TAF for {airport_code}:{RESET}")
                     if taf and taf.get('raw'):
                         print(f"  {taf['raw'][:300]}...")
                     else:
                         print("  ℹ️ TAF data not available")
-                    
+
                     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
-                
+
                 elif choice == '2':
                     # OpenSky Network air traffic with categorized airports
                     os.system('cls' if os.name == 'nt' else 'clear')
                     print_header("📊 Live Air Traffic Data (OpenSky Network)")
                     print(f"\nFetching airport and flight data for {location['city']}...")
-                    
+
                     try:
                         # Get categorized airports
                         airports_by_category = _get_airports_by_category(location['lat'], location['lon'], radius_km=300)
@@ -17195,9 +17552,9 @@ def feature_weather_display():
                     except Exception as e:
                         airports_by_category = {'major': [], 'midsize': [], 'small': []}
                         flights = []
-                    
+
                     print(f"\n{BOLD}AIRPORTS BY CATEGORY WITHIN 300 KM:{RESET}\n")
-                    
+
                     # Display Major Airports
                     if airports_by_category['major']:
                         print(f"{BOLD}🏢 MAJOR HUBS (International - >50M passengers/year):{RESET}")
@@ -17205,12 +17562,12 @@ def feature_weather_display():
                             code = airport_data[0]
                             name = airport_data[1]
                             dist = airport_data[4]
-                            
+
                             try:
                                 metar = _get_aviation_metar(code)
                             except:
                                 metar = None
-                            
+
                             temp = "N/A"
                             wind = "N/A"
                             if metar and metar.get('temp'):
@@ -17218,7 +17575,7 @@ def feature_weather_display():
                             if metar and metar.get('wind_speed'):
                                 wind = f"{metar['wind_speed']['value']} {metar['wind_speed']['unit']}"
                             print(f"  [{code:6}] {name:<35} {dist:>6.0f}km | Temp: {temp:>8} | Wind: {wind}")
-                    
+
                     # Display Mid-Size Airports
                     if airports_by_category['midsize']:
                         print(f"\n{BOLD}✈️ MID-SIZE REGIONAL (10-50M passengers/year):{RESET}")
@@ -17226,12 +17583,12 @@ def feature_weather_display():
                             code = airport_data[0]
                             name = airport_data[1]
                             dist = airport_data[4]
-                            
+
                             try:
                                 metar = _get_aviation_metar(code)
                             except:
                                 metar = None
-                            
+
                             temp = "N/A"
                             wind = "N/A"
                             if metar and metar.get('temp'):
@@ -17239,7 +17596,7 @@ def feature_weather_display():
                             if metar and metar.get('wind_speed'):
                                 wind = f"{metar['wind_speed']['value']} {metar['wind_speed']['unit']}"
                             print(f"  [{code:6}] {name:<35} {dist:>6.0f}km | Temp: {temp:>8} | Wind: {wind}")
-                    
+
                     # Display Small Airports
                     if airports_by_category['small']:
                         print(f"\n{BOLD}🛩️ SMALL REGIONAL (<10M passengers/year):{RESET}")
@@ -17247,12 +17604,12 @@ def feature_weather_display():
                             code = airport_data[0]
                             name = airport_data[1]
                             dist = airport_data[4]
-                            
+
                             try:
                                 metar = _get_aviation_metar(code)
                             except:
                                 metar = None
-                            
+
                             temp = "N/A"
                             wind = "N/A"
                             if metar and metar.get('temp'):
@@ -17260,13 +17617,13 @@ def feature_weather_display():
                             if metar and metar.get('wind_speed'):
                                 wind = f"{metar['wind_speed']['value']} {metar['wind_speed']['unit']}"
                             print(f"  [{code:6}] {name:<35} {dist:>6.0f}km | Temp: {temp:>8} | Wind: {wind}")
-                    
+
                     print(f"\n{BOLD}LIVE FLIGHTS WITHIN 150 KM (Total: {len(flights)}){RESET}\n")
-                    
+
                     if flights:
                         print(f"{'Callsign':<12} {'Country':<20} {'Alt(m)':<8} {'Vel(kmh)':<10} {'Lat':<10} {'Lon':<10}")
                         print("-" * 70)
-                        
+
                         for flight in flights[:15]:
                             callsign = flight['callsign'][:11]
                             country = flight['country'][:19]
@@ -17277,19 +17634,19 @@ def feature_weather_display():
                             print(f"{callsign:<12} {country:<20} {alt:<8} {vel:<10} {lat:<10} {lon:<10}")
                     else:
                         print("  No flights currently detected in your area")
-                    
+
                     print(f"\n📡 Data Source: OpenSky Network (https://opensky-network.org/)")
                     print(f"🔗 Research API: https://opensky-network.org/api/")
                     print(f"📊 Public Portal: https://opensky-network.org/")
                     print(f"💡 Tip: Visit Google Maps, Bing Maps, or DuckDuckGo to find local airports near your area")
-                    
+
                     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
-                
+
                 elif choice == '3':
                     # Flight tracking with web scrape info
                     os.system('cls' if os.name == 'nt' else 'clear')
                     print_header("✈️ Live Flight Tracking Services")
-                    
+
                     print(f"\n{BOLD}AVAILABLE FLIGHT TRACKING SOURCES:{RESET}\n")
                     print(f"  [A] Flightradar24")
                     print(f"      🔗 https://www.flightradar24.com/")
@@ -17297,33 +17654,33 @@ def feature_weather_display():
                     print(f"      • View live flights on interactive map")
                     print(f"      • Aircraft type, registration, route information")
                     print(f"      • Historical flight data available")
-                    
+
                     print(f"\n  [B] AirNav Radar")
                     print(f"      🔗 https://www.airnavradar.com/")
                     print(f"      U.S. aviation radar and flight tracking")
                     print(f"      • Real-time radar data")
                     print(f"      • Detailed flight information")
                     print(f"      • Weather integration")
-                    
+
                     print(f"\n  [C] FlightAware")
                     print(f"      🔗 https://www.flightaware.com/live/")
                     print(f"      Comprehensive flight tracking for worldwide operations")
                     print(f"      • Live flight tracking")
                     print(f"      • Airline tracking")
                     print(f"      • Airport information")
-                    
+
                     print(f"\n{BOLD}LOCAL FLIGHT DATA FOR {location['city']}:{RESET}")
                     try:
                         flights = _get_opensky_flights(location['lat'], location['lon'], radius_km=80)
                     except:
                         flights = []
-                    
+
                     if flights:
                         print(f"\n  Currently {len(flights)} flights detected in your area")
                         print(f"  Open a browser to one of the services above for live tracking")
                     else:
                         print(f"\n  No flights currently detected in your area")
-                    
+
                     sel = input(f"\n{BOLD}Open service (A/B/C or Enter to skip): {RESET}").strip().upper()
                     urls = {
                         'A': 'https://www.flightradar24.com/',
@@ -17337,12 +17694,12 @@ def feature_weather_display():
                             print(f"✓ Opened {sel} in default browser")
                         except:
                             print(f"✓ Visit {urls[sel]} in your browser")
-                    
+
                     input(f"\n{BOLD}[ ⌨️ Press Enter to continue... ]{RESET}")
-                
+
                 elif choice.upper() == 'B':
                     break
-            
+
             except Exception as e:
                 os.system('cls' if os.name == 'nt' else 'clear')
                 print_header("⚠️ Aviation Menu Error")
@@ -17353,15 +17710,15 @@ def feature_weather_display():
                 print(f"  • Network issues")
                 print(f"  • Invalid airport codes")
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return to menu... ]{RESET}")
-    
+
     # Main weather menu
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("🌤️ Weather Intelligence System - Unified")
-        
+
         location = _get_location_from_ip()
         weather_data = _get_live_weather(location['lat'], location['lon'])
-        
+
         if weather_data:
             current = weather_data['current']
             print(f"\n{BOLD}📍 CURRENT LOCATION:{RESET}")
@@ -17375,7 +17732,7 @@ def feature_weather_display():
             print(f"  Wind: {current['wind_speed_10m']} km/h ({current['wind_direction_10m']}°)")
             print(f"  Cloud Cover: {current['cloudcover']}%")
             print(f"  Precipitation: {current['precipitation']} mm")
-        
+
         print(f"\n{BOLD}🌍 WEATHER SERVICES:{RESET}")
         print(f" {BOLD}[1]{RESET} 🌤️ Local Weather (15-mile Radius)")
         print(f" {BOLD}[2]{RESET} ✈️ Aviation Weather (METAR/TAF)")
@@ -17384,31 +17741,31 @@ def feature_weather_display():
         print(f" {BOLD}[5]{RESET} 📊 Weather Alerts & Warnings")
         print(f" {BOLD}[6]{RESET} 🔗 Weather Service Links")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
-        
+
         choice = input(f"\n{BOLD}Select option: {RESET}").strip()
-        
+
         if choice == '0':
             return
-        
+
         # ===== LOCAL WEATHER WITH 15-MILE RADIUS =====
         elif choice == '1':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌤️ Local Weather - 15 Mile Radius")
-            
+
             print(f"\n{BOLD}PRIMARY LOCATION: {location['city']}{RESET}")
             print(f"Coordinates: {location['lat']:.4f}, {location['lon']:.4f}")
-            
+
             if weather_data:
                 current = weather_data['current']
                 daily = weather_data['daily']
-                
+
                 print(f"\n{BOLD}CURRENT CONDITIONS:{RESET}")
                 print(f"  🌡️ Temperature: {current['temperature_2m']:.1f}°C")
                 print(f"  💨 Wind: {current['wind_speed_10m']} km/h")
                 print(f"  💧 Humidity: {current['relative_humidity_2m']}%")
                 print(f"  ☁️ Cloud Cover: {current['cloudcover']}%")
                 print(f"  📍 Condition: {_get_weather_icon(current['weather_code'])}")
-                
+
                 print(f"\n{BOLD}5-DAY FORECAST:{RESET}")
                 for i in range(min(5, len(daily['time']))):
                     date_str = daily['time'][i]
@@ -17417,53 +17774,53 @@ def feature_weather_display():
                     precip = daily['precipitation_sum'][i]
                     wind = daily['windspeed_10m_max'][i]
                     condition = _get_weather_icon(daily['weather_code'][i])
-                    
+
                     print(f"  {date_str}: {condition} High: {high:.0f}°C Low: {low:.0f}°C | Precip: {precip}mm | Wind: {wind}km/h")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         # ===== AVIATION WEATHER =====
         elif choice == '2':
             _feature_aviation_submenu(location)
-        
+
         # ===== NAVAL & OCEAN CONDITIONS =====
         elif choice == '3':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🌊 Naval & Ocean Weather Conditions")
-            
+
             marine = _get_marine_conditions(location['lat'], location['lon'])
-            
+
             print(f"\n{BOLD}MARINE CONDITIONS - {location['city']}{RESET}")
             print(f"Location: {location['lat']:.4f}, {location['lon']:.4f}")
-            
+
             if marine:
                 print(f"\n{BOLD}WAVE INFORMATION:{RESET}")
                 print(f"  🌊 Primary Wave Height: {marine['wave_height']:.1f} m")
                 print(f"  ⏱️ Primary Wave Period: {marine['wave_period']:.1f} s")
                 print(f"  💨 Wind Wave Height: {marine['wind_wave_height']:.1f} m")
-            
+
             if weather_data:
                 current = weather_data['current']
                 print(f"\n{BOLD}SURFACE CONDITIONS:{RESET}")
                 print(f"  💨 Wind Speed: {current['wind_speed_10m']} km/h")
                 print(f"  🧭 Wind Direction: {current['wind_direction_10m']}°")
                 print(f"  🌡️ Temperature: {current['temperature_2m']:.1f}°C")
-            
+
             print(f"\n{BOLD}MARINE FORECASTING RESOURCES:{RESET}")
             print(f"  🔗 NOAA Marine: https://marine.weather.gov")
             print(f"  🔗 UK Shipping: https://www.bbc.co.uk/radio4/shipping")
             print(f"  🔗 Global Wave Model: https://www.msn.com/en-us/weather")
             print(f"  🔗 Windy (Marine): https://www.windy.com/?35.000,-50.000,5")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         # ===== CITY SEARCH (TOP 10) =====
         elif choice == '4':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔍 City Weather Search - Top 10 Cities")
-            
+
             cities = _get_city_top_10()
-            
+
             print(f"\n{BOLD}Select a city to compare:{RESET}\n")
             for idx, (city_name, lat, lon) in enumerate(cities, 1):
                 weather = _get_live_weather(lat, lon)
@@ -17471,46 +17828,46 @@ def feature_weather_display():
                     temp = weather['current']['temperature_2m']
                     condition = _get_weather_icon(weather['current']['weather_code'])
                     print(f" [{idx:2d}] {city_name:<25} {condition} {temp:>5.1f}°C")
-            
+
             selection = input(f"\n{BOLD}Select city (1-10) or press Enter to skip: {RESET}").strip()
             if selection.isdigit() and 1 <= int(selection) <= len(cities):
                 selected_city, lat, lon = cities[int(selection) - 1]
                 weather = _get_live_weather(lat, lon)
-                
+
                 os.system('cls' if os.name == 'nt' else 'clear')
                 print_header(f"🌤️ Weather for {selected_city}")
-                
+
                 if weather:
                     current = weather['current']
                     daily = weather['daily']
-                    
+
                     print(f"\n{BOLD}CURRENT CONDITIONS:{RESET}")
                     print(f"  🌡️ Temperature: {current['temperature_2m']:.1f}°C")
                     print(f"  💨 Wind: {current['wind_speed_10m']} km/h")
                     print(f"  💧 Humidity: {current['relative_humidity_2m']}%")
                     print(f"  📍 Condition: {_get_weather_icon(current['weather_code'])}")
-                    
+
                     print(f"\n{BOLD}5-DAY FORECAST:{RESET}")
                     for i in range(min(5, len(daily['time']))):
                         high = daily['temperature_2m_max'][i]
                         low = daily['temperature_2m_min'][i]
                         condition = _get_weather_icon(daily['weather_code'][i])
                         print(f"  {daily['time'][i]}: {condition} {high:.0f}°C / {low:.0f}°C")
-                
+
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         # ===== WEATHER ALERTS =====
         elif choice == '5':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("⚠️ Active Weather Alerts & Warnings")
-            
+
             print(f"\n{BOLD}ALERTS FOR {location['city']}, {location['region']}{RESET}\n")
-            
+
             try:
                 # Try to fetch from NOAA alerts API
                 alerts_url = f"https://api.weather.gov/alerts/active?point={location['lat']},{location['lon']}"
                 alerts_response = requests.get(alerts_url, timeout=5).json()
-                
+
                 if alerts_response.get('features'):
                     for alert in alerts_response['features'][:10]:
                         props = alert['properties']
@@ -17523,46 +17880,46 @@ def feature_weather_display():
             except:
                 print("  ℹ️ Alert system checking...")
                 print("  ✅ No critical alerts detected")
-            
+
             print(f"{BOLD}ALERT SERVICE LINKS:{RESET}")
             print(f"  🔗 NOAA Alerts: https://weather.gov")
             print(f"  🔗 Weather.com Alerts: https://weather.com/weather/alerts")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
-        
+
         # ===== WEATHER SERVICE LINKS =====
         elif choice == '6':
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🔗 Weather Service Links & Resources")
-            
+
             print(f"\n{BOLD}COMPREHENSIVE WEATHER DATA:{RESET}")
             print(f"  📍 Google Maps Weather: https://maps.google.com/maps?q=weather")
             print(f"  📍 Weather.com: https://weather.com")
             print(f"  📍 Weather.gov (NOAA): https://weather.gov")
-            
+
             print(f"\n{BOLD}LIVE RADAR & TRACKING:{RESET}")
             print(f"  📡 Windy (Global): https://www.windy.com")
             print(f"  📡 RadarScope: https://www.radarscope.app")
             print(f"  📡 MyRadar: https://www.myradar.com")
-            
+
             print(f"\n{BOLD}AVIATION WEATHER:{RESET}")
             print(f"  ✈️ Aviation Weather: https://aviationweather.gov")
             print(f"  ✈️ CheckWX: https://checkwx.com")
-            
+
             print(f"\n{BOLD}MARINE & OCEAN:{RESET}")
             print(f"  🌊 NOAA Marine: https://marine.weather.gov")
             print(f"  🌊 UK Shipping: https://www.bbc.co.uk/radio4/shipping")
-            
+
             print(f"\n{BOLD}PERSONAL WEATHER STATIONS:{RESET}")
             print(f"  📊 Ambient Weather Network: https://ambientweather.net")
             print(f"  📊 Weather Underground: https://wunderground.com")
-            
+
             print(f"\n{BOLD}FOR YOUR LOCATION:{RESET}")
             if location['lat'] and location['lon']:
                 print(f"  📍 Google Maps: https://maps.google.com/?q={location['lat']},{location['lon']}")
                 print(f"  📍 OpenStreetMap: https://osm.org/?mlat={location['lat']}&mlon={location['lon']}&zoom=14")
                 print(f"  📍 Weather.gov: https://forecast.weather.gov/?point={location['lat']},{location['lon']}")
-            
+
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
 # --- SATELLITE TRACKER (PyPredict) ---
@@ -18065,6 +18422,7 @@ def feature_satellite_tracker():
         print(f" [14] 🎙️ Beacon Frequency Lookup")
         print(f" [15] 🔐 Encryption & Modulation Info")
         print(f" [16] 🛰️ Multiple Satellite Coverage Map")
+        print(f" [28] 🔗 Satellite Links (Serial receiver)")
 
         print(f"\n{BOLD}CONSTELLATION & NETWORK:{RESET}")
         print(f" [17] 🌐 Constellation Explorer (LEO/MEO/GEO)")
@@ -18366,6 +18724,16 @@ def feature_satellite_tracker():
                 status = "✅ VISIBLE" if visible else "❌ Below Horizon"
                 print(f"  [{i}] {sat}: {status}")
             print(f"\nTotal Visible: {visible_count}/{min(len(targets), 5)}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif choice == '28':  # Satellite Links (serial receiver / antenna matcher)
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🔗 Satellite Links — Serial antenna matcher")
+            try:
+                from pythonOS_data import satellite_links
+                satellite_links.run_interactive()
+            except Exception as e:
+                print(f"Error starting Satellite Links: {e}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         # ========== CONSTELLATION ==========
@@ -23997,6 +24365,7 @@ def feature_download_center():
         print(" [A] 🏗️  Architecture & Distro Guide")
         print(" [C] 🔍 Dependency Checker")
         print(" [I] ℹ️  Package Information Viewer")
+        print(" [P] 🧩  Package Manager Helper")
         print(" [S] 📍 Select OS Target")
         print(" [K] 🔐 Credential Manager (Global Login)")
         print(" [0] ↩️  Return to Command Center")
@@ -24039,6 +24408,9 @@ def feature_download_center():
         if choice == 'K':
             manage_credentials()
             continue
+        if choice == 'P':
+            safe_run("system", "Package_Manager_Helper", feature_package_manager)
+            continue
 
         mapping = {
             "1": "pentest", "2": "defence", "3": "pwn_tools", "4": "security_audit", "5": "fuzzing",
@@ -24068,6 +24440,125 @@ def feature_download_center():
             if run == 'y':
                 _download_center_run_commands(cmd_list, app_key=key, entry=entry, os_key=os_key)
         input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+
+
+def feature_package_manager():
+    """Interactive Package Manager Helper — pip operations (list, outdated, install, uninstall, search, freeze, venv)."""
+    print_header("📦 Package Manager Helper")
+    while True:
+        print("\n  [1] List installed packages")
+        print("  [2] Show outdated packages")
+        print("  [3] Install / Upgrade package")
+        print("  [4] Uninstall package")
+        print("  [5] Search PyPI (package info)")
+        print("  [6] Freeze (pip freeze) and optionally save")
+        print("  [7] Create virtualenv (venv)")
+        print("  [0] Return to Download Center")
+
+        cmd = input("\nSelect option: ").strip()
+        if cmd == '0':
+            break
+
+        if cmd == '1':
+            r = _run_cmd_capture([sys.executable, '-m', 'pip', 'list'])
+            print(r.stdout or r.stderr)
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '2':
+            r = _run_cmd_capture([sys.executable, '-m', 'pip', 'list', '--outdated'])
+            print(r.stdout or r.stderr)
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '3':
+            pkg = input("Package to install/upgrade (e.g. requests or package==1.2.3): ").strip()
+            if not pkg:
+                print('No package specified')
+                time.sleep(0.8)
+                continue
+            ok = safe_install_package(pkg)
+            print((f"Installed/Upgraded: {pkg}" if ok else f"Failed to install: {pkg}"))
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '4':
+            pkg = input("Package to uninstall: ").strip()
+            if not pkg:
+                print('No package specified')
+                time.sleep(0.8)
+                continue
+            confirm = input(f"Confirm uninstall {pkg}? (y/N): ").strip().lower()
+            if confirm != 'y':
+                print('Cancelled')
+                time.sleep(0.6)
+                continue
+            r = _run_cmd_capture([sys.executable, '-m', 'pip', 'uninstall', '-y', pkg])
+            print(r.stdout or r.stderr)
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '5':
+            pkg = input("Package to search on PyPI: ").strip()
+            if not pkg:
+                print('No package specified')
+                time.sleep(0.6)
+                continue
+            try:
+                import requests
+                url = f"https://pypi.org/pypi/{pkg}/json"
+                resp = requests.get(url, timeout=8)
+                if resp.status_code == 200:
+                    info = resp.json().get('info', {})
+                    name = info.get('name')
+                    ver = info.get('version')
+                    summary = info.get('summary')
+                    home = info.get('home_page') or info.get('project_url') or info.get('package_url')
+                    print(f"\n{name} {ver}\n{summary}\n{home}\n")
+                    releases = list(resp.json().get('releases', {}).keys())[:6]
+                    if releases:
+                        print("Recent releases: " + ", ".join(releases))
+                else:
+                    print(f"PyPI: package not found (status {resp.status_code})")
+            except Exception as e:
+                print(f"PyPI query failed: {e}")
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '6':
+            r = _run_cmd_capture([sys.executable, '-m', 'pip', 'freeze'])
+            out = r.stdout or r.stderr or ''
+            print(out)
+            save = input("Save to requirements.txt? (y/N): ").strip().lower()
+            if save == 'y':
+                path = input("Path (default: ./requirements.txt): ").strip() or "requirements.txt"
+                try:
+                    with open(path, 'w') as fh:
+                        fh.write(out)
+                    print(f"Saved to {path}")
+                except Exception as e:
+                    print(f"Failed to save: {e}")
+            input("\nPress Enter to continue...")
+            continue
+
+        if cmd == '7':
+            venv_path = input("Enter venv path (default ~/.pythonOS/venv): ").strip() or os.path.expanduser('~/.pythonOS/venv')
+            venv_path = os.path.expanduser(venv_path)
+            print(f"Creating virtualenv at: {venv_path} -> This may take a moment...")
+            res = _run_cmd_capture([sys.executable, '-m', 'venv', venv_path])
+            if res.returncode == 0:
+                print(f"Created virtualenv: {venv_path}")
+                act = "source {}/bin/activate".format(venv_path)
+                if os.name == 'nt':
+                    act = f"{venv_path}\\Scripts\\activate.bat"
+                print(f"To activate: {act}")
+            else:
+                print(res.stderr or res.stdout)
+            input("\nPress Enter to continue...")
+            continue
+
+        print('Invalid option')
+        time.sleep(0.6)
 
 # ============================================================================
 # ENHANCED TRAFFIC ANALYSIS & DRIVING OPTIMIZATION (600% Enhancement)
@@ -24178,7 +24669,7 @@ def _scrape_flightradar24_real(lat, lon, radius_km=80):
         from selenium.webdriver.support.ui import WebDriverWait
         from selenium.webdriver.support import expected_conditions as EC
         from webdriver_manager.chrome import ChromeDriverManager
-        
+
         # Setup Chrome options
         options = Options()
         options.add_argument('--headless')
@@ -24186,35 +24677,35 @@ def _scrape_flightradar24_real(lat, lon, radius_km=80):
         options.add_argument('--disable-dev-shm-usage')
         options.add_argument('--disable-blink-features=AutomationControlled')
         options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
-        
+
         # Create webdriver
         service = Service(ChromeDriverManager().install())
         driver = webdriver.Chrome(service=service, options=options)
-        
+
         try:
             # Navigate to Flightradar24
             print(f"{COLORS['6'][0]}Opening Flightradar24...{RESET}")
             driver.get(f"https://www.flightradar24.com/?lat={lat}&lon={lon}&zoom=10")
-            
+
             # Wait for page to load
             WebDriverWait(driver, 10).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, "[data-callsign]"))
             )
-            
+
             import time
             time.sleep(3)
-            
+
             # Parse page content
             from bs4 import BeautifulSoup
             soup = BeautifulSoup(driver.page_source, 'html.parser')
-            
+
             flights = []
-            
+
             # Find flight elements
             flight_elements = soup.find_all(class_='flight-item')
             if not flight_elements:
                 flight_elements = driver.find_elements(By.CSS_SELECTOR, "[data-callsign]")
-            
+
             for element in flight_elements[:30]:  # Limit to 30 flights
                 try:
                     if hasattr(element, 'get_attribute'):
@@ -24225,7 +24716,7 @@ def _scrape_flightradar24_real(lat, lon, radius_km=80):
                         # BeautifulSoup element
                         callsign = element.get('data-callsign', 'N/A')
                         alt = element.get('data-altitude', 'N/A')
-                    
+
                     flights.append({
                         'callsign': callsign,
                         'country': 'N/A',
@@ -24240,15 +24731,15 @@ def _scrape_flightradar24_real(lat, lon, radius_km=80):
                     })
                 except Exception as e:
                     continue
-            
+
             return flights
-        
+
         finally:
             driver.quit()
-    
+
     except Exception as e:
         print(f"{COLORS['4'][0]}⚠️ Flightradar24 scraping error: {e}{RESET}")
-    
+
     return []
 
 def _scrape_flightradar24_api_v2(lat, lon):
@@ -24257,22 +24748,22 @@ def _scrape_flightradar24_api_v2(lat, lon):
         # Create bounds around the user's location
         north, south = lat + 0.5, lat - 0.5
         west, east = lon - 0.75, lon + 0.75
-        
+
         url = f"https://api.flightradar24.com/zones/fcgi/feed.js?bounds={north},{south},{west},{east}&faa=1&satellite=1&mlat=1&flarm=1&adsb=1&gnd=1&air=1&vehicles=1&estimated=1&maxage=900"
-        
+
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Referer': 'https://www.flightradar24.com/',
             'Accept': '*/*',
             'Accept-Encoding': 'gzip, deflate, br'
         }
-        
+
         response = requests.get(url, headers=headers, timeout=15)
-        
+
         if response.status_code == 200:
             data = response.json()
             flights = []
-            
+
             for key, flight_data in data.items():
                 if isinstance(flight_data, list) and len(flight_data) >= 8:
                     try:
@@ -24292,18 +24783,18 @@ def _scrape_flightradar24_api_v2(lat, lon):
                             })
                     except (ValueError, TypeError):
                         continue
-            
+
             return flights
     except Exception as e:
         print(f"{COLORS['4'][0]}⚠️ API error: {e}{RESET}")
-    
+
     return []
 
 def _generate_realistic_flights(lat, lon, city_name):
     """Generate up to 50 realistic flight data for demonstration."""
     import random
     from datetime import datetime, timedelta
-    
+
     airlines = [
         ('AAL', 'American Airlines'), ('UAL', 'United Airlines'), ('DAL', 'Delta Airlines'),
         ('SWA', 'Southwest Airlines'), ('BAW', 'British Airways'), ('AFR', 'Air France'),
@@ -24311,21 +24802,21 @@ def _generate_realistic_flights(lat, lon, city_name):
         ('ACA', 'Air Canada'), ('WJA', 'WestJet'), ('ASA', 'Alaska Airlines'), ('FDX', 'FedEx'),
         ('UPS', 'UPS Air'), ('JBU', 'JetBlue'), ('SKW', 'SkyWest'), ('GOL', 'GOL')
     ]
-    
+
     common_destinations = ['ORD', 'LAX', 'DFW', 'ATL', 'DEN', 'JFK', 'LAS', 'SEA', 'MIA', 'BOS',
                           'SFO', 'PHX', 'EWR', 'IAD', 'ORD', 'MDW', 'PHL', 'MSP', 'DTW', 'IAH']
     common_origins = ['ATL', 'DFW', 'ORD', 'LAX', 'JFK', 'SFO', 'SEA', 'MIA', 'DEN', 'BOS',
                      'EWR', 'IAD', 'DCA', 'PHX', 'LAS', 'PDX', 'SAN', 'DTW', 'MSP', 'IAH']
-    
+
     flights = []
-    
+
     # Generate 45-50 realistic flights (3-4 pages worth)
     num_flights = random.randint(45, 50)
-    
+
     for _ in range(num_flights):
         airline_code, airline_name = random.choice(airlines)
         flight_num = f"{airline_code}{random.randint(100, 9999)}"
-        
+
         flights.append({
             'callsign': flight_num,
             'country': airline_name,
@@ -24338,19 +24829,19 @@ def _generate_realistic_flights(lat, lon, city_name):
             'origin': random.choice(common_origins),
             'source': 'Real-Time Tracking'
         })
-    
+
     return flights
 
 def _scrape_flightradar24_flights(lat, lon, radius_km=80):
     """Scrape flight data from Flightradar24 - tries API then falls back to realistic demo (up to 50)."""
     # First try enhanced API v2 with proper headers
     flights = _scrape_flightradar24_api_v2(lat, lon)
-    
+
     # If API returns flights, use those
     if flights and len(flights) > 0:
         print(f"{COLORS['2'][0]}✓ Found {len(flights)} flights from Flightradar24 API{RESET}")
         return flights[:50]  # Limit to 50 for detailed viewing
-    
+
     # Otherwise fall back to realistic demo flights (API blocked or no flights)
     print(f"{COLORS['6'][0]}ℹ️ Generating {45}-50 realistic live flights for your area...{RESET}")
     flights = _generate_realistic_flights(lat, lon, "your location")
@@ -24366,7 +24857,7 @@ def _scrape_flightaware_flights(lat, lon):
         return flights
     except Exception as e:
         print(f"{COLORS['4'][0]}⚠️ FlightAware error: {e}{RESET}")
-    
+
     return _generate_realistic_flights(lat, lon, "your location")
 
 def _get_live_flight_data(lat, lon, service='flightradar24'):
@@ -24386,20 +24877,20 @@ def _display_flights_with_pagination(flights, page_size=15):
     if not flights:
         print(f"\n{COLORS['4'][0]}No flights found in this area.{RESET}\n")
         return
-    
+
     total_flights = len(flights)
     pages = (total_flights + page_size - 1) // page_size
-    
+
     for page_num in range(pages):
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"✈️ LIVE FLIGHT TRACKING - Page {page_num + 1}/{pages}")
-        
+
         start_idx = page_num * page_size
         end_idx = min(start_idx + page_size, total_flights)
-        
+
         print(f"\n{BOLD}{'Callsign':<12} {'Country':<12} {'Alt(ft)':<10} {'Vel(kmh)':<10} {'Lat/Lon':<30} {'Origin→Dest':<30}{RESET}")
         print("─" * 110)
-        
+
         for i, flight in enumerate(flights[start_idx:end_idx], 1):
             callsign = str(flight.get('callsign', 'N/A'))[:11]
             country = str(flight.get('country', 'N/A'))[:11]
@@ -24408,15 +24899,15 @@ def _display_flights_with_pagination(flights, page_size=15):
             lat = flight.get('latitude', 0)
             lon = flight.get('longitude', 0)
             coords = f"{lat:.3f},{lon:.3f}" if lat and lon else "N/A"
-            
+
             origin = str(flight.get('origin', 'N/A'))[:3]
             destination = str(flight.get('destination', 'N/A'))[:3]
             route = f"{origin}→{destination}"
-            
+
             print(f"{callsign:<12} {country:<12} {altitude:<10} {velocity:<10} {coords:<30} {route:<30}")
-        
+
         print(f"\n{BOLD}Showing {end_idx - start_idx} of {total_flights} flights{RESET}")
-        
+
         if page_num < pages - 1:
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
         else:
@@ -24468,7 +24959,7 @@ def feature_traffic_report():
     - Airport arrivals/departures live ticker
     - Local train schedules
     """
-    
+
     # Helper function: Get location from IP
     def _get_location_from_ip():
         """Fetch user location from IP address"""
@@ -24485,7 +24976,7 @@ def feature_traffic_report():
             }
         except Exception as e:
             return None
-    
+
     # Helper function: Get location from zipcode
     def _get_location_from_zipcode(zipcode):
         """Fetch coordinates from USPS zipcode"""
@@ -24507,7 +24998,7 @@ def feature_traffic_report():
         except Exception:
             pass
         return None
-    
+
     # Helper function: Generate ASCII map from OpenStreetMap
     def _generate_ascii_map(lat, lon, radius_miles=50):
         """Generate ASCII representation of area using OpenStreetMap data"""
@@ -24516,7 +25007,7 @@ def feature_traffic_report():
         ascii_map.append(f"╔{'═'*70}╗")
         ascii_map.append(f"║ OpenStreetMap ASCII View: {lat:.4f}°N, {lon:.4f}°W (Radius: {radius_miles}mi) ║")
         ascii_map.append(f"╠{'═'*70}╣")
-        
+
         # Grid representation
         grid_size = 15
         center = grid_size // 2
@@ -24533,12 +25024,12 @@ def feature_traffic_report():
                     line += "  · "
             line += "║"
             ascii_map.append(line)
-        
+
         ascii_map.append(f"║ {' '* 68}║")
         ascii_map.append(f"║ Key: 🚗=You | ───=Roads | 🏢=POIs |  · =Green Space      ║")
         ascii_map.append(f"╚{'═'*70}╝")
         return "\n".join(ascii_map)
-    
+
     # Helper function: Get road traffic data for 50-mile radius
     def _get_road_traffic_data(lat, lon, radius=50):
         """Fetch and analyze road traffic data for radius"""
@@ -24563,13 +25054,13 @@ def feature_traffic_report():
             return traffic_data
         except Exception as e:
             return None
-    
+
     # Helper function: Generate realistic airport flight data
     def _generate_airport_flights(num_flights=25, flight_type='departures'):
         """Generate realistic airport flight data for live ticker."""
         import random
         from datetime import datetime, timedelta
-        
+
         airlines = [
             ('AA', 'American Airlines'), ('UA', 'United Airlines'), ('DL', 'Delta Airlines'),
             ('SW', 'Southwest Airlines'), ('B6', 'JetBlue Airways'), ('AS', 'Alaska Airlines'),
@@ -24577,7 +25068,7 @@ def feature_traffic_report():
             ('WN', 'Southwest'), ('BA', 'British Airways'), ('AF', 'Air France'),
             ('LH', 'Lufthansa'), ('IB', 'Iberia'), ('AC', 'Air Canada')
         ]
-        
+
         destinations = {
             'departures': ['Miami', 'Denver', 'Orlando', 'Las Vegas', 'New York', 'Los Angeles',
                           'San Francisco', 'Boston', 'Chicago', 'Atlanta', 'Houston', 'Phoenix',
@@ -24585,24 +25076,24 @@ def feature_traffic_report():
             'arrivals': ['New York', 'Los Angeles', 'Chicago', 'Atlanta', 'Houston', 'Phoenix',
                         'Philadelphia', 'San Antonio', 'San Diego', 'Dallas', 'Boston', 'Seattle']
         }
-        
+
         statuses = ['🟢 On Time', '🟡 Delayed +10m', '🟡 Delayed +25m', '🔴 Cancelled', '🟢 On Time', '🟢 On Time']
         gates = [f"{chr(65+i)}{j}" for i in range(5) for j in range(1, 10)]
-        
+
         flights = []
         base_time = datetime.now()
-        
+
         for _ in range(num_flights):
             code, airline_name = random.choice(airlines)
             flight_num = f"{code}{random.randint(100, 9999)}"
-            
+
             dest_list = destinations.get(flight_type, destinations['departures'])
             destination = random.choice(dest_list)
-            
+
             flight_time = base_time + timedelta(minutes=random.randint(5, 480))
             status = random.choice(statuses)
             gate = random.choice(gates)
-            
+
             flights.append({
                 'flight': flight_num,
                 'airline': airline_name,
@@ -24613,9 +25104,9 @@ def feature_traffic_report():
                 'time': flight_time.strftime('%H:%M'),
                 'type': flight_type
             })
-        
+
         return sorted(flights, key=lambda x: x['time'])
-    
+
     # Helper function: Scrape real airport flight boards (Selenium-based)
     def _scrape_airport_flights_selenium(airport_code='JFK', flight_type='departures'):
         """Attempt to scrape real airport flight boards using Selenium."""
@@ -24623,14 +25114,14 @@ def feature_traffic_report():
             from selenium import webdriver
             from selenium.webdriver.chrome.options import Options
             from selenium.webdriver.common.by import By
-            
+
             # Suppress warnings for headless mode
             options = Options()
             options.add_argument('--headless')
             options.add_argument('--no-sandbox')
             options.add_argument('--disable-dev-shm-usage')
             options.add_argument('user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64)')
-            
+
             # Map common airport codes to their flight board URLs
             airport_urls = {
                 'JFK': 'https://www.jfkairport.com/en/flights',
@@ -24639,18 +25130,18 @@ def feature_traffic_report():
                 'ATL': 'https://www.atl.com/',
                 'DEN': 'https://www.flydenver.com/'
             }
-            
+
             url = airport_urls.get(airport_code, '')
             if not url:
                 return None
-            
+
             # Note: Actual scraping would require specific CSS selectors per airport
             # This is a template that would need customization
             return None  # Fall back to realistic data
-            
+
         except Exception:
             return None
-    
+
     # Helper function: Get airport data for live ticker
     def _get_airport_arrivals_departures(airport_code='JFK', num_flights=25):
         """Fetch realistic airport arrivals and departures for a specific airport."""
@@ -24658,7 +25149,7 @@ def feature_traffic_report():
             # Try to get real data first, fall back to realistic simulation
             departures = _generate_airport_flights(num_flights, 'departures')
             arrivals = _generate_airport_flights(num_flights, 'arrivals')
-            
+
             return {
                 'airport_code': airport_code,
                 'departures': departures,
@@ -24672,7 +25163,7 @@ def feature_traffic_report():
                 'arrivals': _generate_airport_flights(15, 'arrivals'),
                 'last_updated': datetime.now()
             }
-    
+
     # Helper function: Get data for multiple airports
     def _calculate_distance(lat1, lon1, lat2, lon2):
         """Calculate distance between two coordinates using Haversine formula (in miles)."""
@@ -24684,7 +25175,7 @@ def feature_traffic_report():
         c = 2 * asin(sqrt(a))
         r = 3959  # Earth's radius in miles
         return c * r
-    
+
     def _get_multiple_airports_data(num_airports=5, num_flights=25, location=None):
         """Get flight data for 5 closest airports based on geolocation."""
         # Comprehensive US airport database - 55+ airports covering all regions
@@ -24751,40 +25242,40 @@ def feature_traffic_report():
             {'code': 'SMF', 'name': 'Sacramento Intl (Sacramento, CA)', 'lat': 38.6955, 'lon': -121.5908},
             {'code': 'RNO', 'name': 'Reno/Tahoe Intl (Reno, NV)', 'lat': 39.4660, 'lon': -119.7674},
         ]
-        
+
         # Get user location if not provided
         if location is None:
             location = _get_location_from_ip()
-        
+
         airports_data = {}
         airport_list = []
-        
+
         # If location found, find 5 closest airports
         if location and location.get('lat') and location.get('lon'):
             user_lat, user_lon = location['lat'], location['lon']
-            
+
             # Calculate distance to each airport
             airports_with_distance = []
             for airport in all_airports:
                 distance = _calculate_distance(user_lat, user_lon, airport['lat'], airport['lon'])
                 airports_with_distance.append({**airport, 'distance': distance})
-            
+
             # Sort by distance and get 5 closest
             airports_with_distance.sort(key=lambda x: x['distance'])
             airport_list = airports_with_distance[:num_airports]
         else:
             # Fallback to major airports if location unavailable
             airport_list = all_airports[:num_airports]
-        
+
         # Load flight data for selected airports
         for airport in airport_list:
             code = airport['code']
             airports_data[code] = _get_airport_arrivals_departures(code, num_flights)
             airports_data[code]['name'] = airport['name']
             airports_data[code]['distance'] = airport.get('distance', 0)
-        
+
         return airports_data, airport_list
-    
+
     # Helper function: Get train schedules
     def _get_train_schedules(location):
         """Fetch local train schedules"""
@@ -24799,7 +25290,7 @@ def feature_traffic_report():
             return schedules
         except Exception:
             return []
-    
+
     # Helper function: Scrape traffic data from search engines
     def _scrape_traffic_from_search(location):
         """Gather traffic data from popular search results"""
@@ -24814,31 +25305,31 @@ def feature_traffic_report():
             return trending
         except Exception:
             return []
-    
+
     # Helper function: Display airport flight ticker with pagination
     def _display_airport_ticker(airports_data, airport_list, current_airport_idx=0, page_size=8):
         """Display airport arrivals/departures in live ticker format with multi-airport support."""
-        
+
         while True:
             # Get current airport data
             current_airport = airport_list[current_airport_idx]
             airport_code = current_airport['code']
             airport_name = current_airport['name']
             distance = current_airport.get('distance', 0)
-            
+
             # Get closest airport info
             closest_airport = airport_list[0]
             closest_code = closest_airport['code']
             closest_name = closest_airport['name']
             closest_distance = closest_airport.get('distance', 0)
             is_viewing_closest = (current_airport_idx == 0)
-            
+
             flight_data = airports_data.get(airport_code, {})
             departures = flight_data.get('departures', [])
             arrivals = flight_data.get('arrivals', [])
-            
+
             os.system('cls' if os.name == 'nt' else 'clear')
-            
+
             # Display header with airport name, distance, and live update time
             distance_str = f" • {distance:.1f} miles away" if distance > 0 else ""
             print(f"╔{'═'*109}╗")
@@ -24846,18 +25337,18 @@ def feature_traffic_report():
             print(f"║ {BOLD}FLIGHT ARRIVALS & DEPARTURES - LIVE TICKER{RESET:<71}║")
             print(f"║ Last updated: {datetime.now().strftime('%H:%M:%S'):<101}║")
             print(f"╚{'═'*109}╝\n")
-            
+
             # Highlight closest airport if not currently viewing it
             if not is_viewing_closest:
                 print(f"{BOLD}{COLORS['3'][0]}📍 CLOSEST AIRPORT TO YOU: {closest_code} - {closest_name} ({closest_distance:.1f} miles){RESET}")
                 print(f"   Press [J] to view the nearest airport\n")
             else:
                 print(f"{BOLD}{COLORS['2'][0]}✅ YOU ARE VIEWING YOUR CLOSEST AIRPORT{RESET}\n")
-            
+
             # Departures section
             print(f"{BOLD}{'✈️ DEPARTURES':<109}{RESET}")
             print(f"{'─'*109}\n")
-            
+
             for i, flight in enumerate(departures[:page_size], 1):
                 flight_code = flight.get('flight', 'N/A')
                 airline = flight.get('airline', 'N/A')[:20]
@@ -24865,15 +25356,15 @@ def feature_traffic_report():
                 status = flight.get('status', '🔵 Unknown')
                 gate = flight.get('gate', 'TBA')
                 time = flight.get('time', 'N/A')
-                
+
                 print(f"  {BOLD}{flight_code:<10}{RESET} {airline:<20} → {dest:<15} | {status:<15} | Gate: {gate:<4} | {time}")
-            
+
             print(f"\n{' '*109}\n")
-            
+
             # Arrivals section
             print(f"{BOLD}{'🛬 ARRIVALS':<109}{RESET}")
             print(f"{'─'*109}\n")
-            
+
             for i, flight in enumerate(arrivals[:page_size], 1):
                 flight_code = flight.get('flight', 'N/A')
                 airline = flight.get('airline', 'N/A')[:20]
@@ -24881,24 +25372,24 @@ def feature_traffic_report():
                 status = flight.get('status', '🔵 Unknown')
                 gate = flight.get('gate', 'TBA')
                 time = flight.get('time', 'N/A')
-                
+
                 print(f"  {BOLD}{flight_code:<10}{RESET} {airline:<20} ← {origin:<15} | {status:<15} | Gate: {gate:<4} | {time}")
-            
+
             # Statistics
             total_flights = len(departures) + len(arrivals)
             on_time_dep = sum(1 for f in departures if '🟢' in f.get('status', ''))
             delayed_dep = sum(1 for f in departures if '🟡' in f.get('status', ''))
             cancelled_dep = sum(1 for f in departures if '🔴' in f.get('status', ''))
-            
+
             on_time_arr = sum(1 for f in arrivals if '🟢' in f.get('status', ''))
             delayed_arr = sum(1 for f in arrivals if '🟡' in f.get('status', ''))
             cancelled_arr = sum(1 for f in arrivals if '🔴' in f.get('status', ''))
-            
+
             print(f"\n{' '*109}")
             print(f"{BOLD}📊 STATISTICS:{RESET}")
             print(f"  Departures: {COLORS['2'][0]}✅ On Time: {on_time_dep}{RESET} | {COLORS['3'][0]}⚠️  Delayed: {delayed_dep}{RESET} | {COLORS['1'][0]}❌ Cancelled: {cancelled_dep}{RESET}")
             print(f"  Arrivals:   {COLORS['2'][0]}✅ On Time: {on_time_arr}{RESET} | {COLORS['3'][0]}⚠️  Delayed: {delayed_arr}{RESET} | {COLORS['1'][0]}❌ Cancelled: {cancelled_arr}{RESET}")
-            
+
             # Airport selector - sorted by distance (closest to farthest)
             airport_indicators = []
             for i, apt in enumerate(airport_list):
@@ -24906,14 +25397,14 @@ def feature_traffic_report():
                 dist_str = f" ({dist:.0f}mi)" if dist > 0 else ""
                 marker = "→" if i == current_airport_idx else "·"
                 airport_indicators.append(f"{marker} {apt['code']}{dist_str}")
-            
+
             print(f"\n{BOLD}🌍 NEARBY AIRPORTS (Closest → Farthest):{RESET} {' | '.join(airport_indicators)}")
-            
+
             print(f"\n{BOLD}CONTROLS:{RESET}")
             print(f"  [←/→] or [A/D] - Scroll flights | [J/K] - Switch airports (closest→farthest) | [R] - Refresh | [ENTER] - Exit")
-            
+
             user_input = input(f"\n{BOLD}Command: {RESET}").strip().lower()
-            
+
             if user_input in ['', '\n']:
                 break
             elif user_input in ['a', 'left']:
@@ -24944,13 +25435,13 @@ def feature_traffic_report():
                 airports_data[airport_code] = _get_airport_arrivals_departures(airport_code, 25)
                 airports_data[airport_code]['name'] = airport_name
                 airports_data[airport_code]['distance'] = distance
-    
+
     # Helper function: Display live ticker
     def _display_live_ticker(title, data_list, refresh_interval=5):
         """Display data in live ticker format"""
         print_header(f"📡 {title} - LIVE TICKER")
         print(f"Last updated: {datetime.now().strftime('%H:%M:%S')}\n")
-        
+
         for i, item in enumerate(data_list[:10]):  # Show top 10
             if 'flight' in item:
                 print(f"  ✈️  {item.get('flight', 'N/A')} | {item.get('airline', 'N/A')} → {item.get('destination', 'N/A')}")
@@ -24961,7 +25452,7 @@ def feature_traffic_report():
             elif 'name' in item:
                 print(f"  🛣️  {item.get('name', 'N/A')}: {item.get('status', 'N/A')} | Speed: {item.get('speed', 'N/A')}")
             print()
-    
+
     # Main menu loop
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -24977,30 +25468,30 @@ def feature_traffic_report():
         print(f" {BOLD}[9]{RESET} 💾 Save Comprehensive Report")
         print(f" {BOLD}[10]{RESET} ✈️ LIVE FLIGHT TRACKING (Real-Time)")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
-        
+
         choice = input("\n" + BOLD + "Select option: " + RESET).strip()
-        
+
         if choice == '0':
             return
-        
+
         elif choice == '1':
             # Local Road Traffic with 50-mile radius
             print_header("🛣️ Local Road Traffic Report (50-Mile Radius)")
             print(f"\n{COLORS['2'][0]}Fetching location and traffic data...{RESET}\n")
-            
+
             location = _get_location_from_ip()
             if location:
                 print(f"{BOLD}📍 Location:{RESET} {location['city']}, {location['state']} {location['zip']}")
                 print(f"{BOLD}🧭 Coordinates:{RESET} {location['lat']:.4f}°N, {location['lon']:.4f}°W")
                 print(f"{BOLD}🌐 ISP:{RESET} {location['isp']}\n")
-                
+
                 traffic = _get_road_traffic_data(location['lat'], location['lon'])
                 if traffic:
                     print(f"{BOLD}📊 Regional Traffic Summary:{RESET}")
                     print(f"  Average Speed: {traffic['avg_speed']} mph")
                     print(f"  Average Delay: {traffic['avg_delay']}")
                     print(f"  Congestion Index: {traffic['congestion_index']}/100\n")
-                    
+
                     print(f"{BOLD}🛣️ Major Roads Status:{RESET}")
                     for road in traffic['major_roads']:
                         print(f"  {road['status']} {road['name']}")
@@ -25008,14 +25499,14 @@ def feature_traffic_report():
                             print(f"      Speed: {road['speed']} | Delay: {road['delay']}")
                         else:
                             print(f"      Speed: {road['speed']} | No delays")
-                    
+
                     print(f"\n{BOLD}🚨 Active Incidents:{RESET}")
                     for incident in traffic['incidents']:
                         print(f"  {incident['type']} - {incident['location']} ({incident['severity']})")
-                    
+
                     # Generate and show ASCII map
                     print("\n" + _generate_ascii_map(location['lat'], location['lon']))
-                    
+
                     # Show external links
                     print(f"\n{BOLD}🔗 External Traffic Links:{RESET}")
                     lat, lon = location['lat'], location['lon']
@@ -25024,99 +25515,99 @@ def feature_traffic_report():
                     print(f"  🌐 HERE Technologies: https://maps.here.com/?center={lat},{lon}&z=12&layers=0")
             else:
                 print(f"{COLORS['1'][0]}Could not determine location from IP{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '2':
             # Zipcode search
             print_header("🔍 Search Traffic by Zipcode")
             zipcode = input(f"\n{BOLD}Enter zipcode: {RESET}").strip()
-            
+
             print(f"\n{COLORS['2'][0]}Searching for zipcode {zipcode}...{RESET}\n")
             location = _get_location_from_zipcode(zipcode)
-            
+
             if location:
                 print(f"{BOLD}📍 Location:{RESET} {location['city']}, {location['state']} {location['zip']}")
                 print(f"{BOLD}🧭 Coordinates:{RESET} {location['lat']:.4f}°N, {location['lon']:.4f}°W\n")
-                
+
                 traffic = _get_road_traffic_data(location['lat'], location['lon'])
                 if traffic:
                     print(f"{BOLD}🛣️ Roads Near {location['city']}:{RESET}")
                     for road in traffic['major_roads']:
                         print(f"  {road['status']} {road['name']} - Speed: {road['speed']}")
-                    
+
                     # Show ASCII map
                     print("\n" + _generate_ascii_map(location['lat'], location['lon']))
             else:
                 print(f"{COLORS['1'][0]}Zipcode not found. Please verify and try again.{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '3':
             # Interactive ASCII Map View
             print_header("🗺️ Interactive ASCII Map (OpenStreetMap-based)")
-            
+
             location = _get_location_from_ip()
             if location:
                 print(f"\n{COLORS['2'][0]}Generating map for {location['city']}, {location['state']}...{RESET}\n")
                 print(_generate_ascii_map(location['lat'], location['lon']))
-                
+
                 print(f"\n{BOLD}Map Features:{RESET}")
                 print(f"  🚗 Your location (center)")
                 print(f"  ─── Major roads")
                 print(f"  🏢 Points of Interest")
                 print(f"  · Green spaces/parks")
-                
+
                 print(f"\n{BOLD}📍 Full Map Links:{RESET}")
                 print(f"  OpenStreetMap Editor: https://www.openstreetmap.org/edit?lat={location['lat']}&lon={location['lon']}&zoom=15")
                 print(f"  OSM GeoJSON Data: https://overpass-api.de/api/interpreter")
             else:
                 print(f"{COLORS['1'][0]}Could not determine location{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '4':
             # Enhanced Airport Arrivals/Departures Live Ticker with Interactive Navigation (Geolocation-Based)
             location = _get_location_from_ip()
             airports_data, airport_list = _get_multiple_airports_data(num_airports=5, num_flights=25, location=location)
             _display_airport_ticker(airports_data, airport_list, current_airport_idx=0, page_size=8)
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '5':
             #Train Schedules Live Ticker
             location = _get_location_from_ip()
             trains = _get_train_schedules(location['city'] if location else 'Unknown')
             _display_live_ticker("LOCAL TRAIN SCHEDULES", trains)
-            
+
             print(f"\n{BOLD}Service Information:{RESET}")
             print(f"  ✅ All lines operational")
             print(f"  🕐 Hours: 5:00 AM - 2:00 AM daily")
             print(f"  💰 Fare Info: Check local transit authority")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '6':
             #Search Engine Traffic Trends
             print_header("📰 Traffic Trends from Search Engines")
             location = _get_location_from_ip()
-            
+
             trending = _scrape_traffic_from_search(location['city'] if location else 'Your Area')
             print(f"\n{COLORS['2'][0]}Top Traffic Searches & Trends:{RESET}\n")
-            
+
             for i, item in enumerate(trending, 1):
                 print(f"{BOLD}[{i}]{RESET} {item['search']}")
                 print(f"    → {item['result']}\n")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '7':
             # Traffic Incidents & Alerts
             print_header("🚨 Traffic Incidents & Alerts")
-            
+
             location = _get_location_from_ip()
             traffic = _get_road_traffic_data(location['lat'], location['lon']) if location else {}
-            
+
             if traffic and traffic.get('incidents'):
                 print(f"\n{COLORS['1'][0]}ACTIVE INCIDENTS IN YOUR AREA:{RESET}\n")
                 for i, incident in enumerate(traffic['incidents'], 1):
@@ -25124,22 +25615,22 @@ def feature_traffic_report():
                     print(f"{BOLD}{severity_color[0]}{i}. {incident['type']}{RESET}")
                     print(f"   Location: {incident['location']}")
                     print(f"   Severity: {incident['severity']}\n")
-            
+
             print(f"{BOLD}⚠️ Safety Recommendations:{RESET}")
             print(f"  • Allow extra 20-30 minutes for travel")
             print(f"  • Use alternate routes when available")
             print(f"  • Keep emergency numbers ready")
             print(f"  • Monitor live traffic updates")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '8':
             # Traffic Statistics & Analysis
             print_header("📊 Comprehensive Traffic Analysis")
-            
+
             location = _get_location_from_ip()
             traffic = _get_road_traffic_data(location['lat'], location['lon']) if location else {}
-            
+
             if location:
                 print(f"\n{BOLD}📈 Traffic Metrics:{RESET}")
                 print(f"  Location: {location['city']}, {location['state']}")
@@ -25148,7 +25639,7 @@ def feature_traffic_report():
                 print(f"  Average Delay: {traffic.get('avg_delay', 'N/A')}")
                 print(f"  Peak Hours: 7-9 AM, 4-6 PM")
                 print(f"  Incidents: {len(traffic.get('incidents', []))} active")
-                
+
                 print(f"\n{BOLD}🎯 Recommendations:{RESET}")
                 if traffic.get('congestion_index', 0) > 70:
                     print(f"  ❌ HEAVY - Avoid driving if possible")
@@ -25156,13 +25647,13 @@ def feature_traffic_report():
                     print(f"  ⚠️  MODERATE - Plan for delays")
                 else:
                     print(f"  ✅ LIGHT - Good travel conditions")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '9':
             # Save Comprehensive Report
             print_header("💾 Saving Comprehensive Traffic Report")
-            
+
             location = _get_location_from_ip()
             if location:
                 report = f"COMPREHENSIVE TRAFFIC REPORT\n"
@@ -25171,64 +25662,64 @@ def feature_traffic_report():
                 report += f"Location: {location['city']}, {location['state']} {location['zip']}\n"
                 report += f"Coordinates: {location['lat']}, {location['lon']}\n"
                 report += f"ISP: {location['isp']}\n\n"
-                
+
                 traffic = _get_road_traffic_data(location['lat'], location['lon'])
                 if traffic:
                     report += f"Regional Congestion: {traffic['congestion_index']}/100\n"
                     report += f"Average Speed: {traffic['avg_speed']} mph\n"
                     report += f"Average Delay: {traffic['avg_delay']}\n\n"
-                
+
                 save_log_file("network", "Comprehensive_Traffic_Report", report, prompt_user=False)
                 print(f"\n{COLORS['2'][0]}✅ Report saved successfully{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
-        
+
         elif choice == '10':
             # Live Flight Tracking
             print_header("✈️ LIVE FLIGHT TRACKING SERVICE")
-            
+
             print(f"\n{BOLD}Available Flight Tracking Sources:{RESET}\n")
             print(f"  {BOLD}[A]{RESET} Flightradar24")
             print(f"      🔗 https://www.flightradar24.com/")
             print(f"      Real-time flight tracking with detailed aircraft info")
-            
+
             print(f"\n  {BOLD}[B]{RESET} AirNav Radar")
             print(f"      🔗 https://www.airnavradar.com/")
             print(f"      U.S. aviation radar and flight tracking")
-            
+
             print(f"\n  {BOLD}[C]{RESET} FlightAware")
             print(f"      🔗 https://www.flightaware.com/live/")
             print(f"      Comprehensive worldwide flight tracking")
-            
+
             service = input(f"\n{BOLD}Select service [A/B/C]: {RESET}").strip().upper()
-            
+
             if service not in ['A', 'B', 'C']:
                 print(f"{COLORS['4'][0]}Invalid selection{RESET}")
                 input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
                 continue
-            
+
             print(f"\n{COLORS['6'][0]}Fetching your location...{RESET}")
             location = _get_location_from_ip()
-            
+
             if not location:
                 print(f"{COLORS['1'][0]}Could not determine location{RESET}")
                 input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
                 continue
-            
+
             print(f"{COLORS['2'][0]}Location: {location['city']}, {location['state']}{RESET}")
             print(f"{COLORS['6'][0]}Fetching live flights in your area...{RESET}\n")
-            
+
             flights = _get_live_flight_data(location['lat'], location['lon'], service)
-            
+
             if flights:
                 print(f"{COLORS['2'][0]}✅ Found {len(flights)} aircraft in the area{RESET}\n")
                 _display_flights_with_pagination(flights, page_size=15)
-                
+
                 # Ask to save data
                 save_choice = input(f"\n{BOLD}Save flight data to logs? (y/n): {RESET}").strip().lower()
                 if save_choice == 'y':
                     filename = f"flight_tracking_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                    
+
                     report = f"LIVE FLIGHT TRACKING REPORT\n"
                     report += f"Service: {service}\n"
                     report += f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
@@ -25236,10 +25727,10 @@ def feature_traffic_report():
                     report += f"Coordinates: {location['lat']:.4f}, {location['lon']:.4f}\n"
                     report += f"{'='*80}\n\n"
                     report += f"Total Flights: {len(flights)}\n\n"
-                    
+
                     report += f"{'Callsign':<12} {'Country':<12} {'Alt(ft)':<10} {'Vel(kmh)':<10} {'Lat/Lon':<30} {'Origin→Dest':<30}\n"
                     report += "─" * 110 + "\n"
-                    
+
                     for flight in flights:
                         callsign = str(flight.get('callsign', 'N/A'))[:11]
                         country = str(flight.get('country', 'N/A'))[:11]
@@ -25248,13 +25739,13 @@ def feature_traffic_report():
                         lat = flight.get('latitude', 0)
                         lon = flight.get('longitude', 0)
                         coords = f"{lat:.3f},{lon:.3f}" if lat and lon else "N/A"
-                        
+
                         origin = str(flight.get('origin', 'N/A'))[:3]
                         destination = str(flight.get('destination', 'N/A'))[:3]
                         route = f"{origin}→{destination}"
-                        
+
                         report += f"{callsign:<12} {country:<12} {altitude:<10} {velocity:<10} {coords:<30} {route:<30}\n"
-                    
+
                     save_log_file("aviation", filename, report, prompt_user=False)
                     print(f"\n{COLORS['2'][0]}✅ Flight data saved to pythonOS_data/logs{RESET}")
             else:
@@ -25263,7 +25754,7 @@ def feature_traffic_report():
                 print(f"  • https://www.flightradar24.com/?lat={location['lat']}&lon={location['lon']}")
                 print(f"  • https://www.airnavradar.com/")
                 print(f"  • https://www.flightaware.com/live/")
-            
+
             input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 # --- AI & CALENDAR ADDITIONS ---
@@ -27754,6 +28245,12 @@ def live_system_identity_clock():
         # Update weather cache every 300 seconds (5 mins)
         if ticker_count % 300 == 0:
             threading.Thread(target=get_weather_data, daemon=True).start()
+        # Update crypto cache every 15 seconds (BTC/ETH live ticker)
+        if ticker_count % 15 == 0:
+            threading.Thread(target=get_crypto_prices, daemon=True).start()
+        # Update metals cache every 60 seconds (precious metals + copper)
+        if ticker_count % 60 == 0:
+            threading.Thread(target=get_metal_prices, daemon=True).start()
 
         current_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -30836,6 +31333,7 @@ def feature_graphing_calculator():
         print(f" {BOLD}[A]{RESET}  🧠 Advanced Graphing Calculator (Interactive Curses HUD)")
         print(f" {BOLD}[1]{RESET}  📈 Graph Plotter (ASCII Terminal)")
         print(f" {BOLD}[2]{RESET}  🧮 Scientific Calculator")
+        print(f" {BOLD}[B]{RESET}  🛰️ Sat Intercep. (TLE search + intercept plan)")
         print(f" {BOLD}[3]{RESET}  🔬 CAS - Computer Algebra System")
         print(f" {BOLD}[4]{RESET}  📊 Statistics & Data Analysis")
         print(f" {BOLD}[5]{RESET}  🔢 Matrix Calculator")
@@ -30858,6 +31356,8 @@ def feature_graphing_calculator():
             safe_run("general", "Graph_Plotter", _calc_graph_plotter)
         elif choice == '2':
             safe_run("general", "Scientific_Calculator", _calc_scientific)
+        elif choice == 'B':
+            safe_run("general", "Sat_Intercept", _calc_sat_intercept_interactive)
         elif choice == '3':
             safe_run("general", "CAS_System", _calc_cas_system)
         elif choice == '4':
@@ -31732,6 +32232,269 @@ def _calc_help():
     print(f"   Stats: 1, 2, 3, 4, 5 → analyze")
 
     input(f"\n{BOLD}[ ⌨️ Press Enter to return to calculator... ]{RESET}")
+
+
+def calc_sat_intercept_from_tle(name: str, line1: str, line2: str, lat: float, lon: float, elevation_m: float = 0.0, elevation_threshold_deg: float = 10.0, sample_minutes: int = 90, step_seconds: int = 30) -> dict:
+    """Calculate an intercept plan for a single TLE.
+
+    - Uses skyfield/sgp4 when available for accurate pass prediction.
+    - Falls back to a best-effort summary + illustrative ASCII trajectory when skyfield is missing.
+
+    Returns a dictionary with calculation results and an `ascii_trajectory` string.
+    """
+    from datetime import datetime, timedelta
+    import math
+    try:
+        from pythonOS_data import satellite_links as _sat_links
+    except Exception:
+        _sat_links = None
+
+    def _sparkline(values: list) -> str:
+        chars = ['▁','▂','▃','▄','▅','▆','▇','█']
+        if not values:
+            return ""
+        mn, mx = min(values), max(values)
+        span = mx - mn or 1.0
+        out = ''.join(chars[min(len(chars)-1, int((v-mn)/span*(len(chars)-1)))] for v in values)
+        return out
+
+    result = {
+        'satellite': name,
+        'mode': 'unknown',
+        'ascii_trajectory': '',
+        'timeseries': [],
+        'notes': ''
+    }
+
+    # If skyfield is available and the satellite_links helper reports it, perform a real propagation
+    if _sat_links is not None and getattr(_sat_links, '_HAS_SKYFIELD', False):
+        try:
+            from skyfield.api import EarthSatellite, load, wgs84
+            ts = load.timescale()
+            sat = EarthSatellite(line1, line2, name, ts=ts)
+            # use timezone-aware UTC datetimes (Skyfield requires tz-aware datetimes)
+            from datetime import timezone
+            now_dt = datetime.now(timezone.utc)
+            samples = max(3, int((sample_minutes * 60) / step_seconds))
+            times = [now_dt + timedelta(seconds=i * step_seconds) for i in range(samples + 1)]
+            # ts.utc accepts timezone-aware datetimes reliably
+            ts_times = ts.utc(times)
+
+            obs = wgs84.latlon(latitude_degrees=float(lat), longitude_degrees=float(lon), elevation_m=float(elevation_m))
+
+            elevations = []
+            azimuths = []
+            distances = []
+            iso_times = []
+
+            for t in ts_times:
+                try:
+                    topo = sat.at(t).observe_from(obs)
+                    alt, az, dist = topo.altaz()
+                    elevations.append(float(alt.degrees))
+                    azimuths.append(float(az.degrees))
+                    distances.append(float(dist.km))
+                    iso_times.append(t.utc_datetime().isoformat() + 'Z')
+                except Exception:
+                    elevations.append(-999.0)
+                    azimuths.append(0.0)
+                    distances.append(0.0)
+                    iso_times.append('')
+
+            result['mode'] = 'skyfield'
+            result['timeseries'] = [{'time': iso, 'elevation_deg': round(el, 3), 'azimuth_deg': round(az, 3), 'distance_km': round(d,3)} for iso, el, az, d in zip(iso_times, elevations, azimuths, distances)]
+
+            # Find passes where elevation >= 0
+            visible = [el >= 0 for el in elevations]
+            passes = []
+            start = None
+            for i, v in enumerate(visible):
+                if v and start is None:
+                    start = i
+                if not v and start is not None:
+                    passes.append((start, i-1))
+                    start = None
+            if start is not None:
+                passes.append((start, len(visible)-1))
+
+            chosen_pass = None
+            for p in passes:
+                seg = elevations[p[0]:p[1]+1]
+                if max(seg) >= elevation_threshold_deg:
+                    chosen_pass = p
+                    break
+            if chosen_pass is None and passes:
+                chosen_pass = passes[0]
+
+            if chosen_pass:
+                i0, i1 = chosen_pass
+                seg_vals = elevations[i0:i1+1]
+                peak_idx = i0 + int(seg_vals.index(max(seg_vals)))
+                result['rise_time'] = result['timeseries'][i0]['time']
+                result['peak_time'] = result['timeseries'][peak_idx]['time']
+                result['set_time'] = result['timeseries'][i1]['time']
+                result['rise_az_deg'] = result['timeseries'][i0]['azimuth_deg']
+                result['peak_az_deg'] = result['timeseries'][peak_idx]['azimuth_deg']
+                result['set_az_deg'] = result['timeseries'][i1]['azimuth_deg']
+                result['max_elevation_deg'] = round(max(seg_vals), 3)
+                result['duration_seconds'] = int((i1 - i0) * step_seconds)
+
+                # subpoint at peak
+                try:
+                    # parse ISO timestamp and ensure timezone-aware UTC for Skyfield
+                    try:
+                        tpeak_dt = datetime.fromisoformat(result['peak_time'].replace('Z', '+00:00'))
+                        tpeak = ts.utc(tpeak_dt)
+                    except Exception:
+                        # fallback: use now as a safe default
+                        tpeak = ts.now()
+                    sub = sat.at(tpeak).subpoint()
+                    result['subpoint'] = {'lat': sub.latitude.degrees, 'lon': sub.longitude.degrees, 'height_km': sub.elevation.km}
+                except Exception:
+                    pass
+
+            # ASCII sparkline for elevation over time
+            clipped = [max(0.0, min(90.0, e if e != -999.0 else 0.0)) for e in elevations]
+            result['ascii_trajectory'] = _sparkline(clipped)
+            result['notes'] = 'High-fidelity pass prediction using skyfield/sgp4.'
+            return result
+        except Exception as e:
+            result['mode'] = 'error'
+            result['notes'] = f"Skyfield propagation failed: {e}"
+            return result
+
+    # FALLBACK (no skyfield): parse TLE line2 for basic orbital params and return illustrative ASCII plan
+    try:
+        incl = float(line2[8:16].strip() or 0.0)
+    except Exception:
+        incl = None
+    try:
+        ecc_text = line2[26:33].strip()
+        eccentricity = float('0.' + ecc_text) if ecc_text and ecc_text.isdigit() else None
+    except Exception:
+        eccentricity = None
+    try:
+        mean_anom = float(line2[43:51].strip() or 0.0)
+    except Exception:
+        mean_anom = None
+    try:
+        mean_motion = float(line2[52:63].strip() or 0.0)
+    except Exception:
+        mean_motion = None
+
+    period = None
+    if mean_motion and mean_motion > 0:
+        period = 86400.0 / mean_motion
+
+    # Create a synthetic illustrative elevation curve (not a prediction)
+    import math
+    N = 24
+    curve = []
+    for i in range(N):
+        phase = (i / N) * 2 * math.pi
+        val = max(0.0, math.sin(phase) * (math.sin(math.radians(incl)) if incl else 0.5) * 90.0)
+        curve.append(val)
+
+    result.update({
+        'mode': 'fallback',
+        'inclination_deg': incl,
+        'eccentricity': eccentricity,
+        'mean_anomaly_deg': mean_anom,
+        'mean_motion': mean_motion,
+        'period_seconds': period,
+        'ascii_trajectory': _sparkline(curve),
+        'timeseries': [{'t_idx': i, 'elevation_deg': round(v,3)} for i, v in enumerate(curve)],
+        'notes': 'Skyfield/sgp4 not available — this is an illustrative plan. Install skyfield+sgp4 for exact pass geometry.'
+    })
+    return result
+
+
+def _calc_sat_intercept_interactive():
+    """Interactive calculator submenu: search TLEs, select satellite, compute intercept plan."""
+    import math
+    try:
+        from pythonOS_data import satellite_links as sat_links
+    except Exception:
+        sat_links = None
+
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header('🛰️ Satellite Intercept Calculator')
+
+    tles = []
+    if sat_links:
+        tles = sat_links._load_tles_from_orbital_memory()
+    if not tles:
+        print('\nNo orbital TLE database found (orbital_memory.json).')
+        print('Place TLEs in pythonOS_data/orbital_memory.json or use Satellite → Update orbital DB.')
+        input('\nPress Enter to return...')
+        return {'ok': False, 'reason': 'no_orbital_db'}
+
+    search = input('\nSearch satellite name (partial, Enter=ISS): ').strip() or 'ISS'
+    matches = [t for t in tles if search.lower() in t.get('name','').lower()]
+    if not matches:
+        print(f"No matches for '{search}'. Try a different query.")
+        input('\nPress Enter to return...')
+        return {'ok': False, 'reason': 'no_matches'}
+
+    print('\nMatches:')
+    for i, m in enumerate(matches[:30]):
+        print(f"  [{i}] {m['name']}")
+
+    sel = input('\nSelect satellite index (default 0): ').strip() or '0'
+    try:
+        idx = int(sel)
+        if idx < 0 or idx >= len(matches):
+            raise ValueError()
+    except Exception:
+        print('Invalid selection')
+        input('\nPress Enter to return...')
+        return {'ok': False, 'reason': 'invalid_selection'}
+
+    sat = matches[idx]
+    # Ask for observer location
+    lat_str = input('Observer latitude (deg) [default 0.0]: ').strip() or '0.0'
+    lon_str = input('Observer longitude (deg) [default 0.0]: ').strip() or '0.0'
+    elev_str = input('Observer elevation (m) [default 0.0]: ').strip() or '0.0'
+    try:
+        lat = float(lat_str)
+        lon = float(lon_str)
+        elev = float(elev_str)
+    except Exception:
+        print('Invalid coordinates')
+        input('\nPress Enter to return...')
+        return {'ok': False, 'reason': 'invalid_coords'}
+
+    res = calc_sat_intercept_from_tle(sat['name'], sat['line1'], sat['line2'], lat, lon, elevation_m=elev)
+
+    # Print concise plan
+    print('\n\n=== Intercept Plan Summary ===')
+    print(f"Satellite: {res.get('satellite')}")
+    print(f"Mode: {res.get('mode')}")
+    if res.get('mode') == 'skyfield':
+        print(f"Next rise: {res.get('rise_time')}   Peak: {res.get('peak_time')}   Set: {res.get('set_time')}")
+        print(f"Max elevation: {res.get('max_elevation_deg', 'N/A')}°   Duration: {res.get('duration_seconds', 'N/A')}s")
+        if res.get('subpoint'):
+            sp = res['subpoint']
+            print(f"Sub-satellite point at peak: {sp['lat']:.4f}°, {sp['lon']:.4f}° (H={sp['height_km']:.1f} km)")
+    else:
+        print('Precise propagation unavailable. Showing illustrative plan and orbital parameters:')
+        print(f"  Inclination: {res.get('inclination_deg')}°   Mean motion: {res.get('mean_motion')} rev/day   Period (s): {res.get('period_seconds')}")
+
+    print('\nASCII trajectory (elevation sparkline):')
+    print(res.get('ascii_trajectory', ''))
+
+    print('\nDetailed timeseries (sample):')
+    for row in (res.get('timeseries') or [])[:12]:
+        if isinstance(row, dict) and 'time' in row:
+            print(f"  {row['time']}  el={row['elevation_deg']}° az={row['azimuth_deg']}° dist={row['distance_km']} km")
+        else:
+            print(f"  {row}")
+
+    print('\nNotes:')
+    print('  ' + (res.get('notes') or ''))
+
+    input('\nPress Enter to return to the Calculator menu...')
+    return {'ok': True, 'result': res}
 
 # ================================================================================
 # END GRAPHING CALCULATOR SECTION
@@ -33533,11 +34296,11 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                         yield Input(placeholder="🔍 Search media files or enter URL", id="url-input")
                         yield Button("🌐 Fetch", id="btn-fetch", variant="primary")
                     yield TextLog(id="browser-log", highlight=False)
-                    
+
                     # Now Playing with rich info
                     yield Static("⏸️ No track loaded", id="now-playing")
                     yield Static("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 0:00 / 0:00", id="progress-bar")
-                    
+
                     # Advanced Controls
                     with Horizontal(id="controls"):
                         yield Button("⏮️ Prev", id="btn-prev", variant="default")
@@ -33552,10 +34315,10 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                         yield Button("🔊+", id="btn-vol-up", variant="default")
                         yield Button("📂 Add to Queue", id="btn-add-queue", variant="primary")
                         yield Button("🗑️ Clear Queue", id="btn-clear-queue", variant="error")
-                    
+
                     # Info Panel with detailed metadata
                     yield TextLog(id="info-panel", highlight=False)
-                    
+
                     # Playlist/Queue Panel
                     yield TextLog(id="playlist-panel", highlight=False)
             yield Footer()
@@ -33642,13 +34405,13 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                     meta.append(f"📊 Bitrate: {tag.bitrate} kbps")
                 if tag.samplerate:
                     meta.append(f"🎚️  Sample Rate: {tag.samplerate} Hz")
-                
+
                 # File info
                 size_mb = media_path.stat().st_size / (1024 * 1024)
                 meta.append(f"💾 Size: {size_mb:.2f} MB")
                 meta.append(f"📝 Format: {media_path.suffix.upper()}")
                 meta.append("━" * 50)
-                
+
                 self._log("\n".join(meta), clear=True)
             except Exception as exc:
                 self._log(f"Metadata unavailable: {exc}", clear=True)
@@ -33665,7 +34428,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                 self._update_now_playing(media_path.name, "▶️")
                 self._log(f"▶️ Now Playing: {media_path.name}")
                 self._handle_audio_metadata(media_path)
-                
+
                 # Set end event to auto-play next track
                 pygame.mixer.music.set_endevent(pygame.USEREVENT)
             except Exception as exc:
@@ -33676,13 +34439,13 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             if not self.playlist:
                 self._log("📋 Queue is empty")
                 return
-            
+
             if self._repeat_mode == "one":
                 # Replay current track
                 if self.playlist_index >= 0 and self.playlist_index < len(self.playlist):
                     self.play_audio(self.playlist[self.playlist_index])
                     return
-            
+
             if self._shuffle:
                 import random
                 self.playlist_index = random.randint(0, len(self.playlist) - 1)
@@ -33695,7 +34458,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                         self._log("📋 End of queue")
                         self.playlist_index = len(self.playlist) - 1
                         return
-            
+
             self.play_audio(self.playlist[self.playlist_index])
             self._update_playlist_display()
 
@@ -33704,11 +34467,11 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             if not self.playlist:
                 self._log("📋 Queue is empty")
                 return
-            
+
             self.playlist_index -= 1
             if self.playlist_index < 0:
                 self.playlist_index = len(self.playlist) - 1 if self._repeat_mode == "all" else 0
-            
+
             self.play_audio(self.playlist[self.playlist_index])
             self._update_playlist_display()
 
@@ -33742,7 +34505,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             modes = ["none", "one", "all"]
             current_idx = modes.index(self._repeat_mode)
             self._repeat_mode = modes[(current_idx + 1) % len(modes)]
-            
+
             symbols = {"none": "🔁", "one": "🔂", "all": "🔁"}
             self._log(f"{symbols[self._repeat_mode]} Repeat: {self._repeat_mode}")
             self._update_playlist_display()
@@ -33820,10 +34583,10 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             query = self.query_one("#url-input", Input).value.strip()
             if not query:
                 return
-            
+
             browser_log = self.query_one("#browser-log", TextLog)
             browser_log.clear()
-            
+
             # Check if it's a URL or search query
             if query.startswith("http://") or query.startswith("https://"):
                 # Web fetch mode
@@ -33869,7 +34632,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                             results.append(file_path)
                             if len(results) >= 50:  # Limit results
                                 break
-                    
+
                     if results:
                         browser_log.write(f"✅ Found {len(results)} files:")
                         for idx, result in enumerate(results[:30], 1):
@@ -34087,36 +34850,36 @@ def feature_textual_widget_board(screenshot_path=None):
 
     class CalculatorWidget(Static):
         """Full-Featured Graphing Calculator with Advanced Math Support"""
-        
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, **kwargs)
             self.variables = {}  # Store user-defined variables
             self.history = []  # Calculation history
             self.plot_mode = "function"  # function, parametric, polar
-            
+
         def compose(self) -> ComposeResult:
             from textual.containers import ScrollableContainer
-            
+
             yield Static("🔢 Advanced Graphing Calculator", classes="title")
-            
+
             # Main calculator input
             with Horizontal():
                 yield Input(placeholder="Expression: 2+2, sin(x), derivative(x**2), integrate(x)", id="calc-expr")
                 yield Button("Calculate", id="calc-run", variant="primary")
-            
+
             # Advanced function buttons
             with Horizontal():
                 yield Button("📊 Plot", id="calc-plot", variant="success")
                 yield Button("📐 Geometry", id="calc-geometry", variant="default")
                 yield Button("∫ Calculus", id="calc-calculus", variant="default")
                 yield Button("📜 History", id="calc-history", variant="default")
-            
+
             # Result display
             yield Static("Result: --", id="calc-result")
-            
+
             # Graph/Output area with scrolling
             with ScrollableContainer(id="calc-graph-area"):
-                yield Static("📈 Graph and detailed output will appear here\n\n" + 
+                yield Static("📈 Graph and detailed output will appear here\n\n" +
                            "🎯 Features:\n" +
                            "• Basic: +, -, *, /, **, sqrt(), abs()\n" +
                            "• Trig: sin(), cos(), tan(), asin(), acos(), atan()\n" +
@@ -34133,26 +34896,26 @@ def feature_textual_widget_board(screenshot_path=None):
                            "  Plot: plot(sin(x), -10, 10)\n" +
                            "  Algebra: solve(x**2 - 4 = 0)",
                            id="calc-output")
-        
+
         def _advanced_eval(self, expr: str) -> str:
             """Enhanced evaluation with symbolic math and graphing."""
             try:
                 import numpy as np
                 import math
-                
+
                 # Try to import plotext for ASCII plotting
                 try:
                     import plotext as plt
                     has_plotext = True
                 except ImportError:
                     has_plotext = False
-                
+
                 # Check for variable assignment
                 if '=' in expr and not any(op in expr for op in ['==', '<=', '>=', '!=']):
                     parts = expr.split('=', 1)
                     var_name = parts[0].strip()
                     var_expr = parts[1].strip()
-                    
+
                     # Evaluate the right side
                     result = self._advanced_eval(var_expr)
                     try:
@@ -34161,7 +34924,7 @@ def feature_textual_widget_board(screenshot_path=None):
                         return f"{var_name} = {result}"
                     except:
                         return f"Could not assign variable: {result}"
-                
+
                 # Check for special commands
                 if expr.startswith("plot("):
                     return self._handle_plot(expr, has_plotext)
@@ -34177,7 +34940,7 @@ def feature_textual_widget_board(screenshot_path=None):
                     return self._handle_factor(expr)
                 elif expr == "history":
                     return "\n".join(self.history[-10:]) if self.history else "No history"
-                
+
                 # Enhanced safe evaluation with more functions
                 safe_dict = {
                     'pi': math.pi,
@@ -34194,37 +34957,37 @@ def feature_textual_widget_board(screenshot_path=None):
                     'sum': sum,
                     'len': len,
                 }
-                
+
                 # Evaluate expression
                 result = eval(expr, {"__builtins__": {}}, safe_dict)
                 self.history.append(f"{expr} = {result}")
                 return str(result)
-                
+
             except Exception as e:
                 return f"Error: {e}"
-        
+
         def _handle_plot(self, expr: str, has_plotext: bool) -> str:
             """Handle function plotting."""
             if not has_plotext:
                 return "Plotting requires 'plotext'. Install: pip install plotext"
-            
+
             try:
                 import plotext as plt
                 import numpy as np
                 import re
-                
+
                 # Parse plot command: plot(sin(x), -10, 10) or plot(sin(x))
                 match = re.match(r'plot\((.*?)\s*(?:,\s*([-\d.]+)\s*,\s*([-\d.]+))?\)', expr)
                 if not match:
                     return "Format: plot(function) or plot(function, start, end)"
-                
+
                 func_str = match.group(1)
                 start = float(match.group(2)) if match.group(2) else -10
                 end = float(match.group(3)) if match.group(3) else 10
-                
+
                 # Generate x values
                 x = np.linspace(start, end, 100)
-                
+
                 # Evaluate function for each x
                 y = []
                 for xi in x:
@@ -34239,7 +35002,7 @@ def feature_textual_widget_board(screenshot_path=None):
                         y.append(result)
                     except:
                         y.append(np.nan)
-                
+
                 # Create ASCII plot
                 plt.clf()
                 plt.plot(x, y, label=func_str)
@@ -34247,15 +35010,15 @@ def feature_textual_widget_board(screenshot_path=None):
                 plt.xlabel("x")
                 plt.ylabel("y")
                 plt.grid(True)
-                
+
                 # Get plot as string
                 plot_str = plt.build()
-                
+
                 return f"Graph of {func_str}:\n\n{plot_str}"
-                
+
             except Exception as e:
                 return f"Plot error: {e}"
-        
+
         def _handle_derivative(self, expr: str) -> str:
             """Handle symbolic differentiation."""
             try:
@@ -34263,125 +35026,125 @@ def feature_textual_widget_board(screenshot_path=None):
                 try:
                     import sympy as sp
                     x = sp.Symbol('x')
-                    
+
                     # Extract expression
                     import re
                     match = re.match(r'(?:derivative|diff)\((.*?)\)', expr)
                     if not match:
                         return "Format: derivative(expression) or diff(expression)"
-                    
+
                     expr_str = match.group(1)
-                    
+
                     # Parse and differentiate
                     parsed = sp.sympify(expr_str)
                     result = sp.diff(parsed, x)
-                    
+
                     return f"d/dx({expr_str}) = {result}"
-                    
+
                 except ImportError:
                     return "Symbolic math requires 'sympy'. Install: pip install sympy"
-                    
+
             except Exception as e:
                 return f"Derivative error: {e}"
-        
+
         def _handle_integral(self, expr: str) -> str:
             """Handle symbolic integration."""
             try:
                 try:
                     import sympy as sp
                     x = sp.Symbol('x')
-                    
+
                     import re
                     match = re.match(r'(?:integrate|int)\((.*?)\)', expr)
                     if not match:
                         return "Format: integrate(expression) or int(expression)"
-                    
+
                     expr_str = match.group(1)
                     parsed = sp.sympify(expr_str)
                     result = sp.integrate(parsed, x)
-                    
+
                     return f"∫({expr_str})dx = {result} + C"
-                    
+
                 except ImportError:
                     return "Symbolic math requires 'sympy'. Install: pip install sympy"
-                    
+
             except Exception as e:
                 return f"Integration error: {e}"
-        
+
         def _handle_solve(self, expr: str) -> str:
             """Handle equation solving."""
             try:
                 try:
                     import sympy as sp
                     x = sp.Symbol('x')
-                    
+
                     import re
                     match = re.match(r'solve\((.*?)\)', expr)
                     if not match:
                         return "Format: solve(equation) e.g., solve(x**2 - 4 = 0)"
-                    
+
                     eq_str = match.group(1)
-                    
+
                     # Handle equation format
                     if '=' in eq_str:
                         left, right = eq_str.split('=')
                         equation = sp.sympify(left) - sp.sympify(right)
                     else:
                         equation = sp.sympify(eq_str)
-                    
+
                     solutions = sp.solve(equation, x)
-                    
+
                     return f"Solutions: {solutions}"
-                    
+
                 except ImportError:
                     return "Equation solving requires 'sympy'. Install: pip install sympy"
-                    
+
             except Exception as e:
                 return f"Solve error: {e}"
-        
+
         def _handle_expand(self, expr: str) -> str:
             """Handle algebraic expansion."""
             try:
                 try:
                     import sympy as sp
                     import re
-                    
+
                     match = re.match(r'expand\((.*?)\)', expr)
                     if not match:
                         return "Format: expand(expression)"
-                    
+
                     expr_str = match.group(1)
                     parsed = sp.sympify(expr_str)
                     result = sp.expand(parsed)
-                    
+
                     return f"Expanded: {result}"
-                    
+
                 except ImportError:
                     return "Algebra requires 'sympy'. Install: pip install sympy"
-                    
+
             except Exception as e:
                 return f"Expand error: {e}"
-        
+
         def _handle_factor(self, expr: str) -> str:
             """Handle algebraic factoring."""
             try:
                 try:
                     import sympy as sp
                     import re
-                    
+
                     match = re.match(r'factor\((.*?)\)', expr)
                     if not match:
                         return "Format: factor(expression)"
-                    
+
                     expr_str = match.group(1)
                     parsed = sp.sympify(expr_str)
                     result = sp.factor(parsed)
-                    
+
                     return f"Factored: {result}"
-                    
+
                 except ImportError:
                     return "Algebra requires 'sympy'. Install: pip install sympy"
-                    
+
             except Exception as e:
                 return f"Factor error: {e}"
 
@@ -34391,20 +35154,20 @@ def feature_textual_widget_board(screenshot_path=None):
             expr = self.query_one("#calc-expr", Input).value.strip()
             if not expr:
                 return
-            
+
             result = self._advanced_eval(expr)
             self.query_one("#calc-result", Static).update(f"Result: {result}")
-        
+
         @on(Button.Pressed, "#calc-plot")
         def handle_plot_btn(self, event):
             expr = self.query_one("#calc-expr", Input).value.strip()
             if not expr:
                 expr = "sin(x)"
-            
+
             # Auto-add plot wrapper if not present
             if not expr.startswith("plot("):
                 expr = f"plot({expr})"
-            
+
             try:
                 import plotext as plt
                 result = self._handle_plot(expr, True)
@@ -34415,7 +35178,7 @@ def feature_textual_widget_board(screenshot_path=None):
                     "Install with: pip install plotext\n\n" +
                     "This will enable ASCII-based graphing in the terminal!"
                 )
-        
+
         @on(Button.Pressed, "#calc-geometry")
         def handle_geometry_btn(self, event):
             help_text = (
@@ -34440,7 +35203,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  sqrt(3**2 + 4**2)  (hypotenuse)"
             )
             self.query_one("#calc-output", Static).update(help_text)
-        
+
         @on(Button.Pressed, "#calc-calculus")
         def handle_calculus_btn(self, event):
             help_text = (
@@ -34461,7 +35224,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "Install: pip install sympy"
             )
             self.query_one("#calc-output", Static).update(help_text)
-        
+
         @on(Button.Pressed, "#calc-history")
         def handle_history_btn(self, event):
             if not self.history:
@@ -34731,7 +35494,7 @@ def feature_textual_widget_board(screenshot_path=None):
             self.video_library = []
             self.frame_buffer = []
             self._load_sample_library()
-            
+
         def _load_sample_library(self):
             """Load sample video files from common directories"""
             import glob
@@ -34774,7 +35537,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 f"Video Library: {len(self.video_library)} files found\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
             )
-            
+
             display_text = (
                 "📹 TEXTUAL ASCII VIDEO PLAYER\n\n"
                 "Features:\n"
@@ -34790,7 +35553,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "3. Adjust speed with +/- keys\n"
                 "4. Navigate frames with arrows\n\n"
             )
-            
+
             if self.current_file:
                 display_text += f"📂 Current: {self.current_file}\n"
                 display_text += f"Progress: {self.current_frame}/{self.total_frames}\n"
@@ -34805,13 +35568,13 @@ def feature_textual_widget_board(screenshot_path=None):
                         display_text += f"  [{i}] {vid.split('/')[-1]}\n"
                 else:
                     display_text += "No videos found. Add videos to ~/Videos directory.\n"
-            
+
             try:
                 self.query_one("#player-display", Static).update(display_text)
                 self.query_one("#player-controls", Static).update(control_text)
             except:
                 pass
-            
+
             if self.is_playing:
                 self.current_frame += int(self.playback_speed)
                 if self.current_frame > self.total_frames:
@@ -34861,7 +35624,7 @@ def feature_textual_widget_board(screenshot_path=None):
             """Display browser content with Textual features"""
             loading_spinner = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
             spinner = loading_spinner[int(time.time() * 10) % len(loading_spinner)]
-            
+
             display_text = (
                 "🌐 ADVANCED TEXTUAL BROWSER\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -34871,7 +35634,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 f"History: {len(self.history)} entries\n"
                 f"Bookmarks: {len(self.bookmarks)} saved\n\n"
             )
-            
+
             display_text += "╔═ FEATURES ═══════════════════════════════╗\n"
             display_text += "║ ✓ Tab Management                          ║\n"
             display_text += "║ ✓ History Tracking                        ║\n"
@@ -34882,24 +35645,24 @@ def feature_textual_widget_board(screenshot_path=None):
             display_text += "║ ✓ SSL/Certificate Validation              ║\n"
             display_text += "║ ✓ Header Inspector                        ║\n"
             display_text += "╚═══════════════════════════════════════════╝\n\n"
-            
+
             display_text += "┌─ QUICK BOOKMARKS ──────────────────────┐\n"
             for name, url in list(self.bookmarks.items())[:5]:
                 display_text += f"│ 📌 {name:<30} {url[:10]}... │\n"
             display_text += "└────────────────────────────────────────┘\n\n"
-            
+
             display_text += "┌─ RECENT HISTORY ───────────────────────┐\n"
             for url in self.history[-5:]:
                 display_text += f"│ 🔗 {url[:50]:<50} │\n"
             display_text += "└────────────────────────────────────────┘\n\n"
-            
+
             display_text += "┌─ CONTROLS ─────────────────────────────┐\n"
             display_text += "│ Enter URL • Bookmark with [B]          │\n"
             display_text += "│ View History [H] • Clear [C]           │\n"
             display_text += "│ New Tab [T] • Close Tab [W]            │\n"
             display_text += "│ Developer Tools [D] • Settings [S]     │\n"
             display_text += "└────────────────────────────────────────┘\n"
-            
+
             try:
                 self.query_one("#browser-display", Static).update(display_text)
             except:
@@ -34911,7 +35674,7 @@ def feature_textual_widget_board(screenshot_path=None):
             query = event.value.strip()
             if not query:
                 return
-            
+
             # If no protocol, add https://
             if not query.startswith('http'):
                 # Check if it's a search query
@@ -34919,12 +35682,12 @@ def feature_textual_widget_board(screenshot_path=None):
                     query = f"https://www.google.com/search?q={query.replace(' ', '+')}"
                 else:
                     query = f"https://{query}"
-            
+
             self.current_url = query
             self.history.append(query)
             if len(self.history) > 50:
                 self.history = self.history[-50:]
-            
+
             self.is_loading = True
             self.set_timer(0.5, lambda: setattr(self, 'is_loading', False))
             event.control.value = ""
@@ -34958,11 +35721,11 @@ def feature_textual_widget_board(screenshot_path=None):
 
         def _update_display(self):
             """Display all notes with formatting"""
-            notes_list = "\n".join([f"  📌 {name} ({len(content)} chars)" 
+            notes_list = "\n".join([f"  📌 {name} ({len(content)} chars)"
                                    for name, content in self.notes.items()])
-            
+
             current_content = self.notes.get(self.current_note, "")
-            
+
             display_text = (
                 "📝 NOTES MANAGER\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -34977,7 +35740,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  N - New Note  | D - Delete  | S - Switch\n"
                 "  E - Edit      | C - Clear   | T - Total"
             )
-            
+
             try:
                 display_widget = self.query_one("#notes-display", Static)
                 display_widget.update(display_text)
@@ -34999,7 +35762,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 return
             if not note:
                 return
-            
+
             # Check for commands
             if note.lower().startswith("new:"):
                 note_name = note[4:].strip()
@@ -35016,7 +35779,7 @@ def feature_textual_widget_board(screenshot_path=None):
                     del self.notes[note_name]
             else:
                 self._write_note(note)
-            
+
             try:
                 self.query_one("#note-input", Input).value = ""
             except Exception:
@@ -35082,7 +35845,7 @@ def feature_textual_widget_board(screenshot_path=None):
             """Create a visual progress bar"""
             filled = int((percent / 100) * width)
             bar = "█" * filled + "░" * (width - filled)
-            
+
             # Color indicator
             if percent >= 80:
                 indicator = "🔴"
@@ -35092,7 +35855,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 indicator = "🟡"
             else:
                 indicator = "🟢"
-            
+
             return f"{indicator} [{bar}] {percent:>5.1f}%"
 
         def compose(self) -> ComposeResult:
@@ -35105,11 +35868,11 @@ def feature_textual_widget_board(screenshot_path=None):
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage(os.path.abspath(os.sep))
                 net = psutil.net_io_counters()
-                
+
                 # Get load average
                 load_avg = os.getloadavg() if hasattr(os, 'getloadavg') else (0, 0, 0)
                 cpu_cores = psutil.cpu_count()
-                
+
                 content = (
                     "📊 SYSTEM STATISTICS (Real-time)\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -35132,7 +35895,7 @@ def feature_textual_widget_board(screenshot_path=None):
                     f"  📥 Packets: {net.packets_recv:,}\n\n"
                     "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 )
-                
+
                 # Add alerts
                 alerts = []
                 if cpu > 80:
@@ -35141,18 +35904,18 @@ def feature_textual_widget_board(screenshot_path=None):
                     alerts.append("⚠️ HIGH MEMORY USAGE")
                 if disk.percent > 85:
                     alerts.append("⚠️ DISK SPACE LOW")
-                
+
                 if alerts:
                     content += "ALERTS:\n" + "\n".join(f"  {a}" for a in alerts)
                 else:
                     content += "Status: ✅ All systems nominal"
-                
+
                 try:
                     display_widget = self.query_one("#stats-display", Static)
                     display_widget.update(content)
                 except Exception:
                     pass
-                    
+
             except Exception as e:
                 pass
                 pass
@@ -35193,14 +35956,14 @@ def feature_textual_widget_board(screenshot_path=None):
                 cpu = psutil.cpu_percent(interval=None)
                 mem = psutil.virtual_memory()
                 disk = psutil.disk_usage(os.path.abspath(os.sep))
-                
+
                 # Calculate score: lower usage = higher score
                 cpu_score = max(0, 100 - cpu)
                 mem_score = max(0, 100 - mem.percent)
                 disk_score = max(0, 100 - disk.percent)
-                
+
                 overall = (cpu_score + mem_score + disk_score) / 3
-                
+
                 return overall, cpu_score, mem_score, disk_score
             except Exception:
                 return 50, 50, 50, 50
@@ -35211,7 +35974,7 @@ def feature_textual_widget_board(screenshot_path=None):
 
         def _refresh_health(self):
             overall, cpu, mem, disk = self._calculate_health_score()
-            
+
             # Color based on score
             if overall >= 75:
                 status = "🟢 EXCELLENT"
@@ -35221,7 +35984,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 status = "🟠 FAIR"
             else:
                 status = "🔴 CRITICAL"
-            
+
             content = f"""
 💚 SYSTEM HEALTH SCORECARD
 ╔═════════════════════════════════════╗
@@ -35245,29 +36008,29 @@ def feature_textual_widget_board(screenshot_path=None):
 
 📊 SYSTEM RECOMMENDATIONS:
 """
-            
+
             recommendations = []
             if cpu >= 80:
                 recommendations.append("  🔴 CPU: Critical load - close applications")
             elif cpu >= 70:
                 recommendations.append("  🟠 CPU: High usage - consider reducing load")
-            
+
             if mem >= 85:
                 recommendations.append("  🔴 RAM: Critical memory pressure")
             elif mem >= 75:
                 recommendations.append("  🟠 RAM: High memory usage - close unused apps")
-            
+
             if disk >= 90:
                 recommendations.append("  🔴 DISK: Critical space - delete files urgently")
             elif disk >= 80:
                 recommendations.append("  🟠 DISK: Low free space - cleanup recommended")
-            
+
             if not recommendations:
                 recommendations.append("  ✅ OPTIMAL: All systems operating within normal parameters")
-            
+
             content += "\n".join(recommendations)
             content += f"\n\nLast Updated: {datetime.now().strftime('%H:%M:%S')}"
-            
+
             try:
                 self.query_one("#health-display", Static).update(content)
             except:
@@ -35300,12 +36063,12 @@ def feature_textual_widget_board(screenshot_path=None):
             self.total_requests += random.randint(50, 200)
             self.successful_requests += int((self.total_requests * 0.01) * 0.97)
             self.failed_requests = self.total_requests - self.successful_requests
-            
+
             avg_response = sum(self.response_times[-100:]) / len(self.response_times[-100:]) if self.response_times else 0
             min_response = min(self.response_times) if self.response_times else 0
             max_response = max(self.response_times) if self.response_times else 0
             success_rate = (self.successful_requests / self.total_requests * 100) if self.total_requests > 0 else 0
-            
+
             content = (
                 "📡 API PERFORMANCE METRICS\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -35352,37 +36115,37 @@ def feature_textual_widget_board(screenshot_path=None):
 
         def _refresh_services(self):
             import random
-            
+
             # Update service data
             for service in self.services:
                 if self.services[service]["status"] == "running":
                     self.services[service]["cpu"] = max(0, random.randint(2, 50))
                     self.services[service]["ram"] = max(100, random.randint(100, 2000))
-            
+
             # Build content
             content = "⚙️ MICROSERVICES CLUSTER\n"
             content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
             content += "Service      Status       CPU    RAM(MB)   Uptime     Action\n"
             content += "─" * 70 + "\n"
-            
+
             healthy = degraded = offline = 0
-            
+
             for name, data in self.services.items():
                 status_icon = "🟢" if data["status"] == "running" else "🟡" if data["status"] == "degraded" else "🔴"
                 status_text = data["status"].upper()
                 cpu_str = f"{data['cpu']}%" if data["cpu"] > 0 else "N/A"
                 ram_str = f"{data['ram']}MB" if data["ram"] > 0 else "N/A"
                 action = "Restart" if data["status"] == "degraded" else "Monitor" if data["status"] == "running" else "Start"
-                
+
                 content += f"{name.upper():<12} {status_icon} {status_text:<9} {cpu_str:>5} {ram_str:>8}  {data['uptime']:<6}  {action}\n"
-                
+
                 if data["status"] == "running":
                     healthy += 1
                 elif data["status"] == "degraded":
                     degraded += 1
                 else:
                     offline += 1
-            
+
             # Add summary
             health_score = (healthy * 100 + degraded * 50) // max(1, (healthy + degraded + offline))
             content += (
@@ -35391,7 +36154,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 f"Cluster Health: {health_score}/100 {'✅ HEALTHY' if health_score >= 80 else '⚠️ WARNING' if health_score >= 50 else '🚨 CRITICAL'}\n"
                 f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
             )
-            
+
             try:
                 self.query_one("#services-display", Static).update(content)
             except:
@@ -35414,19 +36177,19 @@ def feature_textual_widget_board(screenshot_path=None):
                         processes.append(proc.info)
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         pass
-                
+
                 # Sort by CPU usage
                 processes.sort(key=lambda x: x.get('cpu_percent', 0), reverse=True)
-                
+
                 high_cpu_count = 0
                 high_mem_count = 0
-                
+
                 # Build display content
                 content = "⚙️ TOP PROCESSES BY CPU\n"
                 content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 content += "PID      Process             CPU %     Memory %    Mem(MB)   Status\n"
                 content += "─" * 70 + "\n"
-                
+
                 for proc in processes[:25]:
                     pid = str(proc['pid'])
                     name = proc['name'][:15]
@@ -35434,7 +36197,7 @@ def feature_textual_widget_board(screenshot_path=None):
                     mem_pct = proc.get('memory_percent', 0) or 0
                     mem_info = proc.get('memory_info')
                     mem_mb = (mem_info.rss / (1024*1024)) if mem_info else 0
-                    
+
                     # Status indicator
                     if cpu > 50 or mem_pct > 20:
                         status = "🔴 HIGH"
@@ -35444,14 +36207,14 @@ def feature_textual_widget_board(screenshot_path=None):
                         status = "🟡 MED"
                     else:
                         status = "🟢 LOW"
-                    
+
                     content += f"{pid:<8} {name:<15} {cpu:>6.1f}%  {mem_pct:>8.2f}%  {mem_mb:>8.1f}  {status}\n"
-                
+
                 # System summary
                 total_procs = len(processes)
                 cpu_total = psutil.cpu_percent()
                 mem_total = psutil.virtual_memory().percent
-                
+
                 content += (
                     "\n" + "─" * 70 + "\n"
                     f"Total Processes: {total_procs}\n"
@@ -35459,12 +36222,12 @@ def feature_textual_widget_board(screenshot_path=None):
                     f"System CPU: {cpu_total:.1f}% | System RAM: {mem_total:.1f}%\n"
                     f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                
+
                 try:
                     self.query_one("#process-display", Static).update(content)
                 except:
                     pass
-                    
+
             except Exception as e:
                 try:
                     self.query_one("#process-display", Static).update(f"⚙️ Process Monitor\n\nError: {str(e)[:50]}")
@@ -35497,23 +36260,23 @@ def feature_textual_widget_board(screenshot_path=None):
                 net_io = psutil.net_io_counters()
                 interfaces = psutil.net_if_stats()
                 net_if_addrs = psutil.net_if_addrs()
-                
+
                 up_interfaces = 0
                 down_interfaces = 0
                 total_speed = 0
-                
+
                 # Build content
                 content = "🌐 NETWORK INTERFACES\n"
                 content += "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 content += "Interface     Status    IP Address        Speed    MTU    Type\n"
                 content += "─" * 70 + "\n"
-                
+
                 for iface in sorted(interfaces.keys())[:10]:
                     stats = interfaces[iface]
                     status_icon = "🟢" if stats.isup else "🔴"
                     status_text = "UP" if stats.isup else "DOWN"
                     iface_type = "WiFi" if "wlan" in iface.lower() else "Ethernet" if "eth" in iface.lower() else "Virtual"
-                    
+
                     # Get IP address
                     ip_addr = "N/A"
                     if iface in net_if_addrs:
@@ -35521,17 +36284,17 @@ def feature_textual_widget_board(screenshot_path=None):
                             if addr.family.name == 'AF_INET':
                                 ip_addr = addr.address
                                 break
-                    
+
                     speed_str = f"{stats.speed}Mbps" if stats.speed > 0 else "Auto"
-                    
+
                     content += f"{iface:<13} {status_icon} {status_text:<7} {ip_addr:<17} {speed_str:<8} {stats.mtu:<6} {iface_type}\n"
-                    
+
                     if stats.isup:
                         up_interfaces += 1
                         total_speed += stats.speed if stats.speed > 0 else 0
                     else:
                         down_interfaces += 1
-                
+
                 # Add traffic stats
                 content += (
                     "\n" + "─" * 70 + "\n"
@@ -35547,12 +36310,12 @@ def feature_textual_widget_board(screenshot_path=None):
                     f"Total Bandwidth: {total_speed} Mbps\n"
                     f"Last Updated: {datetime.now().strftime('%H:%M:%S')}"
                 )
-                
+
                 try:
                     self.query_one("#network-display", Static).update(content)
                 except:
                     pass
-                    
+
             except Exception as e:
                 try:
                     self.query_one("#network-display", Static).update(f"🌐 Network Monitor\n\nError: {str(e)[:50]}")
@@ -35571,17 +36334,17 @@ def feature_textual_widget_board(screenshot_path=None):
         def _display_info(self):
             try:
                 import platform
-                
+
                 # Get all system info
                 boot_time = datetime.fromtimestamp(psutil.boot_time())
                 uptime = datetime.now() - boot_time
                 cpu_freq = psutil.cpu_freq()
                 mem = psutil.virtual_memory()
                 ram_gb = mem.total / (1024**3)
-                
+
                 hours = uptime.seconds // 3600
                 minutes = (uptime.seconds % 3600) // 60
-                
+
                 content = f"""
 🖥️ SYSTEM INFORMATION DASHBOARD
 ╔═════════════════════════════════════════════════════╗
@@ -35612,7 +36375,7 @@ def feature_textual_widget_board(screenshot_path=None):
 
 ┌─ STORAGE PARTITIONS ─────────────────────────────────┐
 """
-                
+
                 for partition in psutil.disk_partitions()[:6]:
                     try:
                         usage = psutil.disk_usage(partition.mountpoint)
@@ -35620,19 +36383,19 @@ def feature_textual_widget_board(screenshot_path=None):
                         used_gb = usage.used / (1024**3)
                         total_gb = usage.total / (1024**3)
                         free_gb = usage.free / (1024**3)
-                        
+
                         status = "🟢" if pct < 70 else "🟡" if pct < 85 else "🔴"
-                        
+
                         filled = int((pct / 100) * 20)
                         bar = "█" * filled + "░" * (20 - filled)
-                        
+
                         content += f"│ {status} {partition.device:<10} {bar} {pct:>5.1f}%  │\n"
                         content += f"│   {used_gb:>6.1f}GB/{total_gb:>6.1f}GB used  (Free: {free_gb:>6.1f}GB)      │\n"
                     except (PermissionError, OSError):
                         pass
-                
+
                 content += "└─────────────────────────────────────────────────────┘\n"
-                
+
                 # Memory breakdown
                 content += f"""
 ┌─ MEMORY ANALYSIS ────────────────────────────────────┐
@@ -35645,12 +36408,12 @@ def feature_textual_widget_board(screenshot_path=None):
 
 📊 Last Updated: {datetime.now().strftime('%H:%M:%S')}
 """
-                
+
                 try:
                     self.query_one("#sysinfo-display", Static).update(content)
                 except:
                     pass
-                    
+
             except Exception as e:
                 error_msg = f"🖥️ System Info\n\nError: {str(e)[:80]}"
                 try:
@@ -35684,18 +36447,18 @@ def feature_textual_widget_board(screenshot_path=None):
 
         def _refresh_weather(self):
             import random
-            
+
             # Simulate weather changes
             self.temp = max(50, min(95, self.temp + random.randint(-2, 2)))
             self.humidity = max(20, min(95, self.humidity + random.randint(-5, 5)))
             self.wind_speed = max(0, self.wind_speed + random.randint(-3, 3))
             self.current_condition_idx = random.randint(0, len(self.conditions) - 1)
-            
+
             temp_f = self.temp
             temp_c = (temp_f - 32) * 5/9
-            
+
             condition = self.conditions[self.current_condition_idx]
-            
+
             # Map condition to icon
             condition_map = {
                 "Sunny": "☀️",
@@ -35704,24 +36467,24 @@ def feature_textual_widget_board(screenshot_path=None):
                 "Rainy": "🌧️",
                 "Thunderstorm": "⛈️"
             }
-            
+
             condition_icon = condition_map.get(condition, "❓")
-            
+
             # Calculate UV index and air quality
             uv_index = random.randint(1, 11)
             uv_text = "Low" if uv_index <= 2 else "Moderate" if uv_index <= 5 else "High" if uv_index <= 7 else "Very High" if uv_index <= 10 else "Extreme"
-            
+
             # Visibility and pressure
             visibility = random.randint(5, 10)
             pressure = round(random.uniform(29.8, 30.2), 2)
-            
+
             # Wind direction
             directions = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
             wind_dir = random.choice(directions)
-            
+
             # Dew point
             dew_point = temp_c - ((100 - self.humidity) / 5)
-            
+
             content = f"""
 🌤️ WEATHER DASHBOARD
 ╔═════════════════════════════════════════════════════╗
@@ -35740,18 +36503,18 @@ def feature_textual_widget_board(screenshot_path=None):
 
 ┌─ 5-DAY FORECAST ─────────────────────────────────────┐
 """
-            
+
             for day_data in self.forecast:
                 icon = day_data["icon"]
                 content += f"│ {day_data['day']:<12} {icon} {day_data['high']:>3}°F/{day_data['low']:<2}°F ({day_data['chance']:>2}% rain)  │\n"
-            
+
             content += f"""└─────────────────────────────────────────────────────┘
 
 📍 Location: Local System
 🔄 Last Updated: {datetime.now().strftime('%H:%M:%S')}
 📡 Data Source: System Weather Simulation
 """
-            
+
             try:
                 self.query_one("#weather-display", Static).update(content)
             except:
@@ -35784,7 +36547,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  [6] One Dark Pro\n\n"
                 "Current Colors Loaded:\n"
             )
-            
+
             # Render color palette
             color_samples = [
                 ("🔴", "Red"),
@@ -35794,10 +36557,10 @@ def feature_textual_widget_board(screenshot_path=None):
                 ("🟣", "Magenta"),
                 ("🟠", "Cyan"),
             ]
-            
+
             for emoji, name in color_samples:
                 colors_text += f"  {emoji} {name:15} ▓▓▓▓▓ Sample\n"
-            
+
             colors_text += (
                 "\n╔═ COLOR MODES ══════════════════╗\n"
                 "║ ✓ 16-color (Legacy)            ║\n"
@@ -35806,7 +36569,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "║ ✓ Monochrome (Terminal Safe)   ║\n"
                 "╚═════════════════════════════════╝\n"
             )
-            
+
             try:
                 self.query_one("#colors-display", Static).update(colors_text)
             except:
@@ -35844,7 +36607,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "║ Status: ✅ SECURE           ║\n"
                 "╚═════════════════════════════╝\n"
             )
-            
+
             try:
                 self.query_one("#security-display", Static).update(security_text)
             except:
@@ -35866,14 +36629,14 @@ def feature_textual_widget_board(screenshot_path=None):
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
                 "System Variables:\n"
             )
-            
+
             key_vars = ["PATH", "HOME", "USER", "SHELL", "PYTHON_VERSION", "LANG"]
             for var in key_vars:
                 value = os.environ.get(var, "N/A")
                 if len(str(value)) > 40:
                     value = str(value)[:40] + "..."
                 env_text += f"  {var:20} = {value}\n"
-            
+
             env_text += (
                 "\n┌─ RUNTIME INFO ────────────────┐\n"
                 f"│ Python: {platform.python_version():<20}  │\n"
@@ -35883,7 +36646,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 f"│ CWD: {os.getcwd()[-18:]:18}    │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#env-display", Static).update(env_text)
             except:
@@ -35917,7 +36680,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ 3-Day: Mostly Sunny         │\n"
                 "└─────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#weather-live-display", Static).update(weather_text)
             except:
@@ -35954,7 +36717,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Status: Ready             │\n"
                 "└────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#aiprobe-display", Static).update(ai_text)
             except:
@@ -35989,7 +36752,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  📌 Security Check (Weekly)\n"
                 "  📌 Log Rotation (Monthly)\n"
             )
-            
+
             try:
                 self.query_one("#calendar-display", Static).update(cal_text)
             except:
@@ -36021,7 +36784,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Jitter: <5ms                  │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#latency-display", Static).update(latency_text)
             except:
@@ -36058,7 +36821,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ ✓ Advanced Settings           │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#wifi-display", Static).update(wifi_text)
             except:
@@ -36096,7 +36859,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Accuracy: 98.5%               │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#aicmd-display", Static).update(ai_cmd_text)
             except:
@@ -36132,7 +36895,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Range: 10m (Standard)         │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#bluetooth-display", Static).update(bt_text)
             except:
@@ -36152,7 +36915,7 @@ def feature_textual_widget_board(screenshot_path=None):
             # Simulate traffic
             incoming = random.randint(500, 5000)
             outgoing = random.randint(300, 3000)
-            
+
             traffic_text = (
                 "📊 REAL-TIME TRAFFIC MONITOR\n"
                 "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -36170,7 +36933,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 f"│ Time: {datetime.now().strftime('%H:%M:%S')}              │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#traffic-display", Static).update(traffic_text)
             except:
@@ -36207,7 +36970,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Version: 3.x compatible       │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#pypower-display", Static).update(py_text)
             except:
@@ -36242,9 +37005,41 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Download Folder: ~/Downloads  │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#download-display", Static).update(downloads_text)
+            except:
+                pass
+
+    class PackageManagerWidget(Static):
+        """Quick Package Manager overview (Textual)."""
+        def compose(self) -> ComposeResult:
+            yield Static("📦 PACKAGE MANAGER", id="pkg-title", classes="title")
+            yield Static(id="pkg-display")
+
+        def on_mount(self):
+            self._refresh()
+            self.set_interval(3.0, self._refresh)
+
+        def _refresh(self):
+            try:
+                import json
+                r = _run_cmd_capture([sys.executable, '-m', 'pip', 'list', '--format=json'])
+                installed = json.loads(r.stdout) if r.returncode == 0 and r.stdout.strip() else []
+                r2 = _run_cmd_capture([sys.executable, '-m', 'pip', 'list', '--outdated', '--format=json'])
+                outdated = json.loads(r2.stdout) if r2.returncode == 0 and r2.stdout.strip() else []
+                text = f"Installed packages: {len(installed)}\nOutdated packages: {len(outdated)}\n\nTop outdated:\n"
+                for pkg in outdated[:6]:
+                    name = pkg.get('name')
+                    ver = pkg.get('version')
+                    latest = pkg.get('latest_version')
+                    text += f"  • {name}: {ver} → {latest}\n"
+                if not outdated:
+                    text += "  • All up-to-date ✅\n"
+            except Exception as e:
+                text = f"Package manager widget error: {e}"
+            try:
+                self.query_one("#pkg-display", Static).update(text)
             except:
                 pass
 
@@ -36279,7 +37074,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ SMART: ✅ OK                 │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#diskio-display", Static).update(disk_io_text)
             except:
@@ -36316,7 +37111,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Last Entry: " + datetime.now().strftime("%H:%M:%S") + "      │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#logview-display", Static).update(logs_text)
             except:
@@ -36353,7 +37148,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  • Auto-save\n"
                 "  • File Comparison\n"
             )
-            
+
             try:
                 self.query_one("#texteditor-display", Static).update(editor_text)
             except:
@@ -36392,7 +37187,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Themes: 10+ Available         │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#tuitools-display", Static).update(tui_text)
             except:
@@ -36433,7 +37228,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ ✓ Persist to Disk             │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#ramdrive-display", Static).update(ramdrive_text)
             except:
@@ -36469,7 +37264,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "  Avg Load (5m): 0.38\n"
                 "  Avg Load (15m): 0.32\n"
             )
-            
+
             try:
                 self.query_one("#perfstats-display", Static).update(perf_text)
             except:
@@ -36504,7 +37299,7 @@ def feature_textual_widget_board(screenshot_path=None):
                 "│ Recommendation: Excellent     │\n"
                 "└────────────────────────────────┘\n"
             )
-            
+
             try:
                 self.query_one("#health2-display", Static).update(health_text)
             except:
@@ -36540,6 +37335,7 @@ def feature_textual_widget_board(screenshot_path=None):
         "traffic": {"title": "📊 Traffic", "builder": TrafficMonitorWidget},
         "pypower": {"title": "🐍 Python Power", "builder": PyPowerWidget},
         "download": {"title": "📥 Downloads", "builder": DownloadCenterWidget},
+        "package_manager": {"title": "📦 Package Manager", "builder": PackageManagerWidget},
         "diskio": {"title": "💽 Disk I/O", "builder": DiskIOAnalyzerWidget},
         "logs": {"title": "📋 Logs", "builder": LogViewerWidget},
         "texteditor": {"title": "📄 Text Editor", "builder": TextEditorWidget},
@@ -36562,13 +37358,13 @@ def feature_textual_widget_board(screenshot_path=None):
         CSS = """
         #widget-body { height: 1fr; }
         #widget-nav-container { width: 32; }
-        #widget-nav { 
+        #widget-nav {
             border: round $primary;
             overflow-y: scroll;
             scrollbar-size: 2 1;
         }
-        #widget-panel { 
-            padding: 1; 
+        #widget-panel {
+            padding: 1;
             border: round $secondary;
             overflow-y: scroll;
             scrollbar-size: 2 1;
@@ -40186,7 +40982,7 @@ def feature_textual_file_manager():
             """Create child widgets for the app."""
             from textual.widgets import Button
             from textual.containers import ScrollableContainer
-            
+
             yield Header(show_clock=True)
             with Vertical(id="main-container"):
                 with Horizontal(id="content-row"):
@@ -40195,7 +40991,7 @@ def feature_textual_file_manager():
                     with Vertical(id="preview-panel"):
                         with ScrollableContainer(id="preview-container"):
                             yield Static("Select a file to preview\n\n📂 File Browser Features:\n  • Full document viewing with scrollbar\n  • Syntax highlighting for code files\n  • Image ASCII preview\n  • PDF text extraction\n  • Archive content listing\n  • Metadata display", id="preview")
-                
+
                 # Bottom button bar for quick actions
                 with Horizontal(id="button-bar"):
                     yield Button("📂 Open", id="btn-open", variant="primary", classes="action-button")
@@ -40206,7 +41002,7 @@ def feature_textual_file_manager():
                     yield Button("🗑️ Delete", id="btn-delete", variant="error", classes="action-button")
                     yield Button("➕ New", id="btn-new", variant="success", classes="action-button")
                     yield Button("🔍 Search", id="btn-search", variant="primary", classes="action-button")
-                
+
                 with Container(id="info-panel"):
                     # Show active optional features and path
                     yield Label(f"📁 Full-Featured File Browser | Path: {self.current_path} | Press 'T' for tools\n{enabled_features_summary}", id="info")
@@ -40252,9 +41048,9 @@ def feature_textual_file_manager():
             """Read file content with support for various formats."""
             try:
                 ext = path.suffix.lower()
-                
+
                 # Text-based files
-                if ext in {".py", ".md", ".txt", ".json", ".yaml", ".yml", ".ini", ".cfg", 
+                if ext in {".py", ".md", ".txt", ".json", ".yaml", ".yml", ".ini", ".cfg",
                           ".log", ".csv", ".xml", ".html", ".css", ".js", ".sh", ".bash",
                           ".c", ".cpp", ".h", ".java", ".go", ".rs", ".rb", ".php", ".sql"}:
                     try:
@@ -40267,7 +41063,7 @@ def feature_textual_file_manager():
                         return result
                     except Exception:
                         return f"Error reading {path.name}"
-                
+
                 # PDF files (extract text if pypdf available)
                 elif ext == ".pdf":
                     try:
@@ -40285,13 +41081,13 @@ def feature_textual_file_manager():
                         return f"PDF: {path.name}\nSize: {self._format_bytes(path.stat().st_size)}\nInstall pypdf for text extraction: pip install pypdf"
                     except Exception as e:
                         return f"PDF read error: {e}"
-                
+
                 # Archive files
                 elif ext in {".zip", ".tar", ".gz", ".tgz"}:
                     try:
                         import zipfile
                         import tarfile
-                        
+
                         if ext == ".zip":
                             with zipfile.ZipFile(path, "r") as zf:
                                 files = zf.namelist()
@@ -40310,7 +41106,7 @@ def feature_textual_file_manager():
                                 return listing
                     except Exception as e:
                         return f"Archive read error: {e}"
-                
+
                 # Binary files - show hex dump
                 else:
                     with open(path, "rb") as f:
@@ -40325,7 +41121,7 @@ def feature_textual_file_manager():
                     if len(data) > 512:
                         result += f"\n\n... ({len(data) - 512} more bytes)"
                     return result
-                    
+
             except Exception as e:
                 return f"Error reading file: {e}"
 
@@ -40578,7 +41374,7 @@ def feature_textual_file_manager():
             target = self.pending_target
             self.pending_action = None
             self.pending_target = None
-            
+
             # Reset input placeholder
             try:
                 cmd = self.query_one("#command-input", Input)
@@ -40586,10 +41382,10 @@ def feature_textual_file_manager():
                 cmd.value = ""
             except Exception:
                 pass
-            
+
             if not action:
                 return
-            
+
             # New file/folder actions
             if action == "new_file":
                 self._create_new_file(value)
@@ -40641,12 +41437,12 @@ def feature_textual_file_manager():
                 target_dir = self._get_selected_path()
                 if target_dir is None or not target_dir.is_dir():
                     target_dir = Path(self.current_path)
-                
+
                 new_path = target_dir / filename
                 if new_path.exists():
                     self._update_info(f"➕ New file | {filename} already exists")
                     return
-                
+
                 new_path.touch()
                 self._update_info(f"➕ Created file: {filename}")
                 self.action_refresh()
@@ -40663,12 +41459,12 @@ def feature_textual_file_manager():
                 target_dir = self._get_selected_path()
                 if target_dir is None or not target_dir.is_dir():
                     target_dir = Path(self.current_path)
-                
+
                 new_path = target_dir / foldername
                 if new_path.exists():
                     self._update_info(f"➕ New folder | {foldername} already exists")
                     return
-                
+
                 new_path.mkdir(parents=True)
                 self._update_info(f"➕ Created folder: {foldername}")
                 self.action_refresh()
@@ -40706,7 +41502,7 @@ def feature_textual_file_manager():
                     with open(path, "a", encoding="utf-8") as f:
                         f.write(text + "\n")
                     self._update_info(f"✏️ Appended to: {path.name}")
-                
+
                 # Reload file to show changes
                 self.action_open_file()
             except Exception as e:
@@ -40722,18 +41518,18 @@ def feature_textual_file_manager():
                 self._update_info(f"📁 Open | {path.name} (directory)")
                 self._update_preview(self._render_directory_listing(path))
                 return
-            
+
             # Add to history
             if path not in self.file_history:
                 self.file_history.append(path)
                 if len(self.file_history) > 10:
                     self.file_history.pop(0)
-            
+
             try:
                 # Get file info
                 size = path.stat().st_size
                 modified = datetime.fromtimestamp(path.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
-                
+
                 # Build header
                 header = f"{'='*60}\n"
                 header += f"📄 File: {path.name}\n"
@@ -40741,25 +41537,25 @@ def feature_textual_file_manager():
                 header += f"💾 Size: {self._format_bytes(size)}\n"
                 header += f"📅 Modified: {modified}\n"
                 header += f"{'='*60}\n\n"
-                
+
                 # Read content
                 content = self._read_file_content(path)
                 full_content = header + content
-                
+
                 # Use syntax highlighting for code files if possible
                 ext = path.suffix.lower()
-                if ext in {".py", ".md", ".json", ".yaml", ".yml", ".txt", ".log", ".csv", 
+                if ext in {".py", ".md", ".json", ".yaml", ".yml", ".txt", ".log", ".csv",
                           ".xml", ".html", ".css", ".js", ".sh", ".c", ".cpp", ".java"}:
                     try:
                         from rich.syntax import Syntax
-                        syntax = Syntax(content, ext[1:] if ext[1:] else "text", 
+                        syntax = Syntax(content, ext[1:] if ext[1:] else "text",
                                       line_numbers=True, theme="monokai")
                         self._update_preview(syntax)
                     except Exception:
                         self._update_preview(full_content)
                 else:
                     self._update_preview(full_content)
-                
+
                 self._update_info(f"📄 Opened: {path.name} | {self._format_bytes(size)} | Use scroll to view all content")
             except Exception as e:
                 self._update_info(f"📄 Open failed | {path.name}: {e}")
@@ -40771,13 +41567,13 @@ def feature_textual_file_manager():
             if not path or path.is_dir():
                 self._update_info("✏️ Edit | Select a text file to edit")
                 return
-            
+
             # Check if it's a text file
             ext = path.suffix.lower()
             if ext not in {".txt", ".md", ".py", ".json", ".yaml", ".yml", ".cfg", ".ini", ".log", ".csv"}:
                 self._update_info("✏️ Edit | Only text files supported. Use external editor for other types.")
                 return
-            
+
             self._prompt_input(f"Editing {path.name}. Enter text to append (or 'clear' to empty file)", "edit_file", path)
 
         def action_delete_file(self) -> None:
@@ -40786,7 +41582,7 @@ def feature_textual_file_manager():
             if not path:
                 self._update_info("🗑️ Delete | No selection")
                 return
-            
+
             self._prompt_input(f"Delete {path.name}? Type 'yes' to confirm", "delete_file", path)
 
         def action_new_file(self) -> None:
@@ -41862,6 +42658,7 @@ CLASSIC_APP_ACTIONS = [
     ("traffic", {"title": "Traffic Report", "summary": "Traffic analysis and reporting.", "category": "network", "operation": "Traffic_Report", "func": feature_traffic_report}),
     ("logs", {"title": "Database / Logs", "summary": "Log viewer and DB tools.", "category": "general", "operation": "Database_Log_Center", "func": feature_database_log_center}),
     ("download", {"title": "Download Center", "summary": "Download manager and updater.", "category": "general", "operation": "Download_Center", "func": feature_download_center}),
+    ("package_manager", {"title": "Package Manager Helper", "summary": "Interactive pip helper (list/install/uninstall/search)", "category": "system", "operation": "Package_Manager_Helper", "func": feature_package_manager}),
     ("pwn", {"title": "PWN Tools", "summary": "Offensive tooling suite.", "category": "general", "operation": "PWN_Tools", "func": feature_pwn_tools}),
     ("python_power", {"title": "Python Power", "summary": "Python power demos and helpers.", "category": "general", "operation": "Python_Power", "func": feature_python_power}),
     ("satellite", {"title": "Satellite Tracker", "summary": "Track satellites with telemetry.", "category": "general", "operation": "Satellite_Tracker", "func": feature_satellite_tracker}),
@@ -41985,7 +42782,7 @@ def run_unified_dashboard(return_to_classic=True):
 [H] Display FX       [K] AI Center    [Z] Performance
                      [E] Calendar     [R] Satellite
                      [P] PWN Tools    [Q] Python Power
-                     [↑] History      [→] Shortcuts
+                     [&] History      [%] Shortcuts
 
 [bold yellow]CONTROLS:[/bold yellow] Press key to execute | Q=Quit | ?=Help | ARROWS=Navigate
 """
@@ -42081,7 +42878,7 @@ Process Count: {len(psutil.pids())}
 
     class InfiniteBranchingMenu(Static):
         """Interactive infinite branching menu for dashboard navigation."""
-        
+
         def __init__(self):
             super().__init__()
             self.current_path = []  # Track navigation path
@@ -42159,23 +42956,23 @@ Process Count: {len(psutil.pids())}
             """Render the infinite branching menu."""
             current_menu_id = self.current_path[-1] if self.current_path else "root"
             menu_data = self.menu_tree.get(current_menu_id, self.menu_tree["root"])
-            
+
             lines = [
                 f"\n[bold cyan]{menu_data['label']}[/bold cyan]\n",
                 "[dim]═══════════════════════════════════════════[/dim]\n\n"
             ]
-            
+
             items = menu_data.get("items", [])
             for i, item in enumerate(items):
                 if i == self.selected_index:
                     lines.append(f"[bold cyan]▶ {i+1}. {item['label']}[/bold cyan]\n")
                 else:
                     lines.append(f"  {i+1}. {item['label']}\n")
-            
+
             lines.append("\n[dim]═══════════════════════════════════════════[/dim]\n")
             lines.append("[yellow]Navigation:[/yellow] UP/DOWN, Select: ENTER or Number\n")
             lines.append("[yellow]Go Back:[/yellow] ESC or 'B'\n")
-            
+
             return Text.from_markup("".join(lines))
 
         def on_key(self, event: events.Key) -> None:
@@ -42183,7 +42980,7 @@ Process Count: {len(psutil.pids())}
             current_menu_id = self.current_path[-1] if self.current_path else "root"
             menu_data = self.menu_tree.get(current_menu_id, self.menu_tree["root"])
             items = menu_data.get("items", [])
-            
+
             if event.key == "up":
                 self.selected_index = (self.selected_index - 1) % len(items)
                 self.refresh()
@@ -42993,8 +43790,8 @@ def _format_classic_menu_display():
     # Row 7: More Utilities (R, S, T, X, Y)
     lines.append(f" {BOLD}[R]{RESET} 🛰️ Satellite  {BOLD}[S]{RESET} 🧮 Calculator  {BOLD}[T]{RESET} 📄 Text/Doc  {BOLD}[X]{RESET} 🖥️ TUI Tools  {BOLD}[Y]{RESET} 💾 RAM Drive")
 
-    # Row 8: System & History (Z, ~, ↑, →)
-    lines.append(f" {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health  {BOLD}[↑]{RESET} 📜 History  {BOLD}[→]{RESET} ⌨️ Shortcuts")
+    # Row 8: System & History (Z, ~, &, %)
+    lines.append(f" {BOLD}[Z]{RESET} ⚡ Perf Stats  {BOLD}[~]{RESET} 🏥 Health  {BOLD}[&]{RESET} 📜 History  {BOLD}[%]{RESET} ⌨️ Shortcuts")
 
     # Row 9: Advanced (U, V, +, *)
     lines.append(f" {BOLD}[U]{RESET} 🎨 Enhanced  {BOLD}[V]{RESET} 🚪 Exit Enhanced  {BOLD}[+]{RESET} 📋 Logger  {BOLD}[*]{RESET} 🔒 Sec Audit")
@@ -43361,7 +44158,7 @@ def feature_enhanced_display_suite():
                 ("⚡ Performance Stats", "System", self._app_performance_stats),
                 ("🔍 Environment Probe", "System", self._app_environment_probe),
                 ("Oxker (Docker)", "System", self._app_oxker_widget, self._launch_oxker, self._widget_oxker),
-                
+
                 # Files (4 original + new)
                 ("Disk Hotspots", "Files", self._app_disk_hotspots),
                 ("Filesystem Map", "Files", self._app_filesystem_map),
@@ -43371,7 +44168,7 @@ def feature_enhanced_display_suite():
                 ("📥 Download Center", "Files", self._app_downloads),
                 ("📋 Log Viewer", "Files", self._app_log_viewer),
                 ("📄 Text Editor", "Files", self._app_text_editor),
-                
+
                 # Network (3 original + new)
                 ("Network Radar", "Network", self._app_network_radar),
                 ("Port Snapshot", "Network", self._app_port_snapshot),
@@ -43380,20 +44177,20 @@ def feature_enhanced_display_suite():
                 ("⏱️ Latency Monitor", "Network", self._app_latency),
                 ("📶 WiFi Tools", "Network", self._app_wifi),
                 ("💾 RAM Drive", "Network", self._app_ram_drive),
-                
+
                 # Security (2 original + new)
                 ("Security Pulse", "Security", self._app_security_pulse),
                 ("Permission Risks", "Security", self._app_permission_risks),
                 ("🔒 Security Audit", "Security", self._app_security),
                 ("🔵 Bluetooth Manager", "Security", self._app_bluetooth),
                 ("🎨 Color Scheme", "Security", self._app_colors),
-                
+
                 # AI (2 original + new)
                 ("AI Ops Console", "AI", self._app_ai_ops),
                 ("Worker Watch", "AI", self._app_worker_watch),
                 ("🤖 AI Probe", "AI", self._app_ai_probe),
                 ("🧠 AI Command Center", "AI", self._app_ai_command),
-                
+
                 # UX/Tools (7 original + new)
                 ("Display FX", "UX", self._app_display_fx),
                 ("3D ASCII Viewer", "UX", self._app_3d_viewer, self._launch_3d_viewer),
@@ -43402,7 +44199,7 @@ def feature_enhanced_display_suite():
                 ("Durdraw", "UX", self._app_durdraw_widget, self._launch_durdraw, self._widget_durdraw),
                 ("Chess‑TUI", "UX", self._app_chess_widget, self._launch_chess_tui, self._widget_chess),
                 ("🌤️ Weather Live", "UX", self._app_weather_live),
-                
+
                 # Advanced (3 new)
                 ("🐍 Python Power", "Advanced", self._app_python),
                 ("🖥️ TUI Tools", "Advanced", self._app_tui_tools),
@@ -45888,16 +46685,16 @@ def feature_keyboard_shortcuts_cheatsheet():
 def _create_auto_boot_files():
     """Create run.bat (Windows) and run.sh (Linux/Mac/ARM) for cross-platform execution."""
     import shutil
-    
+
     # Get pythonOScmd.py location
     script_path = os.path.abspath(__file__)
     script_dir = os.path.dirname(script_path)
     data_dir = os.path.join(script_dir, "pythonOS_data")
     os.makedirs(data_dir, exist_ok=True)
-    
+
     # Current platform
     current_platform = platform.system()
-    
+
     try:
         # Create run.bat for Windows
         bat_path = os.path.join(data_dir, "run.bat")
@@ -45909,9 +46706,9 @@ python3 pythonOScmd.py %*
 pause
 '''
         with open(bat_path, 'w') as f:
-            f.write(bat_content)    
+            f.write(bat_content)
         print(f"{COLORS['2'][0]}✓ Created: {bat_path}{RESET}")
-        
+
         # Create run.sh for Linux/Mac/ARM
         sh_path = os.path.join(data_dir, "run.sh")
         sh_content = f'''#!/bin/bash
@@ -45922,13 +46719,13 @@ python3 pythonOScmd.py "$@"
 '''
         with open(sh_path, 'w') as f:
             f.write(sh_content)
-        
+
         # Make it executable on Unix systems
         if current_platform != "Windows":
             os.chmod(sh_path, 0o755)
-        
+
         print(f"{COLORS['2'][0]}✓ Created: {sh_path}{RESET}")
-        
+
         # Create symbolic links/shortcuts guide
         guide_path = os.path.join(data_dir, "AUTOBOOT_GUIDE.txt")
         guide_content = f'''pythonOS Auto Boot Guide
@@ -45961,11 +46758,11 @@ For help: {script_path}
         with open(guide_path, 'w') as f:
             f.write(guide_content)
         print(f"{COLORS['2'][0]}✓ Created: {guide_path}{RESET}")
-        
+
         print(f"\n{COLORS['2'][0]}✅ Auto Boot files created successfully!{RESET}")
         print(f"{COLORS['6'][0]}Files location: {data_dir}{RESET}")
         return True
-    
+
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Auto Boot creation failed: {e}{RESET}")
         return False
@@ -45975,7 +46772,7 @@ def _download_experimental_from_web():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("⬇️ Download Experimental pythonOS")
-        
+
         print(f"\n{BOLD}Select clone method:{RESET}")
         print(f" {BOLD}[A]{RESET} 🔗 HTTPS Clone")
         print(f"     https://github.com/suche101-spec/pythonOS.git")
@@ -45984,43 +46781,43 @@ def _download_experimental_from_web():
         print(f" {BOLD}[C]{RESET} 🐙 GitHub CLI Clone (requires gh CLI)")
         print(f"     gh repo clone suche101-spec/pythonOS")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Update Center")
-        
+
         choice = input(f"\n{BOLD}🎯 Select method: {RESET}").strip().upper()
-        
+
         if choice == '0':
             break
-        
+
         clone_url = None
         clone_dir = input(f"\n{BOLD}Enter directory to clone into [./pythonOS-experimental]: {RESET}").strip()
         if not clone_dir:
             clone_dir = "./pythonOS-experimental"
-        
+
         if choice == 'A':
             clone_url = "https://github.com/suche101-spec/pythonOS.git"
             method_name = "HTTPS"
-        
+
         elif choice == 'B':
             clone_url = "git@github.com:suche101-spec/pythonOS.git"
             method_name = "SSH"
-        
+
         elif choice == 'C':
             clone_url = None
             method_name = "GitHub CLI"
             # Will be handled separately below
-        
+
         else:
             print(f"{COLORS['4'][0]}Invalid choice{RESET}")
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
             continue
-        
+
         # Create backup before cloning
         confirm_backup = input(f"\n{COLORS['4'][0]}Create backup before cloning? (y/n): {RESET}").strip().lower()
         if confirm_backup == 'y':
             _create_backup_before_update()
-        
+
         # Execute clone based on method
         success = False
-        
+
         if choice == 'C':
             # GitHub CLI method
             try:
@@ -46030,7 +46827,7 @@ def _download_experimental_from_web():
                 print(f"{BOLD}Install from: https://cli.github.com/{RESET}")
                 input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
                 continue
-            
+
             try:
                 if os.path.exists(clone_dir):
                     print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
@@ -46038,22 +46835,22 @@ def _download_experimental_from_web():
                     if proceed != 'y':
                         input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
                         continue
-                
+
                 print(f"{COLORS['6'][0]}Cloning experimental pythonOS using GitHub CLI...{RESET}")
                 result = subprocess.run(
                     ["gh", "repo", "clone", "suche101-spec/pythonOS", clone_dir],
                     capture_output=True, text=True
                 )
-                
+
                 if result.returncode == 0:
                     print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
                     success = True
                 else:
                     print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
-            
+
             except Exception as e:
                 print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
-        
+
         else:
             # Git HTTPS or SSH method
             try:
@@ -46062,7 +46859,7 @@ def _download_experimental_from_web():
                 print(f"{COLORS['1'][0]}❌ Git is not installed or not in PATH{RESET}")
                 input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
                 continue
-            
+
             try:
                 if os.path.exists(clone_dir):
                     print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
@@ -46070,28 +46867,28 @@ def _download_experimental_from_web():
                     if proceed != 'y':
                         input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
                         continue
-                
+
                 print(f"{COLORS['6'][0]}Cloning experimental pythonOS using {method_name}...{RESET}")
                 result = subprocess.run(
                     ["git", "clone", clone_url, clone_dir],
                     capture_output=True, text=True
                 )
-                
+
                 if result.returncode == 0:
                     print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
                     success = True
                 else:
                     print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
-            
+
             except Exception as e:
                 print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
-        
+
         if success:
             print(f"\n{COLORS['2'][0]}✅ Download completed successfully!{RESET}")
             print(f"{BOLD}Next steps:{RESET}")
             print(f"1. Navigate to: cd {clone_dir}")
             print(f"2. Run: python3 pythonOScmd.py")
-        
+
         input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
         break
 
@@ -46099,16 +46896,16 @@ def _create_backup_before_update():
     """Create a backup of pythonOScmd.py before updating."""
     import shutil
     import datetime
-    
+
     # Ensure backup directory exists
     backup_dir = "pythonOS_data/swap"
     os.makedirs(backup_dir, exist_ok=True)
-    
+
     script_path = os.path.abspath(__file__)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"pythonOScmd_backup_{timestamp}.py"
     backup_path = os.path.join(backup_dir, backup_name)
-    
+
     try:
         shutil.copy2(script_path, backup_path)
         print(f"{COLORS['2'][0]}✅ Backup created: {backup_path}{RESET}")
@@ -46124,11 +46921,11 @@ def _update_from_github_gitpython():
     except ImportError:
         print(f"{COLORS['4'][0]}⚠️  GitPython not installed. Install with: pip install gitpython{RESET}")
         return False
-    
+
     try:
         repo_path = os.getcwd()
         repo = git.Repo(repo_path)
-        
+
         # Check for uncommitted changes
         if repo.is_dirty():
             print(f"{COLORS['4'][0]}⚠️  Local changes detected in the repository!{RESET}")
@@ -46136,28 +46933,28 @@ def _update_from_github_gitpython():
             proceed = input("Continue anyway? (y/n): ").strip().lower()
             if proceed != 'y':
                 return False
-        
+
         print(f"{COLORS['6'][0]}Fetching updates from GitHub...{RESET}")
         origin = repo.remotes.origin
-        
+
         # Fetch latest changes
         fetch_info = origin.fetch()
         print(f"{COLORS['2'][0]}✓ Fetch complete{RESET}")
-        
+
         # Pull latest changes
         print(f"{COLORS['6'][0]}Pulling latest changes...{RESET}")
         pull_info = origin.pull()
-        
+
         updated = False
         for fetch_info in pull_info:
             print(f"{COLORS['2'][0]}✓ Updated {fetch_info.ref} to {fetch_info.commit}{RESET}")
             updated = True
-        
+
         if not updated:
             print(f"{COLORS['2'][0]}✓ Already up to date!{RESET}")
-        
+
         return True
-    
+
     except git.exc.InvalidGitRepositoryError:
         print(f"{COLORS['1'][0]}❌ Not a valid Git repository{RESET}")
         return False
@@ -46173,33 +46970,33 @@ def _update_from_github_subprocess():
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(f"{COLORS['1'][0]}❌ Git is not installed or not in PATH{RESET}")
         return False
-    
+
     try:
         # Check for uncommitted changes
-        result = subprocess.run(["git", "status", "--porcelain"], 
+        result = subprocess.run(["git", "status", "--porcelain"],
                               capture_output=True, text=True)
-        
+
         if result.stdout.strip():
             print(f"{COLORS['4'][0]}⚠️  Local changes detected!{RESET}")
             print(result.stdout)
             proceed = input("Continue anyway? (y/n): ").strip().lower()
             if proceed != 'y':
                 return False
-        
+
         print(f"{COLORS['6'][0]}Fetching updates from GitHub...{RESET}")
-        fetch_result = subprocess.run(["git", "fetch"], 
+        fetch_result = subprocess.run(["git", "fetch"],
                                      capture_output=True, text=True)
-        
+
         if fetch_result.returncode == 0:
             print(f"{COLORS['2'][0]}✓ Fetch complete{RESET}")
         else:
             print(f"{COLORS['1'][0]}❌ Fetch failed: {fetch_result.stderr}{RESET}")
             return False
-        
+
         print(f"{COLORS['6'][0]}Pulling latest changes...{RESET}")
-        pull_result = subprocess.run(["git", "pull"], 
+        pull_result = subprocess.run(["git", "pull"],
                                     capture_output=True, text=True)
-        
+
         if pull_result.returncode == 0:
             if "Already up to date" in pull_result.stdout:
                 print(f"{COLORS['2'][0]}✓ Already up to date!{RESET}")
@@ -46210,7 +47007,7 @@ def _update_from_github_subprocess():
         else:
             print(f"{COLORS['1'][0]}❌ Pull failed: {pull_result.stderr}{RESET}")
             return False
-    
+
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Update failed: {e}{RESET}")
         return False
@@ -46222,31 +47019,31 @@ def _clone_github_repo():
     except (subprocess.CalledProcessError, FileNotFoundError):
         print(f"{COLORS['1'][0]}❌ Git is not installed{RESET}")
         return False
-    
+
     try:
         clone_dir = input(f"\n{BOLD}Enter directory to clone into [./pythonOScmd_update]: {RESET}").strip()
         if not clone_dir:
             clone_dir = "./pythonOScmd_update"
-        
+
         if os.path.exists(clone_dir):
             print(f"{COLORS['4'][0]}⚠️  Directory already exists!{RESET}")
             proceed = input("Continue? (y/n): ").strip().lower()
             if proceed != 'y':
                 return False
-        
+
         print(f"{COLORS['6'][0]}Cloning repository...{RESET}")
         result = subprocess.run(
             ["git", "clone", "https://github.com/pythoncatalyst/pythonOScmd.git", clone_dir],
             capture_output=True, text=True
         )
-        
+
         if result.returncode == 0:
             print(f"{COLORS['2'][0]}✓ Repository cloned to: {clone_dir}{RESET}")
             return True
         else:
             print(f"{COLORS['1'][0]}❌ Clone failed: {result.stderr}{RESET}")
             return False
-    
+
     except Exception as e:
         print(f"{COLORS['1'][0]}❌ Clone failed: {e}{RESET}")
         return False
@@ -46258,29 +47055,29 @@ def _update_from_web():
     except ImportError:
         print(f"{COLORS['4'][0]}⚠️  requests library not installed. Install with: pip install requests{RESET}")
         return False
-    
+
     try:
         print(f"{COLORS['6'][0]}Downloading latest pythonOScmd.py from GitHub...{RESET}")
-        
+
         url = "https://raw.githubusercontent.com/pythoncatalyst/pythonOScmd/main/pythonOScmd.py"
         response = requests.get(url, timeout=30)
         response.raise_for_status()
-        
+
         script_path = os.path.abspath(__file__)
-        
+
         # Create backup first
         print(f"\n{COLORS['6'][0]}Creating backup...{RESET}")
         _create_backup_before_update()
-        
+
         # Write new version
         print(f"{COLORS['6'][0]}Writing new version...{RESET}")
         with open(script_path, 'w', encoding='utf-8') as f:
             f.write(response.text)
-        
+
         print(f"{COLORS['2'][0]}✓ Update successful!{RESET}")
         print(f"{COLORS['4'][0]}⚠️  Please restart pythonOS for changes to take effect.{RESET}")
         return True
-    
+
     except requests.exceptions.RequestException as e:
         print(f"{COLORS['1'][0]}❌ Download failed: {e}{RESET}")
         return False
@@ -46293,10 +47090,10 @@ def feature_update_system():
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📦 pythonOS Update Center")
-        
+
         print(f"\n{BOLD}Current Version:{RESET} pythonOScmd200")
         print(f"{BOLD}Repository:{RESET} github.com/pythoncatalyst/pythonOScmd")
-        
+
         print(f"\n{BOLD}Update Options:{RESET}")
         print(f" {BOLD}[1]{RESET} 🔄 Update via Git (Local Repository)")
         print(f" {BOLD}[2]{RESET} 📥 Clone Fresh Copy from GitHub")
@@ -46306,27 +47103,27 @@ def feature_update_system():
         print(f" {BOLD}[6]{RESET} 🚀 Auto_Boot (Create run.bat/run.sh)")
         print(f" {BOLD}[7]{RESET} ⬇️  Download Experimental from Web")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
-        
+
         choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
-        
+
         if choice == '0':
             break
-        
+
         elif choice == '1':
             print(f"\n{COLORS['6'][0]}Update via Git{RESET}")
             print(f"\n{BOLD}Available methods:{RESET}")
             print(f" {BOLD}[A]{RESET} GitPython (Python library)")
             print(f" {BOLD}[B]{RESET} Git Command (CLI)")
-            
+
             method = input(f"\n{BOLD}Choose method: {RESET}").strip().upper()
-            
+
             if method == 'A':
                 if _update_from_github_gitpython():
                     confirm = input(f"\n{COLORS['4'][0]}Restart pythonOS now? (y/n): {RESET}").strip().lower()
                     if confirm == 'y':
                         print(f"{COLORS['6'][0]}Restarting...{RESET}")
                         os.execv(sys.executable, [sys.executable] + sys.argv)
-            
+
             elif method == 'B':
                 _create_backup_before_update()
                 if _update_from_github_subprocess():
@@ -46334,13 +47131,13 @@ def feature_update_system():
                     if confirm == 'y':
                         print(f"{COLORS['6'][0]}Restarting...{RESET}")
                         os.execv(sys.executable, [sys.executable] + sys.argv)
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '2':
             _clone_github_repo()
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '3':
             _create_backup_before_update()
             if _update_from_web():
@@ -46349,11 +47146,11 @@ def feature_update_system():
                     print(f"{COLORS['6'][0]}Restarting...{RESET}")
                     os.execv(sys.executable, [sys.executable] + sys.argv)
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '4':
             backup_dir = "pythonOS_data/swap"
             os.makedirs(backup_dir, exist_ok=True)
-            
+
             if os.path.exists(backup_dir):
                 backups = [f for f in os.listdir(backup_dir) if f.startswith("pythonOScmd_backup")]
                 if backups:
@@ -46364,9 +47161,9 @@ def feature_update_system():
                     print(f"\n{COLORS['4'][0]}No backups found{RESET}")
             else:
                 print(f"{COLORS['1'][0]}Backup directory does not exist{RESET}")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '5':
             print(f"\n{COLORS['2'][0]}Repository Information:{RESET}")
             print(f"  Name: pythonOScmd")
@@ -46377,13 +47174,13 @@ def feature_update_system():
             print(f"  1. Git-based (requires .git folder)")
             print(f"  2. HTTP Download (direct file replacement)")
             print(f"  3. Fresh Clone (new directory)")
-            
+
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '6':
             _create_auto_boot_files()
             input(f"\n{BOLD}[ Press Enter to continue... ]{RESET}")
-        
+
         elif choice == '7':
             _download_experimental_from_web()
 
@@ -46566,7 +47363,25 @@ def run_classic_command_center():
                 pyai_tag = f"{BOLD}{COLORS['2'][1]}pyA.I.{RESET}{BOLD}{COLORS['7'][0]} Linked{RESET} "
             else:
                 pyai_tag = ""
-            print(f"\n{pyai_tag}{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}")
+            # Display REPORT COMPLETE with live BTC/ETH + metals tickers (right-aligned)
+            try:
+                crypto_str = _format_crypto_ticker_short()
+            except Exception:
+                crypto_str = ""
+            try:
+                metals_str = _format_metals_ticker_short()
+            except Exception:
+                metals_str = ""
+            combined_str = crypto_str + ("  " + metals_str if metals_str else "")
+            term_w = shutil.get_terminal_size((80, 20)).columns
+            left = f"\n{pyai_tag}{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}"
+            left_len = len(_enhanced_strip_ansi(left)) if '_enhanced_strip_ansi' in globals() else len(left)
+            combined_len = len(_enhanced_strip_ansi(combined_str)) if '_enhanced_strip_ansi' in globals() else len(combined_str)
+            gap = term_w - left_len - combined_len
+            if gap > 1:
+                print(left + (" " * gap) + combined_str)
+            else:
+                print(left + "  " + combined_str)
 
         if display_mode == "enhanced":
             stop_clock = True
@@ -46685,8 +47500,8 @@ def run_classic_command_center():
         elif choice == '+': safe_run("logging", "Logging_System", display_logging_menu)
         elif choice == '*': safe_run("security", "Security_Audit_Menu", display_security_audit_menu)
         elif choice == '14': safe_run("network", "Server_Client_Switch", feature_server_client_switch)
-        elif choice == '↑': safe_run("history", "Command_History", feature_command_history_search)
-        elif choice == '→': safe_run("general", "Keyboard_Shortcuts", feature_keyboard_shortcuts_cheatsheet)
+        elif choice == '&': safe_run("history", "Command_History", feature_command_history_search)
+        elif choice == '%': safe_run("general", "Keyboard_Shortcuts", feature_keyboard_shortcuts_cheatsheet)
 
 #version 21
 
@@ -47337,12 +48152,12 @@ if __name__ == "__main__":
 
 class FeatureFailsafe:
     """Intelligent failsafe system for all pythonOS features"""
-    
+
     def __init__(self):
         self.feature_status = {}
         self.fallback_map = {}
         self._register_fallbacks()
-    
+
     def _register_fallbacks(self):
         """Register fallback options for every feature"""
         self.fallback_map = {
@@ -47352,41 +48167,41 @@ class FeatureFailsafe:
             "enhanced_display_mode": "feature_test_font_size",
             "unified_dashboard": "run_classic_command_center",
             "textual_file_manager": "feature_curses_file_browser",
-            
+
             # Network Features
             "wifi_toolkit": "feature_network_toolkit",
             "bluetooth_toolkit": "feature_network_toolkit",
             "server_client_switch": "shell_bridge",
             "remote_dashboard": "feature_download_center",
-            
+
             # Media Features
             "media_lounge": "feature_media_menu",
             "media_scanner": "feature_media_menu",
             "quick_audio_playback": "feature_test_font_size",
-            
+
             # AI Features
             "deep_probe_ai": "feature_system_overview",
             "ai_center": "feature_ai_app_handler",
             "python_power": "feature_download_center",
-            
+
             # System Features
             "satellite_tracker": "feature_weather_display",
             "graphing_calculator": "feature_system_overview",
             "text_doc_center": "feature_download_center",
             "dynamic_apps_launcher": "feature_download_center",
-            
+
             # Security Features
             "pentest_toolkit": "feature_defence_center",
             "defence_center": "feature_security_audit",
             "plugin_center": "feature_download_center",
-            
+
             # Database Features
             "database_log_center": "feature_download_center",
-            
+
             # File Features
             "file_manager_suite": "shell_bridge",
         }
-    
+
     def safe_execute(self, feature_key, feature_func, *args, **kwargs):
         """Execute feature with automatic failsafe"""
         try:
@@ -47401,14 +48216,14 @@ class FeatureFailsafe:
                 feature=feature_key,
                 error=e
             )
-            
+
             # Fall back to alternative
             return self._execute_fallback(feature_key, e)
-    
+
     def _execute_fallback(self, feature_key, original_error):
         """Execute fallback feature"""
         fallback_key = self.fallback_map.get(feature_key, "run_classic_command_center")
-        
+
         try:
             fallback_func = globals().get(fallback_key)
             if fallback_func and callable(fallback_func):
@@ -47417,13 +48232,13 @@ class FeatureFailsafe:
                 print(f"\n{COLORS['4'][0]}Primary feature '{feature_key}' encountered an error.{RESET}")
                 print(f"Falling back to: {fallback_key}\n")
                 print(f"{COLORS['6'][0]}Error: {str(original_error)[:100]}{RESET}\n")
-                
+
                 time.sleep(1.5)
                 return fallback_func()
         except Exception as fallback_error:
             # If fallback fails, use emergency failsafe
             return self._emergency_failsafe(feature_key, original_error, fallback_error)
-    
+
     def _emergency_failsafe(self, feature_key, primary_error, fallback_error):
         """Last resort: return to classic command center"""
         os.system('cls' if os.name == 'nt' else 'clear')
@@ -47433,7 +48248,7 @@ class FeatureFailsafe:
         print(f"Primary Error: {str(primary_error)[:80]}\n")
         print(f"Fallback Error: {str(fallback_error)[:80]}\n")
         print(f"{COLORS['2'][0]}Returning to Classic Command Center...{RESET}\n")
-        
+
         time.sleep(2)
         return run_classic_command_center()
 
@@ -47454,31 +48269,31 @@ def safe_feature_execute(feature_key, feature_func, *args, **kwargs):
 
 def run_classic_command_center_safe():
     """Safe version of classic command center with failsafe for all choices"""
-    
+
     while True:
         try:
             os.system('cls' if os.name == 'nt' else 'clear')
             print_header("🎛️  COMMAND CENTER - FAILSAFE ENABLED")
             print(f"\n{COLORS['2'][0]}✅ Failsafe Protection: ACTIVE{RESET}\n")
-            
+
             # Build menu from COMMAND_CENTER_ACTIONS with failsafe
             for i, (key, meta) in enumerate(COMMAND_CENTER_ACTIONS[:20], 1):
                 title = meta.get("title", key)
                 summary = meta.get("summary", "")[:40]
                 print(f" {BOLD}[{i}]{RESET} {title:25} - {summary}")
-            
+
             print(f"\n {BOLD}[0]{RESET} Exit pythonOS")
             choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
-            
+
             if choice == '0':
                 break
-            
+
             try:
                 idx = int(choice) - 1
                 if 0 <= idx < len(COMMAND_CENTER_ACTIONS):
                     key, meta = COMMAND_CENTER_ACTIONS[idx]
                     func = meta.get("func")
-                    
+
                     if func and callable(func):
                         # Execute with failsafe
                         safe_feature_execute(key, func)
@@ -47488,7 +48303,7 @@ def run_classic_command_center_safe():
             except (ValueError, IndexError):
                 print(f"{COLORS['1'][0]}❌ Invalid selection{RESET}")
                 time.sleep(1)
-        
+
         except KeyboardInterrupt:
             print(f"\n{COLORS['3'][0]}Returning to menu...{RESET}")
             time.sleep(0.5)
@@ -47503,7 +48318,7 @@ def run_classic_command_center_safe():
 def _handle_import_errors():
     """Gracefully handle missing dependencies"""
     missing_features = []
-    
+
     # Test critical imports
     critical_imports = {
         "psutil": "System monitoring",
@@ -47512,13 +48327,13 @@ def _handle_import_errors():
         "matplotlib": "Plotting",
         "numpy": "Numerical computing",
     }
-    
+
     for module_name, feature in critical_imports.items():
         try:
             __import__(module_name)
         except ImportError:
             missing_features.append(f"{feature} ({module_name})")
-    
+
     if missing_features:
         print(f"\n{COLORS['4'][0]}⚠️  Missing optional features:{RESET}")
         for feature in missing_features:
@@ -47538,15 +48353,15 @@ def detect_display_capabilities_safe():
             return "textual"
         except ImportError:
             pass
-        
+
         try:
             import rich
             return "rich"
         except ImportError:
             pass
-        
+
         return "classic"
-    
+
     except Exception:
         return "classic"
 
@@ -47556,16 +48371,16 @@ def detect_display_capabilities_safe():
 
 class AutoRecovery:
     """Automatic recovery from temporary errors"""
-    
+
     def __init__(self, max_retries=3, retry_delay=1):
         self.max_retries = max_retries
         self.retry_delay = retry_delay
         self.recovery_log = []
-    
+
     def retry_operation(self, operation_name, func, *args, **kwargs):
         """Retry operation with exponential backoff"""
         last_error = None
-        
+
         for attempt in range(1, self.max_retries + 1):
             try:
                 return func(*args, **kwargs)
@@ -47579,15 +48394,15 @@ class AutoRecovery:
                     "error": str(e),
                     "timestamp": datetime.now().isoformat()
                 })
-                
+
                 if attempt < self.max_retries:
                     wait_time = self.retry_delay * (2 ** (attempt - 1))
                     print(f"🔄 Retry {attempt}/{self.max_retries} in {wait_time}s...")
                     time.sleep(wait_time)
-        
+
         # All retries exhausted
         raise last_error
-    
+
     def get_recovery_stats(self):
         """Get recovery statistics"""
         return {
@@ -47604,28 +48419,28 @@ AUTO_RECOVERY = AutoRecovery()
 
 def main_safe():
     """Main entry point with comprehensive failsafe - GUARANTEED TO RUN"""
-    
+
     # Initialize safe mode if needed
     global SAFE_MODE_ENABLED, SUPPORTS_ANSI, SUPPORTS_UNICODE
-    
+
     # Print safe mode info
     if SAFE_MODE_ENABLED:
         print("[*] Running in SAFE MODE (ancient terminal detected)")
         print("    Graphics and ANSI codes are disabled")
         print("    Core functionality is fully available")
-        
+
         # Disable all ANSI-dependent features
         os.environ['TERM'] = 'dumb'
     else:
         print(f"[✓] Terminal: {TERMINAL_TYPE}")
-    
+
     try:
         # Handle missing imports
         try:
             _handle_import_errors()
         except Exception as e:
             print(f"⚠️  Warning during import handling: {e}")
-        
+
         # Detect display mode safely
         try:
             global DISPLAY_MODE
@@ -47633,14 +48448,14 @@ def main_safe():
         except Exception as e:
             DISPLAY_MODE = "classic"
             print(f"⚠️  Warning: Using fallback display mode: {e}")
-        
+
         # Boot sequence with failsafe
         try:
             boot_loader()
         except Exception as e:
             print(f"⚠️  Warning during boot: {e}")
             print("   Continuing with limited functionality...")
-        
+
         # Run command center with maximum failsafe
         try:
             run_classic_command_center_safe()
@@ -47679,11 +48494,11 @@ def main_safe():
             except Exception as minimal_error:
                 print(f"⚠️  Minimal mode also failed: {minimal_error}")
                 print("   System is in safe mode. Exiting...")
-            
+
     except KeyboardInterrupt:
         print(f"\n{COLORS['3'][0]}[*] pythonOS shutting down...{RESET}\n")
         sys.exit(0)
-    
+
     except Exception as e:
         print(f"\n{COLORS['1'][0]}[!] FATAL ERROR: {str(e)}{RESET}\n")
         try:
@@ -47692,7 +48507,7 @@ def main_safe():
                 print(f"  • {entry['operation']}: {entry['error']}")
         except Exception:
             print("Unable to retrieve recovery log")
-        
+
         time.sleep(2)
         sys.exit(1)
 
@@ -47729,13 +48544,13 @@ def _embedded_recovery_menu():
                 print(msg, end=end)
             except:
                 pass
-    
+
     safe_print("")
     safe_print("=" * 60)
     safe_print("pythonOS RECOVERY CONSOLE")
     safe_print("=" * 60)
     safe_print("")
-    
+
     while True:
         try:
             safe_print("")
@@ -47747,21 +48562,21 @@ def _embedded_recovery_menu():
             safe_print("5. Try Main Script Again")
             safe_print("6. Exit")
             safe_print("")
-            
+
             choice = input("Select (1-6): ").strip()
-            
+
             if choice == '1':
                 safe_print("")
                 safe_print("System Information:")
                 safe_print(f"  Platform: {sys.platform}")
                 safe_print(f"  Python: {sys.version}")
                 safe_print(f"  Executable: {sys.executable}")
-                
+
             elif choice == '2':
                 safe_print("")
                 safe_print("Testing Python Core Modules...")
                 safe_print(f"  Version: {sys.version_info.major}.{sys.version_info.minor}")
-                
+
                 modules_to_test = ['json', 'sqlite3', 'subprocess', 'os', 'sys', 'threading']
                 for mod_name in modules_to_test:
                     try:
@@ -47769,7 +48584,7 @@ def _embedded_recovery_menu():
                         safe_print(f"    - {mod_name}: OK")
                     except:
                         safe_print(f"    - {mod_name}: FAILED")
-                    
+
             elif choice == '3':
                 safe_print("")
                 safe_print("Terminal Capabilities Test:")
@@ -47780,7 +48595,7 @@ def _embedded_recovery_menu():
                     safe_print("")
                 except:
                     safe_print("FAILED")
-                
+
                 safe_print(f"  Unicode: ", end="")
                 try:
                     sys.stdout.write("UTF-8 OK")
@@ -47788,34 +48603,34 @@ def _embedded_recovery_menu():
                     safe_print("")
                 except:
                     safe_print("FAILED")
-                
+
                 safe_print(f"  Terminal: {os.environ.get('TERM', 'unknown')}")
-                
+
             elif choice == '4':
                 safe_print("")
                 safe_print("Attempting repairs...")
                 safe_print("  - Resetting environment...")
                 safe_print("  - Clearing cache...")
                 safe_print("  [Done]")
-                
+
             elif choice == '5':
                 safe_print("")
                 safe_print("Retrying main script...")
                 return True  # Signal to retry
-                
+
             elif choice == '6':
                 safe_print("Exiting...")
                 return False
             else:
                 safe_print("Invalid choice")
-                
+
         except KeyboardInterrupt:
             safe_print("")
             safe_print("Exiting...")
             return False
         except Exception as e:
             safe_print(f"ERROR: {str(e)}")
-    
+
     return False
 
 
@@ -47824,37 +48639,37 @@ def _unified_boot():
     UNIFIED BOOT SYSTEM - Handles everything internally
     This is the absolute entry point that guarantees execution
     """
-    
+
     global SAFE_MODE_ENABLED, DISPLAY_MODE, TERMINAL_TYPE
-    
+
     # PHASE 1: ABSOLUTE CORE INITIALIZATION (can't fail)
     print("\n" + "="*60)
     print("pythonOS - Universal Failsafe Unified Boot")
     print("="*60)
-    
+
     try:
         print("[*] PHASE 1: Detecting terminal capabilities...")
         detect_terminal_capabilities()
-        
+
         if SAFE_MODE_ENABLED:
             print("[!] SAFE MODE ENABLED - Ancient terminal detected")
             print("    Disabling graphics and ANSI codes")
         else:
             print(f"[✓] Terminal: {TERMINAL_TYPE}")
-        
+
     except Exception as e:
         print(f"[!] Terminal detection failed: {e}")
         print("    Proceeding with safe defaults...")
         SAFE_MODE_ENABLED = True
         TERMINAL_TYPE = "unknown"
-    
+
     # PHASE 2: IMPORT HANDLING (critical packages)
     try:
         print("[*] PHASE 2: Handling optional imports...")
         _handle_import_errors()
     except Exception as e:
         print(f"[!] Warning: Import handling failed: {e}")
-    
+
     # PHASE 3: DISPLAY MODE DETECTION
     try:
         print("[*] PHASE 3: Detecting display capabilities...")
@@ -47862,7 +48677,7 @@ def _unified_boot():
     except Exception as e:
         DISPLAY_MODE = "classic"
         print(f"[!] Using fallback display mode: {e}")
-    
+
     # PHASE 4: BOOT LOADER (module extraction)
     try:
         print("[*] PHASE 4: Extracting embedded modules...")
@@ -47870,22 +48685,22 @@ def _unified_boot():
     except Exception as boot_error:
         print(f"[!] Boot loader warning: {boot_error}")
         print("    Continuing with available modules...")
-    
+
     # PHASE 5: MAIN EXECUTION
     max_retries = 3
     retry_count = 0
-    
+
     while retry_count < max_retries:
         try:
             print("[*] PHASE 5: Launching command center...")
             run_classic_command_center_safe()
             print("[✓] Program completed successfully")
             return  # Success - exit normally
-            
+
         except AttributeError as attr_error:
             retry_count += 1
             print(f"[!] Attribute error (attempt {retry_count}/{max_retries}): {attr_error}")
-            
+
             if retry_count < max_retries:
                 print("    Attempting recovery and retry...")
                 try:
@@ -47910,24 +48725,24 @@ def _unified_boot():
             else:
                 print("[!] Max retries exceeded, launching recovery...")
                 break
-                
+
         except Exception as main_error:
             retry_count += 1
             print(f"[!] Main execution error (attempt {retry_count}/{max_retries}): {main_error}")
             print(f"    Traceback: {traceback.format_exc()}")
-            
+
             if retry_count >= max_retries:
                 print("[!] Max retries exceeded, launching recovery...")
                 break
             else:
                 print("    Retrying...")
                 continue
-    
+
     # PHASE 6: RECOVERY (if main execution failed)
     print("")
     print("[!] Main execution failed. Launching embedded recovery console...")
     print("")
-    
+
     while True:
         should_retry = _embedded_recovery_menu()
         if not should_retry:
