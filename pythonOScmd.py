@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """pythonOScmd - Unified Terminal Operating System."""
 
+__version__ = "23"
+__all__ = ["PythonOSCore", "setup_logger", "initialize_core", "run_pytextos", "run_classic_command_center", "extract_embedded_files"]
+
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
@@ -109,6 +112,10 @@ import tempfile
 import importlib
 import importlib.util
 import copy
+from enum import Enum
+from pathlib import Path
+from collections import deque
+from typing import Dict, List, Optional, Any
 
 # Hide pygame support prompt globally for interactive widgets
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -433,6 +440,211 @@ def log_critical(message: str, component: str = "System", exception: Optional[Ex
     LOGGER.critical(message, component, exception, **context)
 '''
 
+# --- Runtime logging implementation (keeps API available in single-file mode) ---
+import logging
+import logging.handlers
+import json as _json
+
+class LogLevel(Enum):
+    DEBUG = (logging.DEBUG, "🐛 DEBUG")
+    INFO = (logging.INFO, "ℹ️  INFO")
+    WARNING = (logging.WARNING, "⚠️  WARNING")
+    ERROR = (logging.ERROR, "❌ ERROR")
+    CRITICAL = (logging.CRITICAL, "🔴 CRITICAL")
+
+
+class CentralizedLogger:
+    """Lightweight runtime logger (API-compatible with embedded copy).
+
+    Provides: console + rotating file handlers, in-memory buffer, simple stats.
+    """
+    def __init__(self, name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", max_bytes: int = 10 * 1024 * 1024, backup_count: int = 5, console_level: LogLevel = LogLevel.INFO, file_level: LogLevel = LogLevel.DEBUG):
+        self.name = name
+        self.log_dir = log_dir
+        self.max_bytes = max_bytes
+        self.backup_count = backup_count
+        self.console_level = console_level
+        self.file_level = file_level
+
+        Path(self.log_dir).mkdir(parents=True, exist_ok=True)
+
+        self.logger = logging.getLogger(name)
+        self.logger.setLevel(logging.DEBUG)
+        # clear existing handlers to avoid duplicate logs on reload
+        self.logger.handlers.clear()
+
+        self._setup_handlers()
+        self.log_buffer = deque(maxlen=1000)
+
+        self.stats = {
+            "total_logs": 0,
+            "by_level": {level.name: 0 for level in LogLevel},
+            "by_component": {},
+            "start_time": time.strftime('%Y-%m-%dT%H:%M:%S')
+        }
+
+    def _setup_handlers(self):
+        console = logging.StreamHandler()
+        console.setLevel(self.console_level.value[0])
+        console.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+        self.logger.addHandler(console)
+
+        try:
+            logfile = os.path.join(self.log_dir, f"{self.name}.log")
+            fh = logging.handlers.RotatingFileHandler(logfile, maxBytes=self.max_bytes, backupCount=self.backup_count)
+            fh.setLevel(self.file_level.value[0])
+            fh.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s'))
+            self.logger.addHandler(fh)
+
+            jsonfile = os.path.join(self.log_dir, f"{self.name}.json")
+            jf = logging.handlers.RotatingFileHandler(jsonfile, maxBytes=self.max_bytes, backupCount=self.backup_count)
+            jf.setLevel(self.file_level.value[0])
+            jf.setFormatter(JSONFormatter())
+            self.logger.addHandler(jf)
+        except Exception:
+            # best-effort only
+            pass
+
+    def _log(self, level: LogLevel, message: str, component: str = "System", context: Optional[Dict[str, Any]] = None):
+        if context is None:
+            context = {}
+        extra = {'component': component}
+        self.logger.log(level.value[0], message, extra=extra)
+
+        self.stats['total_logs'] += 1
+        self.stats['by_level'][level.name] += 1
+        self.stats['by_component'][component] = self.stats['by_component'].get(component, 0) + 1
+
+        self.log_buffer.append({'level': level.name, 'message': message, 'component': component, 'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S'), 'context': context})
+
+    def debug(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.DEBUG, message, component, context)
+
+    def info(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.INFO, message, component, context)
+
+    def warning(self, message: str, component: str = "System", **context):
+        self._log(LogLevel.WARNING, message, component, context)
+
+    def error(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+        if exception:
+            context['exception'] = str(exception)
+            context['exception_type'] = type(exception).__name__
+        self._log(LogLevel.ERROR, message, component, context)
+
+    def critical(self, message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+        if exception:
+            context['exception'] = str(exception)
+            context['exception_type'] = type(exception).__name__
+        self._log(LogLevel.CRITICAL, message, component, context)
+
+    def get_recent_logs(self, count: int = 50, level: Optional[LogLevel] = None):
+        logs = list(self.log_buffer)
+        if level:
+            logs = [l for l in logs if l['level'] == level.name]
+        return logs[-count:]
+
+    def get_logs_by_component(self, component: str, count: int = 50):
+        logs = [l for l in self.log_buffer if l['component'] == component]
+        return logs[-count:]
+
+    def get_error_logs(self, count: int = 50):
+        return [l for l in self.log_buffer if l['level'] in ("ERROR", "CRITICAL")][-count:]
+
+    def get_statistics(self):
+        return {**self.stats, 'buffer_size': len(self.log_buffer), 'current_time': time.strftime('%Y-%m-%dT%H:%M:%S')}
+
+    def get_log_files_info(self):
+        info = {'log_dir': self.log_dir, 'files': [], 'total_size_mb': 0}
+        try:
+            if os.path.exists(self.log_dir):
+                for f in os.listdir(self.log_dir):
+                    if f.startswith(self.name):
+                        p = os.path.join(self.log_dir, f)
+                        size = os.path.getsize(p) / (1024 * 1024)
+                        info['files'].append({'name': f, 'size_mb': round(size, 2), 'modified': time.ctime(os.path.getmtime(p))})
+                        info['total_size_mb'] += size
+                info['total_size_mb'] = round(info['total_size_mb'], 2)
+        except Exception:
+            pass
+        return info
+
+    def clear_buffer(self):
+        self.log_buffer.clear()
+
+    def export_logs(self, filepath: str, format: str = "json"):
+        try:
+            if format == 'json':
+                with open(filepath, 'w') as fh:
+                    fh.write(_json.dumps({'logs': list(self.log_buffer), 'statistics': self.get_statistics(), 'export_time': time.strftime('%Y-%m-%dT%H:%M:%S')}, indent=2))
+            else:
+                with open(filepath, 'w') as fh:
+                    for l in self.log_buffer:
+                        fh.write(f"[{l['timestamp']}] {l['level']:8} [{l['component']}] {l['message']}\n")
+        except Exception:
+            pass
+
+
+class JSONFormatter(logging.Formatter):
+    def format(self, record):
+        data = {
+            'timestamp': time.strftime('%Y-%m-%dT%H:%M:%S', time.localtime(record.created)),
+            'level': record.levelname,
+            'logger': record.name,
+            'module': record.module,
+            'function': record.funcName,
+            'line': record.lineno,
+            'message': record.getMessage(),
+            'component': getattr(record, 'component', 'System')
+        }
+        if record.exc_info:
+            data['exception'] = self.formatException(record.exc_info)
+        return _json.dumps(data)
+
+
+class LogAnalyzer:
+    def __init__(self, logger: CentralizedLogger):
+        self.logger = logger
+
+    def get_error_summary(self):
+        errors = self.logger.get_error_logs(count=1000)
+        types = {}
+        for e in errors:
+            t = e.get('context', {}).get('exception_type', 'Unknown')
+            types[t] = types.get(t, 0) + 1
+        return {'total_errors': len(errors), 'error_types': types, 'latest_errors': errors[-10:]}
+
+
+# module-level logger instance (available immediately)
+LOGGER = CentralizedLogger()
+
+
+def setup_logger(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", console_level: LogLevel = LogLevel.INFO) -> CentralizedLogger:
+    global LOGGER
+    LOGGER = CentralizedLogger(name=name, log_dir=log_dir, console_level=console_level)
+    return LOGGER
+
+
+def log_debug(message: str, component: str = "System", **context):
+    LOGGER.debug(message, component, **context)
+
+
+def log_info(message: str, component: str = "System", **context):
+    LOGGER.info(message, component, **context)
+
+
+def log_warning(message: str, component: str = "System", **context):
+    LOGGER.warning(message, component, **context)
+
+
+def log_error(message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+    LOGGER.error(message, component, exception, **context)
+
+
+def log_critical(message: str, component: str = "System", exception: Optional[Exception] = None, **context):
+    LOGGER.critical(message, component, exception, **context)
+
+
 class PythonOSCore:
     """Lightweight core orchestrator — groups common initialization while preserving
     single-file execution and backwards compatibility.
@@ -497,6 +709,88 @@ def initialize_core(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", p
     core = PythonOSCore(name=name, log_dir=log_dir, plugins_dir=plugins_dir)
     core.initialize()
     return core
+
+
+class PythonOSApp:
+    """Application façade for pythonOScmd — keeps single-file layout but provides
+    a simple, testable entrypoint and argument parsing.
+
+    - preserves existing public API (doesn't rename or remove exported symbols)
+    - centralizes startup steps (logger, display detection, optional extraction)
+    """
+
+    def __init__(self, argv=None):
+        self.argv = argv if argv is not None else sys.argv[1:]
+        self.core = PythonOSCore()
+        # Use module-level LOGGER so existing consumers still see the same logger
+        self.logger = LOGGER
+
+    def parse_args(self):
+        import argparse
+        parser = argparse.ArgumentParser(prog="pythonOScmd", description="pythonOScmd - Unified Terminal Operating System")
+        parser.add_argument("--version", action="store_true", help="Print pythonOScmd version and exit")
+        parser.add_argument("--extract", action="store_true", help="Extract embedded modules and exit")
+        parser.add_argument("--display-mode", choices=["textual", "rich", "classic"], help="Force display mode")
+        parser.add_argument("--no-textual", action="store_true", help="Disable Textual UI (force classic/rich)")
+        parser.add_argument("--headless", action="store_true", help="Run in headless (non-interactive) mode")
+        parser.add_argument("--start-api", action="store_true", help="Start embedded API server on startup")
+        parser.add_argument("--log-dir", type=str, default=self.core.log_dir, help="Directory to write logs to")
+        return parser.parse_args(self.argv)
+
+    def run(self) -> int:
+        """Execute startup according to parsed arguments. Returns exit code."""
+        args = self.parse_args()
+
+        if args.version:
+            print(__version__)
+            return 0
+
+        # Configure logger early so subsequent initialization is recorded
+        setup_logger(name="pythonOS", log_dir=args.log_dir)
+        self.core = initialize_core(log_dir=args.log_dir)
+
+        if args.extract:
+            try:
+                extract_embedded_files()
+                print("Embedded files extracted.")
+                return 0
+            except Exception as e:
+                log_error(f"Extraction failed: {e}", component="PythonOSApp", exception=e)
+                return 2
+
+        # Apply display-mode override if requested
+        if args.display_mode:
+            global DISPLAY_MODE
+            DISPLAY_MODE = args.display_mode
+
+        # Optional API server
+        if args.start_api:
+            try:
+                start_api_server_optional(enable_on_startup=True, port=5000)
+            except Exception as e:
+                log_warning(f"API server failed to start: {e}", component="PythonOSApp")
+
+        # Headless — run a safe non-interactive fallback
+        if args.headless:
+            log_info("Starting in headless mode", component="PythonOSApp")
+            try:
+                return run_classic_command_center_safe()
+            except Exception:
+                return run_classic_command_center()
+
+        # Default interactive startup: prefer Textual then fallback
+        try:
+            if DISPLAY_MODE == "textual":
+                return run_pytextos(return_to_classic=False) or 0
+            else:
+                return run_classic_command_center() or 0
+        except Exception as exc:
+            log_error(f"Startup failure: {exc}", component="PythonOSApp", exception=exc)
+            # Best-effort fallback
+            try:
+                return run_classic_command_center()
+            except Exception:
+                return 1
 
 
 EMBEDDED_PLUGIN_SYSTEM = r'''"""🔌 Enhanced Plugin System for PythonOS"""
@@ -1212,6 +1506,349 @@ if __name__ == "__main__":
     results = nexus.execute_tactical_sweep()
     print(f"\\n[SYSTEM REPORT]: {results['status']}")
     print(f"[AI FORENSICS]: {results['ai_insight']}")
+'''
+
+# Embedded Radio Control (two-way) - DroneKit + pyAI + Tactical integration
+EMBEDDED_RADIO_CONTROL = r'''#!/usr/bin/env python3
+"""radio_control_two_way - Two-way Radio Control + SITL integration
+
+Features:
+- Patch/fix DroneKit import issues
+- Auto-install missing Python deps (safe, non-destructive)
+- Launch SITL + FlightGear (optional)
+- Interactive two-way control (user must confirm before any transmit/arm)
+- Integrates with embedded `pyAI` for telemetry analysis and `tactical` for RF checks
+- Safe defaults: read-only telemetry unless user explicitly confirms control actions
+"""
+
+from __future__ import annotations
+import os
+import sys
+import time
+import json
+import subprocess
+import importlib
+import importlib.util
+from typing import Any, Dict, Optional
+
+# Helper to import optional embedded modules (pyAI, tactical) from same swap dir
+def _load_optional_module(name: str):
+    try:
+        return importlib.import_module(name)
+    except Exception:
+        # try loading from the same directory as this file (swap dir)
+        try:
+            base = os.path.dirname(__file__)
+            path = os.path.join(base, f"{name}.py")
+            if os.path.exists(path):
+                spec = importlib.util.spec_from_file_location(name, path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                return mod
+        except Exception:
+            return None
+    return None
+
+pyai = _load_optional_module('pyAI')
+tactical = _load_optional_module('tactical')
+
+# ------------------ DroneKit patch / helpers ------------------
+def patch_dronekit():
+    """Locates and patches DroneKit __init__.py to replace deprecated imports."""
+    try:
+        spec = importlib.util.find_spec("dronekit")
+        if spec is None or not getattr(spec, 'origin', None):
+            print("[i] DroneKit not installed or not found on PYTHONPATH.")
+            return
+        dk_dir = os.path.dirname(spec.origin)
+        dk_init = os.path.join(dk_dir, "__init__.py")
+        if not os.path.exists(dk_init):
+            print(f"[!] DroneKit __init__.py not found at {dk_init}")
+            return
+        with open(dk_init, 'r', encoding='utf-8') as f:
+            content = f.read()
+        if "collections.MutableMapping" in content or "collections.Mapping" in content:
+            backup = dk_init + ".bak"
+            if not os.path.exists(backup):
+                with open(backup, 'w', encoding='utf-8') as b:
+                    b.write(content)
+            print(f"🛠️ Patching DroneKit at {dk_init} (backup: {backup})...")
+            content = content.replace("collections.MutableMapping", "collections.abc.MutableMapping")
+            content = content.replace("collections.Mapping", "collections.abc.Mapping")
+            with open(dk_init, 'w', encoding='utf-8') as f:
+                f.write(content)
+            print("✅ Patch applied successfully.")
+        else:
+            print("✅ DroneKit appears up-to-date; no patch required.")
+    except PermissionError:
+        print("❌ PERMISSION DENIED: run this once with sudo to patch DroneKit.")
+    except Exception as e:
+        print(f"⚠️ Patch failed: {e}")
+
+
+def check_and_install_dependencies():
+    required = ["future", "pymavlink", "dronekit", "monotonic"]
+    missing = []
+    for lib in required:
+        try:
+            if importlib.util.find_spec(lib) is None:
+                missing.append(lib)
+        except Exception:
+            missing.append(lib)
+    if not missing:
+        print("✅ All required Python packages are installed.")
+        return True
+    print(f"📦 Installing missing packages: {', '.join(missing)}")
+    try:
+        subprocess.check_call([sys.executable, "-m", "pip", "install"] + missing)
+        print("✅ Dependencies installed.")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to install dependencies: {e}")
+        return False
+
+
+def launch_everything(headless: bool = False):
+    """Start SITL and optional FlightGear visuals (best-effort)."""
+    print("🚀 Launching Simulation Environment (best-effort)...")
+    # FlightGear (optional)
+    try:
+        import shutil
+    except Exception:
+        shutil = None
+
+    fg = shutil.which('fgfs') if shutil else None
+
+    # Start FlightGear in a new terminal if available and not headless
+    if fg and not headless:
+        try:
+            subprocess.Popen(["xterm", "-T", "FLIGHTGEAR_VISUALS", "-e", "fgfs --geometry=800x600 --aircraft=Rascal110-JSBSim --airport=KSFO" ])
+            print("ℹ️ FlightGear launched (if installed).")
+        except Exception:
+            pass
+
+    # Start SITL - use sim_vehicle.py if present
+    sim_cmd = shutil.which('sim_vehicle.py') if shutil else None
+    if sim_cmd:
+        try:
+            subprocess.Popen(["xterm", "-T", "ARDUPILOT_SITL", "-e", "sim_vehicle.py -v ArduPlane -L KSFO --console --map" ])
+            print("ℹ️ SITL launched (sim_vehicle.py).")
+        except Exception:
+            print("[!] Failed to launch SITL via xterm; ensure sim_vehicle.py is installed and in PATH.")
+    else:
+        print("[!] sim_vehicle.py not found in PATH — please install ArduPilot SITL or run sim_vehicle.py manually.")
+
+    print("⏳ Wait a moment for SITL to initialize (if launched).")
+    time.sleep(6)
+
+
+# ------------------ Live connection & telemetry ------------------
+def _connect(uri: str = 'udp:127.0.0.1:14550'):
+    try:
+        from dronekit import connect, VehicleMode
+    except Exception as e:
+        print(f"[!] dronekit not available: {e}")
+        return None, None
+    try:
+        print(f"🔗 Connecting to vehicle at {uri} (wait_ready=True, timeout=20s)...")
+        vehicle = connect(uri, wait_ready=True, timeout=20)
+        return vehicle, VehicleMode
+    except Exception as e:
+        print(f"❌ Connection failed: {e}")
+        return None, None
+
+
+def telemetry_analysis(vehicle) -> Dict[str, Any]:
+    """Run lightweight telemetry analysis (uses pyAI if available)."""
+    telemetry = {}
+    try:
+        telemetry['alt'] = getattr(vehicle.location, 'global_relative_frame', None) and vehicle.location.global_relative_frame.alt or None
+    except Exception:
+        telemetry['alt'] = None
+    try:
+        telemetry['groundspeed'] = getattr(vehicle, 'groundspeed', None)
+    except Exception:
+        telemetry['groundspeed'] = None
+    try:
+        telemetry['battery'] = getattr(vehicle, 'battery', None) and getattr(vehicle.battery, 'level', None) or None
+    except Exception:
+        telemetry['battery'] = None
+
+    analysis = {'telemetry': telemetry}
+
+    if pyai:
+        try:
+            brain = pyai.PyAIBrain()
+            cpu_est = (telemetry.get('battery') or 50)
+            mem_est = min(100, (telemetry.get('groundspeed') or 10) * 2)
+            disk_est = 10.0
+            score = brain.run('efficiency_index', cpu_util=cpu_est, mem_util=mem_est, disk_util=disk_est, efficiency=(telemetry.get('battery') or 50))
+            analysis['pyai_efficiency'] = score.result if score.ok else score.meta
+        except Exception as e:
+            analysis['pyai_error'] = str(e)
+    else:
+        b = telemetry.get('battery') or 50
+        gs = telemetry.get('groundspeed') or 0
+        analysis['efficiency_est'] = round((b * 0.7 + max(0, 100 - gs) * 0.3), 2)
+
+    return analysis
+
+
+def tactical_inspect():
+    """Use embedded tactical module to get a simulated RF battlespace snapshot."""
+    if not tactical:
+        print("[i] tactical module not available (install or extract_embedded_files first).")
+        return None
+    try:
+        try:
+            Plugin = getattr(tactical, 'TacticalNexusPlugin', None)
+            if Plugin:
+                tn = Plugin()
+                monitor = tn.battlespace.run_automated_monitoring()
+                if hasattr(tn, 'luff'):
+                    lock_msg = tn.luff.set_frequency(2.4)
+                else:
+                    lock_msg = "n/a"
+                return {'monitor': monitor, 'lock_msg': lock_msg}
+        except Exception:
+            return {'error': 'failed to instantiate TacticalNexusPlugin'}
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def connect_and_control():
+    uri = input("Enter vehicle connection URI (default udp:127.0.0.1:14550): ").strip() or 'udp:127.0.0.1:14550'
+    vehicle, VehicleMode = _connect(uri)
+    if not vehicle:
+        print("[!] Unable to establish connection.")
+        return
+
+    print("✅ Connected — entering interactive telemetry console. Type 'help' for commands.")
+    try:
+        while True:
+            cmd = input("radio-control> ").strip().lower()
+            if cmd in ('q','quit','exit'):
+                break
+            if cmd == 'help':
+                print("Commands: status, modes, mode <NAME>, takeoff <alt>, rtl, arm, disarm, analyze, tactical, exit")
+                continue
+            if cmd == 'status':
+                print(json.dumps({
+                    'mode': str(vehicle.mode),
+                    'armed': bool(vehicle.armed),
+                    'alt': getattr(vehicle.location.global_relative_frame, 'alt', None),
+                    'groundspeed': getattr(vehicle, 'groundspeed', None),
+                    'battery': getattr(vehicle.battery, 'level', None)
+                }, indent=2))
+                continue
+            if cmd.startswith('mode '):
+                nm = cmd.split(' ',1)[1].upper()
+                try:
+                    confirm = input(f"Confirm change vehicle.mode -> {nm}? Type YES to confirm: ").strip()
+                    if confirm == 'YES':
+                        vehicle.mode = VehicleMode(nm)
+                        print(f"Mode set to {nm}")
+                except Exception as e:
+                    print(f"Failed to change mode: {e}")
+                continue
+            if cmd.startswith('takeoff'):
+                parts = cmd.split()
+                alt = float(parts[1]) if len(parts) > 1 else 10.0
+                confirm = input(f"Confirm TAKEOFF to {alt}m? Type YES to confirm: ").strip()
+                if confirm == 'YES':
+                    try:
+                        vehicle.mode = VehicleMode('GUIDED')
+                        vehicle.armed = True
+                        print("Arming...")
+                        while not vehicle.armed:
+                            time.sleep(0.5)
+                        vehicle.simple_takeoff(alt)
+                        print(f"Taking off to {alt}m (monitor altitude)...")
+                    except Exception as e:
+                        print(f"Takeoff failed: {e}")
+                continue
+            if cmd == 'rtl':
+                confirm = input("Confirm RTL (Return to Launch)? Type YES to confirm: ").strip()
+                if confirm == 'YES':
+                    try:
+                        vehicle.mode = VehicleMode('RTL')
+                        print("Switched to RTL")
+                    except Exception as e:
+                        print(f"Failed to set RTL: {e}")
+                continue
+            if cmd == 'arm':
+                confirm = input("ARM the vehicle? Type YES to confirm: ").strip()
+                if confirm == 'YES':
+                    vehicle.armed = True
+                    print("Armed (requested)")
+                continue
+            if cmd == 'disarm':
+                confirm = input("DISARM the vehicle? Type YES to confirm: ").strip()
+                if confirm == 'YES':
+                    vehicle.armed = False
+                    print("Disarm requested")
+                continue
+            if cmd == 'analyze':
+                print(json.dumps(telemetry_analysis(vehicle), indent=2))
+                continue
+            if cmd == 'tactical':
+                print(json.dumps(tactical_inspect(), indent=2))
+                continue
+            print("Unknown command — type 'help' for commands.")
+    finally:
+        try:
+            vehicle.close()
+        except:
+            pass
+
+
+def run(context=None):
+    """Interactive entry point used by pythonOScmd.link_external_tool."""
+    import shutil
+    print('\n=== Radio Control (Two-way) — DroneKit + pyAI + Tactical Integration ===')
+    while True:
+        print('\n[1] Patch DroneKit (fix deprecated imports)')
+        print('[2] Check / Install Python dependencies')
+        print('[3] Launch SITL + FlightGear (simulation)')
+        print('[4] Connect & Two-way Control (interactive)')
+        print('[5] Telemetry analysis (pyAI)')
+        print('[6] Tactical RF inspection (tactical module)')
+        print('[0] Return / Exit')
+        choice = input('\nChoice: ').strip()
+        if choice == '0':
+            break
+        if choice == '1':
+            patch_dronekit()
+            continue
+        if choice == '2':
+            check_and_install_dependencies()
+            continue
+        if choice == '3':
+            launch_everything()
+            continue
+        if choice == '4':
+            connect_and_control()
+            continue
+        if choice == '5':
+            uri = input('Connection URI for telemetry analyze (default udp:127.0.0.1:14550): ').strip() or 'udp:127.0.0.1:14550'
+            v, _ = _connect(uri)
+            if v:
+                print(json.dumps(telemetry_analysis(v), indent=2))
+                try:
+                    v.close()
+                except:
+                    pass
+            else:
+                print('[!] Could not connect to vehicle for analysis.')
+            continue
+        if choice == '6':
+            print(json.dumps(tactical_inspect(), indent=2))
+            continue
+        print('[!] Invalid option — choose 0-6')
+
+
+if __name__ == '__main__':
+    run()
 '''
 
 # Embedded integration_layer.py - Inter-script communication protocol
@@ -8211,6 +8848,7 @@ def extract_embedded_files():
         swap_dir_files = [
             ("pyAI.py", EMBEDDED_PYAI),
             ("tactical.py", EMBEDDED_TACTICAL),
+            ("radio_control_two_way.py", EMBEDDED_RADIO_CONTROL),
             ("integration_layer.py", EMBEDDED_INTEGRATION_LAYER),
             ("pyAI_enhanced.py", EMBEDDED_PYAI_ENHANCED),
             ("tactical_enhanced.py", EMBEDDED_TACTICAL_ENHANCED),
@@ -17192,7 +17830,7 @@ def feature_weather_display():
     - Local Weather: IP-based location with 15-mile radius forecast
     - Aviation Weather: METAR, TAF, and live aviation data
     - Naval/Ocean Weather: Sea conditions, tide info, marine forecasts
-    - City Search: Top 10 cities with live comparison
+    - City Search: Top 100 cities with live comparison (broader global coverage)
     - Real-time Data: OpenWeather, Open-Meteo, NOAA, Ambient Weather
     """
     global temp_unit
@@ -17266,18 +17904,124 @@ def feature_weather_display():
             return None
 
     def _get_city_top_10():
-        """Return top 10 popular cities."""
+        """Return top 100 popular/global cities (diverse, cross‑continent sample).
+
+        Kept the original function name for compatibility; the list now contains
+        100 unique cities that span North/South America, Europe, Africa, Asia,
+        Middle East, and Oceania for broader comparison and sampling.
+        """
         return [
             ('New York, USA', 40.7128, -74.0060),
-            ('London, UK', 51.5074, -0.1278),
-            ('Tokyo, Japan', 35.6762, 139.6503),
-            ('Sydney, Australia', -33.8688, 151.2093),
-            ('Dubai, UAE', 25.2048, 55.2708),
-            ('Singapore', 1.3521, 103.8198),
-            ('Paris, France', 48.8566, 2.3522),
-            ('Hong Kong', 22.3193, 114.1694),
-            ('Bangkok, Thailand', 13.7563, 100.5018),
+            ('Los Angeles, USA', 34.0522, -118.2437),
+            ('Chicago, USA', 41.8781, -87.6298),
+            ('Houston, USA', 29.7604, -95.3698),
+            ('Phoenix, USA', 33.4484, -112.0740),
+            ('Philadelphia, USA', 39.9526, -75.1652),
+            ('San Diego, USA', 32.7157, -117.1611),
+            ('Dallas, USA', 32.7767, -96.7970),
+
             ('Toronto, Canada', 43.6532, -79.3832),
+            ('Montreal, Canada', 45.5017, -73.5673),
+            ('Vancouver, Canada', 49.2827, -123.1207),
+            ('Mexico City, Mexico', 19.4326, -99.1332),
+            ('Guadalajara, Mexico', 20.6597, -103.3496),
+
+            ('Sao Paulo, Brazil', -23.5505, -46.6333),
+            ('Rio de Janeiro, Brazil', -22.9068, -43.1729),
+            ('Buenos Aires, Argentina', -34.6037, -58.3816),
+            ('Lima, Peru', -12.0464, -77.0428),
+            ('Bogota, Colombia', 4.7110, -74.0721),
+            ('Santiago, Chile', -33.4489, -70.6693),
+            ('Caracas, Venezuela', 10.4806, -66.9036),
+            ('Quito, Ecuador', -0.1807, -78.4678),
+            ('Montevideo, Uruguay', -34.9011, -56.1645),
+            ('Medellin, Colombia', 6.2442, -75.5812),
+
+            ('London, UK', 51.5074, -0.1278),
+            ('Paris, France', 48.8566, 2.3522),
+            ('Berlin, Germany', 52.5200, 13.4050),
+            ('Madrid, Spain', 40.4168, -3.7038),
+            ('Rome, Italy', 41.9028, 12.4964),
+            ('Amsterdam, Netherlands', 52.3676, 4.9041),
+            ('Brussels, Belgium', 50.8503, 4.3517),
+            ('Dublin, Ireland', 53.3498, -6.2603),
+            ('Lisbon, Portugal', 38.7223, -9.1393),
+            ('Vienna, Austria', 48.2082, 16.3738),
+
+            ('Moscow, Russia', 55.7558, 37.6173),
+            ('Istanbul, Turkey', 41.0082, 28.9784),
+            ('Athens, Greece', 37.9838, 23.7275),
+            ('Stockholm, Sweden', 59.3293, 18.0686),
+            ('Oslo, Norway', 59.9139, 10.7522),
+            ('Copenhagen, Denmark', 55.6761, 12.5683),
+            ('Helsinki, Finland', 60.1699, 24.9384),
+            ('Warsaw, Poland', 52.2297, 21.0122),
+            ('Prague, Czech Republic', 50.0755, 14.4378),
+            ('Budapest, Hungary', 47.4979, 19.0402),
+
+            ('Zurich, Switzerland', 47.3769, 8.5417),
+            ('Reykjavik, Iceland', 64.1466, -21.9426),
+            ('Barcelona, Spain', 41.3851, 2.1734),
+            ('Munich, Germany', 48.1351, 11.5820),
+            ('Bucharest, Romania', 44.4268, 26.1025),
+            ('Sofia, Bulgaria', 42.6977, 23.3219),
+            ('Belgrade, Serbia', 44.7866, 20.4489),
+            ('Zagreb, Croatia', 45.8150, 15.9819),
+            ('Ljubljana, Slovenia', 46.0569, 14.5058),
+
+            ('Johannesburg, South Africa', -26.2041, 28.0473),
+            ('Cape Town, South Africa', -33.9249, 18.4241),
+            ('Durban, South Africa', -29.8587, 31.0218),
+            ('Lagos, Nigeria', 6.5244, 3.3792),
+            ('Nairobi, Kenya', -1.2921, 36.8219),
+            ('Cairo, Egypt', 30.0444, 31.2357),
+            ('Casablanca, Morocco', 33.5731, -7.5898),
+            ('Accra, Ghana', 5.6037, -0.1870),
+            ('Dakar, Senegal', 14.6928, -17.4467),
+            ('Addis Ababa, Ethiopia', 8.9806, 38.7578),
+
+            ('Riyadh, Saudi Arabia', 24.7136, 46.6753),
+            ('Dubai, UAE', 25.2048, 55.2708),
+            ('Doha, Qatar', 25.2854, 51.5310),
+            ('Tel Aviv, Israel', 32.0853, 34.7818),
+            ('Tehran, Iran', 35.6892, 51.3890),
+            ('Amman, Jordan', 31.9539, 35.9106),
+            ('Beirut, Lebanon', 33.8938, 35.5018),
+            ('Kuwait City, Kuwait', 29.3697, 47.9783),
+            ('Manama, Bahrain', 26.2235, 50.5876),
+
+            ('Islamabad, Pakistan', 33.6844, 73.0479),
+            ('Karachi, Pakistan', 24.8607, 67.0011),
+            ('Mumbai, India', 19.0760, 72.8777),
+            ('Delhi, India', 28.7041, 77.1025),
+            ('Bangalore, India', 12.9716, 77.5946),
+            ('Chennai, India', 13.0827, 80.2707),
+            ('Kolkata, India', 22.5726, 88.3639),
+            ('Dhaka, Bangladesh', 23.8103, 90.4125),
+            ('Kathmandu, Nepal', 27.7172, 85.3240),
+            ('Yangon, Myanmar', 16.8409, 96.1735),
+
+            ('Bangkok, Thailand', 13.7563, 100.5018),
+            ('Hanoi, Vietnam', 21.0278, 105.8342),
+            ('Ho Chi Minh City, Vietnam', 10.8231, 106.6297),
+            ('Jakarta, Indonesia', -6.2088, 106.8456),
+            ('Singapore', 1.3521, 103.8198),
+            ('Kuala Lumpur, Malaysia', 3.1390, 101.6869),
+            ('Manila, Philippines', 14.5995, 120.9842),
+            ('Seoul, South Korea', 37.5665, 126.9780),
+            ('Tokyo, Japan', 35.6762, 139.6503),
+            ('Osaka, Japan', 34.6937, 135.5023),
+
+            ('Beijing, China', 39.9042, 116.4074),
+            ('Shanghai, China', 31.2304, 121.4737),
+            ('Hong Kong', 22.3193, 114.1694),
+            ('Taipei, Taiwan', 25.0330, 121.5654),
+
+            ('Perth, Australia', -31.9505, 115.8605),
+            ('Sydney, Australia', -33.8688, 151.2093),
+            ('Melbourne, Australia', -37.8136, 144.9631),
+            ('Brisbane, Australia', -27.4698, 153.0251),
+            ('Auckland, New Zealand', -36.8485, 174.7633),
         ]
 
     def _get_nearest_airports(lat, lon, count=5):
@@ -17737,7 +18481,7 @@ def feature_weather_display():
         print(f" {BOLD}[1]{RESET} 🌤️ Local Weather (15-mile Radius)")
         print(f" {BOLD}[2]{RESET} ✈️ Aviation Weather (METAR/TAF)")
         print(f" {BOLD}[3]{RESET} 🌊 Naval & Ocean Conditions")
-        print(f" {BOLD}[4]{RESET} 🔍 Search Cities (Top 10)")
+        print(f" {BOLD}[4]{RESET} 🔍 Search Cities (Top 100)")
         print(f" {BOLD}[5]{RESET} 📊 Weather Alerts & Warnings")
         print(f" {BOLD}[6]{RESET} 🔗 Weather Service Links")
         print(f" {BOLD}[0]{RESET} ↩️  Return")
@@ -17814,10 +18558,10 @@ def feature_weather_display():
 
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
-        # ===== CITY SEARCH (TOP 10) =====
+        # ===== CITY SEARCH (TOP 100) =====
         elif choice == '4':
             os.system('cls' if os.name == 'nt' else 'clear')
-            print_header("🔍 City Weather Search - Top 10 Cities")
+            print_header("🔍 City Weather Search - Top 100 Cities")
 
             cities = _get_city_top_10()
 
@@ -17827,9 +18571,10 @@ def feature_weather_display():
                 if weather:
                     temp = weather['current']['temperature_2m']
                     condition = _get_weather_icon(weather['current']['weather_code'])
-                    print(f" [{idx:2d}] {city_name:<25} {condition} {temp:>5.1f}°C")
+                    # show both Celsius and Fahrenheit for quick comparison
+                    print(f" [{idx:2d}] {city_name:<25} {condition} {temp:>5.1f}°C ({temp*9/5+32:>5.1f}°F)")
 
-            selection = input(f"\n{BOLD}Select city (1-10) or press Enter to skip: {RESET}").strip()
+            selection = input(f"\n{BOLD}Select city (1-{len(cities)}) or press Enter to skip: {RESET}").strip()
             if selection.isdigit() and 1 <= int(selection) <= len(cities):
                 selected_city, lat, lon = cities[int(selection) - 1]
                 weather = _get_live_weather(lat, lon)
@@ -17842,7 +18587,8 @@ def feature_weather_display():
                     daily = weather['daily']
 
                     print(f"\n{BOLD}CURRENT CONDITIONS:{RESET}")
-                    print(f"  🌡️ Temperature: {current['temperature_2m']:.1f}°C")
+                    # display Celsius with Fahrenheit in parentheses
+                    print(f"  🌡️ Temperature: {current['temperature_2m']:.1f}°C ({current['temperature_2m']*9/5+32:.1f}°F)")
                     print(f"  💨 Wind: {current['wind_speed_10m']} km/h")
                     print(f"  💧 Humidity: {current['relative_humidity_2m']}%")
                     print(f"  📍 Condition: {_get_weather_icon(current['weather_code'])}")
@@ -17852,7 +18598,8 @@ def feature_weather_display():
                         high = daily['temperature_2m_max'][i]
                         low = daily['temperature_2m_min'][i]
                         condition = _get_weather_icon(daily['weather_code'][i])
-                        print(f"  {daily['time'][i]}: {condition} {high:.0f}°C / {low:.0f}°C")
+                        # include Fahrenheit equivalents for highs/lows
+                        print(f"  {daily['time'][i]}: {condition} {high:.0f}°C ({high*9/5+32:.0f}°F) / {low:.0f}°C ({low*9/5+32:.0f}°F)")
 
                 input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
@@ -30100,10 +30847,11 @@ def feature_enhanced_wifi_toolkit():
         print(f" {BOLD}[13]{RESET} ⚙️ WiFi Optimization Tips")
         print(f" {BOLD}[14]{RESET} 🧰 15+ WiFi Apps Ecosystem")
         print(f" {BOLD}[15]{RESET} 💾 Save WiFi Health Report")
+        print(f" {BOLD}[18]{RESET} 📡 Radio Control two-way (DroneKit + pyAI + Tactical)")
 
         print(f" {BOLD}[16]{RESET} ↩️ Return to Main Menu")
         print(f" {BOLD}[17]{RESET} 📶 Wifi Jammer (⚠️ Legal Risk)")
-        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-17): {RESET}").strip()
+        wifi_choice = input(f"\n{BOLD}🎯 Select WiFi Tool (1-18): {RESET}").strip()
 
 
         if wifi_choice == '16':
@@ -30180,6 +30928,16 @@ def feature_enhanced_wifi_toolkit():
                 return
             else:
                 print(f"{COLORS['1'][0]}Invalid option{RESET}")
+            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+        elif wifi_choice == '18':
+            print_header("📡 Radio Control — Two-way (DroneKit + pyAI + Tactical)")
+            module_path = os.path.join(SCRIPT_DIR, "pythonOS_data", "swap", "radio_control_two_way.py")
+            print("Launching Radio Control (two-way). You will be prompted before any transmit/arm commands. Requires 'dronekit' and 'pymavlink' for live control.")
+            success = link_external_tool("RadioControlTwoWay", module_path, function_name="run", context=None)
+            if not success:
+                print(f"[!] Could not launch radio control at: {module_path}")
+                print("Run `extract_embedded_files()` to install the embedded module and install required packages: pip install dronekit pymavlink future monotonic")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         if wifi_choice == '1':
@@ -34579,7 +35337,7 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
         @on(Button.Pressed, "#btn-fetch")
         @on(Input.Submitted, "#url-input")
         def handle_fetch(self, event):
-            """Enhanced fetch with search capability."""
+            """Enhanced fetch with search capability (adds YouTube search/play support)."""
             query = self.query_one("#url-input", Input).value.strip()
             if not query:
                 return
@@ -34587,9 +35345,36 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
             browser_log = self.query_one("#browser-log", TextLog)
             browser_log.clear()
 
-            # Check if it's a URL or search query
+            # YouTube search shorthand: "yt <query>" or "youtube <query>"
+            lq = query.lower()
+            if lq.startswith('yt ') or lq.startswith('yt:') or lq.startswith('youtube ') or lq.startswith('youtube:'):
+                # perform site-specific YouTube search and display results
+                q = query.split(None, 1)[1] if len(query.split(None, 1)) > 1 else ''
+                if not q:
+                    browser_log.write("❌ Provide a search term after 'yt'")
+                    return
+                browser_log.write(f"🔎 YouTube search: {q}")
+                results = _youtube_search(q, limit=12)
+                if not results:
+                    browser_log.write("❌ No results or network error.")
+                    return
+                for i, (title, url) in enumerate(results, 1):
+                    browser_log.write(f"{i}. {title} — {url}")
+                browser_log.write("\nTo play: paste the video URL into this search box and press Fetch, or type the result number as 'play <n>'")
+                return
+
+            # If user entered a YouTube URL directly, download+play as ASCII
+            if (query.startswith("http://") or query.startswith("https://")) and ("youtube.com" in query or "youtu.be" in query):
+                browser_log.write(f"▶ ASCII Tube: preparing {query}")
+                try:
+                    # use the helper which downloads then launches the ASCII player
+                    _play_youtube_as_ascii(query)
+                except Exception as exc:
+                    browser_log.write(f"❌ ASCII Tube error: {exc}")
+                return
+
+            # If regular web URL, render as before (fetch & ascii-convert images)
             if query.startswith("http://") or query.startswith("https://"):
-                # Web fetch mode
                 browser_log.write(f"🌐 Fetching: {query}")
                 try:
                     parsed = urlparse(query)
@@ -34621,29 +35406,30 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
                                 browser_log.write(f"[image skipped: {exc}]")
                 except Exception as exc:
                     browser_log.write(f"❌ {exc}")
-            else:
-                # Local file search mode
-                browser_log.write(f"🔍 Searching for: {query}")
-                try:
-                    results = []
-                    search_path = self.start_path
-                    for file_path in search_path.rglob(f"*{query}*"):
-                        if file_path.is_file() and file_path.suffix.lower() in (audio_exts | video_exts):
-                            results.append(file_path)
-                            if len(results) >= 50:  # Limit results
-                                break
+                return
 
-                    if results:
-                        browser_log.write(f"✅ Found {len(results)} files:")
-                        for idx, result in enumerate(results[:30], 1):
-                            rel_path = result.relative_to(self.start_path) if result.is_relative_to(self.start_path) else result
-                            browser_log.write(f"{idx}. {rel_path}")
-                        if len(results) > 30:
-                            browser_log.write(f"... and {len(results) - 30} more")
-                    else:
-                        browser_log.write("❌ No matching media files found")
-                except Exception as exc:
-                    browser_log.write(f"❌ Search error: {exc}")
+            # Non-URL: interpret as local-file search (existing behavior)
+            browser_log.write(f"🔍 Searching for: {query}")
+            try:
+                results = []
+                search_path = self.start_path
+                for file_path in search_path.rglob(f"*{query}*"):
+                    if file_path.is_file() and file_path.suffix.lower() in (audio_exts | video_exts):
+                        results.append(file_path)
+                        if len(results) >= 50:  # Limit results
+                            break
+
+                if results:
+                    browser_log.write(f"✅ Found {len(results)} files:")
+                    for idx, result in enumerate(results[:30], 1):
+                        rel_path = result.relative_to(self.start_path) if result.is_relative_to(self.start_path) else result
+                        browser_log.write(f"{idx}. {rel_path}")
+                    if len(results) > 30:
+                        browser_log.write(f"... and {len(results) - 30} more")
+                else:
+                    browser_log.write("❌ No matching media files found")
+            except Exception as exc:
+                browser_log.write(f"❌ Search error: {exc}")
 
         @on(Button.Pressed, "#btn-toggle")
         def handle_toggle(self, _event):
@@ -37483,6 +38269,8 @@ def feature_textual_widget_board(screenshot_path=None):
 def feature_media_menu():
     """Media Scanner sub-menu that exposes existing scanners
     and an option to launch the asciiplayer plugin if installed.
+
+    Added: [9] ASCII Tube — search/play YouTube as terminal ASCII + audio.
     """
     while True:
         print_header("🎞️ Media Scanner Menu")
@@ -37494,6 +38282,7 @@ def feature_media_menu():
         print(" [6] Open Download Center (Media Tools)")
         print(" [7] Return to Main Menu")
         print(" [8] MP3 Streamer (HTTP streams + local playback)")
+        print(" [9] ASCII Tube (YouTube → ASCII + audio)")
 
         sel = input("\n🎯 Select: ").strip()
         if sel == '1':
@@ -37531,9 +38320,216 @@ def feature_media_menu():
             except NameError:
                 print("[!] MP3 Streamer module not available. Run extract_embedded_files on next start to install.")
                 input("\n[ ⌨️ Press Enter to return... ]")
+        elif sel == '9':
+            try:
+                feature_ascii_tube()
+            except NameError:
+                print("[!] ASCII Tube helper not available.")
+                input("\n[ ⌨️ Press Enter to return... ]")
         else:
             print(f"{get_current_color()}✗{RESET} Invalid option")
             time.sleep(1)
+
+def feature_ascii_tube():
+    """Interactive console UI to search/play YouTube as ASCII (with audio).
+
+    - Search by query or paste a YouTube URL.
+    - Downloads the *lowest-quality* video/audio (saves bandwidth & disk) via `yt-dlp` (fallback to `youtube-dl`) and launches the embedded ASCII player.
+    """
+    try:
+        import shutil, tempfile, time
+    except Exception:
+        pass
+
+    # helper: ensure network libs
+    if not _ensure_requests_and_bs4():
+        print("Required network packages missing (requests/bs4). Returning...")
+        input("\n[ ⌨️ Press Enter to return... ]")
+        return
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🎛️ ASCII Tube — YouTube in terminal (ASCII + audio)")
+        print(" • Enter YouTube URL (https://...), or a search query to find videos.")
+        print(" • Type 'q' or blank to return to Media menu.")
+        qry = input("\nSearch or URL: ").strip()
+        if not qry or qry.lower() == 'q':
+            return
+
+        # URL -> play directly
+        if qry.startswith('http://') or qry.startswith('https://'):
+            if 'youtube.com' in qry or 'youtu.be' in qry:
+                _play_youtube_as_ascii(qry)
+            else:
+                print("This option only accepts YouTube URLs. Use search for general queries.")
+                input("\n[ ⌨️ Press Enter to continue... ]")
+            continue
+
+        # treat as search query
+        print(f"🔎 Searching YouTube for: {qry} (this may take a moment)")
+        results = _youtube_search(qry, limit=12)
+        if not results:
+            print("[!] No results — try a different query or ensure network access.")
+            input("\n[ ⌨️ Press Enter to continue... ]")
+            continue
+
+        # display results
+        for i, (title, url) in enumerate(results, 1):
+            short = url if len(url) < 80 else url[:77] + '...'
+            print(f" [{i}] {title}\n     {short}")
+        print('\n [p] Play by number, [u] paste URL, [s] new search, [q] quit')
+        cmd = input('\nChoose (number/p/u/s/q): ').strip().lower()
+        if cmd == 'q':
+            return
+        if cmd == 's':
+            continue
+        if cmd == 'u':
+            url = input('Paste YouTube URL: ').strip()
+            if url:
+                _play_youtube_as_ascii(url)
+            continue
+        if cmd.isdigit():
+            idx = int(cmd) - 1
+            if 0 <= idx < len(results):
+                _play_youtube_as_ascii(results[idx][1])
+            else:
+                print('Invalid selection')
+                input('\n[ ⌨️ Press Enter to continue... ]')
+            continue
+        print('Unrecognized command')
+        input('\n[ ⌨️ Press Enter to continue... ]')
+
+
+def _youtube_search(query: str, limit: int = 8) -> list[tuple[str, str]]:
+    """Best-effort YouTube web-search (returns list of (title, full-url)).
+    Falls back gracefully when page structure differs. Uses requests+BeautifulSoup.
+    """
+    out: list[tuple[str, str]] = []
+    try:
+        import requests
+        from bs4 import BeautifulSoup
+        from urllib.parse import urljoin, quote_plus
+        import re
+    except Exception:
+        return out
+
+    try:
+        url = f"https://www.youtube.com/results?search_query={quote_plus(query)}"
+        resp = requests.get(url, headers={'User-Agent': 'pythonOScmd/1.0'}, timeout=8)
+        resp.raise_for_status()
+        html = resp.text
+        soup = BeautifulSoup(html, 'html.parser')
+
+        # look for <a> tags linking to /watch?v=
+        seen = set()
+        for a in soup.find_all('a', href=True):
+            href = a['href']
+            if href.startswith('/watch') and 'list=' not in href:
+                vid = href.split('v=')[-1].split('&')[0]
+                if vid in seen:
+                    continue
+                seen.add(vid)
+                title = a.get('title') or a.get('aria-label') or (a.string or '').strip()
+                if not title:
+                    # try to extract from nearby text
+                    parent = a.find_parent()
+                    title = (parent.get_text(strip=True)[:80] if parent else '')
+                title = title or f'YouTube video {vid}'
+                full = urljoin('https://www.youtube.com', href)
+                out.append((title, full))
+                if len(out) >= limit:
+                    break
+
+        # fallback: JSON initial data regex for titles
+        if not out:
+            m = re.findall(r'"videoId":"([^"]+)".*?"text":"([^"]+)"', html)
+            for vid, title in m:
+                full = f"https://www.youtube.com/watch?v={vid}"
+                if full not in [u for _, u in out]:
+                    out.append((title, full))
+                    if len(out) >= limit:
+                        break
+    except Exception:
+        return out
+    return out
+
+
+def _play_youtube_as_ascii(yt_url: str, cleanup: bool = True):
+    """Download a Youtube video (best mp4) via yt-dlp/youtube-dl and launch the existing
+    ASCII player (`_asciip_play_video`). If downloader not present, print instructions.
+
+    This is best-effort and uses system `yt-dlp` executable when available.
+    """
+    try:
+        import shutil, subprocess, tempfile, glob, time
+    except Exception:
+        print('[!] System helpers unavailable.')
+        return
+
+    if not (('youtube.com' in yt_url) or ('youtu.be' in yt_url)):
+        print('[!] Not a recognized YouTube URL.')
+        return
+
+    downloader = shutil.which('yt-dlp') or shutil.which('youtube-dl')
+    if not downloader:
+        print("yt-dlp/youtube-dl is required to download YouTube videos. Install with: pip install yt-dlp")
+        input("\n[ ⌨️ Press Enter to return... ]")
+        return
+
+    tmpdir = tempfile.mkdtemp(prefix='pythonos_ascii_tube_')
+    out_template = tmpdir + '/%(id)s.%(ext)s'
+    # prefer the *lowest-quality* format to minimize download size (ASCII visual + audio doesn't need high bitrate)
+    cmd = [downloader, '--no-playlist', '-f', 'worstvideo[ext=mp4]+worstaudio/worst', '--merge-output-format', 'mp4', '-o', out_template, yt_url]
+    print(f"⏬ Downloading (low-quality, fastest) — saving to {tmpdir}")
+    try:
+        subprocess.run(cmd, check=True)
+    except subprocess.CalledProcessError as e:
+        print(f"❌ Download failed: {e}")
+        input("\n[ ⌨️ Press Enter to return... ]")
+        return
+
+    # find downloaded file
+    files = glob.glob(os.path.join(tmpdir, '*'))
+    if not files:
+        print('[!] Download succeeded but no file found.')
+        input("\n[ ⌨️ Press Enter to return... ]")
+        return
+
+    # pick the largest file (likely the combined mp4)
+    files.sort(key=lambda p: os.path.getsize(p), reverse=True)
+    video_path = files[0]
+
+    print(f"▶ Launching ASCII player for: {os.path.basename(video_path)}")
+    try:
+        # use existing ascii player if available
+        play_fn = globals().get('_asciip_play_video')
+        if play_fn:
+            play_fn(video_path)
+        else:
+            # fallback: try ffplay if available
+            if shutil.which('ffplay'):
+                subprocess.run(['ffplay', '-autoexit', video_path])
+            else:
+                print('[!] No ASCII player available; ffplay not found either.')
+    except Exception as e:
+        print(f"Playback error: {e}")
+    finally:
+        if cleanup:
+            try:
+                # small delay so player picks up file on slow filesystems
+                time.sleep(0.4)
+                for f in files:
+                    try:
+                        os.remove(f)
+                    except Exception:
+                        pass
+                try:
+                    os.rmdir(tmpdir)
+                except Exception:
+                    pass
+            except Exception:
+                pass
+
 
 def _extract_stream_urls_from_html(html: str) -> list:
     import re
@@ -48134,17 +49130,14 @@ def start_api_server_optional(enable_on_startup: bool = False, port: int = 5000)
         print(f"⚠️  Could not start API server: {e}")
         return None
 
-def main():
-    """Launch Textual-first Command Center, falling back to classic if needed."""
-    # Optional: Uncomment to enable API server on startup
-    # api_server = start_api_server_optional(enable_on_startup=False, port=5000)
-
-    run_pytextos(return_to_classic=False)
+def main(argv=None) -> int:
+    """Small, well-typed entrypoint that delegates to PythonOSApp."""
+    app = PythonOSApp(argv)
+    return app.run()
 
 
 if __name__ == "__main__":
-    main()
-
+    raise SystemExit(main())
 # ================================================================================
 # FAILSAFE ERROR HANDLING SYSTEM
 # ================================================================================
