@@ -8962,7 +8962,7 @@ def extract_embedded_files():
             file_path = os.path.join(SCRIPT_DIR_FOR_EXTRACTION, filename)
             _write_with_verification(file_path, content)
 
-        # --- Compatibility: also ensure a copy exists under the user's home (~)/pythonOS_data/swap
+        # --- Compatibility: ensure a copy exists under the current user's home (~)/pythonOS_data/swap
         home_data_root = os.path.expanduser(os.path.join('~', 'pythonOS_data'))
         home_swap_dir = os.path.join(home_data_root, 'swap')
         try:
@@ -8974,6 +8974,39 @@ def extract_embedded_files():
         except Exception as e:
             print(f"[!] Could not mirror swap files to {home_swap_dir}: {e}")
 
+        # --- Distribute swap modules to all user home directories under /home (best-effort)
+        if os.name == 'posix':
+            try:
+                for user_name in os.listdir('/home'):
+                    user_home = os.path.join('/home', user_name)
+                    if not os.path.isdir(user_home):
+                        continue
+                    target_swap = os.path.join(user_home, 'pythonOS_data', 'swap')
+                    try:
+                        os.makedirs(target_swap, exist_ok=True)
+                        for filename, content in swap_dir_files:
+                            target_file = os.path.join(target_swap, filename)
+                            _write_with_verification(target_file, content)
+                    except PermissionError:
+                        print(f"⚠️  Skipping {user_home} (permission denied)")
+                    except Exception as e:
+                        print(f"⚠️  Failed to mirror to {user_home}: {e}")
+            except Exception as e:
+                print(f"⚠️  Could not enumerate /home for distribution: {e}")
+
+        # --- Also populate /etc/skel so newly created users get the embedded modules
+        try:
+            skel_swap = '/etc/skel/pythonOS_data/swap'
+            if os.path.isdir('/etc/skel'):
+                os.makedirs(skel_swap, exist_ok=True)
+                for filename, content in swap_dir_files:
+                    skel_file = os.path.join(skel_swap, filename)
+                    _write_with_verification(skel_file, content)
+        except PermissionError:
+            print("⚠️  Skipping /etc/skel (permission denied)")
+        except Exception as e:
+            print(f"⚠️  Could not mirror to /etc/skel: {e}")
+
         # Final verification: ensure all required embedded scripts exist and are readable
         required_files = [
             os.path.join(SCRIPT_DIR, name) for name, _, _ in script_dir_files
@@ -8983,6 +9016,8 @@ def extract_embedded_files():
             os.path.join(SCRIPT_DIR_FOR_EXTRACTION, name) for name, _ in swap_dir_files
         ] + [
             os.path.join(home_swap_dir, name) for name, _ in swap_dir_files
+        ] + [
+            os.path.join('/etc/skel/pythonOS_data/swap', name) for name, _ in swap_dir_files
         ]
 
         missing_final = [p for p in required_files if not os.path.exists(p)]
