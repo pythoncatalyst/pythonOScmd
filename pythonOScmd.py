@@ -8887,17 +8887,57 @@ def extract_embedded_files():
 
         extracted_count = 0
 
+        # Helper: write file if missing or different (create backup on change)
+        import hashlib
+        import shutil
+        import time
+
+        def _write_with_verification(file_path: str, content: str, make_executable: bool = False) -> bool:
+            """Return True if file was created or updated, False if unchanged."""
+            content_bytes = content.encode('utf-8')
+            new_hash = hashlib.sha256(content_bytes).hexdigest()
+
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'rb') as f:
+                        existing = f.read()
+                    existing_hash = hashlib.sha256(existing).hexdigest()
+                except Exception:
+                    existing_hash = None
+
+                if existing_hash == new_hash:
+                    print(f"ℹ️  {os.path.basename(file_path)} up-to-date ({file_path})")
+                    return False
+
+                # Backup existing file before overwrite
+                backup = f"{file_path}.backup-{int(time.time())}"
+                try:
+                    shutil.copy2(file_path, backup)
+                    print(f"🔁 Backed up existing {os.path.basename(file_path)} -> {backup}")
+                except Exception as e:
+                    print(f"⚠️ Failed to backup {file_path}: {e}")
+
+            # Ensure parent directory exists
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+
+            # Apply sensible permissions (make shell scripts executable)
+            try:
+                if make_executable or file_path.endswith('.sh'):
+                    os.chmod(file_path, 0o755)
+                else:
+                    os.chmod(file_path, 0o644)
+            except Exception:
+                pass
+
+            print(f"✅ Wrote: {file_path}")
+            return True
+
         # Extract files to SCRIPT_DIR
         for filename, content, target_dir in script_dir_files:
             file_path = os.path.join(target_dir, filename)
-            if not os.path.exists(file_path):
-                print(f"📝 Extracting {filename} to script directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print(f"✅ Created: {file_path}")
-                extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists in script dir, skipping...")
+            _write_with_verification(file_path, content, make_executable=filename.endswith('.sh'))
 
         # Extract launcher scripts to SCRIPT_DIR (for easy access)
         launcher_files = [
@@ -8905,17 +8945,7 @@ def extract_embedded_files():
         ]
         for filename, content in launcher_files:
             file_path = os.path.join(SCRIPT_DIR, filename)
-            if not os.path.exists(file_path):
-                print(f"📝 Extracting launcher script: {filename}...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print(f"✅ Created: {file_path}")
-                # Make shell script executable on Unix
-                if filename.endswith('.sh'):
-                    os.chmod(file_path, 0o755)
-                extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists, skipping...")
+            _write_with_verification(file_path, content, make_executable=filename.endswith('.sh'))
 
         # Create pythonOS_data and swap directory structure
         data_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
@@ -8925,26 +8955,55 @@ def extract_embedded_files():
         # Extract files to data directory (pythonOS_data)
         for filename, content in data_dir_files:
             file_path = os.path.join(data_dir, filename)
-            if not os.path.exists(file_path):
-                print(f"📝 Extracting {filename} to pythonOS_data directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print(f"✅ Created: {file_path}")
-                extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists, skipping...")
+            _write_with_verification(file_path, content)
 
         # Extract files to swap directory
         for filename, content in swap_dir_files:
             file_path = os.path.join(SCRIPT_DIR_FOR_EXTRACTION, filename)
-            if not os.path.exists(file_path):
-                print(f"📝 Extracting {filename} to swap directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
-                print(f"✅ Created: {file_path}")
-                extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists in swap dir, skipping...")
+            _write_with_verification(file_path, content)
+
+        # --- Compatibility: also ensure a copy exists under the user's home (~)/pythonOS_data/swap
+        home_data_root = os.path.expanduser(os.path.join('~', 'pythonOS_data'))
+        home_swap_dir = os.path.join(home_data_root, 'swap')
+        try:
+            os.makedirs(home_swap_dir, exist_ok=True)
+            for filename, content in swap_dir_files:
+                home_file = os.path.join(home_swap_dir, filename)
+                # write only if missing or different
+                _write_with_verification(home_file, content)
+        except Exception as e:
+            print(f"[!] Could not mirror swap files to {home_swap_dir}: {e}")
+
+        # Final verification: ensure all required embedded scripts exist and are readable
+        required_files = [
+            os.path.join(SCRIPT_DIR, name) for name, _, _ in script_dir_files
+        ] + [
+            os.path.join(data_dir, name) for name, _ in data_dir_files
+        ] + [
+            os.path.join(SCRIPT_DIR_FOR_EXTRACTION, name) for name, _ in swap_dir_files
+        ] + [
+            os.path.join(home_swap_dir, name) for name, _ in swap_dir_files
+        ]
+
+        missing_final = [p for p in required_files if not os.path.exists(p)]
+        if missing_final:
+            print(f"⚠️  Missing files after extraction: {missing_final}")
+            print("Attempting re-extraction for missing files...")
+            for p in missing_final:
+                # find content by name and re-write
+                base = os.path.basename(p)
+                for filename, content, target_dir in script_dir_files:
+                    if filename == base:
+                        _write_with_verification(p, content)
+                for filename, content in data_dir_files:
+                    if filename == base:
+                        _write_with_verification(p, content)
+                for filename, content in swap_dir_files:
+                    if filename == base:
+                        _write_with_verification(p, content)
+
+        else:
+            print("🔎 Verification complete — all embedded modules present")
 
         if extracted_count > 0:
             print(f"\n📦 Extracted {extracted_count} modules successfully\n")
@@ -48761,9 +48820,26 @@ def link_external_tool(tool_name, module_path, function_name="run", context=None
     Useful for linking heavy tools like MP3 players or Scanners.
     """
     import importlib.util
+
+    # If the provided path doesn't exist, attempt common fallbacks:
     if not os.path.exists(module_path):
-        print(f"\n{COLORS['1'][0]}[!] Link Failed: {module_path} not found.{RESET}")
-        return False
+        basename = os.path.basename(module_path)
+        fallback_candidates = [
+            os.path.join(SCRIPT_DIR_FOR_EXTRACTION, basename),
+            os.path.join(SCRIPT_DIR, 'pythonOS_data', 'swap', basename),
+            os.path.join(os.path.expanduser('~'), 'pythonOS_data', 'swap', basename),
+            os.path.join(SCRIPT_DIR, basename),
+        ]
+        found = False
+        for cand in fallback_candidates:
+            if os.path.exists(cand):
+                print(f"\n{COLORS['6'][0]}[i] Using fallback module path: {cand}{RESET}")
+                module_path = cand
+                found = True
+                break
+        if not found:
+            print(f"\n{COLORS['1'][0]}[!] Link Failed: {module_path} not found.{RESET}")
+            return False
 
     try:
         spec = importlib.util.spec_from_file_location(tool_name, module_path)
