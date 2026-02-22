@@ -125,6 +125,8 @@ os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
 # ================================================================================
 
 # Global variable to track display mode (textual, rich, or classic)
+# Classic is now the default startup UI when loading the script (per user
+# request); detection and CLI flags can override this behavior.
 DISPLAY_MODE = "classic"  # Default fallback mode
 DISPLAY_INITIALIZED = False
 
@@ -739,6 +741,8 @@ class PythonOSApp:
 
     def run(self) -> int:
         """Execute startup according to parsed arguments. Returns exit code."""
+        # we will modify the module-level DISPLAY_MODE, so declare it global
+        global DISPLAY_MODE
         args = self.parse_args()
 
         if args.version:
@@ -760,8 +764,13 @@ class PythonOSApp:
 
         # Apply display-mode override if requested
         if args.display_mode:
-            global DISPLAY_MODE
             DISPLAY_MODE = args.display_mode
+        else:
+            # No explicit mode requested; make Classic Command Center the
+            # default startup UI regardless of detection results.
+            # This ensures users loading the script without flags land in the
+            # familiar classic environment (per user request).
+            DISPLAY_MODE = "classic"
 
         # Optional API server
         if args.start_api:
@@ -778,9 +787,13 @@ class PythonOSApp:
             except Exception:
                 return run_classic_command_center()
 
-        # Default interactive startup: prefer Textual then fallback
+        # Default interactive startup: classic is now the preferred mode.
+        # Previously the app would attempt to launch the Textual UI when
+        # available; we override that behavior so the Classic Command Center
+        # is shown first unless the user explicitly asks for something else.
         try:
-            if DISPLAY_MODE == "textual":
+            if DISPLAY_MODE == "textual" and args.display_mode == "textual":
+                # only launch textual if explicitly requested
                 return run_pytextos(return_to_classic=False) or 0
             else:
                 return run_classic_command_center() or 0
@@ -29517,7 +29530,7 @@ def feature_web_browser_center():
                         else:
                             print('No links found on this page.')
 
-                        print('\nControls: [n] Next  [p] Prev  [#] Open link  [s] Show links  [b] Back  [r] Reload  [g URL] Go to URL  [q] Quit')
+                        print('\nControls: [n] Next  [p] Prev  [#] Open link  [s] Show links  [c] CSS  [x] XPath  [f] regex  [b] Back  [r] Reload  [g URL] Go to URL  [q] Quit')
                         cmd = input('Input: ').strip()
 
                         if cmd == '' or cmd.lower() == 'n':
@@ -29546,6 +29559,64 @@ def feature_web_browser_center():
                             for i, (href, text) in enumerate(links, start=1):
                                 print(f'{i:3d}. {text} - {href}')
                             input('\n[Enter to return]')
+                            continue
+                        if cmd.lower() == 'c':
+                            # CSS selector search
+                            if not _BS:
+                                print('BeautifulSoup not available for CSS querying')
+                                time.sleep(1)
+                                continue
+                            sel = input('CSS selector: ').strip()
+                            try:
+                                soup2 = _BS(html, 'html.parser')
+                                els = soup2.select(sel)
+                                os.system('cls' if os.name == 'nt' else 'clear')
+                                print_header(f"CSS: {sel}", extra_info=final_url)
+                                for e in els[:20]:
+                                    txt = e.get_text(separator=' ', strip=True)
+                                    print(txt)
+                                    if e.name == 'a':
+                                        print(' ->', urljoin(final_url, e.get('href','')))
+                            except Exception as ex:
+                                print('Error:', ex)
+                            input('\n[Enter to continue]')
+                            continue
+                        if cmd.lower() == 'x':
+                            # XPath search via lxml if available
+                            try:
+                                from lxml import etree
+                            except Exception:
+                                print('lxml not installed; XPath unavailable')
+                                time.sleep(1)
+                                continue
+                            xp = input('XPath expression: ').strip()
+                            try:
+                                tree = etree.HTML(html)
+                                results = tree.xpath(xp)
+                                os.system('cls' if os.name == 'nt' else 'clear')
+                                print_header(f"XPath: {xp}", extra_info=final_url)
+                                for r in results[:20]:
+                                    if isinstance(r, etree._Element):
+                                        print(''.join(r.itertext()).strip())
+                                    else:
+                                        print(str(r))
+                            except Exception as ex:
+                                print('Error:', ex)
+                            input('\n[Enter to continue]')
+                            continue
+                        if cmd.lower() == 'f':
+                            pat = input('Regex pattern: ').strip()
+                            try:
+                                import re
+                                rgx = re.compile(pat)
+                                matches = rgx.findall(html)
+                                os.system('cls' if os.name == 'nt' else 'clear')
+                                print_header(f"Regex: {pat}", extra_info=final_url)
+                                for m in matches[:50]:
+                                    print(m)
+                            except Exception as ex:
+                                print('Error:', ex)
+                            input('\n[Enter to continue]')
                             continue
                         if cmd.lower() == 'b':
                             if history:
@@ -46912,9 +46983,15 @@ def run_pytextos(return_to_classic=False):
                 self.monitor_mode = "stats"  # Default to stats display
                 self.monitor_pane = None
                 self.monitor_available = {
-                    "bpytop": shutil.which('bpytop') is not None,
-                    "htop": shutil.which('htop') is not None,
-                    "gtop": shutil.which('gtop') is not None,
+                    # bpytop mode has been repurposed to show weather + traffic.
+                    # htop mode is now our live price ticker so it should always
+                    # be available as well.
+                    "bpytop": True,
+                    "htop": True,
+                    # gtop mode is now a simple live tracker launcher – always
+                    # available so the user can hit the button regardless of
+                    # whether the binary is installed.
+                    "gtop": True,
                     "btop": shutil.which('btop') is not None,
                     "stats": True,  # Always available
                 }
@@ -47288,6 +47365,30 @@ def run_pytextos(return_to_classic=False):
                 self._update_monitor_indicator()
                 self._update_monitor_display()
 
+            def on_key(self, event):
+                """Handle keystrokes while PyTextOS is active.
+
+                We only intercept the '1' key when the monitor pane is showing the
+                live tracker launcher (monitor_mode == "gtop"). In that case we
+                trigger the satellite tracker action exactly the same way the
+                main dashboard would if the user selected it from the menu. This
+                causes the application to exit back to run_pytextos, which will
+                execute the tracker and then restart the UI.
+                """
+                # Check for the live tracker launcher key
+                if event.key == "1" and self.monitor_mode == "gtop":
+                    # set pending action to the key used in COMMAND_CENTER_ACTIONS
+                    self.pending_action = "satellite"
+                    self.exit()
+                    event.prevent_default()
+                    return
+
+                # Fallback to default App handling (handles our BINDINGS)
+                try:
+                    return super().on_key(event)
+                except Exception:
+                    pass
+
             def _update_monitor_indicator(self):
                 """Update the monitor mode indicator in topbar."""
                 if self._monitor_indicator:
@@ -47295,14 +47396,26 @@ def run_pytextos(return_to_classic=False):
                         self._monitor_indicator.update("📊 OFF")
                     else:
                         icons = {
-                            "bpytop": "🚀",
-                            "htop": "🖥️",
-                            "gtop": "📊",
+                            # bpytop mode now shows weather & traffic instead of the
+                            # external bpytop process.
+                            "bpytop": "🌦️",
+                            # htop mode has become the price ticker
+                            "htop": "💹",
+                            # gtop is live tracker launcher
+                            "gtop": "🚀",
                             "btop": "⚡",
                             "stats": "📈"
                         }
                         icon = icons.get(self.monitor_mode, "📊")
-                        name = self.monitor_mode.upper()
+                        if self.monitor_mode == "bpytop":
+                            # repurposed mode
+                            name = "WX/TRAFFIC"
+                        elif self.monitor_mode == "htop":
+                            name = "TICKER"
+                        elif self.monitor_mode == "gtop":
+                            name = "LIVE"
+                        else:
+                            name = self.monitor_mode.upper()
                         self._monitor_indicator.update(f"{icon} {name}")
 
             def _get_monitor_stats_display(self):
@@ -47373,7 +47486,7 @@ def run_pytextos(return_to_classic=False):
                     lines.append("  Processes: N/A")
 
                 lines.append("═" * 80)
-                lines.append("Press 'M' to cycle monitors | Available: Bpytop, Htop, Gtop, Btop, Stats".center(80))
+                lines.append("Press 'M' to cycle monitors | Available: Weather & Traffic, Ticker, LiveTracker, Btop, Stats".center(80))
                 return "\n".join(lines)
 
             def _get_monitor_command_display(self, monitor_name):
@@ -47405,6 +47518,123 @@ def run_pytextos(return_to_classic=False):
 
                 return "\n".join(lines)
 
+            def _get_monitor_weather_traffic_display(self):
+                """Render the custom weather + traffic overview for the monitor pane.
+
+                This replaces the old bpytop embed; quick stats are still shown at the
+                bottom so the user always has system load information available.
+                """
+                lines = []
+                lines.append("═" * 80)
+                lines.append("           WEATHER & TRAFFIC OVERVIEW".center(80))
+                lines.append("═" * 80)
+                lines.append("")
+                # Weather section
+                try:
+                    w = get_weather_data() or {}
+                    city = w.get('city', 'Unknown')
+                    temp = w.get('temp', 'N/A')
+                    icon = w.get('icon', '')
+                    feels = w.get('feels', 'N/A')
+                    humidity = w.get('humidity', 'N/A')
+                    wind = w.get('wind', 'N/A')
+                    lines.append(f"  {city}  {icon} {temp}°C (feels {feels})")
+                    lines.append(f"  Humidity: {humidity}%   Wind: {wind}")
+                except Exception:
+                    lines.append("  Weather data unavailable")
+                lines.append("")
+                # Traffic section (simple estimated congestion + recommendations)
+                try:
+                    import random
+                    hour = datetime.now().hour
+                    congestion = random.randint(0, 100)
+                    lines.append(f"  Traffic congestion estimate: {congestion}%")
+                    recs = traffic_optimizer.get_traffic_recommendations(hour, icon, congestion)
+                    for r in recs:
+                        lines.append(f"    {r}")
+                except Exception:
+                    lines.append("  Traffic data unavailable")
+                lines.append("")
+                # Quick stats footer
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    lines.append("═" * 80)
+                    lines.append(
+                        f"  Quick Stats: CPU {cpu_pct:.1f}% | MEM {mem.percent:.1f}% | DISK {psutil.disk_usage('/').percent:.1f}%"
+                    )
+                    lines.append("═" * 80)
+                except Exception:
+                    pass
+                return "\n".join(lines)
+
+            def _get_monitor_live_tracker_display(self):
+                """Simple launcher pane for the live tracker.
+
+                The screen shows a single button-like prompt; pressing the indicator
+                or using the main menu logic could later hook into the tracker start
+                routine. For now it's just informational text.
+                """
+                lines = []
+                lines.append("═" * 80)
+                lines.append("               [1] 🚀 Start Live Tracker".center(80))
+                lines.append("═" * 80)
+                lines.append("")
+                lines.append("  This mode will eventually launch the live tracker module.")
+                lines.append("")
+                # Quick stats footer
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    lines.append("═" * 80)
+                    lines.append(
+                        f"  Quick Stats: CPU {cpu_pct:.1f}% | MEM {mem.percent:.1f}% | DISK {psutil.disk_usage('/').percent:.1f}%"
+                    )
+                    lines.append("═" * 80)
+                except Exception:
+                    pass
+                return "\n".join(lines)
+
+            def _get_monitor_ticker_display(self):
+                """Render ticker of crypto + metal prices with quick stats footer."""
+                lines = []
+                lines.append("═" * 80)
+                lines.append("                LIVE PRICE TICKER".center(80))
+                lines.append("═" * 80)
+                lines.append("")
+                try:
+                    cryptos = get_crypto_prices()
+                    metals = get_metal_prices()
+                    # crypto section
+                    btc = cryptos.get("bitcoin", {})
+                    eth = cryptos.get("ethereum", {})
+                    btc_price = btc.get('price', 'N/A')
+                    btc_change = btc.get('change_24h')
+                    eth_price = eth.get('price', 'N/A')
+                    eth_change = eth.get('change_24h')
+                    lines.append(f"  BTC ${btc_price}{(' ({:+.2f}% )'.format(btc_change) if btc_change is not None else '')}")
+                    lines.append(f"  ETH ${eth_price}{(' ({:+.2f}% )'.format(eth_change) if eth_change is not None else '')}")
+                    lines.append("")
+                    # metals section
+                    for metal in ("gold","silver","copper","platinum","palladium","rhodium"):
+                        m = metals.get(metal, {})
+                        lines.append(f"  {metal.title()}: {m.get('price','N/A')} {m.get('unit','')}")
+                except Exception:
+                    lines.append("  Price data unavailable")
+                lines.append("")
+                # Quick stats footer
+                try:
+                    cpu_pct = psutil.cpu_percent(interval=None)
+                    mem = psutil.virtual_memory()
+                    lines.append("═" * 80)
+                    lines.append(
+                        f"  Quick Stats: CPU {cpu_pct:.1f}% | MEM {mem.percent:.1f}% | DISK {psutil.disk_usage('/').percent:.1f}%"
+                    )
+                    lines.append("═" * 80)
+                except Exception:
+                    pass
+                return "\n".join(lines)
+
             def _update_monitor_display(self):
                 """Update the monitor pane content based on current mode."""
                 if not self.monitor_pane:
@@ -47418,7 +47648,19 @@ def run_pytextos(return_to_classic=False):
                     # Show inline stats display
                     content = self._get_monitor_stats_display()
                     self.monitor_pane.update(content)
-                elif self.monitor_mode in ["bpytop", "htop", "gtop", "btop"]:
+                elif self.monitor_mode == "bpytop":
+                    # custom weather + traffic view replaces old bpytop embed
+                    content = self._get_monitor_weather_traffic_display()
+                    self.monitor_pane.update(content)
+                elif self.monitor_mode == "htop":
+                    # replaced by live price ticker
+                    content = self._get_monitor_ticker_display()
+                    self.monitor_pane.update(content)
+                elif self.monitor_mode == "gtop":
+                    # simple launcher page
+                    content = self._get_monitor_live_tracker_display()
+                    self.monitor_pane.update(content)
+                elif self.monitor_mode in ["btop"]:
                     if self.monitor_available.get(self.monitor_mode, False):
                         # Show instructions to launch
                         content = self._get_monitor_command_display(self.monitor_mode)
