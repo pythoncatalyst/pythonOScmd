@@ -176,7 +176,7 @@ import logging
 import logging.handlers
 import json
 import os
-from datetime import datetime
+from datetime import datetime, date
 from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Any
@@ -27557,6 +27557,9 @@ def _get_productivity_tips():
 
 def feature_enhanced_calendar():
     """Enhanced calendar with AI management and productivity features"""
+    # local import ensures `date` is available for nested helpers
+    from datetime import date
+
     def _add_months(year, month, offset):
         total = (month - 1) + offset
         return year + (total // 12), (total % 12) + 1
@@ -27565,7 +27568,7 @@ def feature_enhanced_calendar():
         count = 0
         for day in range(1, 32):
             try:
-                d = datetime.date(year, month, day)
+                d = date(year, month, day)
             except ValueError:
                 break
             if d.weekday() == weekday:
@@ -27578,7 +27581,7 @@ def feature_enhanced_calendar():
         last = None
         for day in range(1, 32):
             try:
-                d = datetime.date(year, month, day)
+                d = date(year, month, day)
             except ValueError:
                 break
             if d.weekday() == weekday:
@@ -27596,7 +27599,7 @@ def feature_enhanced_calendar():
         }
         for (m, d), name in fixed.items():
             if m == month:
-                holidays.append((datetime.date(year, m, d), name))
+                holidays.append((date(year, m, d), name))
 
         if month == 1:
             d = _nth_weekday(year, 1, 0, 3)
@@ -27639,50 +27642,56 @@ def feature_enhanced_calendar():
             return
 
         if choice == '1':
-            print_header("📅 Smart Calendar View (AI-Enhanced)")
-            now = datetime.now()
+            try:
+                print_header("📅 Smart Calendar View (AI-Enhanced)")
+                now = datetime.now()
 
-            months = []
-            for i in range(3):
-                y, m = _add_months(now.year, now.month, i)
-                months.append(calendar.month(y, m).splitlines())
+                months = []
+                for i in range(3):
+                    y, m = _add_months(now.year, now.month, i)
+                    months.append(calendar.month(y, m).splitlines())
 
-            max_lines = max(len(m) for m in months)
-            for m in months:
-                while len(m) < max_lines:
-                    m.append("")
+                max_lines = max(len(m) for m in months)
+                for m in months:
+                    while len(m) < max_lines:
+                        m.append("")
 
-            col_width = max(max(len(line) for line in m) for m in months)
-            lines = []
-            for i in range(max_lines):
-                line = "  ".join(m[i].ljust(col_width) for m in months)
-                lines.append(line.rstrip())
+                col_width = max(max(len(line) for line in m) for m in months)
+                lines = []
+                for i in range(max_lines):
+                    line = "  ".join(m[i].ljust(col_width) for m in months)
+                    lines.append(line.rstrip())
 
-            holiday_colors = [COLORS["2"][0], COLORS["4"][0], COLORS["6"][0]]
-            holiday_lines = ["📍 Holidays & Observances"]
-            for i in range(3):
-                y, m = _add_months(now.year, now.month, i)
-                month_name = datetime.date(y, m, 1).strftime("%B")
-                holiday_lines.append(f"{holiday_colors[i]}{month_name}:{RESET}")
-                for d, name in _month_holidays(y, m):
-                    holiday_lines.append(f"{holiday_colors[i]}{d.strftime('%b %d')}: {name}{RESET}")
+                holiday_colors = [COLORS["2"][0], COLORS["4"][0], COLORS["6"][0]]
+                holiday_lines = ["📍 Holidays & Observances"]
+                for i in range(3):
+                    y, m = _add_months(now.year, now.month, i)
+                    month_name = date(y, m, 1).strftime("%B")
+                    holiday_lines.append(f"{holiday_colors[i]}{month_name}:{RESET}")
+                    for d, name in _month_holidays(y, m):
+                        holiday_lines.append(f"{holiday_colors[i]}{d.strftime('%b %d')}: {name}{RESET}")
 
-            panel_width = max(20, max(len(line) for line in holiday_lines))
-            full_lines = []
-            for i in range(max(len(lines), len(holiday_lines))):
-                left = lines[i] if i < len(lines) else ""
-                right = holiday_lines[i] if i < len(holiday_lines) else ""
-                full_lines.append(left.ljust(col_width * 3 + 4) + right.ljust(panel_width))
+                panel_width = max(20, max(len(line) for line in holiday_lines))
+                full_lines = []
+                for i in range(max(len(lines), len(holiday_lines))):
+                    left = lines[i] if i < len(lines) else ""
+                    right = holiday_lines[i] if i < len(holiday_lines) else ""
+                    full_lines.append(left.ljust(col_width * 3 + 4) + right.ljust(panel_width))
 
-            print(f"{get_current_color()}" + "\n".join(full_lines) + f"{RESET}")
+                print(f"{get_current_color()}" + "\n".join(full_lines) + f"{RESET}")
 
-            # AI Insights
-            print(f"\n{BOLD}🤖 AI Calendar Insights:{RESET}")
-            density = calendar_optimizer.analyze_schedule_density(now.year, now.month)
-            print(f"  Current month density: {density['classification']} ({density['density']:.1f} avg)")
-            print(f"  Weeks this month: {density['weeks']}")
+                # AI Insights
+                print(f"\n{BOLD}🤖 AI Calendar Insights:{RESET}")
+                density = calendar_optimizer.analyze_schedule_density(now.year, now.month)
+                print(f"  Current month density: {density['classification']} ({density['density']:.1f} avg)")
+                print(f"  Weeks this month: {density['weeks']}")
 
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+                input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            except Exception as e:
+                print(f"\n{COLORS['1'][0]}Error loading Smart Calendar View: {e}{RESET}")
+                import traceback
+                traceback.print_exc()
+                input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif choice == '2':
             print_header("📊 Schedule Analysis & Month Density")
@@ -27975,7 +27984,7 @@ def feature_simple_calendar():
         count = 0
         for day in range(1, 32):
             try:
-                d = datetime.date(year, month, day)
+                d = date(year, month, day)
             except ValueError:
                 break
             if d.weekday() == weekday:
@@ -27988,7 +27997,7 @@ def feature_simple_calendar():
         last = None
         for day in range(1, 32):
             try:
-                d = datetime.date(year, month, day)
+                d = date(year, month, day)
             except ValueError:
                 break
             if d.weekday() == weekday:
@@ -28007,7 +28016,7 @@ def feature_simple_calendar():
         }
         for (m, d), name in fixed.items():
             if m == month:
-                holidays.append((datetime.date(year, m, d), name))
+                holidays.append((date(year, m, d), name))
 
         # Observed weekday rules
         if month == 1:
@@ -28053,7 +28062,7 @@ def feature_simple_calendar():
     holiday_lines = ["Upcoming Holidays"]
     for i in range(3):
         y, m = _add_months(now.year, now.month, i)
-        month_name = datetime.date(y, m, 1).strftime("%B")
+        month_name = date(y, m, 1).strftime("%B")
         holiday_lines.append(f"{holiday_colors[i]}{month_name}:{RESET}")
         for d, name in _month_holidays(y, m):
             holiday_lines.append(f"{holiday_colors[i]}{d.strftime('%b %d')}: {name}{RESET}")
@@ -39475,12 +39484,12 @@ try:
         "9": ("math",     r" ∫∮∝∞√∑"),
         "10":("stars",    r" +*★☆"),
         "11":("slashes",  r" ╱╲╳"),
-        "12":("impact",   r" .vV#M"),
         "13":("runic_nordic", r" ᚠᚡᚢᚣᚤᚥᚦᚧᚨᚩᚪᚫᚬᚭᚮᚯ"),
+        "12":("impact",   r" .:;'"),
         "14":("runic_celtic", r"  ᚁᚂᚃᚄᚅᚆᚇᚈᚉᚊᚋᚌᚍᚎᚏ"),
-        "15":("runic_mystic", r" ✡︎🔯☤☥☦︎☧☨☩☯︎☰☱☲☳☴☵☶☷"),
+        "15":("runic_mystic", r" #~`,./<>?;:-_=+"),
         "16":("runic_alchemy",r" 🜁🜂🜃🜄🜅🜆🜇🜈🜉🜊🜋🜌🜍🜎🜏"),
-        "17":("runic_arcane", r" 𐏑𐏒𐏓𐏔𐏕𐏖𐏗𐏘𐏙𐏚𐏛𐏜𐏝𐏞𐏟"),
+        "17":("runic_arcane", r" 𐏑𐏒𐏓𐏔𐏕#$%^&*()_+!@"),
         "18":("chaos_glitch", "RANDOM_LOCAL"),
         "19":("emoji_only",   r" 🌑🌘🌗🌖🌕☀️"),
         "20":("chaos_global", "RANDOM_GLOBAL")
@@ -44759,7 +44768,7 @@ def _format_classic_menu_display():
 
     # Row 0: INTERFACE SELECTION (NEW - Three Options)
     lines.append(f" {COLORS['3'][0]}INTERFACE SELECTION:{RESET}")
-    lines.append(f" {BOLD}[1C]{RESET} 📜 Classic Menu  {BOLD}[2P]{RESET} 📋 PyTextOS List  {BOLD}[3D]{RESET} 🎯 Unified Dashboard  {BOLD}[4U]{RESET} 📦 Update")
+    lines.append(f" {BOLD}[1C]{RESET} 📜 Classic Menu  {BOLD}[2P]{RESET} 📋 PyTextOS List  {BOLD}[3D]{RESET} 🎯 Widget Board  {BOLD}[4U]{RESET} 📦 Update")
 
     # Row 1: Settings (1-6)
     lines.append(f" {BOLD}[1]{RESET} ✨ Blink: {'ON ' if is_blinking else 'OFF'}  {BOLD}[2]{RESET} 🌡️ Temp: {temp_unit}  {BOLD}[3]{RESET} 🌡️ Thermal: {'S' if truncated_thermal else 'F'}  {BOLD}[4]{RESET} 📏 Mini: {'ON ' if mini_view else 'OFF'}")
@@ -46839,6 +46848,16 @@ Press any key to close...
 
 
 def run_pytextos(return_to_classic=False):
+    # if psutil is unavailable we can't provide the enhanced monitoring;
+    # treat that situation as a failure and immediately restart in classic
+    # command center so the user still has a usable menu.
+    if not PSUTIL_AVAILABLE or psutil is None:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{COLORS['3'][0]}WARNING: psutil missing, falling back to classic view{RESET}")
+        time.sleep(1)
+        _set_display_mode("classic")
+        return run_classic_command_center()
+
     if not _ensure_textual_imports():
         os.system('cls' if os.name == 'nt' else 'clear')
         print(f"{COLORS['1'][0]}ERROR: Textual failed to load!{RESET}")
@@ -46943,7 +46962,14 @@ def run_pytextos(return_to_classic=False):
                     self._status_widgets[pill_id] = self.query_one(f"#{pill_id}", Static)
                 self._apply_style_mode()
                 self._mount_layout()
-                self._update_detail(self.selected_key)
+                try:
+                    self._update_detail(self.selected_key)
+                except Exception as e:
+                    # if anything goes wrong while populating detail pane
+                    # bail out so run_pytextos can detect and fallback
+                    print(f"⚠️ PyTextOS detail error: {e}")
+                    self.exit()
+                    return
                 self._refresh_status()
                 self._refresh_float_panel()
                 self._update_monitor_display()
@@ -47084,29 +47110,37 @@ def run_pytextos(return_to_classic=False):
                     self.CSS = TEXTUAL_INLINE_CSS
 
             def _build_system_summary(self):
-                mem = psutil.virtual_memory()
-                disk = psutil.disk_usage('/')
-                net = psutil.net_io_counters()
+                # protect against missing/invalid psutil (None or not installed)
+                if not PSUTIL_AVAILABLE or psutil is None:
+                    return ["psutil not available – system stats disabled"]
+                try:
+                    mem = psutil.virtual_memory()
+                    disk = psutil.disk_usage('/')
+                    net = psutil.net_io_counters()
 
-                cpu_pct = psutil.cpu_percent(interval=None)
-                mem_pct = getattr(mem, "percent", 0)
-                disk_pct = getattr(disk, "percent", 0)
+                    cpu_pct = psutil.cpu_percent(interval=None)
+                    mem_pct = getattr(mem, "percent", 0)
+                    disk_pct = getattr(disk, "percent", 0)
 
-                lines = [
-                    f"OS: {platform.system()} {platform.release()}",
-                    f"Node: {platform.node()}",
-                    f"CPU: {_fmt_pct(cpu_pct)} [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
-                    f"RAM: {_fmt_pct(mem_pct)} [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
-                    f"Disk: {_fmt_pct(disk_pct)} [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
-                    f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
-                ]
-                if weather_cache:
-                    temp = weather_cache.get("temp", "N/A")
-                    icon = weather_cache.get("icon", "")
-                    humidity = weather_cache.get("humidity", "N/A")
-                    wind = weather_cache.get("wind", "N/A")
-                    lines.append(f"Weather: {icon} {temp} | Hum: {humidity} | Wind: {wind}")
-                return "\n".join(lines)
+                    lines = [
+                        f"OS: {platform.system()} {platform.release()}",
+                        f"Node: {platform.node()}",
+                        f"CPU: {_fmt_pct(cpu_pct)} [{_render_usage_bar(cpu_pct)}] | Cores: {psutil.cpu_count(logical=False)}",
+                        f"RAM: {_fmt_pct(mem_pct)} [{_render_usage_bar(mem_pct)}] | Free: {_format_gb(mem.available)}",
+                        f"Disk: {_fmt_pct(disk_pct)} [{_render_usage_bar(disk_pct)}] | Free: {_format_gb(disk.free)}",
+                        f"Net: TX {_format_mb(net.bytes_sent)} | RX {_format_mb(net.bytes_recv)}",
+                    ]
+
+                    if weather_cache:
+                        temp = weather_cache.get("temp", "N/A")
+                        icon = weather_cache.get("icon", "")
+                        humidity = weather_cache.get("humidity", "N/A")
+                        wind = weather_cache.get("wind", "N/A")
+                        lines.append(f"Weather: {icon} {temp} | Hum: {humidity} | Wind: {wind}")
+
+                    return "\n".join(lines)
+                except Exception:
+                    return ["Error gathering system stats"]
 
             def _section_summary(self, key):
                 if key == "system":
@@ -48412,9 +48446,11 @@ def run_classic_command_center():
             _set_display_mode("pytextos")
             return run_pytextos(return_to_classic=True)
         elif choice == '3D':
-            # Switch to Unified Dashboard
-            _set_display_mode("unified")
-            return run_unified_dashboard(return_to_classic=True)
+            # Switch to Textual Widget Board
+            _set_display_mode("widget_board")
+            # run via safe_run so errors get logged and we stay in classic on finish
+            safe_run("general", "Widget_Board", feature_textual_widget_board)
+            continue
         elif choice == '4U':
             # Update System
             safe_run("general", "Update_System", feature_update_system)
