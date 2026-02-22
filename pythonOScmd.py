@@ -22228,7 +22228,8 @@ def feature_defence_center():
             "Pi-hole": os.path.exists('/usr/local/bin/pihole'),
             "ClamAV": check_pentest_tool('clamscan'),
             "Bandit": check_pentest_tool('bandit'),
-            "pytest": check_pentest_tool('pytest')
+            "pytest": check_pentest_tool('pytest'),
+            "Sherlock": bool(shutil.which('sherlock'))
         }
 
         print(f"\n{BOLD}Defence Tool Status:{RESET}")
@@ -22249,6 +22250,7 @@ def feature_defence_center():
         print(f" {BOLD}[7]{RESET} 🛡️  DevSecOps Integration")
         print(f" {BOLD}[8]{RESET} 📚 Install All Defence Tools")
         print(f" {BOLD}[9]{RESET} 📦 Open Download Center (Defence Tools)")
+        print(f" {BOLD}[10]{RESET} 🕵️  Sherlock Username Recon")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*60}╝{RESET}")
 
@@ -22280,20 +22282,58 @@ def feature_defence_center():
             print("  sudo apt-get update")
             print("  sudo apt-get install wireguard openvpn clamav clamav-daemon")
             print("  sudo apt-get install whois dnsutils")
-            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project")
             print(f"\n{COLORS['6'][0]}Pi-hole:{RESET}")
             print("  curl -sSL https://install.pi-hole.net | bash")
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install wireguard-tools openvpn clamav")
-            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '9':
             feature_download_center()
+        elif choice == '10':
+            feature_sherlock_tool()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
 
 # --- END DEFENCE CENTER ---
+
+
+def feature_sherlock_tool():
+    """Utility wrapper for the Sherlock username reconnaissance tool.
+
+    If Sherlock is installed the user can launch a quick scan; otherwise we
+    display installation instructions and offer to drop into the download
+    centre. A warning about certain distro packages is shown.
+    """
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🕵️  Sherlock Username Recon")
+
+    sherlock_path = shutil.which('sherlock')
+    if sherlock_path:
+        print(f"{COLORS['2'][0]}✅ Sherlock binary found at: {sherlock_path}{RESET}\n")
+        run_now = input("Run Sherlock now? (y/N): ").strip().lower()
+        if run_now == 'y':
+            username = input("Enter username to enumerate: ").strip()
+            if username:
+                try:
+                    subprocess.run([sherlock_path, username])
+                except Exception as e:
+                    print(f"Error executing sherlock: {e}")
+    else:
+        print(f"{COLORS['1'][0]}❌ Sherlock not currently installed{RESET}\n")
+        print("Installation options (choose one):")
+        print("  • pipx install sherlock-project   (pip may be used)")
+        print("  • docker run -it --rm sherlock/sherlock")
+        print("  • dnf install sherlock-project")
+        print("\n⚠️  Warning: packages for ParrotOS and Ubuntu 24.04 are broken; use pipx/pip or Docker instead.")
+        print("Community packages exist for Debian>=13, Ubuntu>=22.10, Homebrew, Kali, BlackArch etc.")
+        print("Source repo: https://github.com/sherlock-project/sherlock")
+        choice = input("\nOpen Download Center to grab it? (y/N): ").strip().lower()
+        if choice == 'y':
+            feature_download_center()
+    input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 # --- DOWNLOAD CENTER: OS-AWARE INSTALL MENUS ---
 
