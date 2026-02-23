@@ -22460,12 +22460,81 @@ def feature_social_analyzer():
     input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 
+
+# ---------------------------------------------------------------------------
+# helper for installing Sherlock
+# ---------------------------------------------------------------------------
+def _install_sherlock() -> bool:
+    """Try to install Sherlock in-place or in a venv.
+
+    The function first attempts a distro-specific package manager command
+    (apt, dnf, pacman, brew).  If that fails or isn't available it falls back
+    to pip.  If pip complains about an "externally-managed environment" the
+    user can opt to create a virtualenv under pythonOS_data/sherlock-venv.
+    """
+    # determine platform/distro
+    if sys.platform.startswith("linux"):
+        # check for common packagemanagers
+        if shutil.which("apt"):  # Debian/Ubuntu
+            cmd = ["sudo", "apt", "install", "-y", "sherlock-project"]
+        elif shutil.which("dnf"):  # Fedora/RHEL
+            cmd = ["sudo", "dnf", "install", "-y", "sherlock-project"]
+        elif shutil.which("pacman"):
+            cmd = ["sudo", "pacman", "-S", "--noconfirm", "sherlock-project"]
+        else:
+            cmd = None
+    elif sys.platform == "darwin":
+        if shutil.which("brew"):
+            cmd = ["brew", "install", "sherlock-project"]
+        else:
+            cmd = None
+    else:
+        cmd = None
+
+    if cmd:
+        try:
+            subprocess.check_call(cmd)
+            return True
+        except Exception as e:
+            print(f"🛠️  package manager install failed: {e}")
+    # pip fallback – run with capture so we can read stderr messages
+    try:
+        res = subprocess.run(
+            [sys.executable, "-m", "pip", "install", "sherlock-project"],
+            capture_output=True, text=True, check=True
+        )
+        return True
+    except subprocess.CalledProcessError as e:
+        output = e.stderr or e.stdout or str(e)
+    except Exception as e:
+        output = str(e)
+    # check for externally-managed-environment message in captured output
+    if "externally-managed" in output:
+        choice = input("pip is blocked by an externally-managed environment; create a venv? (y/N): ").strip().lower()
+        if choice == 'y':
+            venv_dir = os.path.join(SCRIPT_DIR, "pythonOS_data", "sherlock-venv")
+            try:
+                subprocess.check_call([sys.executable, "-m", "venv", venv_dir])
+                pipexe = os.path.join(venv_dir, "bin", "pip")
+                subprocess.check_call([pipexe, "install", "sherlock-project"])
+                print(f"✅ Sherlock installed into virtualenv {venv_dir}")
+                # add virtualenv bin to PATH for current session
+                os.environ["PATH"] = os.path.join(venv_dir, "bin") + os.pathsep + os.environ.get("PATH","")
+                return True
+            except Exception as ex:
+                print(f"❌ venv install failed: {ex}")
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Sherlock feature
+# ---------------------------------------------------------------------------
 def feature_sherlock_tool():
     """Utility wrapper for the Sherlock username reconnaissance tool.
 
     If Sherlock is installed the user can launch a quick scan; otherwise we
-    display installation instructions and offer to drop into the download
-    centre. A warning about certain distro packages is shown.
+    attempt to install it automatically (or offer to create a venv) rather
+    than forcing the user into the download manager.
     """
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("🕵️  Sherlock Username Recon")
@@ -22482,7 +22551,15 @@ def feature_sherlock_tool():
                 except Exception as e:
                     print(f"Error executing sherlock: {e}")
     else:
+        # attempt immediate install before showing instructions
         print(f"{COLORS['1'][0]}❌ Sherlock not currently installed{RESET}\n")
+        if _install_sherlock():
+            # re-check path after install
+            sherlock_path = shutil.which('sherlock')
+            if sherlock_path:
+                print(f"\n{COLORS['2'][0]}✅ Installed successfully!\n")
+                return feature_sherlock_tool()
+        # if we got here installation failed or user declined
         print("Installation options (choose one):")
         print("  • pipx install sherlock-project   (pip may be used)")
         print("  • docker run -it --rm sherlock/sherlock")
@@ -24336,6 +24413,23 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
     for cmd in cmd_list:
         if cmd.strip().startswith("#") or not cmd.strip():
             continue
+        # if this command invokes pip, use our safe installer which handles
+        # externally-managed environments by falling back to system packages
+        # or creating a virtualenv.
+        if "-m pip" in cmd or "pip install" in cmd:
+            pkgs = _parse_pip_packages_from_cmd(cmd)
+            if pkgs:
+                for pkg in pkgs:
+                    if not safe_install_package(pkg):
+                        print(f"{COLORS['1'][0]}⚠️  Failed to install package {pkg}{RESET}")
+                        break
+                continue
+            # if we couldn't parse packages, just run normally
+            r = _run_cmd_capture(cmd, shell=True)
+            if r.returncode != 0:
+                print(f"{COLORS['1'][0]}Command failed: {cmd}{RESET}")
+            continue
+        # non-pip commands executed directly
         os.system(cmd)
     if app_key and isinstance(entry, dict) and os_key:
         try:
