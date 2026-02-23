@@ -28072,6 +28072,8 @@ def feature_enhanced_calendar():
         print(f" {BOLD}[0]{RESET} ↩️  Return")
         choice = input("\nSelect option: ").strip()
 
+        if choice == '0':
+            break
         if choice == '6':
             print("========================================")
             print("   LUNAR-LINGUISTIC CALENDAR: 2026")
