@@ -22229,8 +22229,20 @@ def feature_defence_center():
             "ClamAV": check_pentest_tool('clamscan'),
             "Bandit": check_pentest_tool('bandit'),
             "pytest": check_pentest_tool('pytest'),
-            "Sherlock": bool(shutil.which('sherlock'))
+            "Sherlock": bool(shutil.which('sherlock')),
+            "SocialAnalyzer": False
         }
+        # additional check for social-analyzer module in data folder
+        try:
+            social_dir = os.path.join(SCRIPT_DIR, "pythonOS_data", "socialanalyzer")
+            if social_dir not in sys.path:
+                sys.path.insert(0, social_dir)
+            import social_analyzer  # type: ignore
+            defence_tools["SocialAnalyzer"] = True
+        except Exception:
+            # also consider wrapper script presence
+            if shutil.which('social-analyzer') or shutil.which('social_analyzer'):
+                defence_tools["SocialAnalyzer"] = True
 
         print(f"\n{BOLD}Defence Tool Status:{RESET}")
         for tool, installed in defence_tools.items():
@@ -22251,6 +22263,7 @@ def feature_defence_center():
         print(f" {BOLD}[8]{RESET} 📚 Install All Defence Tools")
         print(f" {BOLD}[9]{RESET} 📦 Open Download Center (Defence Tools)")
         print(f" {BOLD}[10]{RESET} 🕵️  Sherlock Username Recon")
+        print(f" {BOLD}[11]{RESET} 🔍 Social Analyzer")
         print(f" {BOLD}[0]{RESET} ↩️  Return to Command Center")
         print(f"{BOLD}{c}╚{'═'*60}╝{RESET}")
 
@@ -22282,22 +22295,169 @@ def feature_defence_center():
             print("  sudo apt-get update")
             print("  sudo apt-get install wireguard openvpn clamav clamav-daemon")
             print("  sudo apt-get install whois dnsutils")
-            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project social-analyzer")
+            print(f"    (the script will use --target {SCRIPT_DIR} when invoked from the Defence menu)")
             print(f"\n{COLORS['6'][0]}Pi-hole:{RESET}")
             print("  curl -sSL https://install.pi-hole.net | bash")
             print(f"\n{COLORS['6'][0]}macOS:{RESET}")
             print("  brew install wireguard-tools openvpn clamav")
-            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project")
+            print(f"  {sys.executable} -m pip install pytest bandit safety trufflehog sherlock-project social-analyzer")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
         elif choice == '9':
             feature_download_center()
         elif choice == '10':
             feature_sherlock_tool()
+        elif choice == '11':
+            feature_social_analyzer()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
 
 # --- END DEFENCE CENTER ---
+
+
+def feature_social_analyzer():
+    """Menu for Social Analyzer tool installation and launch.
+
+    Installs into pythonOS_data/socialanalyzer and creates a small wrapper
+    script in the main directory.  After install the executable is linked
+    so subsequent checks succeed and the tool may be run directly.
+    """
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("🔍 Social Analyzer")
+
+    social_dir = os.path.join(SCRIPT_DIR, "pythonOS_data", "socialanalyzer")
+    os.makedirs(social_dir, exist_ok=True)
+
+    def _run_sa(user):
+        env = os.environ.copy()
+        env.setdefault('PYTHONPATH', social_dir + os.pathsep + env.get('PYTHONPATH', ''))
+        # prepare argument list; Social Analyzer expects --username <name>
+        args = []
+        if user:
+            args = ["--username", user]
+        # if wrapper executable exists just call it with args; otherwise
+        # try running the package via -m.  the args vector is reused for each
+        # invocation path.
+        wrapper = os.path.join(SCRIPT_DIR, "social-analyzer")
+        if os.path.isfile(wrapper) and os.access(wrapper, os.X_OK):
+            cmd = [wrapper] + args
+        else:
+            cmd = [sys.executable, "-m", "social_analyzer"] + args
+            # fallback to __main__.py if module invocation fails
+            try:
+                subprocess.run(cmd, env=env, check=True)
+                return
+            except Exception:
+                main_script = os.path.join(social_dir, "social_analyzer", "__main__.py")
+                if os.path.isfile(main_script):
+                    cmd = [sys.executable, main_script] + args
+        try:
+            subprocess.run(cmd, env=env)
+        except Exception as e:
+            print(f"Error executing social-analyzer: {e}")
+
+    def is_installed():
+        # ensure package directory has a valid name; rename if necessary so that
+        # imports will succeed.  this also handles upgrades of older installs.
+        try:
+            orig = os.path.join(social_dir, "social-analyzer")
+            new = os.path.join(social_dir, "social_analyzer")
+            if os.path.isdir(orig) and not os.path.isdir(new):
+                os.rename(orig, new)
+        except Exception:
+            pass
+        # check wrapper or importable module
+        wrapper_path = os.path.join(SCRIPT_DIR, "social-analyzer")
+        # if the package is already present ensure the wrapper is up-to-date
+        if os.path.isdir(os.path.join(social_dir, "social_analyzer")):
+            try:
+                with open(wrapper_path, 'w') as w:
+                    w.write(
+                        "#!/usr/bin/env python3\n"
+                        "import os, sys\n"
+                        f"os.environ.setdefault('PYTHONPATH', '{social_dir}' + os.pathsep + os.environ.get('PYTHONPATH',''))\n"
+                        "if __name__ == '__main__':\n"
+                        "    os.execv(sys.executable, [sys.executable, '-m', 'social_analyzer'] + sys.argv[1:])\n"
+                    )
+                os.chmod(wrapper_path, 0o755)
+            except Exception:
+                pass
+            return True
+        if os.path.isfile(wrapper_path):
+            return True
+        try:
+            if social_dir not in sys.path:
+                sys.path.insert(0, social_dir)
+            import social_analyzer  # type: ignore
+            return True
+        except Exception:
+            return False
+
+    if is_installed():
+        print(f"{COLORS['2'][0]}✅ Social Analyzer available (installed in {social_dir}){RESET}\n")
+        run_now = input("Run Social Analyzer CLI now? (y/N): ").strip().lower()
+        if run_now == 'y':
+            username = input("Enter username to analyze: ").strip()
+            if username:
+                _run_sa(username)
+    else:
+        print(f"{COLORS['1'][0]}❌ Social Analyzer not installed{RESET}\n")
+        install = input("Install now into pythonOS_data/socialanalyzer? (y/N): ").strip().lower()
+        if install == 'y':
+            try:
+                print("Installing Social Analyzer via pip into local data folder...")
+                subprocess.check_call([
+                    sys.executable, "-m", "pip", "install", "--upgrade",
+                    "social-analyzer", "--target", social_dir
+                ])
+                # pip often installs the package directory with a hyphen which isn't
+                # a valid Python identifier.  rename it so imports succeed.
+                try:
+                    orig = os.path.join(social_dir, "social-analyzer")
+                    new = os.path.join(social_dir, "social_analyzer")
+                    if os.path.isdir(orig) and not os.path.isdir(new):
+                        os.rename(orig, new)
+                except Exception:
+                    pass
+                # link wrapper (wrapper will live at script root and simply set
+                # PYTHONPATH before calling the module; arguments propagate via
+                # sys.argv so the CLI works normally)
+                wrapper = os.path.join(SCRIPT_DIR, "social-analyzer")
+                try:
+                    with open(wrapper, 'w') as w:
+                        w.write(
+                            "#!/usr/bin/env python3\n"
+                            "import os, sys\n"
+                            f"os.environ.setdefault('PYTHONPATH', '{social_dir}' + os.pathsep + os.environ.get('PYTHONPATH',''))\n"
+                            "# call the package via -m if possible (this is the simplest and\n"
+                            "# will honour command-line arguments\n"
+                            "\n"
+                            "if __name__ == '__main__':\n"
+                            "    # re-invoke using module form so that __main__.py executes\n"
+                            "    os.execv(sys.executable, [sys.executable, '-m', 'social_analyzer'] + sys.argv[1:])\n"
+                        )
+                    os.chmod(wrapper, 0o755)
+                except Exception:
+                    pass
+                if is_installed():
+                    print(f"{COLORS['2'][0]}✅ Installation complete{RESET}")
+                    run_now = input("Run Social Analyzer now? (y/N): ").strip().lower()
+                    if run_now == 'y':
+                        username = input("Enter username to analyze: ").strip()
+                        if username:
+                            _run_sa(username)
+            except Exception as e:
+                print(f"Installation failed: {e}")
+        if not is_installed():
+            print("\nYou can also install manually using pip or git:")
+            print("  pip install social-analyzer")
+            print("  git clone https://github.com/qeeqbox/social-analyzer.git && cd social-analyzer && python setup.py install")
+            print("  pipx install git+https://github.com/qeeqbox/social-analyzer.git")
+            print("\nRepository: https://github.com/qeeqbox/social-analyzer")
+            if input("\nOpen Download Center to grab it? (y/N): ").strip().lower() == 'y':
+                feature_download_center()
+    input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
 
 def feature_sherlock_tool():
