@@ -162,6 +162,15 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SCRIPT_DIR_FOR_EXTRACTION = os.path.join(SCRIPT_DIR, "pythonOS_data", "swap")
 
 # Define embedded module content as constants
+
+# location for extracted resources and optional local installs
+DATA_DIR = os.path.join(SCRIPT_DIR, "pythonOS_data")
+LOCAL_PYTHON_PACKAGES = os.path.join(DATA_DIR, "python_packages")
+# ensure directories exist and are on path
+os.makedirs(LOCAL_PYTHON_PACKAGES, exist_ok=True)
+if LOCAL_PYTHON_PACKAGES not in sys.path:
+    sys.path.insert(0, LOCAL_PYTHON_PACKAGES)
+
 EMBEDDED_LOGGER_SYSTEM = '''"""
 🔍 Centralized Logging System for PythonOS
 ==========================================
@@ -22821,10 +22830,23 @@ def _create_and_install_in_venv(package: str, venv_path: str | None = None) -> t
         return False, venv_path
 
 
-def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool = True) -> bool:
-    """Try pip install; on PEP-668 errors attempt OS package then virtualenv fallback."""
-    print(f"📥 Installing package: {package}")
-    pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', package]
+def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool = True, local: bool = False) -> bool:
+    """Try pip install; on PEP-668 errors attempt OS package then virtualenv fallback.
+
+    If ``local`` is True the package will be installed into the
+    ``pythonOS_data/python_packages`` directory using ``pip --target`` and
+    the folder is automatically added to ``sys.path`` so imported packages
+    are available to the script without needing a global install.
+    """
+    print(f"📥 Installing package: {package} (local={local})")
+    if local:
+        # install into local package directory
+        pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', '--target', LOCAL_PYTHON_PACKAGES, package]
+        # ensure target dir is on path
+        if LOCAL_PYTHON_PACKAGES not in sys.path:
+            sys.path.insert(0, LOCAL_PYTHON_PACKAGES)
+    else:
+        pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', package]
     res = _run_cmd_capture(pip_cmd)
     if res.returncode == 0:
         return True
@@ -24492,7 +24514,11 @@ def _download_center_print_commands(os_key, entry):
         print(f"{COLORS['4'][0]}No install commands available for this OS.{RESET}")
         return []
     available_mgrs = _detect_package_managers()
-    print(f"\n{BOLD}Install Commands ({os_key}):{RESET}")
+    local_flag = os.getenv("PYTHONOS_LOCAL_INSTALL", "0") == "1"
+    if local_flag:
+        print(f"\n{BOLD}Install Commands ({os_key}) [local install to {LOCAL_PYTHON_PACKAGES}]:{RESET}")
+    else:
+        print(f"\n{BOLD}Install Commands ({os_key}):{RESET}")
     for cmd in cmd_list:
         if not cmd.strip():
             print(f"  {cmd}")
@@ -24503,12 +24529,29 @@ def _download_center_print_commands(os_key, entry):
         # identify the command's leading executable for manager checking
         parts = cmd.strip().split()
         first = parts[0]
+        # normalize python path if it doesn't exist
+        if os.path.isabs(first) and "python" in os.path.basename(first) and not os.path.exists(first):
+            cmd = cmd.replace(first, sys.executable)
+            first = sys.executable
+            parts = cmd.split()
         if first == "sudo" and len(parts) > 1:
             first = parts[1]
-        if first not in available_mgrs:
-            print(f"  # {cmd}   [manager '{first}' not found on this system]")
+        # allow explicit python paths or existing absolute executables
+        allow_first = False
+        if os.path.isabs(first):
+            # absolute path: only allow if file exists
+            if os.path.exists(first):
+                allow_first = True
+            else:
+                allow_first = False
         else:
+            # non-absolute python executables are fine
+            if first.startswith("python") or first.endswith("python") or first.endswith("python3"):
+                allow_first = True
+        if allow_first or first in available_mgrs:
             print(f"  {cmd}")
+        else:
+            print(f"  # {cmd}   [manager '{first}' not found on this system]")
     links = entry.get("links", [])
     if links:
         print(f"\n{BOLD}Links:{RESET}")
@@ -24521,12 +24564,27 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
     for cmd in cmd_list:
         if cmd.strip().startswith("#") or not cmd.strip():
             continue
-        # check for required manager presence
+        # possible rewrite for python path
         parts = cmd.strip().split()
         exe = parts[0]
+        if os.path.isabs(exe) and "python" in os.path.basename(exe) and not os.path.exists(exe):
+            newexe = sys.executable
+            cmd = cmd.replace(exe, newexe)
+            exe = newexe
         if exe == "sudo" and len(parts) > 1:
             exe = parts[1]
-        if exe not in available_mgrs and exe not in ("python", "bash", "sh", "curl", "git", "echo"):  # allow common tools
+        # check for required manager presence
+        exe_allowed = False
+        if os.path.isabs(exe):
+            if os.path.exists(exe):
+                exe_allowed = True
+            else:
+                exe_allowed = False
+        else:
+            # non-absolute python executables still OK
+            if exe.startswith("python") or exe.endswith("python") or exe.endswith("python3"):
+                exe_allowed = True
+        if not exe_allowed and exe not in available_mgrs and exe not in ("bash", "sh", "curl", "git", "echo"):  # allow common tools
             print(f"{COLORS['1'][0]}⚠️  Skipping '{cmd}' – '{exe}' not found on this system{RESET}")
             continue
         # if this command invokes pip, use our safe installer which handles
@@ -24534,13 +24592,18 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
         # or creating a virtualenv.
         if "-m pip" in cmd or "pip install" in cmd:
             pkgs = _parse_pip_packages_from_cmd(cmd)
+            local_flag = os.getenv("PYTHONOS_LOCAL_INSTALL", "0") == "1"
             if pkgs:
                 for pkg in pkgs:
-                    if not safe_install_package(pkg):
+                    if not safe_install_package(pkg, local=local_flag):
                         print(f"{COLORS['1'][0]}⚠️  Failed to install package {pkg}{RESET}")
                         break
                 continue
             # if we couldn't parse packages, just run normally
+            if local_flag:
+                # append --target if not already present
+                if "--target" not in cmd:
+                    cmd = cmd + f" --target {LOCAL_PYTHON_PACKAGES}"
             r = _run_cmd_capture(cmd, shell=True)
             if r.returncode != 0:
                 print(f"{COLORS['1'][0]}Command failed: {cmd}{RESET}")
