@@ -20152,8 +20152,81 @@ def feature_hydra_bruteforce():
 
 # --- PEN TEST 600% ENHANCEMENT: 27-FEATURE SYSTEM WITH ALGORITHMS ---
 
-def _pt_detect_system_profile():
-    """Algorithm 1: Detect system penetration testing profile"""
+def feature_install_pentest_tools():
+    """Detect package manager and optionally install pentest utilities.
+
+    Works across macOS (Homebrew/MacPorts), Debian/Ubuntu/Kali, Fedora/RHEL,
+    Arch, Alpine, Android Termux, and Windows (Choco/winget). Prompts the user
+    before executing, prints helpful links and handles Apple silicon vs Intel
+    notes.
+    """
+    os.system('cls' if os.name == 'nt' else 'clear')
+    print_header("📦 Install Penetration Testing Tools")
+    os_key = _detect_os_key()
+    arch = platform.machine()
+    commands = []
+    links = []
+
+    def _add_line(prefix, text):
+        print(f"  {text}")
+
+    # prepare per-OS commands and documentation links
+    if os_key == "macos":
+        links = ["https://brew.sh/", "https://www.macports.org/",
+                 "https://nmap.org/", "https://www.aircrack-ng.org/"]
+        if shutil.which("brew"):
+            commands = ["brew update", "brew install nmap aircrack-ng john hashcat hydra"]
+            notes = f"(Homebrew detected, architecture: {arch})"
+        elif shutil.which("port"):
+            commands = ["sudo port selfupdate",
+                        "sudo port install nmap aircrack-ng john hashcat hydra"]
+            notes = f"(MacPorts detected, architecture: {arch})"
+        else:
+            commands = ["# No package manager found – install Homebrew or MacPorts first"]
+            notes = f"(architecture: {arch})"
+        print(f"\n{BOLD}macOS detected {notes}{RESET}")
+    elif os_key in ("debian", "kali"):
+        commands = ["sudo apt update && sudo apt install -y nmap metasploit-framework aircrack-ng john hashcat hydra"]
+        links = ["https://www.kali.org/", "https://nmap.org/", "https://www.aircrack-ng.org/"]
+    elif os_key == "fedora":
+        commands = ["sudo dnf install -y nmap aircrack-ng john hydra"]
+        links = ["https://getfedora.org/", "https://nmap.org/"]
+    elif os_key == "arch":
+        commands = ["sudo pacman -Syu --noconfirm nmap aircrack-ng john hashcat hydra"]
+        links = ["https://archlinux.org/", "https://nmap.org/"]
+    elif os_key == "alpine":
+        commands = ["sudo apk add nmap aircrack-ng john hashcat hydra"]
+        links = ["https://alpinelinux.org/", "https://nmap.org/"]
+    elif os_key == "android":
+        commands = ["pkg install nmap aircrack-ng john hashcat hydra"]
+        links = ["https://termux.com/"]
+    elif os_key == "windows":
+        commands = ["choco install nmap aircrack-ng john hashcat hydra -y"]
+        links = ["https://chocolatey.org/", "https://nmap.org/"]
+    else:
+        commands = ["# Unsupported or unknown OS. Please install tools manually."]
+
+    # display results
+    if commands:
+        print(f"\n{BOLD}Install commands for {os_key}:{RESET}")
+        for cmd in commands:
+            print(f"  {cmd}")
+    if links:
+        print(f"\n{BOLD}Helpful links:{RESET}")
+        for link in links:
+            print(f"  {link}")
+
+    run = input("\nRun install commands now? (y/n): ").strip().lower()
+    if run == 'y':
+        for cmd in commands:
+            if cmd.startswith("#"):
+                print(cmd)
+                continue
+            print(f"{COLORS['6'][0]}Executing: {cmd}{RESET}")
+            os.system(cmd)
+    input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+
+# --- PEN TEST 600% ENHANCEMENT: 27-FEATURE SYSTEM WITH ALGORITHMS ---
     profile = {
         'os': platform.system(),
         'architecture': platform.machine(),
@@ -20513,20 +20586,8 @@ def feature_pentest_toolkit():
         elif choice == '6':
             feature_hydra_bruteforce()
         elif choice == '7':
-            os.system('cls' if os.name == 'nt' else 'clear')
-            print_header("📦 Install Penetration Testing Tools")
-            print(f"\n{BOLD}Installation Commands:{RESET}\n")
-            print(f"{COLORS['6'][0]}Ubuntu/Debian:{RESET}")
-            print("  sudo apt-get update")
-            print("  sudo apt-get install nmap metasploit-framework aircrack-ng john hashcat hydra")
-            print(f"\n{COLORS['6'][0]}Kali Linux:{RESET}")
-            print("  Most tools pre-installed!")
-            print("  sudo apt-get install kali-linux-default")
-            print(f"\n{COLORS['6'][0]}Fedora/RHEL:{RESET}")
-            print("  sudo dnf install nmap aircrack-ng john hydra")
-            print(f"\n{COLORS['6'][0]}macOS:{RESET}")
-            print("  brew install nmap aircrack-ng john hashcat hydra")
-            input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
+            # invoke dynamic installer with OS/package-manager detection
+            feature_install_pentest_tools()
         elif choice == '8':
             feature_download_center()
         elif choice == '9':
@@ -22800,6 +22861,25 @@ def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool
 
 
 def _download_center_catalog():
+    # helper for macOS; brew may not be installed by default
+    def _macos_cmds(packages):
+        cmds = []
+        # prefer Homebrew if available
+        if shutil.which("brew"):
+            cmds.extend(f"brew install {pkg}" for pkg in packages)
+            return cmds
+        # otherwise try MacPorts
+        if shutil.which("port"):
+            cmds.append("# Using MacPorts because Homebrew is not found")
+            cmds.extend(f"sudo port install {pkg}" for pkg in packages)
+            return cmds
+        # neither package manager is installed; suggest installation of Homebrew
+        cmds.append("# Neither Homebrew nor MacPorts detected on this system.")
+        cmds.append("# Install Homebrew first, then rerun the commands below:")
+        cmds.append('/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"')
+        cmds.extend(f"# brew install {pkg}" for pkg in packages)
+        return cmds
+
     return {
         "pentest": {
             "title": "Pen Test Tools (Command Center 12)",
@@ -22838,13 +22918,7 @@ def _download_center_catalog():
                     "sudo apk add hashcat",
                     "sudo apk add hydra"
                 ],
-                "macos": [
-                    "brew install nmap",
-                    "brew install aircrack-ng",
-                    "brew install john",
-                    "brew install hashcat",
-                    "brew install hydra"
-                ],
+                "macos": _macos_cmds(["nmap", "aircrack-ng", "john", "hashcat", "hydra"]),
                 "windows": [
                     "wsl --install -d Ubuntu",
                     "# After reboot, in WSL: sudo apt-get update",
@@ -24395,6 +24469,19 @@ def _download_center_catalog():
         }
     }
 
+
+# package manager detection helper used by download center
+
+def _detect_package_managers():
+    mgrs = []
+    # common package manager executables
+    candidates = ["apt-get", "apt", "dnf", "pacman", "apk", "yum", "zypper", "brew", "port", "choco", "pkg"]
+    for c in candidates:
+        if shutil.which(c):
+            mgrs.append(c)
+    return mgrs
+
+
 def _download_center_print_commands(os_key, entry):
     commands = entry.get("commands", {})
     if os_key in commands:
@@ -24404,9 +24491,24 @@ def _download_center_print_commands(os_key, entry):
     if not cmd_list:
         print(f"{COLORS['4'][0]}No install commands available for this OS.{RESET}")
         return []
+    available_mgrs = _detect_package_managers()
     print(f"\n{BOLD}Install Commands ({os_key}):{RESET}")
     for cmd in cmd_list:
-        print(f"  {cmd}")
+        if not cmd.strip():
+            print(f"  {cmd}")
+            continue
+        if cmd.strip().startswith("#"):
+            print(f"  {cmd}")
+            continue
+        # identify the command's leading executable for manager checking
+        parts = cmd.strip().split()
+        first = parts[0]
+        if first == "sudo" and len(parts) > 1:
+            first = parts[1]
+        if first not in available_mgrs:
+            print(f"  # {cmd}   [manager '{first}' not found on this system]")
+        else:
+            print(f"  {cmd}")
     links = entry.get("links", [])
     if links:
         print(f"\n{BOLD}Links:{RESET}")
@@ -24415,8 +24517,17 @@ def _download_center_print_commands(os_key, entry):
     return cmd_list
 
 def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=None):
+    available_mgrs = _detect_package_managers()
     for cmd in cmd_list:
         if cmd.strip().startswith("#") or not cmd.strip():
+            continue
+        # check for required manager presence
+        parts = cmd.strip().split()
+        exe = parts[0]
+        if exe == "sudo" and len(parts) > 1:
+            exe = parts[1]
+        if exe not in available_mgrs and exe not in ("python", "bash", "sh", "curl", "git", "echo"):  # allow common tools
+            print(f"{COLORS['1'][0]}⚠️  Skipping '{cmd}' – '{exe}' not found on this system{RESET}")
             continue
         # if this command invokes pip, use our safe installer which handles
         # externally-managed environments by falling back to system packages
