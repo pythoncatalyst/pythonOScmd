@@ -17494,6 +17494,35 @@ except Exception:
 # Global weather cache for live ticker
 weather_cache = {"temp": "N/A", "icon": "☁️", "humidity": "N/A", "wind": "N/A"}
 
+# helper to fetch HTTP data with subprocess fallback when requests isn't available
+
+def _http_get_text(url: str, timeout: float = 5.0) -> str:
+    """Return the text response from a URL using requests or curl/wget as fallback."""
+    if REQUESTS_AVAILABLE and requests is not None:
+        try:
+            return requests.get(url, timeout=timeout).text
+        except Exception:
+            pass
+    # try command line tools
+    for cmd in (["curl", "-s", url], ["wget", "-qO-", url]):
+        try:
+            return subprocess.check_output(cmd, stderr=subprocess.DEVNULL, timeout=timeout, text=True)
+        except Exception:
+            continue
+    return ""
+
+
+def _http_get_json(url: str, timeout: float = 5.0):
+    """Fetch JSON from URL similar to _http_get_text but parse result."""
+    text = _http_get_text(url, timeout=timeout)
+    if not text:
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        return None
+
+
 # Global crypto cache for live ticker (BTC / ETH)
 crypto_cache = {
     "bitcoin": {"price": "N/A", "change_24h": None},
@@ -17536,8 +17565,11 @@ def get_crypto_prices(force_refresh: bool = False, ttl: int = 15):
             "sparkline": "false",
             "price_change_percentage": "24h",
         }
-        resp = requests.get(cg_url, params=params, timeout=4)
-        data = resp.json()
+        # Note: _http_get_json cannot send params directly, so construct URL manually
+        # CoinGecko supports query string parameters
+        from urllib.parse import urlencode
+        full_url = cg_url + "?" + urlencode(params)
+        data = _http_get_json(full_url, timeout=4) or []
         for coin in data:
             cid = coin.get("id")
             if cid in ("bitcoin", "ethereum"):
@@ -17548,11 +17580,9 @@ def get_crypto_prices(force_refresh: bool = False, ttl: int = 15):
     except Exception:
         # Fallback to Coinbase public spot price (no change percentage)
         try:
-            for sym in [("bitcoin", "BTC-USD"), ("ethereum", "ETH-USD")]:
-                cid, pair = sym
+            for cid, pair in [("bitcoin", "BTC-USD"), ("ethereum", "ETH-USD")]:
                 cb_url = f"https://api.coinbase.com/v2/prices/{pair}/spot"
-                r = requests.get(cb_url, timeout=3)
-                j = r.json()
+                j = _http_get_json(cb_url, timeout=3) or {}
                 amt = j.get("data", {}).get("amount")
                 crypto_cache[cid]["price"] = float(amt) if amt is not None else "N/A"
                 crypto_cache[cid]["change_24h"] = None
@@ -17599,9 +17629,8 @@ def get_metal_prices(force_refresh: bool = False, ttl: int = 60):
     # Try Kitco for precious metals (gold, silver, platinum, palladium, rhodium)
     try:
         kurl = "https://www.kitco.com/price/precious-metals"
-        r = requests.get(kurl, timeout=6, headers={'User-Agent': 'pythonOScmd/1.0'})
-        page_text = BeautifulSoup(r.text, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else r.text
-
+        page_text_raw = _http_get_text(kurl, timeout=6)
+        page_text = BeautifulSoup(page_text_raw, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else page_text_raw
         for key, label in [('gold', 'Gold'), ('silver', 'Silver'), ('platinum', 'Platinum'), ('palladium', 'Palladium'), ('rhodium', 'Rhodium')]:
             m = re.search(rf'{label}[^0-9\n\r]{{0,40}}([0-9]{{1,3}}(?:,[0-9]{{3}})*(?:\.[0-9]+)?)', page_text, re.I)
             if m:
@@ -17615,8 +17644,7 @@ def get_metal_prices(force_refresh: bool = False, ttl: int = 60):
     # Copper: try CME Group (futures front-month) as primary copper source
     try:
         cme_url = 'https://www.cmegroup.com/markets/metals/base/copper.quotes.html'
-        cr = requests.get(cme_url, timeout=6, headers={'User-Agent': 'pythonOScmd/1.0'})
-        ctext = cr.text
+        ctext = _http_get_text(cme_url, timeout=6)
         # look for patterns like "LAST 5.7880" or "LAST 5.7880 CHANGE"
         m = re.search(r'LAST\s*([0-9]+\.?[0-9]+)', ctext)
         if m:
@@ -17630,8 +17658,8 @@ def get_metal_prices(force_refresh: bool = False, ttl: int = 60):
     try:
         if any(metal_cache[k]['price'] == 'N/A' for k in ('gold', 'silver')):
             lurl = 'https://livegoldsilver.com/'
-            lr = requests.get(lurl, timeout=5, headers={'User-Agent': 'pythonOScmd/1.0'})
-            ltext = BeautifulSoup(lr.text, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else lr.text
+            ltext_raw = _http_get_text(lurl, timeout=5)
+            ltext = BeautifulSoup(ltext_raw, 'html.parser').get_text(' ', strip=True) if 'BeautifulSoup' in globals() and BeautifulSoup else ltext_raw
             for key, label in [('gold', 'Gold'), ('silver', 'Silver')]:
                 if metal_cache[key]['price'] == 'N/A':
                     m = re.search(rf'{label}[^0-9\n\r]{{0,40}}\$?([0-9]{{1,3}}(?:,[0-9]{{3}})*(?:\.[0-9]+)?)', ltext, re.I)
@@ -17798,13 +17826,23 @@ def _fetch_weather_live(*args, **kwargs):
             _fetch_geo_location,
             ttl=3600
         )
-        lat, lon = geo.get('lat'), geo.get('lon')
+        # guard against unexpected cache contents
+        if not geo or not isinstance(geo, dict):
+            raise ValueError("Geolocation lookup returned invalid data")
+        lat = geo.get('lat') or 0
+        lon = geo.get('lon') or 0
+        if not lat or not lon:
+            raise ValueError("Latitude/longitude missing from geolocation response")
         city = geo.get('city', 'Unknown')
 
         # 2. Get Advanced Data from Open-Meteo (No API Key Required)
         om_url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m&wind_speed_unit=mph"
-        om_res = requests.get(om_url, timeout=5).json()
-        current = om_res['current']
+        om_res = _http_get_json(om_url, timeout=5)
+        if not isinstance(om_res, dict):
+            raise ValueError("Open-Meteo returned invalid JSON")
+        current = om_res.get('current')
+        if not current:
+            raise ValueError("Open-Meteo response missing 'current' data")
 
         temp_raw = current['temperature_2m']
         if temp_unit == "F":
@@ -17830,12 +17868,20 @@ def _fetch_weather_live(*args, **kwargs):
         record_memory_checkpoint("weather_fetch")
         return weather_data
     except Exception as e:
-        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Primary weather API failed, trying fallback",
+        import traceback
+        tb = traceback.format_exc()
+        # log exception with traceback for diagnostics
+        RESILIENCE_LOGGER.log(ErrorLevel.WARNING, f"Primary weather API failed, trying fallback: {e}\n{tb}",
                              feature="Weather_API", error=e)
+        # also print debug info to console if logger unavailable
+        try:
+            print(f"[DEBUG] _fetch_weather_live exception: {e}\n{tb}")
+        except Exception:
+            pass
         # Fallback to wttr.in if Open-Meteo fails
         try:
-            res = requests.get("https://wttr.in/?format=%C+%t", timeout=5).text.strip()
-            return {"temp": res.split()[-1], "icon": "⚠️", "city": "Fallback"}
+            res = _http_get_text("https://wttr.in/?format=%C+%t", timeout=5).strip()
+            return {"temp": res.split()[-1] if res else "N/A", "icon": "⚠️", "city": "Fallback"}
         except Exception as e2:
             RESILIENCE_LOGGER.mark_feature_failed("Weather_Display", error=e2)
             return {"temp": "N/A", "icon": "❓", "city": "Unknown"}
@@ -17843,8 +17889,8 @@ def _fetch_weather_live(*args, **kwargs):
 @safe_connection(timeout=3, retry_on_timeout=True, feature_name="GeoLocation_API")
 def _fetch_geo_location(*args, **kwargs):
     """Fetch geolocation with connection resilience."""
-    response = requests.get("http://ip-api.com/json/", timeout=3)
-    return response.json()
+    data = _http_get_json("http://ip-api.com/json/", timeout=3)
+    return data or {}
 
 def feature_weather_display():
     """
@@ -17861,7 +17907,7 @@ def feature_weather_display():
     def _get_location_from_ip():
         """Get location from IP address."""
         try:
-            geo = requests.get("http://ip-api.com/json/?fields=lat,lon,city,region,country", timeout=3).json()
+            geo = _http_get_json("http://ip-api.com/json/?fields=lat,lon,city,region,country", timeout=3) or {}
             return {
                 'lat': geo.get('lat', 0),
                 'lon': geo.get('lon', 0),
@@ -17876,9 +17922,9 @@ def feature_weather_display():
         """Get live weather from Open-Meteo (no API key needed)."""
         try:
             url = f"https://api.open-meteo.com/v1/forecast?latitude={lat}&longitude={lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,precipitation,cloudcover&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,windspeed_10m_max&timezone=auto&forecast_days=5"
-            response = requests.get(url, timeout=5).json()
+            response = _http_get_json(url, timeout=5)
             return response
-        except Exception as e:
+        except Exception:
             return None
 
     def _get_aviation_metar(airport_code):
@@ -29749,6 +29795,124 @@ def live_system_identity_clock():
 
     def _read_proc_net_io():
         try:
+            with open('/proc/net/dev', 'r') as f:
+                lines = f.readlines()[2:]
+            recv = sent = 0
+            for line in lines:
+                parts = line.split()
+                if len(parts) >= 17:
+                    recv += float(parts[1])
+                    sent += float(parts[9])
+            return recv, sent
+        except Exception:
+            return 0.0, 0.0
+
+    # subprocess-based fallbacks (Windows/macOS) for live ticker metrics
+    def _subprocess_cpu_percent():
+        """Return CPU load percentage using platform commands when psutil unavailable."""
+        try:
+            if platform.system() == 'Windows':
+                out = subprocess.check_output(["wmic", "cpu", "get", "loadpercentage"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                lines = [l.strip() for l in out.splitlines() if l.strip()]
+                if len(lines) >= 2:
+                    return float(lines[1])
+            elif platform.system() == 'Darwin':
+                out = subprocess.check_output(["top", "-l", "1", "-n", "0"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                m = re.search(r'CPU usage:\s*([\d\.]+)% user, ([\d\.]+)% sys', out)
+                if m:
+                    return round(float(m.group(1)) + float(m.group(2)), 1)
+        except Exception:
+            pass
+        return 0.0
+
+    def _subprocess_ram_percent():
+        """Return RAM usage percentage via system tools."""
+        try:
+            if platform.system() == 'Windows':
+                out = subprocess.check_output(["wmic", "OS", "get", "FreePhysicalMemory,TotalVisibleMemorySize", "/Value"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                free = total = None
+                for line in out.splitlines():
+                    if line.startswith("FreePhysicalMemory"):
+                        free = float(line.split('=')[1])
+                    elif line.startswith("TotalVisibleMemorySize"):
+                        total = float(line.split('=')[1])
+                if free is not None and total and total > 0:
+                    used = total - free
+                    return round((used / total) * 100, 1)
+            elif platform.system() == 'Darwin':
+                out = subprocess.check_output(["vm_stat"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                pages = {}
+                for line in out.splitlines():
+                    m = re.match(r'([^:]+):\s+(\d+)', line)
+                    if m:
+                        pages[m.group(1)] = int(m.group(2))
+                page_size = 4096
+                free = pages.get('Pages free', 0) + pages.get('Pages inactive', 0)
+                active = pages.get('Pages active', 0) + pages.get('Pages wired down', 0)
+                total_pages = free + active
+                if total_pages:
+                    return round((active / total_pages) * 100, 1)
+        except Exception:
+            pass
+        return 0.0
+
+    def _subprocess_net_io():
+        """Return (bytes_recv, bytes_sent) using platform commands."""
+        recv = sent = 0.0
+        try:
+            if platform.system() == 'Windows':
+                out = subprocess.check_output(["netstat", "-e"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                for line in out.splitlines():
+                    if line.strip().startswith("Bytes"):
+                        parts = line.split()
+                        if len(parts) >= 3:
+                            recv = float(parts[1])
+                            sent = float(parts[2])
+            elif platform.system() in ('Darwin', 'Linux'):
+                out = subprocess.check_output(["netstat", "-ib"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                for line in out.splitlines()[1:]:
+                    cols = line.split()
+                    if len(cols) >= 10:
+                        try:
+                            recv += float(cols[6])
+                            sent += float(cols[9])
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        return recv, sent
+
+    def _subprocess_disk_percent():
+        """Return overall disk usage percent using system utilities."""
+        try:
+            if platform.system() == 'Windows':
+                out = subprocess.check_output(["wmic", "logicaldisk", "get", "size,freespace,caption"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                lines = [l.strip() for l in out.splitlines() if l.strip()]
+                total = used = 0.0
+                for line in lines[1:]:
+                    parts = line.split()
+                    if len(parts) >= 3:
+                        caption, free, size = parts[0], parts[1], parts[2]
+                        try:
+                            free = float(free)
+                            size = float(size)
+                            used += (size - free)
+                            total += size
+                        except Exception:
+                            pass
+                if total > 0:
+                    return round((used / total) * 100, 1)
+            else:
+                out = subprocess.check_output(["df", "-P", "/"], stderr=subprocess.DEVNULL, timeout=1, text=True)
+                parts = out.splitlines()
+                if len(parts) >= 2:
+                    vals = parts[1].split()
+                    if len(vals) >= 5:
+                        return float(vals[4].strip('%'))
+        except Exception:
+            pass
+        return 0.0
+        try:
             rx = 0
             tx = 0
             with open('/proc/net/dev', 'r') as f:
@@ -29810,23 +29974,24 @@ def live_system_identity_clock():
 
         current_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        # CPU (psutil preferred, /proc fallback on Linux)
+        # CPU (psutil preferred, platform-specific fallback otherwise)
         cpu_live = 0.0
         if PSUTIL_AVAILABLE and psutil is not None:
             try:
                 cpu_live = _safe_float(psutil.cpu_percent(), 0.0)
             except Exception:
                 cpu_live = 0.0
-        elif platform.system() == 'Linux':
-            cur_total, cur_idle = _read_proc_cpu()
-            if prev_cpu_total and cur_total > prev_cpu_total:
-                dtot = cur_total - prev_cpu_total
-                didle = cur_idle - prev_cpu_idle
-                cpu_live = (1.0 - (didle / dtot)) * 100.0 if dtot > 0 else 0.0
-            prev_cpu_total, prev_cpu_idle = cur_total, cur_idle
-            cpu_live = round(cpu_live, 1)
         else:
-            cpu_live = 0.0
+            if platform.system() == 'Linux':
+                cur_total, cur_idle = _read_proc_cpu()
+                if prev_cpu_total and cur_total > prev_cpu_total:
+                    dtot = cur_total - prev_cpu_total
+                    didle = cur_idle - prev_cpu_idle
+                    cpu_live = (1.0 - (didle / dtot)) * 100.0 if dtot > 0 else 0.0
+                prev_cpu_total, prev_cpu_idle = cur_total, cur_idle
+                cpu_live = round(cpu_live, 1)
+            else:
+                cpu_live = _subprocess_cpu_percent()
 
         # RAM
         if PSUTIL_AVAILABLE and psutil is not None:
@@ -29834,31 +29999,36 @@ def live_system_identity_clock():
                 ram_live = _safe_float(psutil.virtual_memory().percent, 0.0)
             except Exception:
                 ram_live = 0.0
-        elif platform.system() == 'Linux':
-            try:
-                with open('/proc/meminfo', 'r') as f:
-                    mm = f.read()
-                import re as _re
-                m_total = _re.search(r'MemTotal:\s+(\d+)', mm)
-                m_avail = _re.search(r'MemAvailable:\s+(\d+)', mm)
-                if m_total and m_avail:
-                    total_kb = int(m_total.group(1))
-                    avail_kb = int(m_avail.group(1))
-                    ram_live = round((1.0 - (avail_kb / total_kb)) * 100.0, 1) if total_kb > 0 else 0.0
-                else:
-                    ram_live = 0.0
-            except Exception:
-                ram_live = 0.0
         else:
-            ram_live = 0.0
+            if platform.system() == 'Linux':
+                try:
+                    with open('/proc/meminfo', 'r') as f:
+                        mm = f.read()
+                    import re as _re
+                    m_total = _re.search(r'MemTotal:\s+(\d+)', mm)
+                    m_avail = _re.search(r'MemAvailable:\s+(\d+)', mm)
+                    if m_total and m_avail:
+                        total_kb = int(m_total.group(1))
+                        avail_kb = int(m_avail.group(1))
+                        ram_live = round((1.0 - (avail_kb / total_kb)) * 100.0, 1) if total_kb > 0 else 0.0
+                    else:
+                        ram_live = 0.0
+                except Exception:
+                    ram_live = 0.0
+            else:
+                ram_live = _subprocess_ram_percent()
 
         # Disk
         try:
+            disk_live = 0.0
             if PSUTIL_AVAILABLE and psutil is not None:
                 disk_live = _safe_float(psutil.disk_usage('/').percent, 0.0)
-            else:
-                du = shutil.disk_usage('/')
-                disk_live = round((du.used / du.total) * 100.0, 1) if du.total > 0 else 0.0
+            if disk_live == 0.0:
+                if platform.system() == 'Linux':
+                    du = shutil.disk_usage('/')
+                    disk_live = round((du.used / du.total) * 100.0, 1) if du.total > 0 else 0.0
+                else:
+                    disk_live = _subprocess_disk_percent()
         except Exception:
             disk_live = 0.0
 
@@ -29876,7 +30046,7 @@ def live_system_identity_clock():
             elif platform.system() == 'Linux':
                 now_recv, now_sent = _read_proc_net_io()
             else:
-                now_recv = now_sent = 0.0
+                now_recv, now_sent = _subprocess_net_io()
         except Exception:
             now_recv = now_sent = 0.0
 
