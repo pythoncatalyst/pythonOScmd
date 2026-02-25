@@ -17512,120 +17512,6 @@ metal_cache = {
     "last_update": 0.0,
 }
 
-# Global system metrics cache for live ticker (always try to populate even without external tools)
-system_cache = {
-    "cpu": "N/A",
-    "ram": "N/A",
-    "disk": "N/A",
-    "net_up": "N/A",
-    "net_down": "N/A",
-    "gpu": "N/A",
-    "fan": "N/A",
-    "last_update": 0.0,
-}
-
-@retry_with_backoff(max_attempts=2, initial_delay=0.5, backoff_factor=1.5, feature_name="System_Metrics")
-@graceful_degradation(fallback={"cpu":"N/A","ram":"N/A","disk":"N/A","net_up":"N/A","net_down":"N/A","gpu":"N/A","fan":"N/A"}, feature_name="System_Ticker")
-def get_system_metrics(force_refresh: bool = False, ttl: int = 10):
-    """Gather system metrics for ticker, with caching and fallbacks."""
-    global system_cache
-    now = time.time()
-    if not force_refresh and (now - float(system_cache.get("last_update", 0))) < ttl:
-        return system_cache
-
-    # if psutil isn't available we avoid importing it entirely (prevents decorator from seeing exceptions)
-    if not globals().get('PSUTIL_AVAILABLE', False) or 'psutil' not in globals() or globals().get('psutil') is None:
-        # primitive fallbacks
-        try:
-            import os
-            load1, *_ = os.getloadavg()
-            cpu_percent = (load1 / (os.cpu_count() or 1)) * 100
-            system_cache["cpu"] = f"{cpu_percent:.1f}%"
-        except Exception:
-            system_cache["cpu"] = "N/A"
-        try:
-            import os
-            pages = os.sysconf('SC_PHYS_PAGES')
-            page_size = os.sysconf('SC_PAGE_SIZE')
-            avail = os.sysconf('SC_AVPHYS_PAGES')
-            total = pages * page_size
-            free = avail * page_size
-            percent = (1 - free/total) * 100 if total else 0
-            system_cache["ram"] = f"{percent:.1f}%"
-        except Exception:
-            system_cache["ram"] = "N/A"
-        try:
-            import shutil
-            usage = shutil.disk_usage('/')
-            system_cache["disk"] = f"{usage.used/usage.total*100:.1f}%"
-        except Exception:
-            system_cache["disk"] = "N/A"
-        system_cache["net_up"] = "N/A"
-        system_cache["net_down"] = "N/A"
-        system_cache["gpu"] = "N/A"
-        system_cache["fan"] = "N/A"
-        system_cache["last_update"] = now
-        return system_cache
-
-    # psutil is available, gather detailed metrics
-    try:
-        # CPU and memory
-        system_cache["cpu"] = f"{psutil.cpu_percent(interval=0.5)}%"
-        mem = psutil.virtual_memory()
-        system_cache["ram"] = f"{mem.percent}%"
-        # Disk usage
-        disk = psutil.disk_usage("/")
-        system_cache["disk"] = f"{disk.percent}%"
-        # Network totals
-        net = psutil.net_io_counters()
-        system_cache["net_up"] = f"{net.bytes_sent/1024/1024:.1f}MB"
-        system_cache["net_down"] = f"{net.bytes_recv/1024/1024:.1f}MB"
-        # GPU load (if GPUtil installed)
-        try:
-            import GPUtil
-            gpus = GPUtil.getGPUs()
-            if gpus:
-                system_cache["gpu"] = f"{gpus[0].load*100:.1f}%"
-        except Exception:
-            pass
-        # Fan speeds (if available via psutil)
-        try:
-            fans = psutil.sensors_fans()
-            if fans:
-                for v in fans.values():
-                    if v:
-                        system_cache["fan"] = f"{v[0].current}RPM"
-                        break
-        except Exception:
-            pass
-    except Exception as e:
-        # log at debug so absence of psutil doesn't flood warnings
-        RESILIENCE_LOGGER.log(ErrorLevel.DEBUG, "Failed to gather system metrics", feature="System_Ticker", error=e)
-    finally:
-        system_cache["last_update"] = now
-    return system_cache
-
-def _format_system_ticker_short():
-    """Return compact system metrics string for REPORT COMPLETE and live ticker."""
-    try:
-        metrics = get_system_metrics()
-    except Exception:
-        metrics = system_cache
-    parts = []
-    if metrics.get("cpu"):
-        parts.append(f"CPU:{metrics['cpu']}")
-    if metrics.get("ram"):
-        parts.append(f"RAM:{metrics['ram']}")
-    if metrics.get("disk"):
-        parts.append(f"DSK:{metrics['disk']}")
-    if metrics.get("net_up") or metrics.get("net_down"):
-        parts.append(f"UP:{metrics.get('net_up','?')} DN:{metrics.get('net_down','?')}")
-    if metrics.get("gpu"):
-        parts.append(f"GPU:{metrics['gpu']}")
-    if metrics.get("fan"):
-        parts.append(f"FAN:{metrics['fan']}")
-    return " | ".join(parts)
-
 @retry_with_backoff(max_attempts=3, initial_delay=0.5, backoff_factor=1.5, feature_name="Crypto_API")
 @graceful_degradation(fallback={"bitcoin": {"price": "N/A", "change_24h": None}, "ethereum": {"price": "N/A", "change_24h": None}}, feature_name="Crypto_Ticker")
 def get_crypto_prices(force_refresh: bool = False, ttl: int = 15):
@@ -17906,19 +17792,13 @@ def get_weather_data():
 def _fetch_weather_live(*args, **kwargs):
     """Actually fetch weather data from APIs with resilience."""
     try:
-        # if requests library is missing we can't talk to any API
-        if not REQUESTS_AVAILABLE or requests is None:
-            raise RuntimeError("requests library unavailable")
-
         # 1. Get location via IP (cached for 1 hour)
         geo = get_cached_or_compute(
             "geo_location",
             _fetch_geo_location,
             ttl=3600
         )
-        if not geo or not isinstance(geo, dict):
-            geo = {'lat': 0, 'lon': 0, 'city': 'Unknown'}
-        lat, lon = geo.get('lat', 0), geo.get('lon', 0)
+        lat, lon = geo.get('lat'), geo.get('lon')
         city = geo.get('city', 'Unknown')
 
         # 2. Get Advanced Data from Open-Meteo (No API Key Required)
@@ -17953,15 +17833,12 @@ def _fetch_weather_live(*args, **kwargs):
         RESILIENCE_LOGGER.log(ErrorLevel.WARNING, "Primary weather API failed, trying fallback",
                              feature="Weather_API", error=e)
         # Fallback to wttr.in if Open-Meteo fails
-        if not REQUESTS_AVAILABLE or requests is None:
-            # no network capability at all
-            return {"temp": "N/A", "icon": "❓", "city": "Unknown", "humidity": "N/A", "wind": "N/A", "feels": "N/A"}
         try:
             res = requests.get("https://wttr.in/?format=%C+%t", timeout=5).text.strip()
-            return {"temp": res.split()[-1], "icon": "⚠️", "city": "Fallback", "humidity": "N/A", "wind": "N/A", "feels": "N/A"}
+            return {"temp": res.split()[-1], "icon": "⚠️", "city": "Fallback"}
         except Exception as e2:
             RESILIENCE_LOGGER.mark_feature_failed("Weather_Display", error=e2)
-            return {"temp": "N/A", "icon": "❓", "city": "Unknown", "humidity": "N/A", "wind": "N/A", "feels": "N/A"}
+            return {"temp": "N/A", "icon": "❓", "city": "Unknown"}
 
 @safe_connection(timeout=3, retry_on_timeout=True, feature_name="GeoLocation_API")
 def _fetch_geo_location(*args, **kwargs):
@@ -26808,13 +26685,6 @@ def feature_traffic_report():
             elif 'name' in item:
                 print(f"  🛣️  {item.get('name', 'N/A')}: {item.get('status', 'N/A')} | Speed: {item.get('speed', 'N/A')}")
             print()
-    # Always show current system metrics at end of ticker for visibility
-    try:
-        sys_str = _format_system_ticker_short()
-        if sys_str:
-            print(f"--- System: {sys_str}")
-    except Exception:
-        pass
 
     # Main menu loop
     while True:
@@ -49561,15 +49431,7 @@ def run_classic_command_center():
                 metals_str = _format_metals_ticker_short()
             except Exception:
                 metals_str = ""
-            try:
-                system_str = _format_system_ticker_short()
-            except Exception:
-                system_str = ""
-            combined_str = crypto_str
-            if metals_str:
-                combined_str += "  " + metals_str
-            if system_str:
-                combined_str += "  " + system_str
+            combined_str = crypto_str + ("  " + metals_str if metals_str else "")
             term_w = shutil.get_terminal_size((80, 20)).columns
             left = f"\n{pyai_tag}{get_current_color()}--- ✅ REPORT COMPLETE ---{RESET}"
             left_len = len(_enhanced_strip_ansi(left)) if '_enhanced_strip_ansi' in globals() else len(left)
@@ -51055,7 +50917,7 @@ if __name__ == "__main__":
 # I also added plugin sandboxing (restricted context toggle) and runtime/error
 # logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
 # now saves your display config
-# 2-5-26 Added Download Center 8 AM
+# 2-5-26 Added Download Center 8
 # 2-5-25 Updated Download Center to do updates one at a time
 # Updated AI probing logic
 # 2-5-24 Added AI Probing and Weather Display
