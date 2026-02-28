@@ -714,23 +714,36 @@ class PythonOSCore:
         except Exception as exc:
             log_warning(f"Async plugin init failed: {exc}", component="PythonOSCore")
 
+    def _async_detect_display(self):
+        """Background display detection worker."""
+        try:
+            mode = detect_display_capabilities()
+            global DISPLAY_MODE, DISPLAY_INITIALIZED
+            DISPLAY_MODE = mode
+            DISPLAY_INITIALIZED = True
+            log_info(f"Display mode detected asynchronously: {mode}", component="PythonOSCore")
+        except Exception as exc:
+            log_warning(f"Async display detection failed: {exc}", component="PythonOSCore")
+
     def initialize(self) -> None:
         """Run the full, safe initialization sequence.
 
-        Logger and display detection are executed immediately so that
-        early startup logs and UI state are set. Plugin initialization is
-        dispatched to a background thread to avoid slowing the main
-        startup path, and extraction of embedded files (if needed) can
-        also run concurrently via boot_loader or explicit call.
+        Logger initialization occurs up front so early events are captured.
+        Display detection and plugin loading now execute in parallel threads
+        to minimize blocking the caller.  Both workers log their results when
+        complete.
         """
         self.init_logger()
-        self.detect_display()
+
+        # start display detection in background
+        disp_thread = threading.Thread(target=self._async_detect_display, daemon=True)
+        disp_thread.start()
 
         # spawn thread for plugin system to load in background
-        thread = threading.Thread(target=self._async_init_plugins, daemon=True)
-        thread.start()
+        plugin_thread = threading.Thread(target=self._async_init_plugins, daemon=True)
+        plugin_thread.start()
 
-        log_info("PythonOSCore initialization dispatched", component="PythonOSCore")
+        log_info("PythonOSCore initialization dispatched (plugins+display)", component="PythonOSCore")
 
 
 def initialize_core(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", plugins_dir: str = None) -> PythonOSCore:
@@ -784,10 +797,20 @@ class PythonOSApp:
             try:
                 extract_embedded_files()
                 print("Embedded files extracted.")
+                log_info("Extraction completed via CLI", component="PythonOSApp")
                 return 0
             except Exception as e:
                 log_error(f"Extraction failed: {e}", component="PythonOSApp", exception=e)
                 return 2
+
+        # if not explicitly extracting and sentinel is absent, perform async extraction
+        sentinel = os.path.join(SCRIPT_DIR, ".embedded_extracted")
+        if not os.path.exists(sentinel):
+            try:
+                threading.Thread(target=extract_embedded_files, daemon=True).start()
+                log_info("Scheduled background extraction", component="PythonOSApp")
+            except Exception as e:
+                log_warning(f"Could not start async extraction: {e}", component="PythonOSApp")
 
         # Apply display-mode override if requested
         if args.display_mode:
@@ -8876,7 +8899,20 @@ if __name__ == "__main__":
 '''
 
 def extract_embedded_files():
-    """Extract embedded modules to correct locations."""
+    """Extract embedded modules to correct locations.
+
+    To minimize startup disk I/O we use a sentinel file that indicates
+    extraction has been performed in a previous run.  On subsequent
+    invocations we immediately return without scanning directories or
+    writing files.  When extraction is actually required, we only write
+    files that are missing; unchanged files are never re-written.
+    """
+    # quick check for sentinel
+    sentinel = os.path.join(SCRIPT_DIR, ".embedded_extracted")
+    if os.path.exists(sentinel):
+        # nothing to do
+        return
+
     try:
         # Files that go to SCRIPT_DIR (same directory as pythonOScmd.py)
         script_dir_files = [
@@ -8927,17 +8963,29 @@ def extract_embedded_files():
 
         extracted_count = 0
 
+        # helper that writes file only if missing (or different)
+        def _maybe_write(path: str, data: str) -> bool:
+            if os.path.exists(path):
+                # fast check: size compare first
+                try:
+                    if os.path.getsize(path) == len(data.encode('utf-8')):
+                        return False
+                except Exception:
+                    pass
+            with open(path, 'w', encoding='utf-8') as f:
+                f.write(data)
+            return True
+
         # Extract files to SCRIPT_DIR
         for filename, content, target_dir in script_dir_files:
             file_path = os.path.join(target_dir, filename)
-            if not os.path.exists(file_path):
+            if _maybe_write(file_path, content):
                 print(f"📝 Extracting {filename} to script directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
                 print(f"✅ Created: {file_path}")
                 extracted_count += 1
             else:
-                print(f"ℹ️  {filename} already exists in script dir, skipping...")
+                # skip detailed message to reduce I/O overhead
+                pass
 
         # Extract launcher scripts to SCRIPT_DIR (for easy access)
         launcher_files = [
@@ -8945,17 +8993,12 @@ def extract_embedded_files():
         ]
         for filename, content in launcher_files:
             file_path = os.path.join(SCRIPT_DIR, filename)
-            if not os.path.exists(file_path):
+            if _maybe_write(file_path, content):
                 print(f"📝 Extracting launcher script: {filename}...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
                 print(f"✅ Created: {file_path}")
-                # Make shell script executable on Unix
                 if filename.endswith('.sh'):
                     os.chmod(file_path, 0o755)
                 extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists, skipping...")
 
         # Create pythonOS_data and swap directory structure
         data_dir = os.path.join(SCRIPT_DIR, "pythonOS_data")
@@ -8965,28 +9008,26 @@ def extract_embedded_files():
         # Extract files to data directory (pythonOS_data)
         for filename, content in data_dir_files:
             file_path = os.path.join(data_dir, filename)
-            if not os.path.exists(file_path):
+            if _maybe_write(file_path, content):
                 print(f"📝 Extracting {filename} to pythonOS_data directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
                 print(f"✅ Created: {file_path}")
                 extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists, skipping...")
 
         # Extract files to swap directory
         for filename, content in swap_dir_files:
             file_path = os.path.join(SCRIPT_DIR_FOR_EXTRACTION, filename)
-            if not os.path.exists(file_path):
+            if _maybe_write(file_path, content):
                 print(f"📝 Extracting {filename} to swap directory...")
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(content)
                 print(f"✅ Created: {file_path}")
                 extracted_count += 1
-            else:
-                print(f"ℹ️  {filename} already exists in swap dir, skipping...")
 
         if extracted_count > 0:
+            # write sentinel to avoid future I/O
+            try:
+                with open(sentinel, 'w'):
+                    pass
+            except Exception:
+                pass
             print(f"\n📦 Extracted {extracted_count} modules successfully\n")
         else:
             print(f"\n📦 All modules already exist\n")
@@ -9016,18 +9057,21 @@ def boot_loader():
     """Boot loader with enhanced display mode detection and installation logic."""
     global DISPLAY_MODE, DISPLAY_INITIALIZED
 
-    # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
-    if sys.stdout.encoding != 'utf-8':
-        import io
-        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    try:
+        # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
+        if sys.stdout.encoding != 'utf-8':
+            import io
+            sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    except Exception as e:
+        log_warning(f"Could not reconfigure stdout encoding: {e}", component="boot_loader")
 
     # 0. Extract embedded modules first (fire-and-forget)
-    print("🔧 Initializing pythonOS... (extracting in background)\n")
+    log_info("Starting boot loader, kicking off background extraction", component="boot_loader")
     try:
         t = threading.Thread(target=extract_embedded_files, daemon=True)
         t.start()
     except Exception as e:
-        print(f"⚠️  Background extraction thread failed: {e}")
+        log_error(f"Background extraction thread failed: {e}", component="boot_loader", exception=e)
 
     # 1. Define required libraries
     required = {
@@ -9054,9 +9098,12 @@ def boot_loader():
             missing.add(lib)
             if lib in display_libraries:
                 missing_display.add(lib)
+        except Exception as e:
+            log_warning(f"Unexpected error checking for {lib}: {e}", component="boot_loader")
 
     # 3. Check if display libraries are missing
     if missing_display:
+        log_warning(f"Missing display libraries: {missing_display}", component="boot_loader")
         print(f"\033[93m[!] 📦 Missing Display Libraries: {', '.join(missing_display)}\033[0m")
         print(f"\033[93m[!] This will affect the UI mode (Textual/Rich).\033[0m\n")
 
