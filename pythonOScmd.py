@@ -49533,47 +49533,6 @@ def feature_update_system():
 
 # --- MAIN OPERATING SYSTEM LOOP ---
 
-
-# helper to render system information (can be called repeatedly)
-def _display_system_info(stats: dict):
-    os_name = stats.get('os_name', '<loading>')
-    cpu_arch = stats.get('arch', '<loading>').lower()
-    is_arm = "arm" in cpu_arch or "aarch64" in cpu_arch
-    print(f"💻 Operating System: {BOLD}{os_name}{RESET}")
-    if os_name == "Linux": print("👑 OS Verdict:     King O.S.")
-    elif os_name == "Windows": print("📉 OS Verdict:     You had your chance")
-    elif os_name == "Darwin": print("👸 OS Verdict:     MacOS Queen O.S.")
-    print(f"📦 OS Release:      {stats.get('os_release', '<loading>')}")
-    print(f"🏗️ Architecture:    {stats.get('arch', '<loading>')} ({platform.architecture()[0]})")
-    print(f"📟 Processor Type:  {'ARM Based' if is_arm else 'x86 Based'}")
-    print(f"📛 Node Name:       {platform.node()}")
-    print_header("⚙️ CPU Architecture")
-    print(f"🖥️ Processor:       {stats.get('processor', '<loading>')}")
-    pcores = stats.get('pcores')
-    if pcores is not None: print(f"🧠 Physical Cores:  {pcores}")
-    lcores = stats.get('lcores')
-    if lcores is not None: print(f"🧵 Total Threads:   {lcores}")
-    maxfreq = stats.get('maxfreq')
-    if maxfreq:
-        print(f"⚡ Max Frequency:   {maxfreq:.2f}Mhz")
-    cpu_percent = stats.get('cpu_percent')
-    if cpu_percent is not None:
-        print(f"📈 Current Usage:   {draw_bar(cpu_percent)}")
-    print_header("🌡️ Thermal Sensors")
-    temps = stats.get('temps')
-    if temps:
-        unit_label = "\u00b0F" if temp_unit == "F" else "\u00b0C"
-        # ... (simplified for brevity) just print a couple values
-        for name, entries in temps.items():
-            for entry in entries:
-                c_temp = getattr(entry, 'current', None) if not isinstance(entry, dict) else entry.get('current')
-                if c_temp is None:
-                    continue
-                disp_t = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
-                print(f"🌡️ {name}: {disp_t:.1f}{unit_label}")
-    # additional fields (GPU/fans/memory/disk/network) omitted for brevity
-
-
 def run_classic_command_center():
     global stop_clock, mini_view, truncated_thermal, is_blinking, temp_unit, active_color_key, user_has_chosen, display_mode
 
@@ -49586,54 +49545,79 @@ def run_classic_command_center():
         except Exception as e:
             print(f"⚠️ Plugin system initialization error: {e}")
 
-    # start background collection of heavy system stats
-    system_stats = {}
-    def _collect_system_stats():
-        try:
-            stats = {}
-            stats['os_name'] = platform.system()
-            stats['os_release'] = platform.release()
-            stats['arch'] = platform.machine()
-            stats['processor'] = platform.processor()
-            stats['pcores'], stats['lcores'] = _safe_cpu_counts()
-            stats['maxfreq'] = _safe_cpu_freq()
-            stats['cpu_percent'] = _safe_cpu_percent()
-            if PSUTIL_AVAILABLE and psutil is not None:
-                stats['temps'] = psutil.sensors_temperatures()
-            else:
-                stats['temps'] = _safe_temperatures()
-            try:
-                stats['gpus'] = GPUtil.getGPUs()
-            except:
-                stats['gpus'] = []
-            try:
-                stats['fans'] = psutil.sensors_fans() if PSUTIL_AVAILABLE and psutil is not None else {}
-            except:
-                stats['fans'] = {}
-            stats['mem_info'] = _safe_memory_info()
-            if PSUTIL_AVAILABLE and psutil is not None:
-                stats['disk'] = psutil.disk_usage('/')
-                stats['net_io'] = psutil.net_io_counters()
-            else:
-                du = shutil.disk_usage('/')
-                class _D: pass
-                disk = _D(); disk.total=du.total; disk.used=du.used; disk.free=du.free; disk.percent=round((du.used/du.total)*100,1)
-                stats['disk'] = disk
-                class _N: pass
-                stats['net_io'] = _N(); stats['net_io'].bytes_sent=0; stats['net_io'].bytes_recv=0
-            stats['python_version']=platform.python_version()
-            system_stats.update(stats)
-        except Exception as e:
-            log_warning(f"System stats collection failed: {e}", component="ClassicUI")
-    threading.Thread(target=_collect_system_stats, daemon=True).start()
-
     while True:
         stop_clock = True
         os.system('cls' if os.name == 'nt' else 'clear')
         current_dt = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         print_header("🆔 System Identity", extra_info=f"| 🕒 {current_dt}")
         if not mini_view:
-            _display_system_info(system_stats)
+            os_name = platform.system()
+            cpu_arch = platform.machine().lower()
+            is_arm = "arm" in cpu_arch or "aarch64" in cpu_arch
+            print(f"💻 Operating System: {BOLD}{os_name}{RESET}")
+            if os_name == "Linux": print("👑 OS Verdict:     King O.S.")
+            elif os_name == "Windows": print("📉 OS Verdict:     You had your chance")
+            elif os_name == "Darwin": print("👸 OS Verdict:     MacOS Queen O.S.")
+            print(f"📦 OS Release:      {platform.release()}")
+            print(f"🏗️ Architecture:    {platform.machine()} ({platform.architecture()[0]})")
+            print(f"📟 Processor Type:  {'ARM Based' if is_arm else 'x86 Based'}")
+            print(f"📛 Node Name:       {platform.node()}")
+            print_header("⚙️ CPU Architecture")
+            print(f"🖥️ Processor:       {platform.processor()}")
+            pcores, lcores = _safe_cpu_counts()
+            print(f"🧠 Physical Cores:  {pcores}")
+            print(f"🧵 Total Threads:   {lcores}")
+            maxfreq = _safe_cpu_freq()
+            if maxfreq:
+                print(f"⚡ Max Frequency:   {maxfreq:.2f}Mhz")
+            cpu_percent = _safe_cpu_percent()
+            print(f"📈 Current Usage:   {draw_bar(cpu_percent)}")
+            print_header("🌡️ Thermal Sensors")
+            try:
+                temps = None
+                if PSUTIL_AVAILABLE and psutil is not None:
+                    temps = psutil.sensors_temperatures()
+                else:
+                    temps = _safe_temperatures()
+                if not temps:
+                    print("🚦 Status:          No thermal sensors detected")
+                else:
+                    unit_label = "\u00b0F" if temp_unit == "F" else "\u00b0C"
+                    if truncated_thermal:
+                        core_temps = []
+                        other_temps = []
+                        for name, entries in temps.items():
+                            for entry in entries:
+                                if isinstance(entry, dict):
+                                    c_temp = entry.get('current', None)
+                                    label = entry.get('label') or name
+                                else:
+                                    c_temp = getattr(entry, 'current', None)
+                                    label = getattr(entry, 'label', name)
+                                if c_temp is None:
+                                    continue
+                                val = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
+                                if any(x in label.lower() for x in ["core", "thermal", "soc"]):
+                                    core_temps.append(val)
+                                else:
+                                    other_temps.append(f"{label}: {val:.1f}{unit_label}")
+                        if core_temps: print(f"🌡️ Avg Sensor Temp: {sum(core_temps) / len(core_temps):.1f}{unit_label}")
+                        if other_temps: print(f"🌡️ Other:                 {' | '.join(other_temps)}")
+                    else:
+                        for name, entries in temps.items():
+                            for entry in entries:
+                                if isinstance(entry, dict):
+                                    c_temp = entry.get('current', None)
+                                    label = entry.get('label') or name
+                                else:
+                                    c_temp = getattr(entry, 'current', None)
+                                    label = getattr(entry, 'label', name)
+                                if c_temp is None:
+                                    continue
+                                disp_t = (c_temp * 9/5) + 32 if temp_unit == "F" else c_temp
+                                print(f"🌡️ {label}: ".ljust(17) + f"{disp_t:.1f}{unit_label}")
+            except:
+                print("🚦 Status:          Temperature sensors not supported on this OS")
 
             print_header("🔍 Advanced Hardware Probing")
             try:
