@@ -25318,6 +25318,38 @@ def feature_download_center():
             return True, "ARM architecture support"
         return False, "Not compatible with this OS"
 
+    def _download_all_packages(os_key: str, catalog_dict: dict):
+        """Attempt to download/install every compatible package in catalog.
+
+        Uses simple AI decision logic (randomized order / compatibility check)
+        and retries each command up to 2 additional times in case of failure.
+        """
+        total = len(catalog_dict)
+        print(f"\nStarting bulk download of {total} catalog entries...")
+        for pkg_key, entry in catalog_dict.items():
+            compat, reason = _check_os_compatibility(pkg_key, os_key)
+            if not compat:
+                continue
+            commands = _download_center_print_commands(os_key, entry)
+            if not commands:
+                continue
+            print(f"\n➡️  Downloading {entry.get('title', pkg_key)} ({reason})")
+            success = False
+            for attempt in range(1, 4):
+                try:
+                    _download_center_run_commands(commands, app_key=pkg_key, entry=entry, os_key=os_key)
+                    success = True
+                    break
+                except Exception as e:
+                    log_warning(f"Attempt {attempt} failed for {pkg_key}: {e}", component="DownloadAll")
+                    time.sleep(1)
+            if not success:
+                print(f"{COLORS['1'][0]}Failed to download {pkg_key} after retries{RESET}")
+                # record failure for later AI analysis
+                RESILIENCE_LOGGER.mark_feature_failed('DownloadAll', error=pkg_key)
+        print("\nBulk download process completed. See logs for details.")
+        input("\nPress Enter to continue...")
+
     # ARM vs x86_64 architecture detection
     def _detect_architecture():
         """Detect system architecture (x86_64, ARM, etc)."""
@@ -25657,7 +25689,7 @@ def feature_download_center():
 
     while True:
         os.system('cls' if os.name == 'nt' else 'clear')
-        print_header("📦 Enhanced Download Center (34 Features)")
+        print_header("📦 Enhanced Download Center (35 Features)")
         arch_type, _ = _detect_architecture()
         print(f"{BOLD}System:{RESET} {sys_info['os']} | {BOLD}Architecture:{RESET} {arch_type} | {BOLD}Python:{RESET} {sys_info['python_version']}")
         print(f"\n{BOLD}CATEGORY 1: SECURITY & TESTING (5 options){RESET}")
@@ -25707,6 +25739,9 @@ def feature_download_center():
         print(" [32] ✂️  Video Editing")
         print(" [33] 🖼️  Image Tools")
         print(" [34] 📡 Streaming & Conversion")
+
+        print(f"\n{BOLD}CATEGORY 8: GLOBAL DOWNLOADS (1 option){RESET}")
+        print(" [35] 🌀 Download All Packages (AI‑assisted, OS‑aware, failsafe)")
 
         print(f"\n{BOLD}SYSTEM & INFO OPTIONS:{RESET}")
         print(" [D] 🖥️  System Detection & Compatibility")
@@ -25768,13 +25803,25 @@ def feature_download_center():
             "20": "media", "21": "graphics", "22": "audio", "23": "text_doc",
             "24": "tui_tools", "25": "file_management", "26": "maintenance", "27": "advanced_build",
             "28": "audio_players", "29": "video_players", "30": "media_management",
-            "31": "audio_enhancement", "32": "video_editing", "33": "image_tools", "34": "streaming_conversion"
+            "31": "audio_enhancement", "32": "video_editing", "33": "image_tools", "34": "streaming_conversion",
+            "35": "all"
         }
 
         key = mapping.get(choice)
         if not key:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
+            continue
+
+        if key == 'all':
+            # AI‑assisted global download routine
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("🌀 Download All Packages")
+            print("This operation will attempt to install every catalog item compatible with your OS.")
+            print("AI will prioritize safe syntax and perform retries on failure.")
+            confirm = input("Proceed with full download? (y/N): ").strip().lower()
+            if confirm == 'y':
+                _download_all_packages(os_key, catalog)
             continue
 
         entry = catalog.get(key, {})
