@@ -102,6 +102,7 @@ if sys.platform == 'win32':
 import subprocess
 import os
 import time
+import threading
 import ctypes # Added for Admin/Root probing
 import calendar # Added for AI/Calendar expansion
 import csv
@@ -138,13 +139,15 @@ def detect_display_capabilities():
     """
     try:
         # Try Textual first (most advanced)
-        __import__('textual')
-        __import__('rich')
+        import importlib
+        importlib.import_module('textual')
+        importlib.import_module('rich')
         return "textual"
     except (ImportError, AttributeError):
         try:
             # Fall back to Rich if Textual fails
-            __import__('rich')
+            import importlib
+            importlib.import_module('rich')
             return "rich"
         except ImportError:
             # Ultimate fallback to classic mode
@@ -704,15 +707,30 @@ class PythonOSCore:
             log_warning(f"Display detection failed: {exc}", component="PythonOSCore")
             return DISPLAY_MODE
 
-    def initialize(self) -> None:
-        """Run the full, safe initialization sequence (logger -> display -> plugins)."""
-        self.init_logger()
-        self.detect_display()
+    def _async_init_plugins(self):
+        """Helper run in a thread for non-blocking plugin initialization."""
         try:
             self.init_plugins()
-        except Exception:
-            pass
-        log_info("PythonOSCore initialization complete", component="PythonOSCore")
+        except Exception as exc:
+            log_warning(f"Async plugin init failed: {exc}", component="PythonOSCore")
+
+    def initialize(self) -> None:
+        """Run the full, safe initialization sequence.
+
+        Logger and display detection are executed immediately so that
+        early startup logs and UI state are set. Plugin initialization is
+        dispatched to a background thread to avoid slowing the main
+        startup path, and extraction of embedded files (if needed) can
+        also run concurrently via boot_loader or explicit call.
+        """
+        self.init_logger()
+        self.detect_display()
+
+        # spawn thread for plugin system to load in background
+        thread = threading.Thread(target=self._async_init_plugins, daemon=True)
+        thread.start()
+
+        log_info("PythonOSCore initialization dispatched", component="PythonOSCore")
 
 
 def initialize_core(name: str = "pythonOS", log_dir: str = "/tmp/pythonoslog", plugins_dir: str = None) -> PythonOSCore:
@@ -9003,9 +9021,13 @@ def boot_loader():
         import io
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-    # 0. Extract embedded modules first
-    print("🔧 Initializing pythonOS...\n")
-    extract_embedded_files()
+    # 0. Extract embedded modules first (fire-and-forget)
+    print("🔧 Initializing pythonOS... (extracting in background)\n")
+    try:
+        t = threading.Thread(target=extract_embedded_files, daemon=True)
+        t.start()
+    except Exception as e:
+        print(f"⚠️  Background extraction thread failed: {e}")
 
     # 1. Define required libraries
     required = {
@@ -36014,7 +36036,9 @@ def feature_textual_media_lounge(start_dir=None, screenshot_path=None):
 
     pygame = None  # Will be populated if import succeeds
     try:
-        os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
+        def hide_pygame_support_prompt():
+            import os
+            os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
         import pygame  # type: ignore
         pygame.mixer.init()
         _audio_ready = True
