@@ -857,7 +857,7 @@ class PythonOSApp:
 
 
 EMBEDDED_PLUGIN_SYSTEM = r'''"""🔌 Enhanced Plugin System for PythonOS"""
-import os, re, sys, json, hashlib
+import os, re, sys, json, hashlib, importlib
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Tuple, Callable
 from dataclasses import dataclass, asdict
@@ -1066,11 +1066,20 @@ class LoadedPlugin:
             return None
 
 class PluginManager:
-    def __init__(self, plugins_dir: str = None):
+    def __init__(self, plugins_dir: str = None, extra_dirs: List[str] = None):
         if plugins_dir is None:
             plugins_dir = os.path.join(os.path.expanduser("~"), ".pythonos", "plugins")
         self.plugins_dir = plugins_dir
         Path(self.plugins_dir).mkdir(parents=True, exist_ok=True)
+        # additional directories to look for plugins
+        self.extra_dirs: List[str] = extra_dirs or []
+        try:
+            base = os.path.dirname(__file__)
+            data_plugins = os.path.join(base, "pythonOS_data", "plugins")
+            if os.path.isdir(data_plugins) and data_plugins not in self.extra_dirs:
+                self.extra_dirs.append(data_plugins)
+        except Exception:
+            pass
         self.validator = PluginValidator()
         self.dependency_manager = PluginDependency()
         self.loaded_plugins: Dict[str, LoadedPlugin] = {}
@@ -1082,13 +1091,19 @@ class PluginManager:
     def discover_plugins(self) -> List[str]:
         self.discovered_plugins = {}
         discovered = []
-        if not os.path.exists(self.plugins_dir):
-            return discovered
-        for file_path in Path(self.plugins_dir).glob("*.py"):
-            valid, msg, metadata = self.validator.validate_file(str(file_path))
-            if valid and metadata:
-                self.discovered_plugins[metadata.name] = (str(file_path), metadata)
-                discovered.append(metadata.name)
+        search_dirs = [self.plugins_dir] + list(self.extra_dirs)
+        for directory in search_dirs:
+            if not os.path.isdir(directory):
+                continue
+            for file_path in Path(directory).glob("*.py"):
+                try:
+                    valid, msg, metadata = self.validator.validate_file(str(file_path))
+                except Exception:
+                    continue
+                if valid and metadata:
+                    self.discovered_plugins[metadata.name] = (str(file_path), metadata)
+                    if metadata.name not in discovered:
+                        discovered.append(metadata.name)
         return discovered
 
     def get_statistics(self) -> Dict[str, Any]:
@@ -1099,6 +1114,124 @@ class PluginManager:
             'plugins': list(self.discovered_plugins.keys()),
             'loaded': list(self.loaded_plugins.keys()),
         }
+
+    # helpers required by UI
+    def validate_plugin(self, plugin_name: str) -> Tuple[bool, str]:
+        if plugin_name not in self.discovered_plugins:
+            return False, "Plugin not discovered"
+        path, _ = self.discovered_plugins[plugin_name]
+        valid, msg, _ = self.validator.validate_file(path)
+        return valid, msg
+
+    def get_plugin_info(self, plugin_name: str) -> Dict[str, Any]:
+        if plugin_name in self.loaded_plugins:
+            lp = self.loaded_plugins[plugin_name]
+            info = lp.metadata.to_dict()
+            info.update({
+                'status': lp.status.value,
+                'file_path': lp.file_path,
+                'loaded_at': lp.loaded_at,
+                'checksum': lp.checksum,
+            })
+            return info
+        if plugin_name in self.discovered_plugins:
+            _, md = self.discovered_plugins[plugin_name]
+            info = md.to_dict()
+            info['status'] = PluginStatus.DISCOVERED.value
+            return info
+        return {}
+
+    def get_all_plugins_info(self) -> Dict[str, Dict[str, Any]]:
+        return {name: self.get_plugin_info(name) for name in self.discovered_plugins.keys()}
+
+    def get_dependencies_for(self, plugin_name: str) -> List[str]:
+        return self.dependency_manager.get_dependencies(plugin_name)
+
+    def get_load_order(self) -> List[str]:
+        return self.dependency_manager.get_load_order(self.discovered_plugins)
+
+    def get_event_log(self, count: Optional[int] = None) -> List[Dict[str, Any]]:
+        events = list(self.event_log)
+        return events[-count:] if count is not None else events
+
+    def load_plugin(self, plugin_name: str, sandboxed: bool = False) -> Tuple[bool, str]:
+        """Load a plugin by name; returns (success,msg)."""
+        if plugin_name not in self.discovered_plugins:
+            return False, "Plugin not found"
+        if plugin_name in self.loaded_plugins:
+            return False, "Already loaded"
+
+        path, metadata = self.discovered_plugins[plugin_name]
+        dep_ok, dep_msg = self.dependency_manager.validate_dependencies(plugin_name, list(self.discovered_plugins.keys()))
+        if not dep_ok:
+            return False, f"Dependency error: {dep_msg}"
+
+        try:
+            spec = importlib.util.spec_from_file_location(plugin_name, path)
+            module = importlib.util.module_from_spec(spec)
+            sandbox_obj = None
+            if sandboxed:
+                sandbox_obj = PluginSandbox(allowed_modules=metadata.required_modules or [], permissions=metadata.permissions or [])
+            spec.loader.exec_module(module)
+            checksum = hashlib.sha256(open(path, 'rb').read()).hexdigest()
+            loaded_at = datetime.now().isoformat()
+            for dep in metadata.dependencies:
+                self.dependency_manager.add_dependency(plugin_name, dep)
+            self.loaded_plugins[plugin_name] = LoadedPlugin(
+                name=plugin_name,
+                metadata=metadata,
+                module=module,
+                file_path=path,
+                status=PluginStatus.LOADED,
+                loaded_at=loaded_at,
+                checksum=checksum,
+                sandbox=sandbox_obj,
+            )
+            self.event_log.append({'timestamp': loaded_at, 'type': 'load', 'plugin': plugin_name, 'status': 'success', 'message': 'Loaded'})
+            return True, "Plugin loaded"
+        except Exception as e:
+            err = str(e)
+            self.event_log.append({'timestamp': datetime.now().isoformat(), 'type': 'load', 'plugin': plugin_name, 'status': 'error', 'message': err})
+            return False, f"Load failed: {err}"
+
+    def load_plugin_from_file(self, file_path: str, sandboxed: bool = False) -> Tuple[bool, str]:
+        """Validate & load a python script from any location as a plugin."""
+        if not os.path.isfile(file_path):
+            return False, "File not found"
+        valid, msg, metadata = self.validator.validate_file(file_path)
+        if not valid:
+            return False, msg
+        name = metadata.name
+        # register in discovered cache so normal loading logic applies
+        self.discovered_plugins[name] = (file_path, metadata)
+        return self.load_plugin(name, sandboxed=sandboxed)
+
+    def unload_plugin(self, plugin_name: str) -> Tuple[bool, str]:
+        if plugin_name not in self.loaded_plugins:
+            return False, "Plugin not loaded"
+        try:
+            del self.loaded_plugins[plugin_name]
+            self.event_log.append({'timestamp': datetime.now().isoformat(), 'type': 'unload', 'plugin': plugin_name, 'status': 'success', 'message': 'Unloaded'})
+            return True, "Plugin unloaded"
+        except Exception as e:
+            err = str(e)
+            self.event_log.append({'timestamp': datetime.now().isoformat(), 'type': 'unload', 'plugin': plugin_name, 'status': 'error', 'message': err})
+            return False, f"Unload failed: {err}"
+
+    def call_plugin(self, plugin_name: str, *args, **kwargs) -> Any:
+        if plugin_name not in self.loaded_plugins:
+            raise ValueError("Plugin not loaded")
+        lp = self.loaded_plugins[plugin_name]
+        try:
+            entry = getattr(lp.module, lp.metadata.entry_point, None)
+            if not entry:
+                raise AttributeError(f"Entry point '{lp.metadata.entry_point}' not found")
+            result = entry(*args, **kwargs)
+            self.event_log.append({'timestamp': datetime.now().isoformat(), 'type': 'call', 'plugin': plugin_name, 'status': 'success', 'message': 'called'})
+            return result
+        except Exception as e:
+            self.event_log.append({'timestamp': datetime.now().isoformat(), 'type': 'call', 'plugin': plugin_name, 'status': 'error', 'message': str(e)})
+            raise
 
 PLUGIN_MANAGER = None
 
@@ -28397,8 +28530,8 @@ def feature_enhanced_calendar():
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📅 AI-Enhanced Calendar Management & Scheduling (v2.0)")
         print(f" {BOLD}[1]{RESET} 📅 Smart Calendar View")
-        print(f" {BOLD}[2]{RESET} �️ Deep Time Calendar")
-        print(f" {BOLD}[3]{RESET} ⏰ Work Hours Calculator")
+        print(f" {BOLD}[2]{RESET} 📊 Schedule Analysis & Month Density")
+        print(f" {BOLD}[3]{RESET} ⏳ Deep Time Calendar")
         print(f" {BOLD}[4]{RESET} 🎯 Optimal Meeting Slot Finder")
         print(f" {BOLD}[5]{RESET} 📈 Project Timeline Estimator")
         print(f" {BOLD}[6]{RESET} 🌙 Lunar-Linguistic Calendar 364 Days + 0")
@@ -28685,32 +28818,20 @@ W4,22,23,24,25,26,27,28''')
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif choice == '3':
-            print_header("⏰ AI Work Hours Calculator")
-            print(f"\n{BOLD}Calculate available work hours:{RESET}\n")
-
+            print_header("⏳ Deep Time Calendar")
+            # execute the deep_time_calender plugin script directly so
+            # the full interactive menu and features are available
             try:
-                start = int(input("Work start hour (e.g., 9 for 9 AM): ").strip())
-                end = int(input("Work end hour (e.g., 17 for 5 PM): ").strip())
-                work_days = int(input("Work days per week (e.g., 5): ").strip())
-
-                hours = calendar_optimizer.calculate_work_hours(start, end, work_days)
-
-                print(f"\n{BOLD}📊 Work Hours Breakdown:{RESET}")
-                print(f"  Daily: {hours['daily_hours']} hours")
-                print(f"  Weekly: {hours['weekly_hours']} hours")
-                print(f"  Monthly: {hours['monthly_hours']:.0f} hours")
-                print(f"  Yearly: {hours['yearly_hours']:.0f} hours")
-
-                print(f"\n{BOLD}🎯 Time Allocation Suggestions (Weekly):{RESET}")
-                weekly = hours['weekly_hours']
-                print(f"  🎓 Deep Work: {weekly * 0.60:.0f} hours (60%)")
-                print(f"  💬 Meetings: {weekly * 0.20:.0f} hours (20%)")
-                print(f"  📧 Admin: {weekly * 0.15:.0f} hours (15%)")
-                print(f"  🔄 Flexibility: {weekly * 0.05:.0f} hours (5%)")
-
-            except ValueError:
-                print(f"\n{COLORS['3'][0]}[!] Invalid input{RESET}")
-
+                import runpy
+                dt_path = os.path.join(DATA_DIR, "plugins", "deep_time_calender.py")
+                if not os.path.exists(dt_path):
+                    print(f"{COLORS['1'][0]}[!] Deep Time Calendar script not found at {dt_path}{RESET}")
+                else:
+                    # running as __main__ will execute CLI/menu code
+                    runpy.run_path(dt_path, run_name="__main__")
+            except Exception as exc:
+                print(f"{COLORS['1'][0]}Error executing Deep Time Calendar: {exc}{RESET}")
+            # pause before returning
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
         elif choice == '4':
@@ -35251,11 +35372,17 @@ def _validate_plugin(pm):
     for i, name in enumerate(stats['plugins'], 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
 
-    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    choice = input(f"\n{BOLD}Select plugin number or name: {RESET}").strip()
 
     try:
-        idx = int(choice) - 1
-        plugin_name = stats['plugins'][idx]
+        if choice.isdigit():
+            idx = int(choice) - 1
+            plugin_name = stats['plugins'][idx]
+        else:
+            if choice in stats['plugins']:
+                plugin_name = choice
+            else:
+                raise ValueError("no such plugin")
 
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"VALIDATING: {plugin_name}")
@@ -35276,47 +35403,80 @@ def _validate_plugin(pm):
             print(f"\n{COLORS['1'][0]}❌ Validation failed{RESET}")
             print(f"  Error: {msg}")
 
-    except (ValueError, IndexError):
+    except ValueError as e:
+        print(f"\n{COLORS['1'][0]}❌ {e}{RESET}")
+    except IndexError:
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
 
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
 
 def _load_plugin(pm):
-    """Load a plugin."""
+    """Load a plugin (supports reload)."""
     os.system('cls' if os.name == 'nt' else 'clear')
     print_header("📦 LOAD PLUGIN")
 
     stats = pm.get_statistics()
-    available = [p for p in stats['plugins'] if p not in stats['loaded']]
+    all_plugins = stats['plugins']
 
-    if not available:
-        print(f"\n{COLORS['3'][0]}ℹ️  All plugins are loaded{RESET}")
+    if not all_plugins:
+        print(f"\n{COLORS['1'][0]}❌ No plugins discovered{RESET}")
         input(f"\n{BOLD}Press Enter to continue...{RESET}")
         return
 
-    print(f"\n{BOLD}Available plugins to load:{RESET}\n")
-    for i, name in enumerate(available, 1):
-        print(f" {BOLD}[{i}]{RESET} {name}")
+    print(f"\n{BOLD}Plugins:{RESET} (loaded status shown)")
+    for i, name in enumerate(all_plugins, 1):
+        mark = "✅" if name in stats['loaded'] else " "
+        print(f" {BOLD}[{i}]{RESET} {name} {mark}")
 
-    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    choice = input(f"\n{BOLD}Select plugin number, name or file path: {RESET}").strip()
 
     try:
-        idx = int(choice) - 1
-        plugin_name = available[idx]
+        from_file = False
+        plugin_path = None
+        if choice.isdigit():
+            idx = int(choice) - 1
+            plugin_name = all_plugins[idx]
+        elif choice in all_plugins:
+            plugin_name = choice
+        elif os.path.isfile(choice):
+            # loading from arbitrary path
+            plugin_path = choice
+            valid, msg, metadata = pm.validator.validate_file(plugin_path)
+            if not valid:
+                raise ValueError(msg)
+            plugin_name = metadata.name
+            # ensure discovered entry points to path
+            pm.discovered_plugins[plugin_name] = (plugin_path, metadata)
+            from_file = True
+        else:
+            raise ValueError("no such plugin or file")
+
+        already = plugin_name in stats['loaded']
+        if already:
+            resp = input(f"\n{BOLD}Plugin already loaded. Reload? (y/n): {RESET}").strip().lower()
+            if resp != 'y':
+                input(f"\n{BOLD}Press Enter to continue...{RESET}")
+                return
+            pm.unload_plugin(plugin_name)
 
         sandbox = input(f"\n{BOLD}Load in sandbox? (y/n): {RESET}").strip().lower() == 'y'
 
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"LOADING: {plugin_name}")
 
-        success, msg = pm.load_plugin(plugin_name, sandboxed=sandbox)
+        if from_file:
+            success, msg = pm.load_plugin_from_file(plugin_path, sandboxed=sandbox)
+        else:
+            success, msg = pm.load_plugin(plugin_name, sandboxed=sandbox)
 
         if success:
             print(f"\n{COLORS['2'][0]}✅ {msg}{RESET}")
         else:
             print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
 
-    except (ValueError, IndexError):
+    except ValueError as e:
+        print(f"\n{COLORS['1'][0]}❌ {e}{RESET}")
+    except IndexError:
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
 
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
@@ -35336,11 +35496,17 @@ def _unload_plugin(pm):
     for i, name in enumerate(stats['loaded'], 1):
         print(f" {BOLD}[{i}]{RESET} {name}")
 
-    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    choice = input(f"\n{BOLD}Select plugin number or name: {RESET}").strip()
 
     try:
-        idx = int(choice) - 1
-        plugin_name = stats['loaded'][idx]
+        if choice.isdigit():
+            idx = int(choice) - 1
+            plugin_name = stats['loaded'][idx]
+        else:
+            if choice in stats['loaded']:
+                plugin_name = choice
+            else:
+                raise ValueError("no such plugin")
 
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"UNLOADING: {plugin_name}")
@@ -35352,7 +35518,9 @@ def _unload_plugin(pm):
         else:
             print(f"\n{COLORS['1'][0]}❌ {msg}{RESET}")
 
-    except (ValueError, IndexError):
+    except ValueError as e:
+        print(f"\n{COLORS['1'][0]}❌ {e}{RESET}")
+    except IndexError:
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
 
     input(f"\n{BOLD}Press Enter to continue...{RESET}")
@@ -35374,11 +35542,17 @@ def _call_plugin(pm):
         entry_point = info.get('entry_point', 'run') if isinstance(info, dict) else 'run'
         print(f" {BOLD}[{i}]{RESET} {name}")
 
-    choice = input(f"\n{BOLD}Select plugin number: {RESET}").strip()
+    choice = input(f"\n{BOLD}Select plugin number or name: {RESET}").strip()
 
     try:
-        idx = int(choice) - 1
-        plugin_name = stats['loaded'][idx]
+        if choice.isdigit():
+            idx = int(choice) - 1
+            plugin_name = stats['loaded'][idx]
+        else:
+            if choice in stats['loaded']:
+                plugin_name = choice
+            else:
+                raise ValueError("no such plugin")
 
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header(f"CALLING: {plugin_name}")
@@ -35386,7 +35560,9 @@ def _call_plugin(pm):
         result = pm.call_plugin(plugin_name)
         print(f"\n{COLORS['2'][0]}✅ Plugin executed successfully{RESET}")
 
-    except (ValueError, IndexError):
+    except ValueError as e:
+        print(f"\n{COLORS['1'][0]}❌ {e}{RESET}")
+    except IndexError:
         print(f"\n{COLORS['1'][0]}Invalid selection{RESET}")
     except Exception as e:
         print(f"\n{COLORS['1'][0]}❌ Error: {str(e)}{RESET}")
@@ -50646,7 +50822,9 @@ def run_classic_command_center_safe():
                     else:
                         print(f"{COLORS['1'][0]}❌ Feature not available{RESET}")
                         time.sleep(1)
-            except (ValueError, IndexError):
+            except ValueError as e:
+                print(f"\n{COLORS['1'][0]}❌ {e}{RESET}")
+            except IndexError:
                 print(f"{COLORS['1'][0]}❌ Invalid selection{RESET}")
                 time.sleep(1)
 
@@ -51200,7 +51378,7 @@ if __name__ == "__main__":
 # prompts for required libs. It’s wired into Command Center option Q and uses minimal new helpers
 # in the same section as the PWN tools wrapper. See pythonOScmd.py:2800-3018 for the new wrapper
 # and pythonOScmd.py:6206-6214 for the Command Center hook
-# # Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
+# Added a shared _db_connect() with busy_timeout and moved all SQLite usage into
 # context-managed blocks so operations commit safely and reduce lock contention.
 # I also added plugin sandboxing (restricted context toggle) and runtime/error
 # logging for plugin load/run events in pythonOScmd.py, including automatic error log files on failures.
