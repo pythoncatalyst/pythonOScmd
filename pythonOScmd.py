@@ -2,15 +2,17 @@
 # -*- coding: utf-8 -*-
 """pythonOScmd - Unified Terminal Operating System."""
 
-__version__ = "23"
+__version__ = "25"
 __all__ = ["PythonOSCore", "setup_logger", "initialize_core", "run_pytextos", "run_classic_command_center", "extract_embedded_files"]
 
 ################################################################################
 # PYTHONOS COMMAND - UNIFIED TERMINAL OPERATING SYSTEM
 ################################################################################
-# Author: Ahmed Dragonclaw Suche Orangatang DiluteChimp Washington Sayyed
-# Version: pythonOScmd (Version 23)
-# Description: Terminal OS with monitoring, security tools, media capabilities
+# Author: Ahmed Sayyed
+# Incantation: "By the power of Python, I summon forth the Terminal OS! Let it be a realm of endless possibilities, where code and creativity intertwine. May it run with the speed of light and the wisdom of ages. So mote it be!"
+# Incantation: "Dragonclaw Suche Orangatang DiluteChimp Crypto Washington Adam Religion Precession Python Terminal OS.
+# Version: pythonOScmd (Version 25)
+# Description: Terminal OS with monitoring, security tools, media capabilities, Communitatio Pen and Defence tools.
 # What if the OS can be like a game and a learning experience Like a terminal-based T.V. with all the features you could want?
 # TABLE OF CONTENTS:
 # ------------------
@@ -28530,11 +28532,11 @@ def feature_enhanced_calendar():
         os.system('cls' if os.name == 'nt' else 'clear')
         print_header("📅 AI-Enhanced Calendar Management & Scheduling (v2.0)")
         print(f" {BOLD}[1]{RESET} 📅 Smart Calendar View")
-        print(f" {BOLD}[2]{RESET} 📊 Schedule Analysis & Month Density")
-        print(f" {BOLD}[3]{RESET} ⏳ Deep Time Calendar")
+        print(f" {BOLD}[2]{RESET} 📊 Deep Time Calendar")
+        print(f" {BOLD}[3]{RESET} ⏳ Deep Time Calendar APP")
         print(f" {BOLD}[4]{RESET} 🎯 Optimal Meeting Slot Finder")
         print(f" {BOLD}[5]{RESET} 📈 Project Timeline Estimator")
-        print(f" {BOLD}[6]{RESET} 🌙 Lunar-Linguistic Calendar 364 Days + 0")
+        print(f" {BOLD}[6]{RESET} 🌙 Lunar-Linguistic Calendar 364 Days + 0 Day")
         print(f" {BOLD}[7]{RESET} 💡 AI Productivity Insights")
         print(f" {BOLD}[8]{RESET} 🤖 Smart Scheduling Assistant")
         print(f" {BOLD}[9]{RESET} 📋 Event Planner & Templates")
@@ -28545,7 +28547,7 @@ def feature_enhanced_calendar():
             break
         if choice == '6':
             print("========================================")
-            print("   LUNAR-LINGUISTIC CALENDAR: 2026")
+            print("   LUNAR-LINGUISTIC CALENDAR: 2026 - 9999")
             print("       (13 Months / 28 Days)")
             print("========================================\n")
             print("NEW YEAR'S DAY: Day Zero | Gregorian: 2026-01-01")
@@ -28642,7 +28644,7 @@ def feature_enhanced_calendar():
             print("15  16  17  18  19  20  21  |  Dec 18 - Dec 24")
             print("22  23  24  25  26  27  28  |  Dec 25 - Dec 31\n")
             print("========================================")
-            print("END OF CALENDAR YEAR")
+            print("END OF CALENDAR YEAR 2026 - 9999")
             print("========================================")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
 
@@ -49709,8 +49711,70 @@ def feature_update_system():
 
 # --- MAIN OPERATING SYSTEM LOOP ---
 
+def run_minimal_classic_command_center():
+    """Tiny fallback menu that launches almost instantly.
+
+    This variant skips all hardware introspection, plugins, and
+    optional features so that the Classic Command Center can appear
+    even on broken or extremely slow environments.  It mirrors the
+    entries defined in :data:`COMMAND_CENTER_ACTIONS` but does not
+    display any system information or perform any setup work.
+    """
+    # warn about missing optional imports even in minimal mode
+    try:
+        _handle_import_errors()
+    except Exception:
+        pass
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print(f"{BOLD}=== Classic Command Center (Minimal) ==={RESET}\n")
+        for i, (key, meta) in enumerate(COMMAND_CENTER_ACTIONS, 1):
+            title = meta.get("title", key)
+            print(f" {BOLD}[{i}]{RESET} {title}")
+        print(f"\n {BOLD}[0]{RESET} Exit")
+        choice = input("\nSelect option: ").strip()
+        if choice == '0':
+            break
+        try:
+            idx = int(choice) - 1
+            if 0 <= idx < len(COMMAND_CENTER_ACTIONS):
+                key, meta = COMMAND_CENTER_ACTIONS[idx]
+                func = meta.get("func")
+                if func and callable(func):
+                    try:
+                        func()
+                    except Exception as e:
+                        print(f"{COLORS['1'][0]}Error running {key}: {e}{RESET}")
+                        time.sleep(1)
+                else:
+                    print(f"{COLORS['1'][0]}Feature not available{RESET}")
+                    time.sleep(1)
+        except ValueError:
+            continue
+
+
 def run_classic_command_center():
+    """Original classic command center loop.
+
+    The function is deliberately resilient: it will perform preliminary
+    import checks and bootstrap routines, and it honours the
+    ``PYTHONOS_FAST_START`` environment variable.  When that variable is
+    defined the system skips almost all initialization and immediately
+    loads ``run_minimal_classic_command_center`` so the interface appears
+    as quickly as possible—even on broken terminals.
+    """
     global stop_clock, mini_view, truncated_thermal, is_blinking, temp_unit, active_color_key, user_has_chosen, display_mode
+
+    # fast-start environment variable bypasses everything
+    if os.environ.get("PYTHONOS_FAST_START"):
+        return run_minimal_classic_command_center()
+
+    # warn about any missing optional imports before we start
+    try:
+        _handle_import_errors()
+    except Exception:
+        pass
 
     _bootstrap_classic_stack()
 
@@ -50687,7 +50751,11 @@ class FeatureFailsafe:
             "textual_media_lounge": "feature_media_menu",
             "textual_widget_board": "feature_graphing_calculator",
             "enhanced_display_mode": "feature_test_font_size",
+            # if the dashboard fails we always want to drop straight into
+            # the classic interface (and if that fails use minimal mode)
             "unified_dashboard": "run_classic_command_center",
+            "run_classic_command_center": "run_minimal_classic_command_center",
+            "run_classic_command_center_safe": "run_minimal_classic_command_center",
             "textual_file_manager": "feature_curses_file_browser",
 
             # Network Features
@@ -50791,6 +50859,15 @@ def safe_feature_execute(feature_key, feature_func, *args, **kwargs):
 
 def run_classic_command_center_safe():
     """Safe version of classic command center with failsafe for all choices"""
+    # fast-start bypass: go minimal immediately if requested
+    if os.environ.get("PYTHONOS_FAST_START"):
+        return run_minimal_classic_command_center()
+
+    # ensure optional dependencies are checked as well
+    try:
+        _handle_import_errors()
+    except Exception:
+        pass
 
     while True:
         try:
@@ -50942,7 +51019,11 @@ AUTO_RECOVERY = AutoRecovery()
 # ================================================================================
 
 def main_safe():
-    """Main entry point with comprehensive failsafe - GUARANTEED TO RUN"""
+    """Main entry point with comprehensive failsafe - GUARANTEED TO RUN
+
+    Honor ``PYTHONOS_FAST_START`` to shortcut boot sequence when a quick
+    load of the classic menu is required.
+    """
 
     # Initialize safe mode if needed
     global SAFE_MODE_ENABLED, SUPPORTS_ANSI, SUPPORTS_UNICODE
@@ -50957,6 +51038,17 @@ def main_safe():
         os.environ['TERM'] = 'dumb'
     else:
         print(f"[✓] Terminal: {TERMINAL_TYPE}")
+
+    # FAST_START mode short-circuits most startup steps so the
+    # classic command center appears almost instantly.  Useful for
+    # low-resource environments or recovery.
+    if os.environ.get("PYTHONOS_FAST_START"):
+        print("[!] FAST_START detected - skipping init and loading minimal UI")
+        try:
+            run_classic_command_center_safe()
+        except Exception:
+            run_minimal_classic_command_center()
+        return
 
     try:
         # Handle missing imports
