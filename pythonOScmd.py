@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """pythonOScmd - Unified Terminal Operating System."""
 
-__version__ = "25"
+__version__ = "26"
 __all__ = ["PythonOSCore", "setup_logger", "initialize_core", "run_pytextos", "run_classic_command_center", "extract_embedded_files"]
 
 ################################################################################
@@ -11,7 +11,7 @@ __all__ = ["PythonOSCore", "setup_logger", "initialize_core", "run_pytextos", "r
 # Author: Ahmed Sayyed
 # Incantation: "By the power of Python, I summon forth the Terminal OS! Let it be a realm of endless possibilities, where code and creativity intertwine. May it run with the speed of light and the wisdom of ages. So mote it be!"
 # Incantation: "Dragonclaw Suche Orangatang DiluteChimp Crypto Washington Adam Religion Precession Python Terminal OS.
-# Version: pythonOScmd (Version 25)
+# Version: pythonOScmd (Version 26)
 # Description: Terminal OS with monitoring, security tools, media capabilities, Communitatio Pen and Defence tools.
 # What if the OS can be like a game and a learning experience Like a terminal-based T.V. with all the features you could want?
 # TABLE OF CONTENTS:
@@ -31745,7 +31745,8 @@ def feature_network_toolkit():
         print(f"[12] 📦 Download Center (Network Tools)")
         print(f"[13] ↩️ Return to Main Menu")
         print(f"[14] 🕵️ LANs Spy (ARP Poison/Packet Sniff)")
-        net_choice = input("\n🎯 Select a tool (1-14): ").strip()
+        print(f"[15] 🔧 Auto-Extract / SFTP")
+        net_choice = input("\n🎯 Select a tool (1-15): ").strip()
         if net_choice == '1': feature_network_sparkline()
         elif net_choice == '2':
             print_header("📊 Bandwidth Monitor")
@@ -31938,9 +31939,2873 @@ def feature_network_toolkit():
             break
         elif net_choice == '14':
             feature_lans_spy()
+        elif net_choice == '15':
+            feature_auto_extract_sftp()
         else:
             print(f"{COLORS['1'][0]}Invalid option{RESET}")
             time.sleep(1)
+
+
+def feature_auto_extract_sftp():
+    """Combined auto-extraction scanner and simple SFTP UI."""
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🔧 Auto-Extract & SFTP")
+        print("[1] 🔎 Scan for other pythonOScmd installations")
+        print("[2] 🚚 SFTP File Transfer")
+        print("[0] ↩️ Return")
+        choice = input("\nSelect option: ").strip()
+        if choice == '1':
+            auto_extract_scan()
+        elif choice == '2':
+            sftp_ui()
+        elif choice == '0':
+            break
+        else:
+            print(f"{COLORS['1'][0]}Invalid selection{RESET}")
+            time.sleep(1)
+
+
+def auto_extract_scan():
+    """Locate other pythonOScmd.py files and optionally copy them."""
+    print_header("🔎 Scanning for pythonOScmd.py")
+    roots = [os.path.expanduser("~"), "/opt", "/usr/local/bin", "/usr/bin"]
+    found = []
+    for root in roots:
+        for dirpath, dirs, files in os.walk(root):
+            if "pythonOScmd.py" in files:
+                full = os.path.join(dirpath, "pythonOScmd.py")
+                if os.path.abspath(full) != os.path.abspath(__file__):
+                    found.append(full)
+    if not found:
+        print("No other pythonOScmd.py instances found.")
+    else:
+        for path in found:
+            print(f" - {path}")
+            ans = input(f"Copy {os.path.basename(path)} to current directory? (y/n): ").strip().lower()
+            if ans == 'y':
+                try:
+                    dest = os.path.basename(path)
+                    shutil.copy(path, dest)
+                    print(f"Copied to {dest}")
+                except Exception as e:
+                    print(f"Failed to copy: {e}")
+    input("\n[ Press Enter to continue ]")
+
+
+def sftp_ui():
+    """Launch system `sftp` command with simple prompts."""
+    print_header("🚀 SFTP Interface")
+    host = input("Host: ").strip()
+    if not host:
+        return
+    user = input("Username (default current): ").strip() or os.getlogin()
+    port = input("Port (22): ").strip() or "22"
+    print("\nLaunching sftp. Type 'bye' or 'quit' to exit the session.")
+    try:
+        os.system(f"sftp -P {port} {user}@{host}")
+    except Exception as e:
+        print(f"Failed to start sftp: {e}")
+    input("\n[ Press Enter to return ]")
+
+# --- TerminalTrove Embedded Script ---
+
+
+def feature_terminal_trove():
+    """Browse, install and run 500+ terminal TUI/CLI tools from Terminal Trove.
+
+    All program names and descriptions are hardcoded.  When the user chooses
+    to install, the tool's Terminal Trove page is scraped for a GitHub repo
+    link, then the latest release binary matching the current OS/architecture
+    is downloaded, extracted into pythonOS_data/packages/<name>/ and a
+    symlink is created in pythonOS_data/packages/bin/ so the program is on
+    PATH.  Installed tools show a check-mark.  Running a tool hands the
+    terminal over until the user quits the program.
+    """
+    import tarfile, zipfile, shutil, stat as _stat, json as _json
+
+    # ── paths ──────────────────────────────────────────────────────────
+    _PKG = os.path.join(SCRIPT_DIR, "pythonOS_data", "packages")
+    _BIN = os.path.join(_PKG, "bin")
+    _REGISTRY = os.path.join(_PKG, ".registry.json")
+    os.makedirs(_PKG, exist_ok=True)
+    os.makedirs(_BIN, exist_ok=True)
+    if _BIN not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = _BIN + os.pathsep + os.environ.get("PATH", "")
+
+    _SYS = platform.system().lower()
+    _ARCH = platform.machine().lower()
+
+    # ── detect Linux distro + native package manager ──────────────────
+    _DISTRO = ""        # e.g. "fedora", "ubuntu", "arch"
+    _DISTRO_FAMILY = "" # e.g. "rhel", "debian", "arch"
+    _PKG_MGR = ""       # e.g. "dnf", "apt", "pacman"
+    try:
+        _os_rel = {}
+        if os.path.exists("/etc/os-release"):
+            with open("/etc/os-release") as _f:
+                for _ln in _f:
+                    if "=" in _ln:
+                        _k, _v = _ln.strip().split("=", 1)
+                        _os_rel[_k] = _v.strip('"')
+        _DISTRO = _os_rel.get("ID", "").lower()
+        _id_like = _os_rel.get("ID_LIKE", "").lower()
+        if _DISTRO in ("fedora", "rhel", "centos", "rocky", "alma") or "rhel" in _id_like or "fedora" in _id_like:
+            _DISTRO_FAMILY = "rhel"
+            _PKG_MGR = "dnf" if shutil.which("dnf") else ("yum" if shutil.which("yum") else "")
+        elif _DISTRO in ("ubuntu", "debian", "linuxmint", "pop", "elementary", "zorin", "kali") or "debian" in _id_like:
+            _DISTRO_FAMILY = "debian"
+            _PKG_MGR = "apt" if shutil.which("apt") else ""
+        elif _DISTRO in ("arch", "manjaro", "endeavouros", "garuda") or "arch" in _id_like:
+            _DISTRO_FAMILY = "arch"
+            _PKG_MGR = "pacman" if shutil.which("pacman") else ""
+        elif _DISTRO in ("opensuse", "suse", "sles") or "suse" in _id_like:
+            _DISTRO_FAMILY = "suse"
+            _PKG_MGR = "zypper" if shutil.which("zypper") else ""
+        elif _SYS == "darwin":
+            _DISTRO = "macos"
+            _DISTRO_FAMILY = "macos"
+            _PKG_MGR = "brew" if shutil.which("brew") else ""
+    except Exception:
+        pass
+
+    # ── sudo helper: prompt once, reuse credential ────────────────────
+    _sudo_ok = [False]  # mutable so nested funcs can modify
+
+    def _sudo_ensure():
+        """Make sure we have a valid sudo session.
+        Prompts the user for their password ONCE, then sudo caches it."""
+        if _sudo_ok[0]:
+            return True
+        # Check if we already have an active sudo session
+        r = subprocess.run(["sudo", "-n", "true"],
+                           capture_output=True)
+        if r.returncode == 0:
+            _sudo_ok[0] = True
+            return True
+        # Need to prompt
+        print("\n  \U0001f512 Root privileges needed for system install.")
+        print(f"  OS: {_DISTRO or _SYS}  Arch: {_ARCH}  Pkg: {_PKG_MGR or 'none'}")
+        r2 = subprocess.run(["sudo", "-v"])
+        if r2.returncode == 0:
+            _sudo_ok[0] = True
+            return True
+        print("  \u2717 Could not get sudo. Install may fail.")
+        return False
+
+    def _sudo_run(cmd, **kw):
+        """Run a command with sudo. Ensures sudo session first."""
+        _sudo_ensure()
+        return subprocess.run(["sudo"] + cmd, **kw)
+
+    # ── default install paths (not always in $PATH) ───────────────────
+    _HOME = os.path.expanduser("~")
+    _DEFAULT_PATHS = [
+        os.path.join(_HOME, ".cargo", "bin"),       # cargo install
+        os.path.join(_HOME, "go", "bin"),            # go install
+        os.path.join(_HOME, ".local", "bin"),        # pip install --user
+        "/usr/local/bin",
+        "/usr/local/sbin",
+        os.path.join(_HOME, ".local", "share", "gem", "bin"),  # ruby gems
+        "/snap/bin",                                 # snap
+        os.path.join(_HOME, ".npm-global", "bin"),   # npm global
+        os.path.join(_HOME, "bin"),                  # some tools
+        os.path.join(_HOME, ".deno", "bin"),         # deno
+        os.path.join(_HOME, ".bun", "bin"),          # bun
+        _BIN,                                        # our own bin
+    ]
+    # Directories where a tool may live in a sub-folder: <dir>/<name>/<name>
+    _SUBDIR_ROOTS = [SCRIPT_DIR, _PKG]
+    # Also ensure cargo/go/local bins are on PATH for shutil.which
+    for _dp in _DEFAULT_PATHS:
+        if os.path.isdir(_dp) and _dp not in os.environ.get("PATH", ""):
+            os.environ["PATH"] = _dp + os.pathsep + os.environ.get("PATH", "")
+
+    def _search_default_paths(name):
+        """Search common install directories for an executable named *name*.
+        Also checks <SCRIPT_DIR>/<name>/<name> and <_PKG>/<name>/<name>
+        for manually cloned/built tools (e.g. bit/ directory).
+        Returns the absolute path or None."""
+        variants = (name, name.replace("-", "_"), name.replace("-", ""))
+        # 1. flat dir search
+        for d in _DEFAULT_PATHS:
+            for v in variants:
+                fp = os.path.join(d, v)
+                if os.path.isfile(fp) and os.access(fp, os.X_OK):
+                    return fp
+        # 2. sub-directory pattern: <root>/<name>/<name>
+        for root in _SUBDIR_ROOTS:
+            for v in variants:
+                fp = os.path.join(root, v, v)
+                if os.path.isfile(fp) and os.access(fp, os.X_OK):
+                    return fp
+                # also walk the sub-folder for any executable
+                sd = os.path.join(root, v)
+                if os.path.isdir(sd):
+                    for fn in os.listdir(sd):
+                        candidate = os.path.join(sd, fn)
+                        if (os.path.isfile(candidate)
+                                and os.access(candidate, os.X_OK)
+                                and not fn.endswith((
+                                    ".txt", ".md", ".yml", ".yaml",
+                                    ".json", ".toml", ".sh", ".py",
+                                    ".1", ".gz", ".sha256", ".sig",
+                                    ".mod", ".sum", ".go", ".rs",
+                                    ".gitignore", ".goreleaser.yml"))):
+                            return candidate
+        return None
+
+    # ── hardcoded catalogue  (name, description) – sorted A-Z ─────────
+    _CAT = [
+        ("ad", "An adaptable text editor."),
+        ("aerc", "A pretty good email client."),
+        ("aic", "Fetch the latest changelogs for popular AI coding assistants."),
+        ("aider", "AI pair programming in your terminal."),
+        ("ali", "A load testing tool capable of performing real-time analysis."),
+        ("amfora", "A fancy terminal browser for the Gemini protocol."),
+        ("amp", "A complete text editor for your terminal."),
+        ("andcli", "A 2FA TUI for your shell."),
+        ("angryoxide", "A WiFi attack and pentesting tool built in Rust."),
+        ("apisnip", "A TUI tool for trimming OpenAPI specifications down to size."),
+        ("aria2tui", "A TUI client for the aria2 download utility."),
+        ("asak", "A cross-platform audio recording/playback CLI tool with a TUI."),
+        ("astroterm", "A terminal-based star map."),
+        ("atac", "A simple API client (postman like) in your terminal."),
+        ("atop", "An advanced interactive monitor for linux systems."),
+        ("atuin", "Sync, search and backup shell history."),
+        ("auggie", "All the power of Augment Code in your terminal."),
+        ("austin-tui", "The top-like text-based user interface for Austin."),
+        ("awsesh", "A charming TUI for AWS SSO session management."),
+        ("az-tui", "A TUI for managing Azure Container Apps."),
+        ("b4n", "A terminal user interface (TUI) for the Kubernetes API."),
+        ("bandwhich", "Terminal bandwidth utilization tool."),
+        ("basalt", "A TUI for managing Obsidian vaults and notes."),
+        ("bbcli", "A TUI and CLI for accessing BBC News in the terminal."),
+        ("bbrew", "A Homebrew TUI Manager."),
+        ("benben", "A fast and efficient command line audio player and audio converter."),
+        ("bibiman", "A simple TUI for handling your BibLaTeX database."),
+        ("binsider", "Analyze ELF binaries like a boss."),
+        ("bit", "Terminal ANSI Logo Designer & Font Library."),
+        ("bitchat-tui", "A TUI client for bitchat."),
+        ("blink", "tiniest x86-64-linux emulator."),
+        ("bluetui", "TUI for managing bluetooth on Linux."),
+        ("bluetuith", "A TUI bluetooth manager for Linux."),
+        ("blueutil-tui", "A TUI for macOS to interact with bluetooth devices via blueutil."),
+        ("bmm", "Get to your bookmarks in a flash."),
+        ("bmon", "Bandwidth monitor and rate estimator."),
+        ("bookokrat", "A terminal EPUB / PDF ebook reader."),
+        ("bottom", "Yet another cross-platform graphical process/system monitor."),
+        ("braindrop", "A terminal-based client for raindrop.io."),
+        ("branchlet", "Manage Git worktrees with automation from the terminal."),
+        ("broot", "A new way to see and navigate directory trees."),
+        ("brows", "A GitHub releases browser for the terminal."),
+        ("browsr", "A pleasant file explorer in your terminal supporting all filesystems."),
+        ("bt", "Interactive tree-like terminal file manager."),
+        ("btop", "A terminal monitor of resources."),
+        ("bugstalker", "A Modern Rust debugger for Linux x86-64."),
+        ("byobu", "Text-based window manager and terminal multiplexer."),
+        ("caligula", "A user-friendly, lightweight TUI for disk imaging."),
+        ("calcure", "Modern, customizable TUI calendar and task manager."),
+        ("calcurse", "A calendar and scheduling application for the command line."),
+        ("caps-log", "A small TUI journaling tool."),
+        ("cargo-seek", "A TUI for searching, adding and installing cargo crates."),
+        ("carl", "a cal(1) alternative calendar for the command-line."),
+        ("cashd", "A fast and cozy TUI for personal finance management."),
+        ("castero", "A TUI podcast client for the terminal."),
+        ("cava", "Cross-platform Audio Visualizer for Alsa."),
+        ("celerator", "Monitor and debug celery tasks in the terminal."),
+        ("cgdb", "A curses (terminal-based) interface to the GNU Debugger (GDB)."),
+        ("chatuino", "A feature rich TUI Twitch chat client."),
+        ("chawan", "A TUI web browser."),
+        ("chdig", "Dig into ClickHouse with TUI interface."),
+        ("chiko", "A TUI gRPC client."),
+        ("chmod-cli", "effortlessly generate chmod commands."),
+        ("circumflex", "It's Hacker News in your terminal."),
+        ("claude-code", "An agentic coding tool that lives in your terminal, from Anthropic."),
+        ("claws", "A TUI for AWS resource management."),
+        ("climp", "A minimal CLI media player."),
+        ("cloctui", "A TUI interface for CLOC (Count Lines of Code)."),
+        ("cloudflare-speed-cli", "A terminal interface for cloudflare's internet speed tester."),
+        ("cmus", "Small, fast and powerful console music player for Unix-like operating systems."),
+        ("cobib", "The Console Bibliography."),
+        ("codex", "Lightweight coding agent that runs in your terminal from OpenAI."),
+        ("cointop", "cryptocurrency tracking for hackers that like htop."),
+        ("comchan", "A blazingly fast, minimal, and beginner-friendly serial monitor."),
+        ("cpx", "A batteries-included Cargo-like CLI for C++."),
+        ("crates-tui", "A TUI for exploring crates.io."),
+        ("cronboard", "A terminal tool for managing cron jobs locally and on servers."),
+        ("csvi", "A simple cross-platform terminal CSV editor."),
+        ("csvlens", "a csv viewer like less but made for csv."),
+        ("ctop", "A top-like interface for container metrics."),
+        ("cueitup", "Inspect messages in an AWS SQS queue."),
+        ("cull", "Interactive TUI disk space analyzer."),
+        ("cy", "A time traveling terminal multiplexer."),
+        ("datui", "Data Exploration in the Terminal."),
+        ("dawn", "A distraction-free writing environment. draft anything, write now."),
+        ("daylight", "Track sunrise and sunset times in the terminal."),
+        ("dcv", "A TUI viewer for docker-compose."),
+        ("ddv", "A TUI to view Amazon DynamoDB in the terminal."),
+        ("dealve-tui", "Delve into game deals from your terminal."),
+        ("delta", "A viewer for git and diff output."),
+        ("desed", "Demystify and debug your sed scripts, from the comfort of your terminal."),
+        ("dhv", "A TUI for visually exploring disassembled Python bytecode."),
+        ("diffnav", "A git diff pager based on delta but with a file tree."),
+        ("dijo", "scriptable, curses-based, digital habit tracker."),
+        ("diskonaut", "terminal disk space navigator."),
+        ("dive", "A tool for exploring each layer in a docker image."),
+        ("dns53", "Expose your EC2 quickly, easily and privately within a VPC."),
+        ("docfd", "TUI multiline fuzzy document finder."),
+        ("dooit", "A TUI todo manager for the terminal."),
+        ("dotbins", "Keep updated binaries in your dotfiles."),
+        ("dotenvhub", "A TUI to manage your .env files in the terminal."),
+        ("dotstate", "A modern, secure, and user-friendly dotfile manager."),
+        ("doxx", "A viewer for Microsoft Word .docx files in the terminal."),
+        ("drft", "A diff re/viewer and file tree viewer."),
+        ("dry", "A Docker manager for the terminal."),
+        ("dtop", "A high-performance TUI for Docker container management."),
+        ("dua", "View disk space usage and delete unwanted data, fast."),
+        ("ducker", "A slightly quackers Docker TUI."),
+        ("duf", "Disk Usage/Free Utility - a better 'df' alternative."),
+        ("dug", "A global DNS propagation checker on your CLI."),
+        ("dunk", "Prettier git diffs in the terminal."),
+        ("durdraw", "Versatile ASCII and ANSI Art text editor for terminals."),
+        ("dyff", "diff tool for YAML files, and sometimes JSON."),
+        ("e1s", "A TUI for managing AWS ECS Resources."),
+        ("e2c", "A TUI application for managing AWS EC2 instances."),
+        ("ec", "An easy terminal native 3-way git conflict resolver."),
+        ("ecscope", "monitor AWS ECS resources from the terminal."),
+        ("edit", "A TUI editor inspired by MS-DOS for Windows."),
+        ("ekphos", "A lightweight, fast, terminal-based markdown research tool inspired by Obsidian."),
+        ("elia", "A TUI ChatGPT client built with Textual."),
+        ("emacs", "The extensible, customizable, free/libre display editor."),
+        ("endcord", "A feature rich Discord TUI client."),
+        ("enola", "A CLI tool to search for usernames across social networks."),
+        ("envdiff", "A CLI tool to snapshot and diff environments."),
+        ("envx", "A powerful and secure TUI environment variable manager."),
+        ("ereandel", "A Gemini web browser using shell script."),
+        ("erldash", "A simple, terminal-based Erlang dashboard."),
+        ("exosphere", "A CLI / TUI for aggregated patch reporting & system status monitoring via SSH."),
+        ("fat", "A modern, TUI file and archive viewer for your terminal."),
+        ("fex", "A command-line file explorer prioritizing quick navigation."),
+        ("fli", "A command-line tool that simplifies AWS VPC Flow Logs analysis."),
+        ("flameshow", "A flamegraph viewer in the terminal."),
+        ("flamelens", "An interactive flamegraph viewer in the terminal."),
+        ("flawz", "A TUI for browsing CVE security vulnerabilities."),
+        ("flowcontrol", "Flow Control: a programmer's text editor."),
+        ("flowrs", "A TUI application for Apache Airflow."),
+        ("fm", "A minimalistic file manager for the terminal."),
+        ("fnug", "Run all your lints, tests and commands at once, in the terminal."),
+        ("fork-cleaner", "A tool to clean up old and inactive forks on your GitHub account."),
+        ("forgit", "A utility tool powered by fzf for using Git interactively."),
+        ("fq", "jq for binary formats."),
+        ("fresh", "A text editor for your terminal, easy, powerful and fast."),
+        ("froggit", "A modern, minimalist Git TUI."),
+        ("frogmouth", "A Markdown browser for your terminal."),
+        ("fztea", "A flipperzero remote control locally in the terminal and ssh."),
+        ("fuzpad", "A minimalistic note management solution. Powered by fzf."),
+        ("g1c", "Google Cloud Instances Terminal UI Manager."),
+        ("gama", "Manage your GitHub Actions from the terminal."),
+        ("gdb", "The GNU Project Debugger."),
+        ("gemini-cli", "An AI agent that brings the power of Gemini directly into your terminal by Google."),
+        ("ggh", "Recall your SSH sessions."),
+        ("gh-dash", "An interactive GitHub Dashboard for your terminal."),
+        ("git-interactive-rebase-tool", "An improved sequence editor for Git."),
+        ("git-who", "Git blame for file trees."),
+        ("gitnr", "A CLI / TUI to generate .gitignore files using templates."),
+        ("gitlogue", "A git commit history replay tool for the terminal."),
+        ("gitu", "A TUI Git client inspired by Magit."),
+        ("gittype", "A terminal code-typing game that turns your source code into typing challenges."),
+        ("gitui", "A blazing fast TUI for git written in rust."),
+        ("glances", "A cross platform top/htop alternative in python."),
+        ("glues", "A vim-inspired, privacy-first TUI note-taking app with multiple storage options."),
+        ("glow", "Render markdown on the CLI, with pizzazz!"),
+        ("gobang", "A cross platform TUI database management tool written in Rust."),
+        ("gobackup", "A CLI tool to backup your databases, files to cloud storage."),
+        ("gocovsh", "A shell for interacting with Go coverage profiles."),
+        ("gocker", "TUI for Docker management."),
+        ("godap", "A complete terminal user interface (TUI) for LDAP."),
+        ("goji", "Commitizen-like tool for formatting commit messages using emojis."),
+        ("gollama", "Go manage your ollama models."),
+        ("gomuks", "A terminal based Matrix client written in Go."),
+        ("gonzo", "The Go based TUI log analysis tool."),
+        ("gorae", "A TUI librarian for PDFs and EPUBs."),
+        ("goto", "SSH manager for easy server access."),
+        ("gotop", "A terminal-based graphical activity monitor written in Go."),
+        ("gpg-tui", "A terminal user interface for GPG."),
+        ("gping", "Ping, but with a graph."),
+        ("gpterminator", "A TUI for OpenAI's ChatGPT."),
+        ("gri", "manage git/gerrit change requests in the terminal."),
+        ("gruyere", "A tiny (and pretty) program for viewing + killing listening ports."),
+        ("grv", "A Git Repository Viewer."),
+        ("gtop", "System monitoring dashboard for terminal."),
+        ("gtt", "A TUI for Google Translate, ChatGPT, DeepL and other AI services."),
+        ("gurk", "Signal Messenger client for terminal."),
+        ("handler", "A2A Protocol client and developer toolkit."),
+        ("hardcover-tui", "An unofficial terminal user interface (TUI) client for Hardcover.app."),
+        ("harlequin", "The SQL IDE for Your Terminal."),
+        ("havn", "A fast configurable port scanner with reasonable defaults."),
+        ("hazelnut", "A terminal based automated file organizer inspired by Hazel."),
+        ("hdf5_ui", "A TUI for inspection of HDF5 files."),
+        ("heh", "A terminal UI to edit bytes by the nibble."),
+        ("helix", "A post-modern text editor."),
+        ("heretek", "Yet Another GDB TUI Frontend."),
+        ("hexabyte", "A modern, modular, and robust TUI hex editor."),
+        ("hexhog", "A configurable hex viewer/editor."),
+        ("hexpatch", "A binary patcher and editor with a terminal user interface."),
+        ("hishtory", "Your shell history: synced, queryable, and in context."),
+        ("hike", "A Markdown browser for the terminal."),
+        ("hledger-ui", "Fast, friendly, robust plain text accounting software (TUI version)."),
+        ("hnterm", "Hacker News in the terminal."),
+        ("hostctl", "A CLI tool to manage /etc/hosts like a pro!"),
+        ("hours", "no-frills time tracking toolkit for the command line."),
+        ("hstr", "A bash and zsh shell history suggestion box for your command history."),
+        ("htop", "An interactive process viewer."),
+        ("httplab", "Inspect HTTP requests and mock their responses in the terminal."),
+        ("humble-explorer", "cross-platform, command-line Bluetooth Low Energy scanner."),
+        ("hwatch", "An alternative watch command."),
+        ("hwinfo-tui", "A terminal visualization tool for monitoring real-time hardware sensor data from HWInfo."),
+        ("hygg", "Minimalistic Vim-like TUI document reader."),
+        ("iamb", "A matrix client for vim addicts."),
+        ("ibtop", "Real-time terminal monitor for InfiniBand networks."),
+        ("igrep", "Interactive Grep."),
+        ("impala", "TUI for managing WiFi on Linux."),
+        ("incplot", "A CLI tool for drawing great looking plots in the terminal using unicode characters."),
+        ("inspect-cert-chain", "Inspect and debug TLS certificate chains (without OpenSSL)."),
+        ("intelli-shell", "Like IntelliSense, but for shells!"),
+        ("intentrace", "A better strace(1) for everyone."),
+        ("intermodal", "A 40' shipping container for the Internet."),
+        ("irssi", "A well known cross-platform and famous IRC client."),
+        ("isd", "A keyboard-focused, highly customizable systemd units TUI."),
+        ("jellex", "A TUI to filter JSON and JSON Lines data with Python syntax."),
+        ("jiq", "Interactive JSON query tool with real-time output and AI assistance."),
+        ("jira-cli", "Interact with Jira in the Terminal with Jira CLI."),
+        ("jiratui", "Manage JIRA issues directly from the terminal."),
+        ("jjj", "A TUI interface for Jujutsu VCS."),
+        ("jjui", "A terminal user interface for working with Jujutsu."),
+        ("jless", "A command-line JSON viewer."),
+        ("jnv", "Interactive JSON filter using jq."),
+        ("jocalsend", "A TUI file-sharing tool based on the LocalSend protocol."),
+        ("jolt", "A beautiful TUI battery and energy monitor for your terminal."),
+        ("joshuto", "ranger-like terminal file manager written in Rust."),
+        ("jqp", "A TUI playground to experiment with jq."),
+        ("judo", "A multi-database TUI for todo lists."),
+        ("jwt-ui", "A CLI and TUI for decoding/encoding JSON Web Tokens."),
+        ("k9s", "Kubernetes CLI and TUI To Manage Your Clusters In Style!"),
+        ("kakoune", "A modern selection-based modal text editor."),
+        ("kanban-tui", "A customizable task manager in the terminal."),
+        ("kaskade", "A text user interface (TUI) for Apache Kafka."),
+        ("kat", "A TUI and rule-based rendering engine for Kubernetes manifests."),
+        ("kb", "A minimalist knowledge base manager."),
+        ("kbt", "A keyboard tester in terminal."),
+        ("keep-alive", "A lightweight, cross-platform utility to prevent your system from sleeping."),
+        ("keyb", "Create and view custom hotkey cheatsheets in the terminal."),
+        ("kl", "An interactive Kubernetes log viewer for your terminal."),
+        ("kmon", "Linux Kernel Manager and Activity Monitor."),
+        ("kplay", "Inspect messages in a Kafka topic in a simple and deliberate manner."),
+        ("ktea", "An Apache Kafka TUI client."),
+        ("ktop", "A top-like tool for your Kubernetes clusters."),
+        ("ktool", "A TUI Mach-O/ObjC analysis and editing toolkit in the terminal."),
+        ("kupo", "A terminal file manager / browser, kupo!"),
+        ("kyanos", "A simple & powerful eBPF-based network issue, analysis and tracing tool."),
+        ("kyma", "A terminal-based presentation tool with smooth animated transitions."),
+        ("lazycelery", "A TUI for monitoring and managing Celery workers and tasks."),
+        ("lazydocker", "The lazier way to manage everything docker."),
+        ("lazygit", "Simple terminal UI for git commands."),
+        ("lazyjj", "A TUI for Jujutsu / jj."),
+        ("lazyjournal", "A terminal user interface for journalctl."),
+        ("lazykiq", "A rich terminal UI for Sidekiq."),
+        ("lazynpm", "A simple TUI for npm commands."),
+        ("lazysql", "A cross-platform TUI database management tool."),
+        ("lazyssh", "A terminal-based SSH manager."),
+        ("lazyworktree", "Effortless Git worktree management for the terminal."),
+        ("lemurs", "A customizable TUI display/login manager written in Rust."),
+        ("lexy", "A CLI for reading Learn X in Y Minutes directly into your terminal."),
+        ("lf", "A terminal file manager which lists files."),
+        ("lnav", "An ncurses-based log file viewer for the terminal."),
+        ("lobtui", "A TUI for lobste.rs website."),
+        ("loggo", "A powerful terminal app for structured log streaming."),
+        ("logmerger", "A utility to view multiple log files with merged timeline."),
+        ("logria", "A powerful CLI tool that puts log aggregation at your fingertips."),
+        ("logshark", "A CLI / TUI debugger for JSON logs."),
+        ("logss", "A simple cli for logs splitting."),
+        ("lstr", "A fast, minimalist directory tree viewer."),
+        ("lue", "A TUI ebook reader with Text-to-Speech (TTS)."),
+        ("lumon", "The work is mysterious and important..."),
+        ("ly", "A lightweight TUI (ncurses-like) display manager."),
+        ("lynx", "A TUI based web browser."),
+        ("macmon", "Sudoless performance monitoring for Apple Silicon processors."),
+        ("mani", "A CLI tool to help you manage multiple repositories."),
+        ("mandown", "man-page inspired Markdown viewer."),
+        ("manly", "A TUI for viewing man pages in the terminal."),
+        ("mapscii", "The whole world in your console."),
+        ("marchat", "A lightweight realtime terminal chat client and server with E2E support."),
+        ("mastui", "A Modern Mastodon TUI Client."),
+        ("mc", "Midnight Commander, a feature-rich visual file manager for the terminal."),
+        ("mcat", "Parse, convert & preview images, videos & markdown in your terminal."),
+        ("mcp-probe", "Advanced MCP Protocol Debugger & Interactive TUI."),
+        ("mcdu", "A modern disk usage analyzer & developer cleanup tool with a TUI."),
+        ("mdp", "A command-line based markdown presentation tool."),
+        ("mdtt", "Markdown Table Editor TUI."),
+        ("meli", "configurable and extensible terminal email client."),
+        ("meteor", "A highly configurable CLI tool for writing conventional commits."),
+        ("micro", "A modern and intuitive terminal-based text editor."),
+        ("mitmproxy", "A TLS/SSL-capable interception HTTP proxy."),
+        ("mistral-vibe-cli", "A Minimal CLI coding agent by Mistral."),
+        ("mlbt", "A TUI interface for the MLB Statcast API."),
+        ("moc", "A music player with a terminal user interface (TUI)."),
+        ("models", "A fast CLI and TUI for browsing AI models and coding agents."),
+        ("moe", "A command line Nim based editor inspired by Vim."),
+        ("moltbook-tui", "A TUI client for Moltbook, the social network for AI Agents."),
+        ("monitui", "A delightfully minimal TUI for wrangling Hyprland monitors."),
+        ("mop", "stock market tracker for hackers."),
+        ("mprocs", "Run multiple commands in parallel."),
+        ("mqttui", "A TUI tool to publish/subscribe MQTT messages from the terminal."),
+        ("mufetch", "neofetch-style CLI for music."),
+        ("mult", "Run a command multiple times and glance at the outputs."),
+        ("musikcube", "A cross-platform terminal-based music player."),
+        ("nap", "Code snippets in your terminal."),
+        ("navi", "An interactive cheatsheet tool for the command line."),
+        ("ncdu", "A ncurses based disk usage analyzer."),
+        ("ncspot", "A cross-platform ncurses Spotify client."),
+        ("nemu", "ncurses-based TUI for QEMU."),
+        ("neomutt", "A command line mail reader based on mutt."),
+        ("neoss", "User-friendly and detailed socket statistics with a TUI."),
+        ("neovim", "Hyperextensible Vim-based text editor."),
+        ("nethogs", "A linux net top tool."),
+        ("netop", "A network topology visualizer."),
+        ("netscanner", "A network scanning tool."),
+        ("netshow", "An interactive, process-aware network monitoring for your terminal."),
+        ("nmail", "Terminal email client for Linux and macOS."),
+        ("nnn", "The missing terminal file manager for X."),
+        ("noping", "A C library to generate ICMP echo requests with a visualization."),
+        ("nping", "A TUI concurrent ping tool developed in Rust."),
+        ("ntop", "htop-like system-monitor for windows."),
+        ("nvtop", "NVIDIA GPUs htop like monitoring tool."),
+        ("oatmeal", "A TUI to chat with LLMs and direct integrations with your favourite editors."),
+        ("octotype", "A typing trainer for your terminal."),
+        ("oeis-tui", "A TUI and CLI for exploring the On-Line Encyclopedia of Integer Sequences (OEIS)."),
+        ("offpunk", "An offline-first command-line browser."),
+        ("oha", "A tiny TUI program that sends some load to a web application."),
+        ("omm", "A keyboard-driven task manager for the terminal."),
+        ("openclaw", "A self-hosted personal AI assistant with a CLI / TUI control surface."),
+        ("openapi-tui", "Browse and run APIs defined with OpenAPI v3.0 in the TUI."),
+        ("opamui", "A TUI for browsing and searching OCaml opam packages."),
+        ("oq", "A terminal-based OpenAPI Spec (OAS) viewer."),
+        ("orbiton", "A terminal-based text editor and a minimalistic IDE."),
+        ("oryx", "A TUI for sniffing network traffic using eBPF on Linux."),
+        ("osintui", "Open Source Intelligence Terminal User Interface."),
+        ("oterm", "A text-based terminal client for ollama."),
+        ("otree", "A tool to view objects (JSON/YAML/TOML) in a TUI tree widget."),
+        ("otti", "one-time TUI password manager for the terminal."),
+        ("outside", "A multi-purpose weather client for your terminal."),
+        ("ov", "A feature rich terminal-based pager."),
+        ("ox", "A Rust text editor that runs in your terminal!"),
+        ("oxker", "A simple TUI to view & control docker containers."),
+        ("oyo", "A step-through diff viewer."),
+        ("pacseek", "A TUI for searching and installing Arch Linux packages."),
+        ("packemon", "A TUI for generating packets of arbitrary input and monitoring packets."),
+        ("pam", "A minimal CLI tool for managing and executing SQL queries with a TUI."),
+        ("papis", "A powerful and highly extensible CLI document and bibliography manager."),
+        ("parllama", "TUI for ollama and other LLM providers."),
+        ("parqv", "A TUI for visualizing and analyzing files with multiple formats."),
+        ("pass-cli", "A secure, cross-platform, command-line password manager."),
+        ("passepartui", "A TUI for pass."),
+        ("patch-hub", "TUI for lore.kernel.org."),
+        ("pathos", "A terminal interface for editing and managing PATH environment variables."),
+        ("patat", "Terminal-based presentations using Pandoc."),
+        ("pctrl", "A terminal-based process controller."),
+        ("peplum", "The TUI PEP lookup manager for your terminal."),
+        ("perch", "A beautiful terminal social client for Mastodon and Bluesky."),
+        ("phetch", "A terminal client designed to help you quickly navigate the gophersphere."),
+        ("pik", "A TUI for interactively stopping processes."),
+        ("pingtop", "Ping multiple servers and show the result in a top like terminal UI."),
+        ("pkgtop", "An interactive linux package manager & resource monitor."),
+        ("planor", "A TUI client for cloud services for aws, vultr, heroku, etc."),
+        ("pocker", "A TUI tool for Docker."),
+        ("podliner", "Podcasts in any terminal. Fast, clean, offline."),
+        ("pomo", "A terminal Pomodoro Timer."),
+        ("posting", "A powerful HTTP client that lives in your terminal."),
+        ("pproftui", "A terminal-based diagnostic tool for Go pprof data."),
+        ("pqviewer", "View Apache Parquet Files In Your Terminal."),
+        ("process-compose", "A scheduler and orchestrator to manage non-containerized applications."),
+        ("procmux", "A terminal multiplexer for processes."),
+        ("projectable", "A terminal-based project manager."),
+        ("prs", "Stay updated on PRs without leaving the terminal."),
+        ("pspg", "A UNIX pager optimized for tabular data."),
+        ("puffin", "A beautiful terminal dashboard for hledger."),
+        ("pug", "Drive terraform at terminal velocity."),
+        ("pumas", "Power Usage Monitor for Apple Silicon."),
+        ("pvetui", "A Terminal UI for Proxmox VE."),
+        ("pvw", "A terminal-based (TUI) port viewer in Go."),
+        ("pwdsafety", "A command line tool checking password safety."),
+        ("pygitzen", "A python native terminal based Git client."),
+        ("pysentation", "TUI for displaying Python presentations."),
+        ("qmassa", "Terminal-based tool for displaying GPUs usage stats on Linux."),
+        ("qo", "An interactive minimalist TUI to query JSON, CSV, and TSV using SQL."),
+        ("qq", "A jq inspired interoperable config format transcoder with interactive querying."),
+        ("radare2", "unix-like reverse engineering framework and command-line toolset."),
+        ("rainfrog", "A database management TUI for postgres."),
+        ("ralph-tui", "A terminal UI for orchestrating AI coding agents."),
+        ("ranger", "A vim-inspired file manager for the console."),
+        ("reader", "Readability for the command line."),
+        ("recoverpy", "A TUI to interactively recover overwritten or deleted data."),
+        ("reddix", "Reddit, refined for the terminal."),
+        ("redu", "ncdu for your restic repository."),
+        ("regname", "Mass renamer TUI written in Rust."),
+        ("renux", "A terminal-based bulk file renamer with a TUI."),
+        ("repgrep", "An interactive replacer for ripgrep."),
+        ("resto", "Send pretty HTTP & API requests with TUI."),
+        ("resterm", "A TUI REST, GraphQL, gRPC, WebSocket and SSE client."),
+        ("rexi", "A terminal UI for regex testing."),
+        ("rizin", "open source reverse engineering tool based on radare2."),
+        ("roumon", "A universal goroutine monitor with a TUI."),
+        ("rovr", "A post-modern terminal file manager."),
+        ("rssnix", "filesystem-based rss/atom/json feed fetcher and reader."),
+        ("rucola", "A terminal based markdown note manager."),
+        ("rum", "A TUI to list, search and run package.json scripts."),
+        ("rusticon", "A mouse driven SVG favicon editor for your terminal."),
+        ("rustormy", "Minimal neofetch-like weather CLI."),
+        ("s-tui", "terminal-based CPU stress and monitoring utility."),
+        ("s3scanner", "A tool to scan for misconfigured S3 buckets."),
+        ("sampler", "Visualization for any shell command."),
+        ("sc-im", "An ncurses spreadsheet program for terminal."),
+        ("scli", "simple terminal user interface (TUI) for Signal."),
+        ("scooter", "Interactive find and replace in the terminal."),
+        ("sen", "Terminal User Interface for containers."),
+        ("serie", "A rich git commit graph in your terminal, like magic!"),
+        ("serpl", "A simple TUI for search and replace, akin to VS Code."),
+        ("servitor", "A fediverse client with a terminal interface."),
+        ("sidecar", "A TUI dashboard for AI coding agents."),
+        ("sig", "interactive grep (for streaming)."),
+        ("simtool", "A beautiful and powerful TUI for managing iOS simulators."),
+        ("sizeof", "A command-line tool to calculate the size of data structures."),
+        ("slack-term", "A Slack client for your terminal."),
+        ("slides", "A terminal based presentation tool."),
+        ("slumber", "Terminal-based HTTP/REST client."),
+        ("slurm", "Realtime traffic statistics for network interfaces."),
+        ("smassh", "Smassh your Keyboard, TUI Edition."),
+        ("sncli", "A TUI and CLI for Simplenote."),
+        ("snitch", "A TUI for inspecting network everything."),
+        ("snipt", "A powerful text snippet expansion tool."),
+        ("sntop", "A simple network top for monitoring connectivity."),
+        ("so", "A terminal interface for Stack Overflow."),
+        ("sot", "Command-line System Observation Tool."),
+        ("sou", "A tool for exploring files in container image layers."),
+        ("soundscope", "A TUI audio file analyzer tool."),
+        ("spiel", "Display richly-styled presentations using your terminal."),
+        ("spotify-player", "A Spotify player in the terminal with full feature parity."),
+        ("spotify-tui", "Spotify for the terminal written in Rust."),
+        ("sqlit", "A user friendly TUI for SQL databases."),
+        ("squall", "A TUI SQLite viewer and editor."),
+        ("ssh-list", "An SSH connection manager with a TUI interface."),
+        ("ssh-para", "Parallel SSH jobs manager interactive CLI."),
+        ("sshclick", "Terminal based assisted management of your SSH config files."),
+        ("sshs", "Terminal user interface for SSH."),
+        ("ssl-checker", "Fast and beautiful program to check all your https endpoint."),
+        ("stew", "An independent package manager for compiled binaries."),
+        ("stormy", "Minimal, customizable, and neofetch-like weather CLI."),
+        ("sttr", "A CLI/TUI tool to perform 30+ string transformations on text."),
+        ("stu", "A TUI application for AWS S3 written in Rust."),
+        ("sunbeam", "A general purpose command-line launcher."),
+        ("superfile", "fancy, modern file manager in the terminal."),
+        ("superseedr", "A BitTorrent client in your terminal."),
+        ("surge", "A blazing fast TUI download manager."),
+        ("swaptop", "A real-time swap usage monitor with a TUI."),
+        ("systeroid", "A more powerful alternative to sysctl(8)."),
+        ("systemd-manager-tui", "A TUI for managing systemd services."),
+        ("tabiew", "A lightweight TUI application to view and query tabular data files."),
+        ("tailspin", "A log file highlighter."),
+        ("taproom", "An interactive TUI for Homebrew."),
+        ("tasktimer", "A dead simple TUI task timer."),
+        ("taskwarrior-tui", "A terminal user interface for taskwarrior."),
+        ("tatuin", "Task Aggregator TUI for N providers."),
+        ("tcpterm", "A terminal-based TCP dump viewer."),
+        ("tegratop", "A TUI monitoring tool for Nvidia jetson boards."),
+        ("television", "A blazingly fast general purpose fuzzy finder TUI."),
+        ("tempy", "A simple TUI for displaying the current weather in the terminal."),
+        ("tenere", "A TUI interface for LLMs."),
+        ("termdbms", "A terminal UI for editing database files."),
+        ("termscp", "A feature rich terminal file transfer tool."),
+        ("termshark", "A terminal UI (TUI) for tshark, inspired by Wireshark."),
+        ("tewi", "Text-based interface for the Transmission BitTorrent daemon."),
+        ("tgt", "A simple TUI for Telegram."),
+        ("theattyr", "A terminal theater for playing VT100 art and animations."),
+        ("tickrs", "Realtime ticker data in your terminal."),
+        ("tig", "A text-mode interface for Git."),
+        ("tinboard", "A terminal-based client for pinboard.in."),
+        ("tldr-pages", "Collaborative cheatsheets for console commands."),
+        ("tmux", "An open-source terminal multiplexer."),
+        ("tock", "A powerful time tracking tool for the command line."),
+        ("toktop", "htop but for LLM tokens."),
+        ("toolong", "A terminal application to view, tail, merge, and search log files (plus JSONL)."),
+        ("toot", "Interact with Mastodon directly in the terminal."),
+        ("torra", "Find and download torrents without leaving your CLI."),
+        ("tracexec", "A small utility for tracing/debugging program execution."),
+        ("tran", "Securely transfer and send anything between computers with a TUI."),
+        ("tre", "A modern and improved alternative to the tree(1) command."),
+        ("tredis", "A modern TUI for managing Redis servers."),
+        ("treemd", "A TUI and CLI dual pane markdown viewer."),
+        ("trex", "A terminal app for RegEx visualization."),
+        ("trippy", "A TUI network diagnostics tool."),
+        ("tufw", "Terminal UI for ufw."),
+        ("tui-journal", "Your journal app if you live in a terminal."),
+        ("tuisky", "A TUI client for Bluesky."),
+        ("tuime", "A colorful and customizable TUI clock written in Rust."),
+        ("tuios", "A TUI window manager for managing multiple terminal sessions."),
+        ("tuistash", "A terminal user interface for Logstash."),
+        ("tukai", "Terminal based touch typing application."),
+        ("turm", "TUI for the Slurm Workload Manager."),
+        ("tut", "A TUI for Mastodon with vim inspired keys."),
+        ("twitch-tui", "A Twitch chat TUI client for the terminal."),
+        ("ttyper", "A terminal-based typing test."),
+        ("ttyplot", "A realtime terminal plotting utility with data input from stdin."),
+        ("typeinc", "A cool ncurses based typing speed test tool."),
+        ("typioca", "Cozy typing speed tester in terminal."),
+        ("typtea", "A minimal terminal-based type-speed tester."),
+        ("tz", "A terminal based timezone helper."),
+        ("ugdb", "An alternative TUI for gdb."),
+        ("ugm", "A TUI to view information about UNIX users and groups."),
+        ("up", "A tool for writing Linux pipes with instant live preview."),
+        ("updo", "Uptime monitoring CLI tool with alerting and advanced settings."),
+        ("vectro", "The rpn calculator for your terminal."),
+        ("vhs", "Your CLI home video recorder."),
+        ("vi-mongo", "A TUI for managing MongoDB databases."),
+        ("viddy", "A modern watch command, time machine and pager."),
+        ("vifm", "A file manager with curses interface."),
+        ("vignore", "A powerful tool to visualize ignored files."),
+        ("vim", "The ubiquitous text editor."),
+        ("vscli", "A CLI/TUI making it easy to launch Visual Studio Code (vscode) projects."),
+        ("vtop", "Wow such top. So stats. More better than regular top."),
+        ("wakey", "A TUI built for managing and waking your devices using Wake-on-LAN."),
+        ("weechat", "The extensible chat client."),
+        ("wg-cmd", "TUI for managing WireGuard configuration files."),
+        ("whosthere", "A local area network (LAN) discovery tool with a modern TUI interface."),
+        ("wifitui", "A fast, featureful and friendly WiFi terminal UI."),
+        ("wikiman", "A universal offline documentation search engine for manual pages."),
+        ("wiper", "A TUI disk analyser and cleanup tool."),
+        ("wiremix", "A simple TUI audio mixer for PipeWire."),
+        ("wizu", "A fast, minimalist directory tree viewer."),
+        ("wordgrinder", "A cross-platform word processor for the terminal."),
+        ("wtf", "The personal information dashboard for your terminal."),
+        ("wuzz", "An interactive TUI tool for HTTP inspection."),
+        ("xbps-tui", "A TUI-wrapper for xbps package manager on Void Linux."),
+        ("xfr", "A modern iperf3 alternative with a live TUI."),
+        ("xleak", "Expose Excel files in your terminal, no Microsoft Excel required."),
+        ("xpdig", "A TUI to explore crossplane traces."),
+        ("xplr", "A hackable, minimal, fast TUI file explorer."),
+        ("yai", "Your AI powered terminal assistant."),
+        ("yatto", "Interactive Git-based todo-list for the command line."),
+        ("yazi", "Blazing fast terminal file manager written in Rust, based on async I/O."),
+        ("yozefu", "An TUI application for exploring data of a kafka cluster."),
+        ("youtube-tui", "An aesthetically pleasing YouTube TUI written in Rust."),
+        ("yt-x", "Browse youtube from your terminal."),
+        ("zellij", "A terminal workspace with batteries included."),
+        ("zeit", "A simple command-line tool to track your time."),
+        ("zenith", "A terminal UI (TUI) for monitoring system resources."),
+        ("zizmor", "A static analysis tool for GitHub Actions."),
+        ("zrok", "a next-generation peer-to-peer sharing platform."),
+        ("zuse", "A sleek, minimal IRC client for your terminal."),
+    ]
+
+    # also add these extra ones from the user list
+    _extra = [
+        ("hackernews-tui", "A Terminal UI (TUI) to browse Hacker News."),
+        ("wiki-tui", "A fast Wikipedia CLI/TUI client."),
+        ("framework-tool-tui", "A TUI for controlling and monitoring Framework Computers hardware."),
+        ("filessh", "A fast and convenient TUI file browser for remote servers."),
+        ("ssh-list", "An SSH connection manager with a TUI interface."),
+        ("hwinfo-tui", "A terminal visualization tool for monitoring real-time hardware sensor data from HWInfo."),
+        ("systemd-manager-tui", "A TUI for managing systemd services."),
+        ("git-interactive-rebase-tool", "An improved sequence editor for Git."),
+        ("inspect-cert-chain", "Inspect and debug TLS certificate chains (without OpenSSL)."),
+        ("cloudflare-speed-cli", "A terminal interface for cloudflare's internet speed tester."),
+        ("moltbook-tui", "A TUI client for Moltbook, the social network for AI Agents."),
+        ("hardcover-tui", "An unofficial terminal user interface (TUI) client for Hardcover.app."),
+        ("austin-tui", "The top-like text-based user interface for Austin."),
+        ("mistral-vibe-cli", "A Minimal CLI coding agent by Mistral."),
+        ("ralph-tui", "A terminal UI for orchestrating AI coding agents."),
+        ("blueutil-tui", "A TUI for macOS to interact with bluetooth devices via blueutil."),
+        ("dealve-tui", "Delve into game deals from your terminal."),
+        ("bitchat-tui", "A TUI client for bitchat."),
+        ("twitch-tui", "A Twitch chat TUI client for the terminal."),
+        ("taskwarrior-tui", "A terminal user interface for taskwarrior."),
+        ("oeis-tui", "A TUI and CLI for exploring the On-Line Encyclopedia of Integer Sequences (OEIS)."),
+    ]
+    # merge extras (skip if name already exists)
+    existing_names = {n for n, _ in _CAT}
+    for name, desc in _extra:
+        if name not in existing_names:
+            _CAT.append((name, desc))
+    _CAT.sort(key=lambda x: x[0])
+
+    # ── registry helpers ────────────────────────────────────────────────
+    def _reg_load():
+        """Load the install registry (dict of name -> info)."""
+        try:
+            with open(_REGISTRY, "r") as f:
+                return _json.load(f)
+        except Exception:
+            return {}
+
+    def _reg_save(reg):
+        """Persist the install registry."""
+        try:
+            with open(_REGISTRY, "w") as f:
+                _json.dump(reg, f, indent=1)
+        except Exception:
+            pass
+
+    def _reg_set(name, **kw):
+        """Update or create a registry entry for *name*."""
+        reg = _reg_load()
+        entry = reg.get(name, {})
+        entry.update(kw)
+        reg[name] = entry
+        _reg_save(reg)
+
+    def _reg_get(name):
+        """Return registry entry dict or empty dict."""
+        return _reg_load().get(name, {})
+
+    def _reg_del(name):
+        """Remove a registry entry."""
+        reg = _reg_load()
+        reg.pop(name, None)
+        _reg_save(reg)
+
+    # ── helper: check installed ────────────────────────────────────────
+    def _installed(name):
+        """Return True if the tool binary/symlink exists."""
+        # 1. our symlink bin
+        for ext in ("", ".exe"):
+            if os.path.exists(os.path.join(_BIN, name + ext)):
+                return True
+        # 2. registry tracked exe
+        rinfo = _reg_get(name)
+        if rinfo.get("exe") and os.path.exists(rinfo["exe"]):
+            return True
+        # 3. registry says we installed it (method recorded) — trust it
+        #    even if the binary name differs from the catalogue name
+        if rinfo.get("method"):
+            # double-check with the actual binary if listed
+            if rinfo.get("bin"):
+                if shutil.which(rinfo["bin"]):
+                    return True
+            # if method is a pkg mgr and install returned success, trust it
+            return True
+        # 4. package directory
+        pd = os.path.join(_PKG, name)
+        if os.path.isdir(pd):
+            for f in os.listdir(pd):
+                fp = os.path.join(pd, f)
+                if os.path.isfile(fp) and os.access(fp, os.X_OK):
+                    return True
+        # 5. system PATH (exact name or common variants)
+        if shutil.which(name):
+            return True
+        # try common binary name variants
+        for variant in (name + "p", name + "c", name + "d",
+                        name.replace("-", ""), name.replace("-", "_"),
+                        "lib" + name):
+            if shutil.which(variant):
+                return True
+        # 6. search default install paths (cargo, go, pip --user, etc.)
+        if _search_default_paths(name):
+            return True
+        return False
+
+    # ── helper: find executable path ───────────────────────────────────
+    def _find_exe(name):
+        """Return absolute path to executable for *name*, or None."""
+        # 1. registry
+        rinfo = _reg_get(name)
+        if rinfo.get("exe"):
+            p = rinfo["exe"]
+            if os.path.exists(p):
+                return p
+        # 1b. registry may record a different binary name (e.g. moc -> mocp)
+        if rinfo.get("bin") and rinfo["bin"] != name:
+            alt = shutil.which(rinfo["bin"])
+            if alt:
+                return alt
+        # 2. our symlink bin
+        p = os.path.join(_BIN, name)
+        if os.path.exists(p):
+            return p
+        # 3. package directory
+        pd = os.path.join(_PKG, name)
+        if os.path.isdir(pd):
+            for cand in (name, name.replace("-", "_"), name.replace("-", "")):
+                fp = os.path.join(pd, cand)
+                if os.path.isfile(fp):
+                    return fp
+            # walk for any executable
+            for root, _dirs, files in os.walk(pd):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    if os.access(fp, os.X_OK) and not f.endswith(
+                        (".txt", ".md", ".yml", ".yaml", ".json", ".toml",
+                         ".1", ".gz", ".sha256", ".sig")
+                    ):
+                        return fp
+            # python scripts
+            for cand in (name + ".py", "main.py", "__main__.py"):
+                fp = os.path.join(pd, cand)
+                if os.path.isfile(fp):
+                    return fp
+        # 4. system PATH (exact name, then common variants)
+        w = shutil.which(name)
+        if w:
+            return w
+        for variant in (name + "p", name + "c", name + "d",
+                        name.replace("-", ""), name.replace("-", "_")):
+            w = shutil.which(variant)
+            if w:
+                return w
+        # 5. search default install paths (cargo, go, pip --user, etc.)
+        found = _search_default_paths(name)
+        if found:
+            # Auto-fix: create symlink + update registry for next time
+            lnk = os.path.join(_BIN, name)
+            try:
+                if os.path.exists(lnk) or os.path.islink(lnk):
+                    os.remove(lnk)
+                os.symlink(found, lnk)
+            except OSError:
+                pass
+            rinfo2 = _reg_get(name)
+            if rinfo2.get("method") and not rinfo2.get("exe"):
+                _reg_set(name, exe=found)
+            return found
+        return None
+
+    # ── helper: scrape GitHub URL from Terminal Trove ──────────────────
+    def _scrape_page(name):
+        """Scrape Terminal Trove page for GitHub URL and install commands.
+
+        Returns dict: {"repo": str|None, "pip": str|None, "cargo": str|None,
+                       "brew": str|None, "snap": str|None, "npm": str|None,
+                       "go": str|None, "other": str|None}
+        """
+        info = {"repo": None, "pip": None, "cargo": None, "brew": None,
+                "snap": None, "npm": None, "go": None, "dnf": None,
+                "apt": None, "pacman": None, "other": None}
+        url = f"https://terminaltrove.com/{name}/"
+        try:
+            r = requests.get(url, timeout=15,
+                             headers={"User-Agent": "pythonOS/1.0"})
+            if r.status_code != 200:
+                return info
+            text = r.text
+            soup = BeautifulSoup(text, "html.parser")
+
+            # --- find GitHub repo ---
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "github.com" not in href:
+                    continue
+                parts = href.rstrip("/").split("/")
+                try:
+                    gi = next(i for i, p in enumerate(parts) if "github.com" in p)
+                    if gi + 2 < len(parts):
+                        owner, repo = parts[gi + 1], parts[gi + 2]
+                        if owner and repo and owner not in (
+                            "topics", "sponsors", "settings"
+                        ):
+                            info["repo"] = f"https://github.com/{owner}/{repo}"
+                            break
+                except StopIteration:
+                    pass
+
+            # --- extract install commands from page text ---
+            import re as _re
+            full = soup.get_text(" ", strip=True)
+            # also check <code> and <pre> blocks
+            code_blocks = []
+            for tag in soup.find_all(["code", "pre"]):
+                code_blocks.append(tag.get_text(" ", strip=True))
+            all_text = full + " " + " ".join(code_blocks)
+
+            # pip install
+            m = _re.search(r'pip3?\s+install\s+([\w\-\[\]]+)', all_text)
+            if m:
+                info["pip"] = m.group(1)
+            # pipx install
+            if not info["pip"]:
+                m = _re.search(r'pipx\s+install\s+([\w\-\[\]]+)', all_text)
+                if m:
+                    info["pip"] = m.group(1)
+            # cargo install
+            m = _re.search(r'cargo\s+install\s+([\w\-]+)', all_text)
+            if m:
+                info["cargo"] = m.group(1)
+            # brew install
+            m = _re.search(r'brew\s+install\s+([\w\-\/]+)', all_text)
+            if m:
+                info["brew"] = m.group(1)
+            # snap install
+            m = _re.search(r'snap\s+install\s+([\w\-]+)', all_text)
+            if m:
+                info["snap"] = m.group(1)
+            # npm install
+            m = _re.search(r'npm\s+install\s+(?:-g\s+)?([\w\-@\/]+)', all_text)
+            if m:
+                info["npm"] = m.group(1)
+            # go install
+            m = _re.search(r'go\s+install\s+([\w\-\./]+@\w+)', all_text)
+            if m:
+                info["go"] = m.group(1)
+            # dnf install
+            m = _re.search(r'dnf\s+install\s+(\S+)', all_text)
+            if m:
+                info["dnf"] = m.group(1)
+            # apt install / apt-get install
+            m = _re.search(r'apt(?:-get)?\s+install\s+(\S+)', all_text)
+            if m:
+                info["apt"] = m.group(1)
+            # pacman -S
+            m = _re.search(r'pacman\s+-S(?:yu)?\s+(\S+)', all_text)
+            if m:
+                info["pacman"] = m.group(1)
+
+            return info
+        except Exception:
+            return info
+
+    def _scrape_repo(name):
+        """Return GitHub repo URL or None (convenience wrapper)."""
+        return _scrape_page(name).get("repo")
+
+    def _scrape_github_readme(repo_url):
+        """Scrape the GitHub repo README for install commands.
+        This is a SECOND failsafe when terminaltrove scraping finds nothing.
+        Returns a dict with the same keys as _scrape_page."""
+        import re as _re, base64
+        info = {"repo": repo_url, "pip": None, "cargo": None, "brew": None,
+                "snap": None, "npm": None, "go": None, "dnf": None,
+                "apt": None, "pacman": None, "other": None}
+        try:
+            # Use GitHub API to fetch README
+            api = (repo_url.rstrip("/")
+                   .replace("github.com", "api.github.com/repos")
+                   + "/readme")
+            r = requests.get(api, timeout=15, headers={
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "pythonOS/1.0"})
+            if r.status_code != 200:
+                # Fallback: scrape the raw HTML page
+                r2 = requests.get(repo_url, timeout=15,
+                                  headers={"User-Agent": "pythonOS/1.0"})
+                if r2.status_code != 200:
+                    return info
+                text = r2.text
+            else:
+                data = r.json()
+                enc = data.get("encoding", "")
+                content = data.get("content", "")
+                if enc == "base64" and content:
+                    text = base64.b64decode(content).decode("utf-8", errors="replace")
+                else:
+                    text = content
+
+            # Also try fetching the install/setup page if one exists
+            for sub in ("INSTALL.md", "docs/install.md", "INSTALLATION.md"):
+                try:
+                    raw_url = repo_url.rstrip("/") + "/raw/HEAD/" + sub
+                    r3 = requests.get(raw_url, timeout=10,
+                                      headers={"User-Agent": "pythonOS/1.0"})
+                    if r3.status_code == 200:
+                        text += "\n" + r3.text
+                except Exception:
+                    pass
+
+            # Parse install commands from README text
+            m = _re.search(r'pip3?\s+install\s+([\w\-\[\]]+)', text)
+            if m:
+                info["pip"] = m.group(1)
+            if not info["pip"]:
+                m = _re.search(r'pipx\s+install\s+([\w\-\[\]]+)', text)
+                if m:
+                    info["pip"] = m.group(1)
+            m = _re.search(r'cargo\s+install\s+([\w\-]+)', text)
+            if m:
+                info["cargo"] = m.group(1)
+            m = _re.search(r'brew\s+install\s+([\w\-\/]+)', text)
+            if m:
+                info["brew"] = m.group(1)
+            m = _re.search(r'snap\s+install\s+([\w\-]+)', text)
+            if m:
+                info["snap"] = m.group(1)
+            m = _re.search(r'npm\s+install\s+(?:-g\s+)?([\w\-@\/]+)', text)
+            if m:
+                info["npm"] = m.group(1)
+            m = _re.search(r'go\s+install\s+([\w\-\./]+@\w+)', text)
+            if m:
+                info["go"] = m.group(1)
+            m = _re.search(r'dnf\s+install\s+(\S+)', text)
+            if m:
+                info["dnf"] = m.group(1)
+            m = _re.search(r'apt(?:-get)?\s+install\s+(\S+)', text)
+            if m:
+                info["apt"] = m.group(1)
+            m = _re.search(r'pacman\s+-S(?:yu)?\s+(\S+)', text)
+            if m:
+                info["pacman"] = m.group(1)
+
+            found = [k for k in info if k != "repo" and info[k]]
+            if found:
+                print(f"  \U0001f50d GitHub README found: {', '.join(f'{k}={info[k]}' for k in found)}")
+            return info
+        except Exception:
+            return info
+
+    def _scrape_from_source_instructions(name, repo_url=None):
+        """Scrape Terminal Trove page + GitHub README for explicit
+        'From Source' build instructions (git clone + follow-up commands).
+        Returns a list of shell command strings, e.g.:
+          ['git clone https://...', 'cd dawn', 'go build', 'go install']
+        or empty list if nothing found."""
+        import re as _re
+        cmds = []
+
+        def _extract_from_source(text):
+            """Given raw page / README text, find the 'From Source' section
+            and extract the shell commands."""
+            # Try to isolate the 'From Source' section
+            # Common headings: "From Source", "From Source (macOS/Linux)",
+            # "Build from source", "Install from source", "Manual / Source"
+            patterns = [
+                r'(?i)(?:#+\s*|\*\*)?(?:install\s+)?from\s+source[^\n]*\n(.*?)(?=(?:^#+|^\*\*|^---)|\Z)',
+                r'(?i)(?:#+\s*|\*\*)?build(?:ing)?\s+from\s+source[^\n]*\n(.*?)(?=(?:^#+|^\*\*|^---)|\Z)',
+                r'(?i)(?:#+\s*|\*\*)?(?:manual|source)\s+install(?:ation)?[^\n]*\n(.*?)(?=(?:^#+|^\*\*|^---)|\Z)',
+                r'(?i)(?:#+\s*|\*\*)?install\s+from\s+source[^\n]*\n(.*?)(?=(?:^#+|^\*\*|^---)|\Z)',
+            ]
+            section = ""
+            for pat in patterns:
+                m = _re.search(pat, text, _re.DOTALL | _re.MULTILINE)
+                if m:
+                    section = m.group(1)
+                    break
+
+            if not section:
+                return []
+
+            # Extract shell commands from code fences or indented blocks
+            found = []
+            # Fenced code blocks: ```sh ... ``` or ```bash ... ```
+            for fence_m in _re.finditer(
+                r'```(?:sh|bash|shell|console|zsh)?\s*\n(.*?)```',
+                section, _re.DOTALL):
+                block = fence_m.group(1).strip()
+                for ln in block.splitlines():
+                    ln = ln.strip()
+                    # strip leading $ or #
+                    ln = _re.sub(r'^[\$#]\s*', '', ln)
+                    if ln and not ln.startswith("//") and not ln.startswith("#"):
+                        found.append(ln)
+
+            # Also look for bare lines with git clone / go build / make etc.
+            if not found:
+                for ln in section.splitlines():
+                    ln = ln.strip()
+                    ln = _re.sub(r'^[\$#]\s*', '', ln)
+                    if _re.match(r'^(git\s+clone|cd\s|go\s+(build|install)|cargo\s+install|make|cmake|pip3?\s+install|npm\s+install|sudo\s+make)', ln):
+                        found.append(ln)
+
+            return found
+
+        def _extract_any_git_clone(text):
+            """Fallback: if no 'From Source' section exists, just find any
+            git clone URL anywhere on the page/README and build a minimal
+            clone+build sequence from it."""
+            found_cmds = []
+            # Match: git clone <url> (possibly with flags like --depth 1)
+            for m in _re.finditer(
+                r'(?:^|\s)(?:\$\s*)?git\s+clone\s+(?:--\S+\s+)*(\S+)',
+                text, _re.MULTILINE):
+                clone_url = m.group(1).strip().rstrip('.')
+                if 'github.com' in clone_url or 'gitlab.com' in clone_url or clone_url.endswith('.git'):
+                    found_cmds.append(f"git clone {clone_url}")
+                    # Guess the repo dir name
+                    dir_name = clone_url.rstrip("/").rstrip(".git").split("/")[-1]
+                    found_cmds.append(f"cd {dir_name}")
+                    break  # take the first valid one
+
+            if not found_cmds:
+                return []
+
+            # Now scan the lines AFTER the git clone for build commands
+            # (within ~20 lines of context)
+            clone_pos = text.find(found_cmds[0].replace("git clone ", ""))
+            if clone_pos >= 0:
+                after = text[clone_pos:clone_pos + 2000]
+                for ln in after.splitlines()[1:20]:
+                    ln = ln.strip()
+                    ln = _re.sub(r'^[\$#]\s*', '', ln).strip()
+                    if _re.match(
+                        r'^(cd\s|go\s+(build|install)|cargo\s+(build|install)'
+                        r'|make\b|cmake\b|pip3?\s+install'
+                        r'|npm\s+(install|run)|sudo\s+make'
+                        r'|python3?\s+setup\.py|meson\b)', ln):
+                        if ln not in found_cmds:
+                            found_cmds.append(ln)
+
+            return found_cmds
+
+        # ── 1. Scrape Terminal Trove page ──────────────────────────
+        try:
+            url = f"https://terminaltrove.com/{name}/"
+            r = requests.get(url, timeout=15,
+                             headers={"User-Agent": "pythonOS/1.0"})
+            if r.status_code == 200:
+                soup = BeautifulSoup(r.text, "html.parser")
+                # Get full text including code blocks
+                page_text = ""
+                for tag in soup.find_all(["h1", "h2", "h3", "h4", "h5",
+                                          "p", "pre", "code", "li", "div"]):
+                    page_text += tag.get_text(" ", strip=True) + "\n"
+                cmds = _extract_from_source(page_text)
+                if cmds:
+                    print(f"  \U0001f50d Found 'From Source' instructions on Terminal Trove ({len(cmds)} cmds)")
+                    return cmds
+
+                # Also check raw HTML for code inside "From Source" headings
+                html_text = r.text
+                cmds = _extract_from_source(html_text)
+                if cmds:
+                    print(f"  \U0001f50d Found 'From Source' instructions in HTML ({len(cmds)} cmds)")
+                    return cmds
+
+                # Fallback: no 'From Source' heading — look for any git clone
+                cmds = _extract_any_git_clone(page_text + "\n" + html_text)
+                if cmds:
+                    print(f"  \U0001f50d Found git clone on Terminal Trove page ({len(cmds)} cmds)")
+                    return cmds
+        except Exception:
+            pass
+
+        # ── 2. Scrape GitHub README ────────────────────────────────
+        if repo_url:
+            try:
+                import base64
+                readme = ""
+                api = (repo_url.rstrip("/")
+                       .replace("github.com", "api.github.com/repos")
+                       + "/readme")
+                r = requests.get(api, timeout=15, headers={
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "pythonOS/1.0"})
+                if r.status_code == 200:
+                    data = r.json()
+                    enc = data.get("encoding", "")
+                    content = data.get("content", "")
+                    if enc == "base64" and content:
+                        readme = base64.b64decode(content).decode("utf-8", errors="replace")
+                    else:
+                        readme = content
+                    cmds = _extract_from_source(readme)
+                    if cmds:
+                        print(f"  \U0001f50d Found 'From Source' in GitHub README ({len(cmds)} cmds)")
+                        return cmds
+
+                # Also try INSTALL.md and similar docs
+                for sub in ("INSTALL.md", "docs/install.md",
+                            "INSTALLATION.md", "docs/installation.md"):
+                    try:
+                        raw_url = repo_url.rstrip("/") + "/raw/HEAD/" + sub
+                        r3 = requests.get(raw_url, timeout=10,
+                                          headers={"User-Agent": "pythonOS/1.0"})
+                        if r3.status_code == 200:
+                            cmds = _extract_from_source(r3.text)
+                            if cmds:
+                                print(f"  \U0001f50d Found 'From Source' in {sub} ({len(cmds)} cmds)")
+                                return cmds
+                    except Exception:
+                        pass
+
+                # Fallback: no 'From Source' heading — look for any git clone
+                if readme:
+                    cmds = _extract_any_git_clone(readme)
+                    if cmds:
+                        print(f"  \U0001f50d Found git clone in GitHub README ({len(cmds)} cmds)")
+                        return cmds
+            except Exception:
+                pass
+
+        # ── 3. Last resort: if we have a repo URL, just git clone it ──
+        #    _build_from_source (Phase 4) already does this, but Phase 6
+        #    serves as an extra shot with explicit clone + auto-detect.
+        if repo_url and not cmds:
+            clone_url = repo_url.rstrip("/")
+            dir_name = clone_url.split("/")[-1]
+            cmds = [f"git clone {clone_url}",
+                    f"cd {dir_name}"]
+            print(f"  \U0001f50d No explicit instructions found — will clone {clone_url} and auto-detect build.")
+            return cmds
+
+        return cmds  # empty list if nothing found
+
+    def _run_from_source_cmds(name, cmds, repo_url=None):
+        """Execute a list of scraped 'From Source' shell commands.
+        Handles git clone, cd, build, install steps.
+        Returns True if the tool ends up installed."""
+        import tempfile, shlex
+        if not cmds:
+            return False
+        if not shutil.which("git"):
+            print("  \u2717 git not found. Cannot build from source.")
+            return False
+
+        # Use a temp build dir
+        build_base = os.path.join(_PKG, f"_build_{name}")
+        if os.path.isdir(build_base):
+            shutil.rmtree(build_base)
+        os.makedirs(build_base, exist_ok=True)
+        cwd = build_base
+
+        print(f"  \U0001f527 Running {len(cmds)} 'From Source' commands for {name}...")
+        print(f"  \U0001f4c1 Build dir: {build_base}")
+
+        for i, cmd_str in enumerate(cmds, 1):
+            cmd_str = cmd_str.strip()
+            if not cmd_str:
+                continue
+            print(f"\n  [{i}/{len(cmds)}] {cmd_str}")
+
+            # Handle 'cd <dir>' specially
+            if cmd_str.startswith("cd "):
+                target = cmd_str[3:].strip().strip('"').strip("'")
+                new_cwd = os.path.normpath(os.path.join(cwd, target))
+                if os.path.isdir(new_cwd):
+                    cwd = new_cwd
+                    print(f"         \u2192 cd {cwd}")
+                else:
+                    # The dir might be created by a previous git clone
+                    # Try looking for it under build_base
+                    alt = os.path.join(build_base, target)
+                    if os.path.isdir(alt):
+                        cwd = alt
+                        print(f"         \u2192 cd {cwd}")
+                    else:
+                        print(f"         \u26a0 Directory '{target}' not found yet, continuing...")
+                        cwd = new_cwd  # it might get created by the clone
+                continue
+
+            # For commands that need sudo, use _sudo_run
+            needs_sudo = cmd_str.startswith("sudo ")
+            if needs_sudo:
+                cmd_str = cmd_str[5:].strip()  # strip 'sudo'
+
+            try:
+                parts = shlex.split(cmd_str)
+            except ValueError:
+                parts = cmd_str.split()
+
+            if not parts:
+                continue
+
+            # For git clone, ensure it clones INTO our build dir
+            if parts[0] == "git" and "clone" in parts:
+                # Replace or append the target dir
+                # Keep clone args, but make sure it clones into build_base
+                sub_dir = name
+                # If there's already a target dir at the end, use it
+                clone_idx = parts.index("clone")
+                url_args = [p for p in parts[clone_idx+1:] if not p.startswith("-")]
+                if len(url_args) >= 2:
+                    sub_dir = url_args[-1]
+                    parts = parts[:-1]  # remove the target dir
+                elif len(url_args) == 1:
+                    # extract dir name from URL
+                    repo_name = url_args[0].rstrip("/").rstrip(".git").split("/")[-1]
+                    sub_dir = repo_name
+
+                target_dir = os.path.join(build_base, sub_dir)
+                if os.path.isdir(target_dir):
+                    shutil.rmtree(target_dir)
+                parts.append(target_dir)
+                cwd = build_base  # git clone runs from base
+
+                r = subprocess.run(parts, cwd=cwd)
+                if r.returncode != 0:
+                    print(f"         \u2717 git clone failed.")
+                    shutil.rmtree(build_base, ignore_errors=True)
+                    return False
+                # After clone, cd into the cloned dir
+                if os.path.isdir(target_dir):
+                    cwd = target_dir
+                    print(f"         \u2192 cd {cwd}")
+                continue
+
+            # Regular command
+            if needs_sudo:
+                r = _sudo_run(parts, cwd=cwd)
+            else:
+                r = subprocess.run(parts, cwd=cwd)
+
+            if r.returncode != 0:
+                print(f"         \u26a0 Command returned exit code {r.returncode}")
+                # Don't abort — some warnings are OK, continue to next cmd
+
+        # ── Auto-detect build if scraped cmds had no build step ────
+        #    (e.g. only "git clone" + "cd" were found)
+        has_build = any(
+            c.split()[0] in ("go", "cargo", "make", "cmake", "pip",
+                             "pip3", "npm", "meson", "python", "python3")
+            for c in cmds if c.strip() and not c.startswith("git ")
+                             and not c.startswith("cd "))
+        if not has_build and os.path.isdir(cwd):
+            print(f"\n  \U0001f50e No build command in scraped instructions — auto-detecting...")
+            if os.path.isfile(os.path.join(cwd, "Cargo.toml")) and shutil.which("cargo"):
+                print(f"  \U0001f4e6 Detected Cargo.toml → cargo install --path .")
+                subprocess.run(["cargo", "install", "--path", "."], cwd=cwd)
+            elif os.path.isfile(os.path.join(cwd, "go.mod")) and shutil.which("go"):
+                print(f"  \U0001f4e6 Detected go.mod → go install ./...")
+                subprocess.run(["go", "install", "./..."], cwd=cwd)
+            elif os.path.isfile(os.path.join(cwd, "pyproject.toml")) or os.path.isfile(os.path.join(cwd, "setup.py")):
+                print(f"  \U0001f4e6 Detected Python project → pip install .")
+                subprocess.run([sys.executable, "-m", "pip", "install", "."], cwd=cwd)
+            elif os.path.isfile(os.path.join(cwd, "package.json")) and shutil.which("npm"):
+                print(f"  \U0001f4e6 Detected package.json → npm install -g .")
+                subprocess.run(["npm", "install", "-g", "."], cwd=cwd)
+            elif os.path.isfile(os.path.join(cwd, "CMakeLists.txt")) and shutil.which("cmake"):
+                bld = os.path.join(cwd, "build")
+                os.makedirs(bld, exist_ok=True)
+                print(f"  \U0001f4e6 Detected CMakeLists.txt → cmake build + install")
+                subprocess.run(["cmake", ".."], cwd=bld)
+                subprocess.run(["cmake", "--build", "."], cwd=bld)
+                _sudo_run(["cmake", "--install", "."], cwd=bld)
+            elif os.path.isfile(os.path.join(cwd, "meson.build")) and shutil.which("meson"):
+                print(f"  \U0001f4e6 Detected meson.build → meson build + install")
+                subprocess.run(["meson", "setup", "build"], cwd=cwd)
+                subprocess.run(["meson", "compile", "-C", "build"], cwd=cwd)
+                _sudo_run(["meson", "install", "-C", "build"], cwd=cwd)
+            elif os.path.isfile(os.path.join(cwd, "Makefile")):
+                print(f"  \U0001f4e6 Detected Makefile → make && sudo make install")
+                subprocess.run(["make"], cwd=cwd)
+                _sudo_run(["make", "install"], cwd=cwd)
+            else:
+                print(f"  \u26a0 Could not auto-detect build system in {cwd}")
+
+        # Check if it's now installed
+        exe = shutil.which(name) or shutil.which(name.replace("-", "_"))
+        if exe:
+            lnk = os.path.join(_BIN, name)
+            try:
+                if os.path.exists(lnk) or os.path.islink(lnk):
+                    os.remove(lnk)
+                os.symlink(exe, lnk)
+            except OSError:
+                pass
+            _reg_set(name, method="source-scraped", repo=repo_url or "", exe=exe)
+            print(f"\n  \u2713 {name} built and installed from source (scraped instructions)!")
+            shutil.rmtree(build_base, ignore_errors=True)
+            return True
+
+        # Maybe the binary is in the build dir
+        for root, dirs, files in os.walk(build_base):
+            for f in files:
+                fp = os.path.join(root, f)
+                if os.access(fp, os.X_OK) and f.lower().replace("-", "").replace("_", "") == name.lower().replace("-", "").replace("_", ""):
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(fp, lnk)
+                    except OSError:
+                        pass
+                    _reg_set(name, method="source-scraped", repo=repo_url or "", exe=fp)
+                    print(f"\n  \u2713 {name} built from source — binary found at {fp}")
+                    return True
+
+        print(f"\n  \u2717 'From Source' commands ran but {name} exe not found.")
+        print(f"  Build dir kept for inspection: {build_base}")
+        return False
+
+    def _build_from_source(repo_url, name):
+        """Clone the repo and build from source.
+        Scrapes the GitHub page / README for build instructions
+        (git clone + cargo install --path, pip install ., make, etc.)
+        and executes them. This handles programs that have NO binary
+        releases and NO package manager entry — only source builds."""
+        import re as _re, tempfile
+        if not shutil.which("git"):
+            print("  \u2717 git not found. Cannot build from source.")
+            return False
+
+        print(f"  \U0001f527 Building {name} from source...")
+
+        # Determine the clone URL
+        clone_url = repo_url.rstrip("/")
+        if not clone_url.endswith(".git"):
+            clone_url += ".git"
+
+        # Clone into a temp build dir
+        build_dir = os.path.join(_PKG, f"_build_{name}")
+        if os.path.isdir(build_dir):
+            shutil.rmtree(build_dir)
+        os.makedirs(build_dir, exist_ok=True)
+
+        print(f"  \u2b07  git clone {clone_url} ...")
+        r = subprocess.run(["git", "clone", "--depth", "1", clone_url, build_dir],
+                           capture_output=True, text=True)
+        if r.returncode != 0:
+            print(f"  \u2717 git clone failed.")
+            for ln in (r.stderr or "").splitlines()[-3:]:
+                print(f"     {ln}")
+            shutil.rmtree(build_dir, ignore_errors=True)
+            return False
+
+        # Detect what kind of project this is and build accordingly
+        has_cargo_toml = os.path.isfile(os.path.join(build_dir, "Cargo.toml"))
+        has_setup_py   = os.path.isfile(os.path.join(build_dir, "setup.py"))
+        has_pyproject  = os.path.isfile(os.path.join(build_dir, "pyproject.toml"))
+        has_makefile   = os.path.isfile(os.path.join(build_dir, "Makefile"))
+        has_cmake      = os.path.isfile(os.path.join(build_dir, "CMakeLists.txt"))
+        has_go_mod     = os.path.isfile(os.path.join(build_dir, "go.mod"))
+        has_package_json = os.path.isfile(os.path.join(build_dir, "package.json"))
+        has_meson      = os.path.isfile(os.path.join(build_dir, "meson.build"))
+
+        ok = False
+
+        # ── Rust / Cargo project ───────────────────────────────────
+        if has_cargo_toml and shutil.which("cargo"):
+            print(f"  \U0001f4e6 Detected Cargo.toml — running cargo install --path .")
+            r = subprocess.run(["cargo", "install", "--path", "."],
+                               cwd=build_dir)
+            if r.returncode == 0:
+                exe = shutil.which(name)
+                if exe:
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                _reg_set(name, method="source-cargo", repo=repo_url, exe=exe or "")
+                print(f"  \u2713 {name} built and installed from source (cargo)!")
+                ok = True
+
+        # ── Python project (pyproject.toml or setup.py) ────────────
+        if not ok and (has_pyproject or has_setup_py):
+            print(f"  \U0001f4e6 Detected Python project — running pip install .")
+            r = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "."],
+                cwd=build_dir)
+            if r.returncode == 0:
+                exe = shutil.which(name) or shutil.which(name.replace("-", "_"))
+                if exe:
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                _reg_set(name, method="source-pip", repo=repo_url, exe=exe or "")
+                print(f"  \u2713 {name} built and installed from source (pip)!")
+                ok = True
+
+        # ── Go project ─────────────────────────────────────────────
+        if not ok and has_go_mod and shutil.which("go"):
+            print(f"  \U0001f4e6 Detected go.mod — running go install .")
+            r = subprocess.run(["go", "install", "."],
+                               cwd=build_dir, capture_output=True, text=True)
+            if r.returncode == 0:
+                exe = shutil.which(name)
+                if exe:
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                _reg_set(name, method="source-go", repo=repo_url, exe=exe or "")
+                print(f"  \u2713 {name} built and installed from source (go)!")
+                ok = True
+
+        # ── Node.js project ────────────────────────────────────────
+        if not ok and has_package_json and shutil.which("npm"):
+            print(f"  \U0001f4e6 Detected package.json — running npm install -g .")
+            r = subprocess.run(["npm", "install", "-g", "."],
+                               cwd=build_dir)
+            if r.returncode == 0:
+                exe = shutil.which(name)
+                if exe:
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                _reg_set(name, method="source-npm", repo=repo_url, exe=exe or "")
+                print(f"  \u2713 {name} built and installed from source (npm)!")
+                ok = True
+
+        # ── CMake project ──────────────────────────────────────────
+        if not ok and has_cmake and shutil.which("cmake"):
+            print(f"  \U0001f4e6 Detected CMakeLists.txt — cmake build...")
+            bld = os.path.join(build_dir, "build")
+            os.makedirs(bld, exist_ok=True)
+            r1 = subprocess.run(["cmake", ".."], cwd=bld)
+            if r1.returncode == 0:
+                r2 = subprocess.run(["cmake", "--build", "."], cwd=bld)
+                if r2.returncode == 0:
+                    r3 = subprocess.run(["sudo", "cmake", "--install", "."], cwd=bld)
+                    if r3.returncode == 0:
+                        exe = shutil.which(name)
+                        if exe:
+                            lnk = os.path.join(_BIN, name)
+                            try:
+                                if os.path.exists(lnk) or os.path.islink(lnk):
+                                    os.remove(lnk)
+                                os.symlink(exe, lnk)
+                            except OSError:
+                                pass
+                        _reg_set(name, method="source-cmake", repo=repo_url,
+                                 exe=exe or "")
+                        print(f"  \u2713 {name} built and installed from source (cmake)!")
+                        ok = True
+
+        # ── Meson project ──────────────────────────────────────────
+        if not ok and has_meson and shutil.which("meson"):
+            print(f"  \U0001f4e6 Detected meson.build — meson build...")
+            bld = os.path.join(build_dir, "build")
+            r1 = subprocess.run(["meson", "setup", "build"], cwd=build_dir)
+            if r1.returncode == 0:
+                r2 = subprocess.run(["meson", "compile", "-C", "build"],
+                                    cwd=build_dir)
+                if r2.returncode == 0:
+                    r3 = subprocess.run(
+                        ["sudo", "meson", "install", "-C", "build"],
+                        cwd=build_dir)
+                    if r3.returncode == 0:
+                        exe = shutil.which(name)
+                        if exe:
+                            lnk = os.path.join(_BIN, name)
+                            try:
+                                if os.path.exists(lnk) or os.path.islink(lnk):
+                                    os.remove(lnk)
+                                os.symlink(exe, lnk)
+                            except OSError:
+                                pass
+                        _reg_set(name, method="source-meson", repo=repo_url,
+                                 exe=exe or "")
+                        print(f"  \u2713 {name} built from source (meson)!")
+                        ok = True
+
+        # ── Makefile project ───────────────────────────────────────
+        if not ok and has_makefile:
+            print(f"  \U0001f4e6 Detected Makefile — running make && sudo make install...")
+            r1 = subprocess.run(["make"], cwd=build_dir)
+            if r1.returncode == 0:
+                r2 = subprocess.run(["sudo", "make", "install"], cwd=build_dir)
+                if r2.returncode == 0:
+                    exe = shutil.which(name)
+                    if exe:
+                        lnk = os.path.join(_BIN, name)
+                        try:
+                            if os.path.exists(lnk) or os.path.islink(lnk):
+                                os.remove(lnk)
+                            os.symlink(exe, lnk)
+                        except OSError:
+                            pass
+                    _reg_set(name, method="source-make", repo=repo_url,
+                             exe=exe or "")
+                    print(f"  \u2713 {name} built from source (make)!")
+                    ok = True
+
+        # Cleanup build dir (keep if failed for debugging)
+        if ok:
+            shutil.rmtree(build_dir, ignore_errors=True)
+        else:
+            print(f"  \u2717 Could not build {name} from source.")
+            print(f"  Build dir kept at: {build_dir}")
+
+        return ok
+
+    # ── helper: download GitHub release ────────────────────────────────
+    def _dl_github(repo_url, name):
+        """Download latest release binary for current OS/arch."""
+        api = (repo_url.rstrip("/")
+               .replace("github.com", "api.github.com/repos")
+               + "/releases/latest")
+        try:
+            r = requests.get(api, timeout=15, headers={
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": "pythonOS/1.0"})
+            if r.status_code == 404:
+                print("  \u2717 No releases found for this repo.")
+                return False
+            if r.status_code != 200:
+                print(f"  \u2717 GitHub API error {r.status_code}")
+                return False
+            data = r.json()
+            assets = data.get("assets", [])
+            if not assets:
+                print("  \u2717 Release has no downloadable assets.")
+                return False
+
+            os_kw = {"linux": ["linux"],
+                      "darwin": ["darwin", "macos", "apple", "osx"],
+                      "windows": ["windows", "win64", "win32"]
+                      }.get(_SYS, [_SYS])
+            arch_kw = {"x86_64": ["x86_64", "amd64", "x64"],
+                        "aarch64": ["aarch64", "arm64"],
+                        "armv7l": ["armv7", "armhf"]
+                        }.get(_ARCH, [_ARCH])
+            skip_ext = (".deb", ".rpm", ".pkg", ".dmg", ".msi",
+                        ".appimage", ".sha256", ".sig", ".asc",
+                        ".sbom", ".txt", ".json", ".md")
+
+            best, best_sc = None, -1
+            for a in assets:
+                an = a["name"].lower()
+                if an.endswith(skip_ext):
+                    continue
+                sc = 0
+                if any(k in an for k in os_kw):
+                    sc += 10
+                else:
+                    continue
+                if any(k in an for k in arch_kw):
+                    sc += 10
+                if an.endswith((".tar.gz", ".tgz")):
+                    sc += 3
+                elif an.endswith(".zip"):
+                    sc += 2
+                if _SYS == "linux" and "musl" in an:
+                    sc += 1
+                if sc > best_sc:
+                    best_sc, best = sc, a
+
+            if not best or best_sc < 10:
+                print(f"  \u2717 No binary for {_SYS}/{_ARCH}")
+                if assets:
+                    print("  Available assets:")
+                    for a in assets[:8]:
+                        print(f"    \u2022 {a['name']}")
+                return False
+
+            # download
+            pd = os.path.join(_PKG, name)
+            os.makedirs(pd, exist_ok=True)
+            dl = os.path.join(pd, best["name"])
+            print(f"  \u2b07  Downloading {best['name']}...")
+            with requests.get(best["browser_download_url"],
+                              stream=True, timeout=300) as resp:
+                resp.raise_for_status()
+                total = int(resp.headers.get("content-length", 0))
+                got = 0
+                with open(dl, "wb") as f:
+                    for chunk in resp.iter_content(8192):
+                        f.write(chunk)
+                        got += len(chunk)
+                        if total:
+                            pct = got * 100 // total
+                            print(f"\r  \u2b07  {pct}%  "
+                                  f"({got//1024}K/{total//1024}K)",
+                                  end="", flush=True)
+                if total:
+                    print()
+
+            # extract
+            if dl.endswith((".tar.gz", ".tgz")):
+                print("  \U0001f4e6 Extracting (tar.gz)...")
+                with tarfile.open(dl, "r:gz") as t:
+                    t.extractall(path=pd)
+                os.remove(dl)
+            elif dl.endswith(".tar.xz"):
+                print("  \U0001f4e6 Extracting (tar.xz)...")
+                with tarfile.open(dl, "r:xz") as t:
+                    t.extractall(path=pd)
+                os.remove(dl)
+            elif dl.endswith(".tar.bz2"):
+                print("  \U0001f4e6 Extracting (tar.bz2)...")
+                with tarfile.open(dl, "r:bz2") as t:
+                    t.extractall(path=pd)
+                os.remove(dl)
+            elif dl.endswith(".zip"):
+                print("  \U0001f4e6 Extracting (zip)...")
+                with zipfile.ZipFile(dl, "r") as z:
+                    z.extractall(pd)
+                os.remove(dl)
+            else:
+                # raw binary
+                os.chmod(dl, os.stat(dl).st_mode |
+                         _stat.S_IEXEC | _stat.S_IXGRP | _stat.S_IXOTH)
+
+            _mk_link(name, pd)
+            _reg_set(name, method="github", repo=repo_url, local_dir=pd,
+                     exe=_find_exe(name) or "")
+            print(f"  \u2713 {name} installed successfully!")
+            return True
+        except Exception as e:
+            print(f"  \u2717 Install failed: {e}")
+            return False
+
+    # ── helper: create symlink in _BIN ─────────────────────────────────
+    def _mk_link(name, pd):
+        """Find the executable inside *pd* and symlink it into _BIN.
+        If it's a pip-generated console_script, rewrite it with correct
+        PYTHONPATH so the package's modules can be found."""
+        exe = None
+        # exact name matches
+        for cand in (name, name.replace("-", "_"), name.replace("-", "")):
+            fp = os.path.join(pd, cand)
+            if os.path.isfile(fp):
+                exe = fp
+                break
+        # look in pd/bin/ (pip/cargo put scripts there)
+        inner_bin = os.path.join(pd, "bin")
+        if not exe and os.path.isdir(inner_bin):
+            for cand in (name, name.replace("-", "_"), name.replace("-", "")):
+                fp = os.path.join(inner_bin, cand)
+                if os.path.isfile(fp):
+                    exe = fp
+                    break
+        # walk
+        if not exe:
+            for root, _dirs, files in os.walk(pd):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    fn = f.lower()
+                    nm = name.lower().replace("-", "")
+                    if fn == name or fn.replace("-", "") == nm:
+                        exe = fp
+                        break
+                    if (os.access(fp, os.X_OK) and
+                        not fn.endswith((".txt", ".md", ".yml", ".yaml",
+                                         ".json", ".toml", ".1", ".gz",
+                                         ".sha256", ".sig", ".tar", ".zip",
+                                         ".dist-info"))):
+                        if not exe:
+                            exe = fp
+                if exe and os.path.basename(exe).lower().replace(
+                        "-", "").replace("_", "") == nm:
+                    break
+        if exe:
+            # Check if this is a pip-generated console_script
+            _is_pip_script = False
+            try:
+                with open(exe, "r", errors="ignore") as f:
+                    head = f.read(500)
+                if (head.startswith("#!") and "python" in head.lower()
+                        and ("import" in head) and ("from " in head or
+                             "sys.exit" in head)):
+                    _is_pip_script = True
+            except Exception:
+                pass
+
+            if _is_pip_script:
+                # Rewrite the pip-generated script to set PYTHONPATH
+                _rewrite_pip_script(name, exe, pd)
+                # symlink the rewritten script
+                lnk = os.path.join(_BIN, name)
+                if os.path.abspath(exe) != os.path.abspath(lnk):
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(os.path.abspath(exe), lnk)
+                    except OSError:
+                        pass
+            else:
+                try:
+                    os.chmod(exe, os.stat(exe).st_mode |
+                             _stat.S_IEXEC | _stat.S_IXGRP | _stat.S_IXOTH)
+                except OSError:
+                    pass
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(os.path.abspath(exe), lnk)
+                except OSError:
+                    pass
+
+    def _rewrite_pip_script(name, script_path, pd):
+        """Rewrite a pip-generated console_script to inject PYTHONPATH."""
+        try:
+            with open(script_path, "r") as f:
+                original = f.read()
+            # Check if we already patched it
+            if "# pythonOS-patched" in original:
+                return
+            lines = original.splitlines(True)
+            # Insert path setup after the shebang line
+            insert_idx = 1  # after #! line
+            patch = (
+                "# pythonOS-patched\n"
+                "import sys, os\n"
+                f"_pd = {pd!r}\n"
+                "if _pd not in sys.path:\n"
+                "    sys.path.insert(0, _pd)\n"
+                "os.environ['PYTHONPATH'] = _pd + os.pathsep + os.environ.get('PYTHONPATH', '')\n"
+            )
+            lines.insert(insert_idx, patch)
+            with open(script_path, "w") as f:
+                f.writelines(lines)
+            os.chmod(script_path, 0o755)
+        except Exception:
+            pass  # non-critical, _run() also sets PYTHONPATH
+
+    # ── helper: pip / package-manager install ──────────────────────────
+    def _pip_install(name, page_info=None):
+        """Install *name* via pip.  Tries system-wide first, then pipx,
+        then --target as last resort.  Records result in registry."""
+        if page_info is None:
+            print(f"  \U0001f50d Scraping install info for {name}...")
+            page_info = _scrape_page(name)
+        pip_pkg = page_info.get("pip") or name
+
+        # --- attempt 1: system-wide pip install ---
+        print(f"  \u2b07  pip install {pip_pkg} (system-wide) ...")
+        r = subprocess.run(
+            [sys.executable, "-m", "pip", "install", pip_pkg, "--quiet"],
+            capture_output=True, text=True)
+        if r.returncode == 0:
+            exe = shutil.which(name) or shutil.which(name.replace("-", "_"))
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="pip-system", pkg=pip_pkg,
+                     exe=exe or "")
+            print(f"  \u2713 {name} installed via pip (system-wide)!")
+            return True
+
+        err1 = r.stderr.strip()
+
+        # --- attempt 2: pipx if available ---
+        if shutil.which("pipx"):
+            print(f"  \u26a0  System pip failed. Trying pipx...")
+            r2 = subprocess.run(
+                ["pipx", "install", pip_pkg],
+                capture_output=True, text=True)
+            if r2.returncode == 0:
+                exe = shutil.which(name)
+                if exe:
+                    lnk = os.path.join(_BIN, name)
+                    try:
+                        if os.path.exists(lnk) or os.path.islink(lnk):
+                            os.remove(lnk)
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                _reg_set(name, method="pipx", pkg=pip_pkg,
+                         exe=exe or "")
+                print(f"  \u2713 {name} installed via pipx!")
+                return True
+
+        # --- attempt 3: --target into packages/<name> (fallback) ---
+        pd = os.path.join(_PKG, name)
+        os.makedirs(pd, exist_ok=True)
+        print(f"  \u26a0  Trying local --target install as fallback...")
+        r3 = subprocess.run(
+            [sys.executable, "-m", "pip", "install", pip_pkg,
+             "--target", pd, "--quiet"],
+            capture_output=True, text=True)
+        if r3.returncode == 0:
+            _mk_link(name, pd)
+            _make_pip_wrapper(name, pip_pkg, pd)
+            _reg_set(name, method="pip-local", pkg=pip_pkg, local_dir=pd,
+                     exe=_find_exe(name) or "")
+            print(f"  \u2713 {name} installed via pip (local)!")
+            return True
+
+        print(f"  \u2717 pip install of '{pip_pkg}' failed.")
+        if err1:
+            for ln in err1.splitlines()[-3:]:
+                print(f"     {ln}")
+        return False
+
+    def _make_pip_wrapper(name, pip_pkg, pd):
+        """Create a wrapper script in _BIN that sets PYTHONPATH to the
+        --target dir so pip-installed packages can find their modules."""
+        wrapper = os.path.join(_BIN, name)
+        # Always overwrite: our wrapper is smarter than pip's default
+        with open(wrapper, "w") as wf:
+            wf.write("#!/usr/bin/env python3\n")
+            wf.write("import sys, os\n")
+            wf.write(f"pkg_dir = {pd!r}\n")
+            wf.write("# Add package target dir so imports resolve\n")
+            wf.write("if pkg_dir not in sys.path:\n")
+            wf.write("    sys.path.insert(0, pkg_dir)\n")
+            wf.write("os.environ['PYTHONPATH'] = pkg_dir + os.pathsep + os.environ.get('PYTHONPATH', '')\n")
+            wf.write("\n")
+            wf.write("# Try console_scripts entry points\n")
+            wf.write("import importlib, importlib.metadata\n")
+            wf.write("try:\n")
+            wf.write(f"    dist = importlib.metadata.distribution({pip_pkg!r})\n")
+            wf.write("    eps = [e for e in dist.entry_points\n")
+            wf.write("           if e.group == 'console_scripts']\n")
+            wf.write("    if eps:\n")
+            wf.write("        fn = eps[0].load()\n")
+            wf.write("        sys.exit(fn())\n")
+            wf.write("except Exception:\n")
+            wf.write("    pass\n")
+            wf.write("\n")
+            wf.write("# Try running as module\n")
+            wf.write("import runpy\n")
+            mod = pip_pkg.replace("-", "_").split("[")[0]
+            wf.write("try:\n")
+            wf.write(f"    runpy.run_module({mod!r}, run_name='__main__', alter_sys=True)\n")
+            wf.write("except Exception as e:\n")
+            wf.write(f"    print(f'Error running {name}: {{e}}', file=sys.stderr)\n")
+            wf.write("    sys.exit(1)\n")
+        os.chmod(wrapper, 0o755)
+
+    # ── helper: cargo install ──────────────────────────────────────────
+    def _cargo_install(name, crate=None):
+        """Install *name* via cargo install.  Installs to default
+        ~/.cargo/bin (system-wide), then symlinks into _BIN."""
+        crate = crate or name
+        if not shutil.which("cargo"):
+            print("  \u2717 cargo not found. Install Rust first: https://rustup.rs")
+            return False
+
+        # attempt 1: default location (~/.cargo/bin)
+        print(f"  \u2b07  cargo install {crate} ...")
+        r = subprocess.run(["cargo", "install", crate],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            exe = (shutil.which(crate.split("/")[-1])
+                   or shutil.which(name)
+                   or _search_default_paths(name)
+                   or _search_default_paths(crate.split("/")[-1])
+                   or "")
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="cargo", pkg=crate, exe=exe)
+            print(f"  \u2713 {name} installed via cargo!")
+            if exe:
+                print(f"       ({exe})")
+            return True
+
+        print(f"  \u2717 cargo install failed.")
+        for ln in (r.stderr or "").splitlines()[-3:]:
+            print(f"     {ln}")
+        return False
+
+    # ── helper: brew install ───────────────────────────────────────────
+    def _brew_install(name, formula=None):
+        """Install *name* via brew."""
+        formula = formula or name
+        if not shutil.which("brew"):
+            print("  \u2717 brew not found.")
+            return False
+        print(f"  \u2b07  brew install {formula} ...")
+        r = subprocess.run(["brew", "install", formula])
+        if r.returncode == 0:
+            print(f"  \u2713 {name} installed via brew!")
+            return True
+        print(f"  \u2717 brew install failed.")
+        return False
+
+    # ── helper: snap install ───────────────────────────────────────────
+    def _snap_install(name, pkg=None):
+        """Install *name* via snap."""
+        pkg = pkg or name
+        if not shutil.which("snap"):
+            print("  \u2717 snap not found.")
+            return False
+        print(f"  \u2b07  snap install {pkg} ...")
+        r = _sudo_run(["snap", "install", pkg])
+        if r.returncode == 0:
+            print(f"  \u2713 {name} installed via snap!")
+            return True
+        print(f"  \u2717 snap install failed.")
+        return False
+
+    # ── helper: dnf install (Fedora/RHEL) ─────────────────────────────
+    def _dnf_install(name, pkg=None):
+        """Install via sudo dnf install (Fedora/RHEL/CentOS)."""
+        pkg = pkg or name
+        dnf = shutil.which("dnf") or shutil.which("yum")
+        if not dnf:
+            print(f"  \u2717 dnf/yum not found (not {_DISTRO or 'RHEL-based'}?).")
+            return False
+        mgr_name = os.path.basename(dnf)
+        print(f"  \u2b07  sudo {mgr_name} install -y {pkg}  [{_DISTRO} {_ARCH}]")
+        r = _sudo_run([dnf, "install", "-y", pkg])
+        if r.returncode == 0:
+            # Find the actual binary — try common names, then rpm -ql
+            exe = shutil.which(name) or shutil.which(pkg)
+            actual_bin = name
+            if not exe:
+                # try common variants
+                for variant in (name + "p", name + "c", name + "d",
+                                name.replace("-", ""), name.replace("-", "_"),
+                                pkg + "p", pkg + "c"):
+                    exe = shutil.which(variant)
+                    if exe:
+                        actual_bin = variant
+                        break
+            if not exe:
+                # ask rpm what files the package installed
+                try:
+                    rq = subprocess.run(
+                        ["rpm", "-ql", pkg], capture_output=True, text=True)
+                    if rq.returncode == 0:
+                        for ln in rq.stdout.splitlines():
+                            ln = ln.strip()
+                            if "/bin/" in ln and os.path.isfile(ln) and os.access(ln, os.X_OK):
+                                exe = ln
+                                actual_bin = os.path.basename(ln)
+                                break
+                except Exception:
+                    pass
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method=mgr_name, pkg=pkg, exe=exe or "",
+                     bin=actual_bin)
+            print(f"  \u2713 {name} installed via {mgr_name}!")
+            if actual_bin != name:
+                print(f"       (binary name: {actual_bin})")
+            return True
+        print(f"  \u2717 {mgr_name} install of '{pkg}' failed.")
+        return False
+
+    # ── helper: apt install (Debian/Ubuntu) ───────────────────────────
+    def _apt_install(name, pkg=None):
+        """Install via sudo apt install (Debian/Ubuntu/Mint)."""
+        pkg = pkg or name
+        if not shutil.which("apt"):
+            print(f"  \u2717 apt not found (not {_DISTRO or 'Debian-based'}?).")
+            return False
+        print(f"  \u2b07  sudo apt install -y {pkg}  [{_DISTRO} {_ARCH}]")
+        _sudo_run(["apt", "update", "-qq"], capture_output=True)
+        r = _sudo_run(["apt", "install", "-y", pkg])
+        if r.returncode == 0:
+            exe = shutil.which(name) or shutil.which(pkg)
+            actual_bin = name
+            if not exe:
+                for variant in (name + "p", name + "c", name + "d",
+                                name.replace("-", ""), name.replace("-", "_"),
+                                pkg + "p", pkg + "c"):
+                    exe = shutil.which(variant)
+                    if exe:
+                        actual_bin = variant
+                        break
+            if not exe:
+                try:
+                    rq = subprocess.run(
+                        ["dpkg", "-L", pkg], capture_output=True, text=True)
+                    if rq.returncode == 0:
+                        for ln in rq.stdout.splitlines():
+                            ln = ln.strip()
+                            if "/bin/" in ln and os.path.isfile(ln) and os.access(ln, os.X_OK):
+                                exe = ln
+                                actual_bin = os.path.basename(ln)
+                                break
+                except Exception:
+                    pass
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="apt", pkg=pkg, exe=exe or "",
+                     bin=actual_bin)
+            print(f"  \u2713 {name} installed via apt!")
+            if actual_bin != name:
+                print(f"       (binary name: {actual_bin})")
+            return True
+        print(f"  \u2717 apt install of '{pkg}' failed.")
+        return False
+
+    # ── helper: pacman install (Arch) ─────────────────────────────────
+    def _pacman_install(name, pkg=None):
+        """Install via sudo pacman -S (Arch/Manjaro)."""
+        pkg = pkg or name
+        if not shutil.which("pacman"):
+            print(f"  \u2717 pacman not found (not {_DISTRO or 'Arch-based'}?).")
+            return False
+        print(f"  \u2b07  sudo pacman -S --noconfirm {pkg}  [{_DISTRO} {_ARCH}]")
+        r = _sudo_run(["pacman", "-S", "--noconfirm", pkg])
+        if r.returncode == 0:
+            exe = shutil.which(name) or shutil.which(pkg)
+            actual_bin = name
+            if not exe:
+                for variant in (name + "p", name + "c", name + "d",
+                                name.replace("-", ""), name.replace("-", "_"),
+                                pkg + "p", pkg + "c"):
+                    exe = shutil.which(variant)
+                    if exe:
+                        actual_bin = variant
+                        break
+            if not exe:
+                try:
+                    rq = subprocess.run(
+                        ["pacman", "-Ql", pkg], capture_output=True, text=True)
+                    if rq.returncode == 0:
+                        for ln in rq.stdout.splitlines():
+                            parts = ln.strip().split(None, 1)
+                            if len(parts) == 2:
+                                fp = parts[1]
+                                if "/bin/" in fp and os.path.isfile(fp) and os.access(fp, os.X_OK):
+                                    exe = fp
+                                    actual_bin = os.path.basename(fp)
+                                    break
+                except Exception:
+                    pass
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="pacman", pkg=pkg, exe=exe or "",
+                     bin=actual_bin)
+            print(f"  \u2713 {name} installed via pacman!")
+            if actual_bin != name:
+                print(f"       (binary name: {actual_bin})")
+            return True
+        print(f"  \u2717 pacman install of '{pkg}' failed.")
+        return False
+
+    # ── helper: npm install ────────────────────────────────────────────
+    def _npm_install(name, pkg=None):
+        """Install *name* via npm (global)."""
+        pkg = pkg or name
+        if not shutil.which("npm"):
+            print("  \u2717 npm not found.")
+            return False
+        print(f"  \u2b07  npm install -g {pkg} ...")
+        r = subprocess.run(["npm", "install", "-g", pkg])
+        if r.returncode == 0:
+            exe = shutil.which(name) or shutil.which(pkg.split("/")[-1]) or ""
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="npm", pkg=pkg, exe=exe)
+            print(f"  \u2713 {name} installed via npm!")
+            return True
+        print(f"  \u2717 npm install failed.")
+        return False
+
+    # ── helper: go install ─────────────────────────────────────────────
+    def _go_install(name, pkg=None):
+        """Install *name* via go install to default GOPATH, then symlink."""
+        pkg = pkg or name
+        if not shutil.which("go"):
+            print("  \u2717 go not found.")
+            return False
+        print(f"  \u2b07  go install {pkg} ...")
+        r = subprocess.run(["go", "install", pkg],
+                           capture_output=True, text=True)
+        if r.returncode == 0:
+            exe = (shutil.which(name)
+                   or _search_default_paths(name)
+                   or "")
+            if exe:
+                lnk = os.path.join(_BIN, name)
+                try:
+                    if os.path.exists(lnk) or os.path.islink(lnk):
+                        os.remove(lnk)
+                    os.symlink(exe, lnk)
+                except OSError:
+                    pass
+            _reg_set(name, method="go", pkg=pkg, exe=exe)
+            print(f"  \u2713 {name} installed via go!")
+            if exe:
+                print(f"       ({exe})")
+            return True
+        print(f"  \u2717 go install failed.")
+        for ln in (r.stderr or "").splitlines()[-3:]:
+            print(f"     {ln}")
+        return False
+
+    # ── helper: run a tool ─────────────────────────────────────────────
+    def _run(name):
+        """Launch the tool, handing over the terminal until quit."""
+        exe = _find_exe(name)
+        if not exe:
+            print(f"  \u2717 Cannot find executable for '{name}'.")
+            print(f"  Searched: {_BIN}, {os.path.join(_PKG, name)}, system PATH")
+            rinfo = _reg_get(name)
+            if rinfo:
+                print(f"  Registry: {rinfo}")
+            input("  Press Enter...")
+            return
+        os.system("clear" if os.name != "nt" else "cls")
+        print(f"  \u25b6 Launching {name}  (quit the app to return)")
+        print(f"  {'~'*56}\n")
+
+        # Build env: if tool has a local package dir, add it to PYTHONPATH
+        # This fixes pip --target installs whose scripts need the packages
+        env = os.environ.copy()
+        pd = os.path.join(_PKG, name)
+        if os.path.isdir(pd):
+            pp = env.get("PYTHONPATH", "")
+            env["PYTHONPATH"] = pd + (os.pathsep + pp if pp else "")
+        # Also ensure _BIN is on PATH
+        if _BIN not in env.get("PATH", ""):
+            env["PATH"] = _BIN + os.pathsep + env.get("PATH", "")
+
+        try:
+            if exe.endswith(".py"):
+                ret = subprocess.run([sys.executable, exe], env=env)
+            else:
+                ret = subprocess.run([exe], env=env)
+            if ret.returncode != 0:
+                if abs(ret.returncode) > 1:
+                    print(f"\n  \u26a0  {name} exited with code {ret.returncode}")
+        except FileNotFoundError:
+            print(f"\n  \u2717 Executable not found: {exe}")
+            print(f"  The symlink may be broken. Try reinstalling.")
+        except PermissionError:
+            print(f"\n  \u2717 Permission denied: {exe}")
+            print(f"  Trying to fix permissions...")
+            try:
+                os.chmod(exe, 0o755)
+                print(f"  Fixed. Try running again.")
+            except Exception:
+                print(f"  Could not fix. Try: chmod +x {exe}")
+        except KeyboardInterrupt:
+            print(f"\n  Interrupted.")
+        except Exception as e:
+            print(f"\n  \u2717 Error running {name}: {type(e).__name__}: {e}")
+        input("\n  Press Enter to return to TerminalTrove...")
+
+    # ── helper: uninstall a tool ───────────────────────────────────────
+    def _uninstall(name):
+        rinfo = _reg_get(name)
+        lnk = os.path.join(_BIN, name)
+        pd = os.path.join(_PKG, name)
+        # 1. remove symlink in our bin
+        if os.path.islink(lnk) or os.path.exists(lnk):
+            os.remove(lnk)
+            print(f"  Removed symlink {lnk}")
+        # 2. remove local package dir
+        if os.path.isdir(pd):
+            shutil.rmtree(pd)
+            print(f"  Removed {pd}")
+        # 3. if installed system-wide via pip, try pip uninstall
+        method = rinfo.get("method", "")
+        pkg = rinfo.get("pkg", name)
+        if "pip" in method and "system" in method:
+            print(f"  Removing system pip package '{pkg}'...")
+            subprocess.run([sys.executable, "-m", "pip", "uninstall",
+                            pkg, "-y", "--quiet"],
+                           capture_output=True)
+        elif method == "pipx":
+            print(f"  Removing pipx package '{pkg}'...")
+            subprocess.run(["pipx", "uninstall", pkg],
+                           capture_output=True)
+        # 4. remove registry entry
+        _reg_del(name)
+        print(f"  \u2713 {name} uninstalled.")
+
+    # ── sub-menu for a single tool ─────────────────────────────────────
+    def _tool_menu(name, desc):
+        _cached_info = [None]  # cache scrape result across iterations
+
+        def _get_info():
+            if _cached_info[0] is None:
+                print(f"\n  \U0001f50d Scraping install info for {name}...")
+                _cached_info[0] = _scrape_page(name)
+            return _cached_info[0]
+
+        while True:
+            os.system("clear" if os.name != "nt" else "cls")
+            inst = _installed(name)
+            mark = "\u2713 Installed" if inst else "\u2717 Not installed"
+            rinfo = _reg_get(name)
+            print(f"\n  {'='*58}")
+            print(f"   {name}")
+            print(f"  {'-'*58}")
+            print(f"   {desc}")
+            print(f"   Status: {mark}")
+            if rinfo.get("method"):
+                print(f"   Method: {rinfo['method']}")
+            if rinfo.get("bin") and rinfo["bin"] != name:
+                print(f"   Binary: {rinfo['bin']}")
+            if rinfo.get("exe"):
+                print(f"   Exe:    {rinfo['exe']}")
+            print(f"  {'-'*58}")
+            print("   [a] \u26a1 Auto-Install (tries everything)")
+            print("   [i] Install (GitHub binary)")
+            print("   [p] Install (pip / package manager)")
+            print("   [s] \U0001f527 Build from source (git clone + build)")
+            print("   [r] \u25b6 Run")
+            if inst:
+                print("   [u] Uninstall")
+            print("   [b] Back")
+            print(f"  {'-'*58}")
+            ch = input("   > ").strip().lower()
+            if ch == "b":
+                break
+            elif ch == "a":
+                try:
+                    _auto_install(name)
+                except Exception as _e:
+                    print(f"\n  \u2717 Auto-install error: {type(_e).__name__}: {_e}")
+                input("  Press Enter...")
+            elif ch == "i":
+                try:
+                    info = _get_info()
+                    repo = info.get("repo")
+                    if repo:
+                        print(f"  \u2192 {repo}")
+                        ok = _dl_github(repo, name)
+                        if ok:
+                            _reg_set(name, method="github", repo=repo,
+                                     exe=_find_exe(name) or "")
+                    else:
+                        print("  \u2717 Could not find GitHub repo.")
+                        manual = input("  Enter GitHub URL (or Enter to skip): ").strip()
+                        if manual:
+                            if not manual.startswith("http"):
+                                manual = "https://github.com/" + manual
+                            ok = _dl_github(manual, name)
+                            if ok:
+                                _reg_set(name, method="github", repo=manual,
+                                         exe=_find_exe(name) or "")
+                except Exception as _e:
+                    print(f"\n  \u2717 Install error: {type(_e).__name__}: {_e}")
+                input("  Press Enter...")
+            elif ch == "p":
+                try:
+                    info = _get_info()
+                    methods = []
+                    if info.get("dnf"):    methods.append(("dnf",    info["dnf"]))
+                    if info.get("apt"):    methods.append(("apt",    info["apt"]))
+                    if info.get("pacman"): methods.append(("pacman", info["pacman"]))
+                    if info.get("pip"):    methods.append(("pip",    info["pip"]))
+                    if info.get("cargo"):  methods.append(("cargo",  info["cargo"]))
+                    if info.get("brew"):   methods.append(("brew",   info["brew"]))
+                    if info.get("snap"):   methods.append(("snap",   info["snap"]))
+                    if info.get("npm"):    methods.append(("npm",    info["npm"]))
+                    if info.get("go"):     methods.append(("go",     info["go"]))
+                    if not methods:
+                        # Second chance: try scraping GitHub README
+                        repo = info.get("repo")
+                        if repo:
+                            print(f"  \U0001f50d Scraping GitHub README for install commands...")
+                            gh_info = _scrape_github_readme(repo)
+                            for k in ("dnf","apt","pacman","pip","cargo","brew","snap","npm","go"):
+                                if gh_info.get(k):
+                                    methods.append((k, gh_info[k]))
+                    if not methods:
+                        print(f"  \u2717 No package-manager install scraped for {name}.")
+                        print("  Trying GitHub binary as fallback...")
+                        repo = info.get("repo")
+                        if repo:
+                            ok = _dl_github(repo, name)
+                            if ok:
+                                _reg_set(name, method="github", repo=repo,
+                                         exe=_find_exe(name) or "")
+                        else:
+                            print(f"  \u2717 No GitHub repo found either.")
+                            print(f"  Use [a] Auto-Install for exhaustive search.")
+                    elif len(methods) == 1:
+                        mgr, pkg = methods[0]
+                        print(f"  Found: {mgr} install {pkg}")
+                        _dispatch_pm(name, mgr, pkg)
+                    else:
+                        print(f"  Found {len(methods)} install methods:")
+                        for j, (mgr, pkg) in enumerate(methods, 1):
+                            print(f"    {j}. {mgr} install {pkg}")
+                        pick = input("  Choose (number, or Enter for first): ").strip()
+                        try:
+                            mi = int(pick) - 1 if pick else 0
+                            if 0 <= mi < len(methods):
+                                _dispatch_pm(name, methods[mi][0], methods[mi][1])
+                        except ValueError:
+                            pass
+                except Exception as _e:
+                    print(f"\n  \u2717 Install error: {type(_e).__name__}: {_e}")
+                input("  Press Enter...")
+            elif ch == "s":
+                try:
+                    info = _get_info()
+                    repo = info.get("repo")
+                    if repo:
+                        print(f"  \u2192 {repo}")
+                        _build_from_source(repo, name)
+                    else:
+                        print("  \u2717 Could not find GitHub repo.")
+                        manual = input("  Enter GitHub URL (or Enter to skip): ").strip()
+                        if manual:
+                            if not manual.startswith("http"):
+                                manual = "https://github.com/" + manual
+                            _build_from_source(manual, name)
+                except Exception as _e:
+                    print(f"\n  \u2717 Build error: {type(_e).__name__}: {_e}")
+                input("  Press Enter...")
+            elif ch == "r":
+                try:
+                    if inst:
+                        _run(name)
+                    else:
+                        print(f"  \u2717 {name} is not installed yet.")
+                        yn = input(f"  Auto-install {name}? [Y/n]: ").strip().lower()
+                        if yn != "n":
+                            _auto_install(name)
+                            if _installed(name):
+                                _run(name)
+                        else:
+                            input("  Press Enter...")
+                except Exception as _e:
+                    print(f"\n  \u2717 Run error: {type(_e).__name__}: {_e}")
+                    input("  Press Enter...")
+            elif ch == "u" and inst:
+                try:
+                    _uninstall(name)
+                except Exception as _e:
+                    print(f"\n  \u2717 Uninstall error: {type(_e).__name__}: {_e}")
+                input("  Press Enter...")
+
+    def _dispatch_pm(name, mgr, pkg):
+        """Dispatch to the right package manager installer."""
+        if mgr == "pip":       _pip_install(name, page_info={"pip": pkg})
+        elif mgr == "cargo":   _cargo_install(name, crate=pkg)
+        elif mgr == "brew":    _brew_install(name, formula=pkg)
+        elif mgr == "snap":    _snap_install(name, pkg=pkg)
+        elif mgr == "npm":     _npm_install(name, pkg=pkg)
+        elif mgr == "go":      _go_install(name, pkg=pkg)
+        elif mgr == "dnf":     _dnf_install(name, pkg=pkg)
+        elif mgr == "apt":     _apt_install(name, pkg=pkg)
+        elif mgr == "pacman":  _pacman_install(name, pkg=pkg)
+
+    def _try_info_install(name, info):
+        """Try all install methods found in an info dict.
+        Prioritises the NATIVE package manager for the detected distro,
+        then falls through the rest."""
+
+        # Build ordered list: native system pkg mgr first, then others
+        _installers = {
+            "dnf":    lambda n, p: _dnf_install(n, pkg=p),
+            "apt":    lambda n, p: _apt_install(n, pkg=p),
+            "pacman": lambda n, p: _pacman_install(n, pkg=p),
+            "brew":   lambda n, p: _brew_install(n, formula=p),
+            "cargo":  lambda n, p: _cargo_install(n, crate=p),
+            "pip":    lambda n, p: _pip_install(n, page_info={"pip": p}),
+            "go":     lambda n, p: _go_install(n, pkg=p),
+            "snap":   lambda n, p: _snap_install(n, pkg=p),
+            "npm":    lambda n, p: _npm_install(n, pkg=p),
+        }
+        # Which key matches our native pkg mgr?
+        _native_map = {"dnf": "dnf", "yum": "dnf", "apt": "apt",
+                       "pacman": "pacman", "brew": "brew",
+                       "zypper": "dnf"}
+        native_key = _native_map.get(_PKG_MGR)
+
+        # Order: native first, then the rest
+        order = []
+        if native_key and info.get(native_key):
+            order.append(native_key)
+        for k in ("dnf", "apt", "pacman", "cargo", "pip",
+                  "brew", "go", "snap", "npm"):
+            if k not in order:
+                order.append(k)
+
+        print(f"  \U0001f4bb System: {_DISTRO or _SYS} {_ARCH} | "
+              f"Native pkg mgr: {_PKG_MGR or 'none'}")
+
+        for mgr in order:
+            pkg = info.get(mgr)
+            if not pkg:
+                continue
+            # Skip pkg mgrs we don't have
+            needs_bin = {"dnf": "dnf", "apt": "apt", "pacman": "pacman",
+                         "brew": "brew", "cargo": "cargo", "go": "go",
+                         "snap": "snap", "npm": "npm"}
+            if mgr in needs_bin and not shutil.which(needs_bin[mgr]):
+                # For dnf, also check yum
+                if mgr == "dnf" and shutil.which("yum"):
+                    pass
+                else:
+                    continue
+            tag = " (native)" if mgr == native_key else ""
+            print(f"\n  \u2192 {mgr} install {pkg}{tag}")
+            if _installers[mgr](name, pkg):
+                return True
+        return False
+
+    def _auto_install(name):
+        """Cascading auto-install: scrape page, try GitHub binary,
+        then every detected package manager, then GitHub README scrape
+        as second failsafe, then blind fallback."""
+        print(f"\n  \u26a1 Auto-installing {name}...")
+        info = _scrape_page(name)
+
+        # ── Phase 1: GitHub binary ─────────────────────────────────
+        repo = info.get("repo")
+        if repo:
+            print(f"\n  [Phase 1] GitHub binary from {repo}")
+            if _dl_github(repo, name):
+                _reg_set(name, method="github", repo=repo,
+                         exe=_find_exe(name) or "")
+                return True
+            print(f"  \u26a0  GitHub binary failed, trying next method...")
+        else:
+            print(f"  [Phase 1] No GitHub repo found, skipping binary...")
+
+        # ── Phase 2: Use scraped install commands from Terminal Trove ──
+        has_pm = any(info.get(k) for k in
+                     ("dnf", "apt", "pacman", "cargo", "pip",
+                      "brew", "go", "snap", "npm"))
+        if has_pm:
+            print(f"\n  [Phase 2] Trying install commands from Terminal Trove...")
+            if _try_info_install(name, info):
+                return True
+
+        # ── Phase 3: Scrape GitHub README for install commands ─────
+        if repo:
+            print(f"\n  [Phase 3] \U0001f50d Scraping GitHub README for install commands...")
+            gh_info = _scrape_github_readme(repo)
+            gh_has = any(gh_info.get(k) for k in
+                         ("dnf", "apt", "pacman", "cargo", "pip",
+                          "brew", "go", "snap", "npm"))
+            if gh_has:
+                if _try_info_install(name, gh_info):
+                    return True
+            else:
+                print(f"  No install commands found in README.")
+        else:
+            print(f"\n  [Phase 3] No repo URL — skipping README scrape.")
+
+        # ── Phase 4: Build from source (git clone + build) ────────
+        if repo:
+            print(f"\n  [Phase 4] \U0001f527 Building from source...")
+            if _build_from_source(repo, name):
+                return True
+        else:
+            print(f"\n  [Phase 4] No repo URL — skipping source build.")
+
+        # ── Phase 5: Blind fallback with just the name ─────────────
+        print(f"\n  [Phase 5] Blind fallback — trying common managers...")
+        print(f"  \U0001f4bb {_DISTRO or _SYS} {_ARCH} | native: {_PKG_MGR or 'none'}")
+
+        # Try the native package manager FIRST (matched to this machine)
+        if _PKG_MGR == "dnf" or _PKG_MGR == "yum":
+            print(f"\n  [fallback] {_PKG_MGR} install {name}")
+            if _dnf_install(name):
+                return True
+        elif _PKG_MGR == "apt":
+            print(f"\n  [fallback] apt install {name}")
+            if _apt_install(name):
+                return True
+        elif _PKG_MGR == "pacman":
+            print(f"\n  [fallback] pacman -S {name}")
+            if _pacman_install(name):
+                return True
+        elif _PKG_MGR == "brew":
+            print(f"\n  [fallback] brew install {name}")
+            if _brew_install(name):
+                return True
+
+        # Then other managers
+        if shutil.which("cargo"):
+            print(f"\n  [fallback] cargo install {name}")
+            if _cargo_install(name):
+                return True
+        if not info.get("pip"):
+            print(f"\n  [fallback] pip install {name}")
+            if _pip_install(name, page_info={}):
+                return True
+        if shutil.which("snap"):
+            print(f"\n  [fallback] snap install {name}")
+            if _snap_install(name):
+                return True
+
+        # ── Phase 6: Scrape 'From Source' instructions & run them ──
+        print(f"\n  [Phase 6] \U0001f50e Searching for 'From Source' build instructions...")
+        src_cmds = _scrape_from_source_instructions(name, repo_url=repo)
+        if src_cmds:
+            print(f"  Found {len(src_cmds)} commands:")
+            for j, c in enumerate(src_cmds, 1):
+                print(f"    {j}. {c}")
+            if _run_from_source_cmds(name, src_cmds, repo_url=repo):
+                return True
+            print(f"  \u26a0 Scraped 'From Source' commands did not succeed.")
+        else:
+            print(f"  No 'From Source' instructions found.")
+
+        print(f"\n  \u2717 All install methods failed for {name}.")
+        print(f"  You may need to install it manually.")
+        if repo:
+            print(f"  Repo: {repo}")
+        return False
+
+    # ── wrap _auto_install with post-install verification ──────────────
+    _auto_install_inner = _auto_install
+    def _auto_install(name):
+        result = _auto_install_inner(name)
+        # Always run verification after an install attempt
+        _verify_install(name)
+        return result
+
+    # ── post-install verification ──────────────────────────────────────
+    def _verify_install(name):
+        """After an install, verify the binary exists and register it.
+        Returns True if a valid executable is found."""
+        exe = _find_exe(name)
+        if exe:
+            rinfo = _reg_get(name)
+            if not rinfo.get("exe") or not os.path.exists(rinfo.get("exe", "")):
+                _reg_set(name, exe=exe)
+            print(f"  \u2705 Verified: {name} -> {exe}")
+            return True
+        # last resort: maybe the binary name differs from catalogue name
+        found = _search_default_paths(name)
+        if found:
+            lnk = os.path.join(_BIN, name)
+            try:
+                if os.path.exists(lnk) or os.path.islink(lnk):
+                    os.remove(lnk)
+                os.symlink(found, lnk)
+            except OSError:
+                pass
+            _reg_set(name, exe=found)
+            print(f"  \u2705 Verified: {name} -> {found}")
+            return True
+        print(f"  \u26a0  Could not verify binary for {name}.")
+        return False
+
+    # ── boot-time scan for new installs ────────────────────────────────
+    def _scan_new_installs():
+        """Scan common directories for tools matching the catalogue
+        that were installed outside this script (e.g. manually).
+        Updates the registry and creates symlinks for any found."""
+        found_count = 0
+        reg = _reg_load()
+        names = {n for n, _ in _CAT}
+        for name in names:
+            # skip if already fully tracked with a valid exe
+            rinfo = reg.get(name, {})
+            if rinfo.get("exe") and os.path.exists(rinfo["exe"]):
+                continue
+            if rinfo.get("method"):
+                # has a method but no valid exe — try to find it
+                pass
+            # check system PATH (fast — PATH already includes defaults)
+            exe = shutil.which(name)
+            if not exe:
+                # check sub-directory patterns (SCRIPT_DIR/<name>/<name>)
+                exe = _search_default_paths(name)
+            if exe:
+                found_count += 1
+                # create symlink if missing
+                lnk = os.path.join(_BIN, name)
+                if not os.path.exists(lnk):
+                    try:
+                        os.symlink(exe, lnk)
+                    except OSError:
+                        pass
+                # update registry
+                if not rinfo.get("method"):
+                    _reg_set(name, method="external", exe=exe)
+                elif not rinfo.get("exe") or not os.path.exists(rinfo.get("exe", "")):
+                    _reg_set(name, exe=exe)
+        if found_count:
+            print(f"  \U0001f50d Scan complete: detected {found_count} new/updated tool(s).")
+        return found_count
+
+    # ── run the boot scan ──────────────────────────────────────────────
+    _scan_new_installs()
+
+    # ══════════════════════════════════════════════════════════════════
+    #  MAIN  TUI  LOOP
+    # ══════════════════════════════════════════════════════════════════
+    PG = 30
+    page = 0
+    filt = ""
+
+    while True:
+        os.system("clear" if os.name != "nt" else "cls")
+
+        # apply filter
+        if filt:
+            view = [(n, d) for n, d in _CAT
+                    if filt in n.lower() or filt in d.lower()]
+        else:
+            view = list(_CAT)
+
+        pages = max(1, (len(view) + PG - 1) // PG)
+        if page >= pages:
+            page = pages - 1
+        if page < 0:
+            page = 0
+        s = page * PG
+        e = min(s + PG, len(view))
+
+        # header
+        print(f"\n  {'='*62}")
+        print(f"  {'🔗  T E R M I N A L   T R O V E':^62}")
+        print(f"  {'='*62}")
+        if filt:
+            print(f"   Filter: '{filt}'  ({len(view)} matches)")
+        print(f"   Page {page+1}/{pages}  \u2022  {len(view)} tools"
+              f"  \u2022  OS: {_SYS}/{_ARCH}")
+        print(f"  {'-'*62}")
+
+        # rows
+        for i in range(s, e):
+            nm, ds = view[i]
+            ck = "\u2713" if _installed(nm) else " "
+            sd = ds[:42] + "\u2026" if len(ds) > 42 else ds
+            print(f"   {i+1:>4}. [{ck}] {nm:<24} {sd}")
+
+        # footer
+        print(f"  {'-'*62}")
+        print("   [n]ext  [p]rev  [s]earch  [c]lear  [number]  [q]uit")
+        print(f"  {'-'*62}")
+
+        ch = input("   > ").strip().lower()
+        if ch == "q":
+            break
+        elif ch == "n":
+            if page < pages - 1:
+                page += 1
+        elif ch == "p":
+            if page > 0:
+                page -= 1
+        elif ch == "s":
+            filt = input("   Search: ").strip().lower()
+            page = 0
+        elif ch == "c":
+            filt = ""
+            page = 0
+        elif ch.isdigit():
+            idx = int(ch) - 1
+            if 0 <= idx < len(view):
+                try:
+                    _tool_menu(*view[idx])
+                except Exception as _e:
+                    print(f"\n  \u2717 Error: {type(_e).__name__}: {_e}")
+                    input("  Press Enter...")
 
 # --- WIFI 600% ENHANCEMENT: AI-POWERED CONNECTIVITY INTELLIGENCE ---
 
@@ -44976,6 +47841,7 @@ CLASSIC_APP_ACTIONS = [
     ("ai_probe", {"title": "AI Probe", "summary": "Deep probe AI analysis.", "category": "ai", "operation": "AI_Probe", "func": feature_deep_probe_ai}),
     ("calendar", {"title": "Calendar", "summary": "AI-Enhanced calendar & productivity management.", "category": "general", "operation": "Calendar", "func": feature_enhanced_calendar}),
     ("latency", {"title": "Latency Probe", "summary": "Network latency and jitter checks.", "category": "network", "operation": "Latency_Probe", "func": feature_latency_probe}),
+    ("terminal_trove", {"title": "TerminalTrove", "summary": "Browse and install TUI tools from Terminal Trove.", "category": "network", "operation": "TerminalTrove", "func": feature_terminal_trove}),
     ("weather", {"title": "Weather Display", "summary": "Live weather and forecast.", "category": "weather", "operation": "Weather_Display", "func": feature_weather_display}),
     ("displayfx", {"title": "Display FX", "summary": "Font and visual effect tests.", "category": "general", "operation": "Display_FX", "func": feature_test_font_size}),
     ("media", {"title": "Media Menu", "summary": "Media scanner and player.", "category": "media", "operation": "Media_Menu", "func": feature_media_menu}),
@@ -46100,6 +48966,8 @@ def _format_classic_menu_display():
 
     # Row 2: Core Tools (0, 10-14)
     lines.append(f" {BOLD}[0]{RESET} 🌐 Net Tools  {BOLD}[10]{RESET} 🔌 Plugin  {BOLD}[11]{RESET} 📊 Dashboard  {BOLD}[12]{RESET} 🔓 PenTest  {BOLD}[13]{RESET} 🛡️ Defence  {BOLD}[14]{RESET} 🔗 Server/Client")
+    # Extra slot for newly-added option 15
+    lines.append(f" {BOLD}[15]{RESET} 🔗 TerminalTrove")
 
     # Row 3: Security & System (A-E)
     lines.append(f" {BOLD}[A]{RESET} 🔐 Audit  {BOLD}[B]{RESET} 🔍 Env Probe  {BOLD}[C]{RESET} 📋 Serial  {BOLD}[D]{RESET} 🤖 AI Probe  {BOLD}[E]{RESET} 📅 Calendar")
@@ -49985,7 +52853,7 @@ def run_classic_command_center():
         print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-        choice = input(f"{BOLD}🎯 Select an option (0-Z, 14): {RESET}").strip().upper()
+        choice = input(f"{BOLD}🎯 Select an option (0-Z, 15): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
 
         # Record command to history (skip settings/navigation commands)
@@ -50052,6 +52920,7 @@ def run_classic_command_center():
         elif choice == '11': safe_run("general", "Remote_Dashboard", feature_remote_dashboard)
         elif choice == '12': safe_run("pentest", "Pen_Test_Toolkit", feature_pentest_toolkit)
         elif choice == '13': safe_run("defense", "Defence_Center", feature_defence_center)
+        elif choice == '15': safe_run("network", "TerminalTrove", feature_terminal_trove)
         elif choice == '0': safe_run("network", "Network_Toolkit", feature_network_toolkit)
         elif choice == 'A': safe_run("security", "Security_Audit", feature_security_audit)
         elif choice == 'B': safe_run("system", "Environment_Probe", feature_environment_probe)
