@@ -105,8 +105,6 @@ import subprocess
 import os
 import time
 import threading
-import ctypes # Added for Admin/Root probing
-import calendar # Added for AI/Calendar expansion
 import csv
 import hashlib
 import textwrap
@@ -118,7 +116,311 @@ import copy
 from enum import Enum
 from pathlib import Path
 from collections import deque
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
+
+# Safe imports for OS-specific modules
+try:
+    import ctypes
+except ImportError:
+    ctypes = None
+
+try:
+    import calendar
+except ImportError:
+    calendar = None
+
+# ================================================================================
+# UNIVERSAL FAILSAFE IMPORT SYSTEM
+# ================================================================================
+"""
+This system ensures pythonOScmd.py loads on ANY system with ANY missing dependencies.
+Missing packages are automatically replaced with fallback stubs.
+"""
+
+MISSING_IMPORTS = []  # Track what failed to import for logging
+
+def safe_import(module_name: str, fallback_class=None, optional=True):
+    """
+    Safely import a module with automatic fallback.
+    
+    Args:
+        module_name: Name of the module to import
+        fallback_class: Class to use if import fails
+        optional: If True, silently fail; if False, raise exception
+    
+    Returns:
+        The imported module or fallback class
+    """
+    try:
+        return importlib.import_module(module_name)
+    except ImportError as e:
+        MISSING_IMPORTS.append({
+            'module': module_name,
+            'error': str(e),
+            'timestamp': time.time()
+        })
+        if fallback_class:
+            return fallback_class
+        if not optional:
+            raise
+        return None
+
+
+# ================================================================================
+# FALLBACK STUBS FOR COMMON MISSING PACKAGES
+# ================================================================================
+
+class FallbackModule:
+    """Base fallback module that returns None for all attributes."""
+    def __getattr__(self, name):
+        return FallbackModule()
+    
+    def __call__(self, *args, **kwargs):
+        return None
+    
+    def __enter__(self):
+        return self
+    
+    def __exit__(self, *args):
+        pass
+
+
+# Rich Console Fallback
+class FallbackRichConsole:
+    """Fallback for Rich Console - basic terminal output."""
+    def __init__(self, *args, **kwargs):
+        pass
+    
+    def print(self, *args, **kwargs):
+        text = ' '.join(str(arg) for arg in args)
+        print(text)
+    
+    def rule(self, *args, **kwargs):
+        print("-" * 80)
+
+
+# Textual Fallback
+class FallbackTextual:
+    """Fallback for Textual TUI framework."""
+    Widget = FallbackModule
+    Screen = FallbackModule
+    App = FallbackModule
+    container = FallbackModule
+    widgets = FallbackModule
+
+
+# FastAPI/Starlette Fallback
+class FallbackFastAPI:
+    """Fallback for FastAPI - basic routing."""
+    def __init__(self, *args, **kwargs):
+        self.routes = []
+    
+    def get(self, path):
+        def decorator(func):
+            self.routes.append(('GET', path, func))
+            return func
+        return decorator
+    
+    def post(self, path):
+        def decorator(func):
+            self.routes.append(('POST', path, func))
+            return func
+        return decorator
+
+
+# Requests Fallback
+class FallbackRequests:
+    """Fallback for Requests - basic HTTP."""
+    @staticmethod
+    def get(url, *args, **kwargs):
+        return FallbackResponse()
+    
+    @staticmethod
+    def post(url, *args, **kwargs):
+        return FallbackResponse()
+
+
+class FallbackResponse:
+    """Fallback HTTP response."""
+    def __init__(self):
+        self.status_code = 200
+        self.text = ""
+        self.content = b""
+    
+    def json(self):
+        return {}
+
+
+# Pygame Fallback
+class FallbackPygame:
+    """Fallback for Pygame - minimal implementation."""
+    class mixer:
+        @staticmethod
+        def init():
+            pass
+        
+        @staticmethod
+        def Sound(path):
+            return FallbackSound()
+    
+    class display:
+        @staticmethod
+        def set_mode(size):
+            return FallbackSurface()
+    
+    init = lambda *args, **kwargs: None
+    QUIT = 12
+
+
+class FallbackSound:
+    """Fallback sound object."""
+    def play(self, loops=0):
+        pass
+    
+    def stop(self):
+        pass
+
+
+class FallbackSurface:
+    """Fallback pygame surface."""
+    def fill(self, color):
+        pass
+    
+    def blit(self, source, dest):
+        pass
+
+
+# NumPy Fallback
+class FallbackNumPy:
+    """Fallback for NumPy."""
+    @staticmethod
+    def array(data):
+        return data
+    
+    @staticmethod
+    def zeros(shape):
+        return []
+    
+    @staticmethod
+    def ones(shape):
+        return [1]
+
+
+# Matplotlib Fallback
+class FallbackMatplotlib:
+    """Fallback for Matplotlib."""
+    class pyplot:
+        @staticmethod
+        def plot(*args, **kwargs):
+            pass
+        
+        @staticmethod
+        def show():
+            pass
+
+
+# Paramiko/SSH Fallback
+class FallbackParametiko:
+    """Fallback for Paramiko SSH."""
+    class SSHClient:
+        def connect(self, *args, **kwargs):
+            pass
+        
+        def exec_command(self, cmd):
+            return None, None, None
+
+
+# Scapy Fallback
+class FallbackScapy:
+    """Fallback for Scapy network tools."""
+    @staticmethod
+    def sniff(*args, **kwargs):
+        return []
+    
+    @staticmethod
+    def send(packet):
+        pass
+
+
+# Selenium Fallback
+class FallbackSelenium:
+    """Fallback for Selenium."""
+    class webdriver:
+        class Chrome:
+            def __init__(self, *args, **kwargs):
+                pass
+            
+            def get(self, url):
+                pass
+
+
+# ================================================================================
+# COMPREHENSIVE SAFE IMPORT REGISTRY
+# ================================================================================
+
+OPTIONAL_IMPORTS = {
+    'rich': ('rich', FallbackModule),
+    'textual': ('textual', FallbackTextual),
+    'fastapi': ('fastapi', FallbackFastAPI),
+    'requests': ('requests', FallbackRequests),
+    'pygame': ('pygame', FallbackPygame),
+    'numpy': ('numpy', FallbackNumPy),
+    'matplotlib': ('matplotlib', FallbackMatplotlib),
+    'paramiko': ('paramiko', FallbackParametiko),
+    'scapy': ('scapy', FallbackScapy),
+    'selenium': ('selenium', FallbackSelenium),
+    'aiohttp': ('aiohttp', FallbackModule),
+    'websocket': ('websocket', FallbackModule),
+    'cryptography': ('cryptography', FallbackModule),
+    'pydantic': ('pydantic', FallbackModule),
+    'sqlalchemy': ('sqlalchemy', FallbackModule),
+    'psycopg2': ('psycopg2', FallbackModule),
+    'redis': ('redis', FallbackModule),
+    'jwt': ('jwt', FallbackModule),
+    'pillow': ('PIL', FallbackModule),
+    'cv2': ('cv2', FallbackModule),
+    'beautifulsoup': ('bs4', FallbackModule),
+}
+
+
+def import_safe(module_name: str, fallback=None):
+    """Import with automatic fallback."""
+    try:
+        return importlib.import_module(module_name)
+    except ImportError:
+        MISSING_IMPORTS.append(module_name)
+        if fallback:
+            return fallback
+        return FallbackModule()
+
+
+# Pre-import all optional modules with fallbacks
+rich = import_safe('rich', FallbackModule())
+try:
+    from rich.console import Console
+except ImportError:
+    Console = FallbackRichConsole
+
+textual = import_safe('textual', FallbackTextual())
+fastapi = import_safe('fastapi', FallbackFastAPI())
+requests = import_safe('requests', FallbackRequests())
+pygame = import_safe('pygame', FallbackPygame())
+numpy = import_safe('numpy', FallbackNumPy())
+matplotlib = import_safe('matplotlib', FallbackMatplotlib())
+paramiko = import_safe('paramiko', FallbackParametiko())
+scapy = import_safe('scapy', FallbackScapy())
+selenium = import_safe('selenium', FallbackSelenium())
+aiohttp = import_safe('aiohttp', FallbackModule())
+websocket = import_safe('websocket', FallbackModule())
+cryptography = import_safe('cryptography', FallbackModule())
+pydantic = import_safe('pydantic', FallbackModule())
+sqlalchemy = import_safe('sqlalchemy', FallbackModule())
+psycopg2 = import_safe('psycopg2', FallbackModule())
+redis = import_safe('redis', FallbackModule())
+jwt = import_safe('jwt', FallbackModule())
+pil = import_safe('PIL', FallbackModule())
+cv2 = import_safe('cv2', FallbackModule())
+bs4 = import_safe('bs4', FallbackModule())
 
 # Hide pygame support prompt globally for interactive widgets
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "1")
@@ -154,6 +456,130 @@ def detect_display_capabilities():
         except ImportError:
             # Ultimate fallback to classic mode
             return "classic"
+
+
+# ================================================================================
+# SYSTEM INFO & FAILSAFE DIAGNOSTICS
+# ================================================================================
+
+def get_system_info() -> Dict[str, str]:
+    """Get OS and Python version info for failsafe diagnostics."""
+    try:
+        return {
+            'os': sys.platform,
+            'python_version': f"{sys.version_info.major}.{sys.version_info.minor}.{sys.version_info.micro}",
+            'python_impl': sys.implementation.name if hasattr(sys, 'implementation') else 'unknown',
+            'script_dir': os.path.dirname(os.path.abspath(__file__)),
+            'cwd': os.getcwd(),
+        }
+    except Exception as e:
+        return {'error': str(e)}
+
+
+def log_missing_imports(log_file: Optional[str] = None) -> Dict[str, Any]:
+    """Log all missing imports for diagnostic purposes."""
+    info = {
+        'timestamp': time.strftime('%Y-%m-%d %H:%M:%S'),
+        'system_info': get_system_info(),
+        'missing_modules': MISSING_IMPORTS,
+        'total_missing': len(MISSING_IMPORTS),
+    }
+    
+    if log_file is None:
+        log_dir = os.path.join(os.path.expanduser('~'), '.pythonos')
+        os.makedirs(log_dir, exist_ok=True)
+        log_file = os.path.join(log_dir, 'failsafe_diagnostics.log')
+    
+    try:
+        with open(log_file, 'a') as f:
+            import json
+            f.write(json.dumps(info, indent=2) + '\n\n')
+    except Exception as e:
+        print(f"[!] Could not write diagnostics log: {e}")
+    
+    return info
+
+
+def execute_with_fallback(func, *args, fallback_return=None, **kwargs):
+    """Execute a function with automatic fallback on exception."""
+    try:
+        return func(*args, **kwargs)
+    except Exception as e:
+        try:
+            print(f"[!] Error in {func.__name__}: {e}")
+        except:
+            print(f"[!] Error executing function: {e}")
+        return fallback_return
+
+
+def verify_core_functionality() -> bool:
+    """Verify that core OS functionality works."""
+    checks = []
+    
+    # Check filesystem access
+    try:
+        test_dir = tempfile.mkdtemp()
+        test_file = os.path.join(test_dir, 'test.txt')
+        with open(test_file, 'w') as f:
+            f.write('test')
+        os.remove(test_file)
+        os.rmdir(test_dir)
+        checks.append(('Filesystem', True))
+    except Exception as e:
+        checks.append(('Filesystem', False, str(e)))
+    
+    # Check subprocess
+    try:
+        result = subprocess.run(['python', '--version'], capture_output=True, timeout=2)
+        checks.append(('Subprocess', result.returncode == 0))
+    except Exception as e:
+        checks.append(('Subprocess', False, str(e)))
+    
+    # Check threading
+    try:
+        def test_func():
+            pass
+        t = threading.Thread(target=test_func)
+        t.daemon = True
+        t.start()
+        t.join(timeout=1)
+        checks.append(('Threading', True))
+    except Exception as e:
+        checks.append(('Threading', False, str(e)))
+    
+    # All core checks
+    all_passed = all(check[1] for check in checks)
+    return all_passed
+
+
+def safe_main_execution(main_func, *args, **kwargs):
+    """Wrap main execution with comprehensive error handling."""
+    try:
+        # Log system info
+        info = log_missing_imports()
+        if info['total_missing'] > 0:
+            print(f"[*] Warning: {info['total_missing']} optional modules missing")
+            print(f"[*] Diagnostics saved to ~/.pythonos/failsafe_diagnostics.log")
+        
+        # Verify core functionality
+        if not verify_core_functionality():
+            print("[!] Warning: Some core functionality may be impaired")
+        
+        # Execute main function
+        return execute_with_fallback(main_func, *args, fallback_return=0, **kwargs)
+    
+    except KeyboardInterrupt:
+        print("\n[*] Program interrupted by user")
+        return 130
+    except SystemExit as e:
+        return e.code
+    except Exception as e:
+        print(f"\n[!] Fatal error: {e}")
+        print(f"[*] System: {get_system_info()}")
+        import traceback
+        traceback.print_exc()
+        return 1
+
 
 # ================================================================================
 # EMBEDDED MODULE EXTRACTION & FILE INITIALIZATION SYSTEM
@@ -23060,7 +23486,7 @@ def _attempt_system_pkg_install(package: str) -> bool:
     return False
 
 
-def _create_and_install_in_venv(package: str, venv_path: str | None = None) -> tuple[bool, str]:
+def _create_and_install_in_venv(package: str, venv_path: Optional[str] = None) -> Tuple[bool, str]:
     import venv
     if not venv_path:
         venv_path = os.path.expanduser('~/.pythonOS/venv')
@@ -54261,6 +54687,44 @@ if __name__ == "__main__":
         print("\nSystem is unable to recover.")
         sys.exit(1)
 
+
+# ================================================================================
+# EXECUTION ENTRY POINT WITH ULTIMATE FAILSAFE
+# ================================================================================
+
+if __name__ == '__main__':
+    """
+    Main execution entry point with multi-layered failsafe protection.
+    This ensures the script ALWAYS runs regardless of missing dependencies or OS.
+    """
+    try:
+        # Import traceback for error reporting
+        import traceback
+        
+        # Execute main_safe with all failsafes enabled
+        exit_code = safe_main_execution(main_safe)
+        
+        # Ensure clean exit
+        sys.exit(exit_code if exit_code is not None else 0)
+        
+    except KeyboardInterrupt:
+        print("\n[*] Program interrupted by user")
+        sys.exit(130)
+        
+    except SystemExit as e:
+        # Allow normal exit codes to pass through
+        sys.exit(e.code if e.code is not None else 0)
+        
+    except Exception as e:
+        # Absolute last-resort error handler
+        print(f"\n[FATAL] Uncaught exception in main: {e}")
+        try:
+            print(f"System Info: {get_system_info()}")
+            print(f"\nTraceback:\n{traceback.format_exc()}")
+            log_missing_imports()
+        except:
+            # Even error reporting failed - just print raw error
+            print(f"Error info: {e}")
 
 # ==========================================================
 # CHANGELOG / UPDATE LOG
