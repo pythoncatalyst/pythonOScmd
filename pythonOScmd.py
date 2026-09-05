@@ -9614,9 +9614,43 @@ def extract_embedded_files():
 # SECTION 3: CORE SYSTEM UTILITIES
 # ================================================================================
 
+# ================================================================================
+# OFFLINE STARTUP SUPPORT (added so pythonOS boots cleanly with no internet)
+# ================================================================================
+OFFLINE_MODE = False
+_conn_state = {"t": 0.0, "ok": True}
+
+def _check_internet_connectivity(timeout=1.5):
+    """Fast, dependency-free connectivity probe. Tries a raw TCP connect to a
+    couple of well-known DNS resolvers on port 53 so it doesn't itself depend
+    on DNS resolution working. Returns True/False, never raises."""
+    import socket as _socket
+    for host, port in (("1.1.1.1", 53), ("8.8.8.8", 53)):
+        try:
+            with _socket.create_connection((host, port), timeout=timeout):
+                return True
+        except OSError:
+            continue
+    return False
+
+def _internet_available(cache_seconds=300):
+    """Cached connectivity check so background loops don't hammer the network
+    (or spam retries) every few seconds while offline."""
+    now = time.time()
+    if now - _conn_state["t"] > cache_seconds:
+        _conn_state["ok"] = _check_internet_connectivity()
+        _conn_state["t"] = now
+    return _conn_state["ok"]
+
+
 def boot_loader():
     """Boot loader with enhanced display mode detection and installation logic."""
-    global DISPLAY_MODE, DISPLAY_INITIALIZED
+    global DISPLAY_MODE, DISPLAY_INITIALIZED, OFFLINE_MODE
+
+    OFFLINE_MODE = not _check_internet_connectivity()
+    if OFFLINE_MODE:
+        print("\033[93m[!] \U0001F4E1 No internet connection detected - starting in OFFLINE MODE.\033[0m")
+        print("\033[93m[!] Skipping automatic package installs; missing libraries will be mocked.\033[0m\n")
 
     try:
         # Fix for UnicodeEncodeError: Force UTF-8 encoding for stdout if possible
@@ -9668,7 +9702,7 @@ def boot_loader():
         print(f"\033[93m[!] 📦 Missing Display Libraries: {', '.join(missing_display)}\033[0m")
         print(f"\033[93m[!] This will affect the UI mode (Textual/Rich).\033[0m\n")
 
-        choice = input("📥 Do you want to install display libraries now? (y/n): ").strip().lower()
+        choice = 'n' if OFFLINE_MODE else input("📥 Do you want to install display libraries now? (y/n): ").strip().lower()
         if choice == 'y':
             print(f"🚀 Installing display libraries: {missing_display}...")
             try:
@@ -9694,7 +9728,7 @@ def boot_loader():
     # 5. Handle remaining missing libraries
     while missing:
         print(f"\033[93m[!] 📦 Missing Libraries detected: {', '.join(missing)}\033[0m")
-        choice = input("📥 Do you want to install them now? (y/n): ").strip().lower()
+        choice = 'n' if OFFLINE_MODE else input("📥 Do you want to install them now? (y/n): ").strip().lower()
 
         if choice == 'y':
             print(f"🚀 Installing: {missing}...")
@@ -9706,7 +9740,7 @@ def boot_loader():
                 missing.clear()
             except Exception as e:
                 print(f"❌ Auto-install failed. Try running: pip install {' '.join(missing)}")
-                fail_safe = input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
+                fail_safe = 'y' if OFFLINE_MODE else input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
                 if fail_safe == 'y':
                     print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
                     time.sleep(2)
@@ -9746,7 +9780,7 @@ def boot_loader():
                 print("\033[91m[!] 🖼️ NOTE: Pillow is missing. Web Image/ASCII functionality will be REDUCED.\033[0m")
             if DISPLAY_MODE != "classic":
                 print("⚠️ Some display features may be unavailable.\n")
-            fail_safe = input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
+            fail_safe = 'y' if OFFLINE_MODE else input("🛡️ Do you want to continue in Safe Mode (mock missing utilities)? (y/n): ").strip().lower()
             if fail_safe == 'y':
                 print("🛡️ Loading in Safe Mode (Some features may display 'N/A')...\n")
                 time.sleep(2)
@@ -53431,8 +53465,11 @@ def autonomous_optimizer_daemon():
                     sys.__stdout__.write(f"\n{COLORS['1'][0]}[🔋 AI] LOW BATTERY: Power Save Mode (Blink Disabled).{RESET}\n")
 
             # 4. HEURISTIC: Geo-Optimization
-            # If weather is N/A, try to trigger a background refresh
-            if weather_cache["temp"] == "N/A":
+            # If weather is N/A, try to trigger a background refresh - but
+            # only if we have a network connection. Without this check, an
+            # offline machine would spawn (and fail) a new weather-fetch
+            # thread every 10 seconds forever, spamming the console.
+            if weather_cache["temp"] == "N/A" and _internet_available():
                 threading.Thread(target=get_weather_data, daemon=True).start()
 
         except Exception:
@@ -53440,8 +53477,12 @@ def autonomous_optimizer_daemon():
 
         time.sleep(10) # Run audit every 10 seconds
 
-# Start the Shadow Auditor in a daemon thread via thread pool
-submit_async_task("autonomous_optimizer", autonomous_optimizer_daemon)
+# Start the Shadow Auditor as a genuine daemon thread (NOT via the shared
+# ThreadPoolExecutor - that pool's workers are non-daemon and Python's
+# interpreter-exit machinery waits for them, which would hang forever given
+# this function's infinite while-True loop).
+threading.Thread(target=autonomous_optimizer_daemon, daemon=True,
+                  name="AutonomousOptimizer").start()
 
 print(f"\n{COLORS['10'][0]}[+] Autonomous Optimizer V21.1 Linked Successfully.{RESET}")
 
