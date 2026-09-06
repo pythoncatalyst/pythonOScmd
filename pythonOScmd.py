@@ -55378,3 +55378,4 @@ if __name__ == '__main__':
 # 2-5-18 Added Media Scanner and Display FX Test
 # 2-5-17 Added Graphing Calculator and ASCII Plotting
 # 2-5-16 Added Earth & Moon Animation
+# 9-6-26 Enabled Tactical and Sat Fix
