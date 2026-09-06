@@ -9460,19 +9460,14 @@ if __name__ == "__main__":
 '''
 
 def extract_embedded_files():
-    """Extract embedded modules to correct locations.
+    """Extract/repair PythonOS embedded modules.
 
-    To minimize startup disk I/O we use a sentinel file that indicates
-    extraction has been performed in a previous run.  On subsequent
-    invocations we immediately return without scanning directories or
-    writing files.  When extraction is actually required, we only write
-    files that are missing; unchanged files are never re-written.
+    The extractor is also the built-in repair mechanism.  A sentinel is only
+    a fast-path hint: every expected embedded file is still verified for
+    existence and content.  If a module was deleted, truncated, or replaced
+    with a different version, it is restored from the embedded copy.
     """
-    # quick check for sentinel
     sentinel = os.path.join(SCRIPT_DIR, ".embedded_extracted")
-    if os.path.exists(sentinel):
-        # nothing to do
-        return
 
     try:
         # Files that go to SCRIPT_DIR (same directory as pythonOScmd.py)
@@ -9524,15 +9519,19 @@ def extract_embedded_files():
 
         extracted_count = 0
 
-        # helper that writes file only if missing (or different)
+        # helper that repairs files only when missing or actually different.
+        # The old size-only test could leave a corrupted file in place when it
+        # happened to have the same byte length as the embedded source.
         def _maybe_write(path: str, data: str) -> bool:
-            if os.path.exists(path):
-                # fast check: size compare first
+            encoded = data.encode('utf-8')
+            if os.path.isfile(path):
                 try:
-                    if os.path.getsize(path) == len(data.encode('utf-8')):
-                        return False
+                    with open(path, 'rb') as existing:
+                        if existing.read() == encoded:
+                            return False
                 except Exception:
                     pass
+            os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, 'w', encoding='utf-8') as f:
                 f.write(data)
             return True
@@ -9582,16 +9581,19 @@ def extract_embedded_files():
                 print(f"✅ Created: {file_path}")
                 extracted_count += 1
 
+        # The sentinel means "verified", not merely "was once extracted".
+        # This keeps startup fast while allowing automatic repair after a file
+        # is deleted or damaged between runs.
+        try:
+            with open(sentinel, 'w', encoding='utf-8') as sf:
+                sf.write(time.strftime('%Y-%m-%dT%H:%M:%S'))
+        except Exception:
+            pass
+
         if extracted_count > 0:
-            # write sentinel to avoid future I/O
-            try:
-                with open(sentinel, 'w'):
-                    pass
-            except Exception:
-                pass
-            print(f"\n📦 Extracted {extracted_count} modules successfully\n")
+            print(f"\n📦 Extracted/repaired {extracted_count} embedded modules successfully\n")
         else:
-            print(f"\n📦 All modules already exist\n")
+            print(f"\n📦 All embedded modules verified and present\n")
 
         # Generate Module Index for AI & Developers
         print("📑 Generating Module Index for AI Navigation...")
@@ -14395,7 +14397,11 @@ def _db_schedule_tasks_menu():
         print("✅ Scheduler stopped.")
     if not _db_scheduler_running and _db_scheduled_tasks:
         _db_scheduler_running = True
-        submit_async_task("db_scheduler", _db_run_scheduled_tasks)
+        # Runs until _db_scheduler_running is set False - launched as a real
+        # daemon thread (not via the shared ThreadPoolExecutor) so it can
+        # never block process shutdown even if the user forgets to stop it.
+        threading.Thread(target=_db_run_scheduled_tasks, daemon=True,
+                          name="DBScheduler").start()
     input("\nPress Enter to continue...")
 
 def _db_analysis_dashboard():
@@ -14488,7 +14494,10 @@ def _db_api_server_start():
         global _db_api_server
         _db_api_server = HTTPServer(("0.0.0.0", DB_API_PORT), _DBApiHandler)
         _db_api_server.serve_forever()
-    submit_async_task("db_api_server", run_server)
+    # serve_forever() never returns until .shutdown() is called - running it
+    # via the shared ThreadPoolExecutor would block process exit forever.
+    # A real daemon thread is killed automatically when the app quits.
+    threading.Thread(target=run_server, daemon=True, name="DBAPIServer").start()
     print(f"✅ DB API running on port {DB_API_PORT} (path: /stats)")
 
 def _db_orm_view():
@@ -19857,6 +19866,18 @@ def _satellite_targets_from_config(store):
         targets = ["0 LEMUR 1"]
     return targets[:SAT_MAX_TARGETS]
 
+def _sat_code(name, idx):
+    """Safe stand-in for ord(name[idx]) used by the satellite tracker's
+    cosmetic per-satellite variation (signal estimates, pass stats, etc).
+    The original code indexed the satellite name directly and crashed with
+    IndexError on any name shorter than 3 characters. Wrapping the index
+    with modulo makes it impossible to go out of range while still giving
+    each satellite name its own distinct-looking values."""
+    if not name:
+        return 65  # 'A' fallback for an empty name
+    return ord(name[idx % len(name)])
+
+
 def feature_satellite_tracker():
     """
     Enhanced Satellite Tracker with advanced orbital mechanics, pass predictions,
@@ -19981,14 +20002,22 @@ def feature_satellite_tracker():
             sat_name = input("Enter satellite name: ").strip()
             tle = store.get(sat_name)
             if tle:
+                # BUGFIX: TLEStore.get() returns a plain "name\nline1\nline2"
+                # string (see TLEStore.update_from_celestrak / the default
+                # "0 LEMUR 1" entry), not a dict. The old code called
+                # tle.get('line1', ...) on that string, which always raised
+                # AttributeError: 'str' object has no attribute 'get' -
+                # meaning this screen crashed on every valid satellite name.
+                tle_lines = tle.splitlines()
+                line1 = tle_lines[1] if len(tle_lines) > 1 else ''
+                line2 = tle_lines[2] if len(tle_lines) > 2 else ''
                 print(f"\n{BOLD}{sat_name}{RESET}")
-                print(f"TLE Line 1: {tle.get('line1', 'N/A')[:50]}...")
-                print(f"TLE Line 2: {tle.get('line2', 'N/A')[:50]}...")
+                print(f"TLE Line 1: {line1[:50]}...")
+                print(f"TLE Line 2: {line2[:50]}...")
 
                 # Extract orbital parameters from TLE
                 try:
                     # Parse TLE data (simplified orbital mechanics)
-                    line2 = tle.get('line2', '')
                     if len(line2) > 50:
                         inclination = float(line2[8:16])
                         raan = float(line2[17:25])  # Right Ascension of Ascending Node
@@ -20055,10 +20084,10 @@ def feature_satellite_tracker():
                 print(f"\n{BOLD}{sat_name}{RESET}")
                 print(f"Recent selections: {_satellite_recent_selections(limit=3)}")
                 print(f"\nPass Statistics (Last 30 days):")
-                print(f"  Total passes: {15 + (ord(sat_name[0]) % 10)}")
-                print(f"  Avg max elevation: {55 + (ord(sat_name[1]) % 20)}°")
-                print(f"  Best pass (max elev): {75 + (ord(sat_name[2]) % 15)}°")
-                print(f"  Visibility: {100 - (ord(sat_name[-1]) % 30)}% observable from station")
+                print(f"  Total passes: {15 + (_sat_code(sat_name, 0) % 10)}")
+                print(f"  Avg max elevation: {55 + (_sat_code(sat_name, 1) % 20)}°")
+                print(f"  Best pass (max elev): {75 + (_sat_code(sat_name, 2) % 15)}°")
+                print(f"  Visibility: {100 - (_sat_code(sat_name, -1) % 30)}% observable from station")
             else:
                 print(f"{COLORS['1'][0]}Satellite not found{RESET}")
             input(f"\n{BOLD}[ ⌨️ Press Enter to return... ]{RESET}")
@@ -20069,9 +20098,9 @@ def feature_satellite_tracker():
             sat_name = input("Enter satellite name: ").strip()
             if store.get(sat_name):
                 now = datetime.utcnow()
-                azimuth = (45 + (ord(sat_name[0]) * 7)) % 360
-                elevation = (25 + (ord(sat_name[1]) * 3)) % 90
-                distance = 350 + (ord(sat_name[2]) * 11) % 1000
+                azimuth = (45 + (_sat_code(sat_name, 0) * 7)) % 360
+                elevation = (25 + (_sat_code(sat_name, 1) * 3)) % 90
+                distance = 350 + (_sat_code(sat_name, 2) * 11) % 1000
 
                 print(f"\n{BOLD}{sat_name} - Current Position{RESET}")
                 print(f"Time: {now.strftime('%Y-%m-%d %H:%M:%S UTC')}")
@@ -20097,8 +20126,8 @@ def feature_satellite_tracker():
             sat_name = input("Enter satellite name: ").strip()
             if store.get(sat_name):
                 # Simulate decay calculation
-                decay_rate = (ord(sat_name[0]) % 100) / 1000  # km/day
-                current_alt = 350 + (ord(sat_name[1]) * 5) % 500
+                decay_rate = (_sat_code(sat_name, 0) % 100) / 1000  # km/day
+                current_alt = 350 + (_sat_code(sat_name, 1) * 5) % 500
                 days_remaining = current_alt / (decay_rate + 0.01)
 
                 print(f"\n{BOLD}{sat_name} - Decay Analysis{RESET}")
@@ -20124,7 +20153,7 @@ def feature_satellite_tracker():
             freq_mhz = input("Transmit Frequency (MHz) [145.80]: ").strip() or "145.80"
             try:
                 freq = float(freq_mhz)
-                velocity = (ord(sat_name[0]) % 30) - 15  # km/s (simulated)
+                velocity = (_sat_code(sat_name, 0) % 30) - 15  # km/s (simulated)
                 c = 299792.458  # speed of light
                 doppler_shift = freq * velocity / c
 
@@ -20144,8 +20173,8 @@ def feature_satellite_tracker():
             print_header("📶 Signal Strength Estimator")
             sat_name = input("Enter satellite name: ").strip()
             if store.get(sat_name):
-                distance = 400 + (ord(sat_name[0]) % 500)
-                txpower = 1 + (ord(sat_name[1]) % 50)
+                distance = 400 + (_sat_code(sat_name, 0) % 500)
+                txpower = 1 + (_sat_code(sat_name, 1) % 50)
                 path_loss = 20 * math.log10(distance) + 20 * math.log10(145.8)
                 signal = txpower - path_loss
 
@@ -20166,9 +20195,9 @@ def feature_satellite_tracker():
             if store.get(sat_name):
                 print(f"\n{BOLD}{sat_name} - Beacon Information{RESET}")
                 freqs = [
-                    ('Downlink (Telemetry)', f"{145.80 + (ord(sat_name[0]) % 10) * 0.1:.2f} MHz"),
-                    ('Uplink (Command)', f"{144.39 + (ord(sat_name[1]) % 10) * 0.1:.2f} MHz"),
-                    ('Beacon Frequency', f"{146.50 + (ord(sat_name[2]) % 5) * 0.05:.2f} MHz"),
+                    ('Downlink (Telemetry)', f"{145.80 + (_sat_code(sat_name, 0) % 10) * 0.1:.2f} MHz"),
+                    ('Uplink (Command)', f"{144.39 + (_sat_code(sat_name, 1) % 10) * 0.1:.2f} MHz"),
+                    ('Beacon Frequency', f"{146.50 + (_sat_code(sat_name, 2) % 5) * 0.05:.2f} MHz"),
                 ]
                 for name, freq in freqs:
                     print(f"  {name}: {freq}")
@@ -20184,7 +20213,7 @@ def feature_satellite_tracker():
                 print(f"\n{BOLD}{sat_name} - Communications{RESET}")
                 print(f"  Modulation: FSK / AX.25")
                 print(f"  Encoding: ASCII / Binary")
-                print(f"  Encryption: {'AES-128' if ord(sat_name[0]) % 2 else 'None (Public)'}")
+                print(f"  Encryption: {'AES-128' if _sat_code(sat_name, 0) % 2 else 'None (Public)'}")
                 print(f"  Baud Rate: {'9600' if len(sat_name) % 2 else '1200'} baud")
                 print(f"  Mode: Digipeater / Transponder")
             else:
@@ -23540,36 +23569,128 @@ def _create_and_install_in_venv(package: str, venv_path: Optional[str] = None) -
         return False, venv_path
 
 
-def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool = True, local: bool = False) -> bool:
-    """Try pip install; on PEP-668 errors attempt OS package then virtualenv fallback.
+def _is_admin_privileged() -> bool:
+    """Return True when the current process has administrator/root privileges."""
+    try:
+        if os.name == 'nt':
+            import ctypes as _ctypes_admin
+            return bool(_ctypes_admin.windll.shell32.IsUserAnAdmin())
+        return hasattr(os, 'geteuid') and os.geteuid() == 0
+    except Exception:
+        return False
+
+
+def _ask_install_admin_permission(packages: Optional[List[str]] = None) -> bool:
+    """Ask for explicit user approval before any administrator-level install."""
+    package_text = ', '.join(packages or [])
+    if package_text:
+        print(f"\n⚠️ Administrator privileges are required to install: {package_text}")
+    else:
+        print("\n⚠️ Administrator privileges are required for this installation.")
+    print("PythonOS will not request elevation unless you explicitly approve it.")
+    try:
+        ans = input("Allow administrator installation? [y/N]: ").strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("Installation cancelled.")
+        return False
+    return ans in ('y', 'yes')
+
+
+def _run_elevated_pip_install(package: str, extra_args: Optional[List[str]] = None):
+    """Run pip under administrator/root privileges after prior user approval.
+
+    Windows uses UAC (PowerShell Start-Process -Verb RunAs -Wait).
+    POSIX systems use sudo when available. The command is limited to the pip
+    install operation; PythonOS itself is not relaunched elevated.
+    """
+    extra_args = list(extra_args or [])
+    pip_args = ['-m', 'pip', 'install', '--upgrade'] + extra_args + [package]
+
+    if _is_admin_privileged():
+        return _run_cmd_capture([sys.executable] + pip_args)
+
+    if os.name == 'nt':
+        # Package names originate from PythonOS's static dependency map, but
+        # quote every argument so spaces/special characters cannot alter the command.
+        import subprocess as _subprocess_admin
+        ps_quote = lambda s: "'" + str(s).replace("'", "''") + "'"
+        arg_list = ','.join(ps_quote(a) for a in pip_args)
+        ps = (
+            "$p = Start-Process -FilePath " + ps_quote(sys.executable) +
+            " -Verb RunAs -ArgumentList @(" + arg_list + ") -Wait -PassThru; "
+            "exit $p.ExitCode"
+        )
+        return _run_cmd_capture([
+            'powershell', '-NoProfile', '-NonInteractive', '-Command', ps
+        ])
+
+    sudo = shutil.which('sudo')
+    if sudo:
+        return _run_cmd_capture([sudo, '-E', sys.executable] + pip_args)
+
+    # Some desktop Linux systems expose pkexec instead of sudo.
+    pkexec = shutil.which('pkexec')
+    if pkexec:
+        return _run_cmd_capture([pkexec, sys.executable] + pip_args)
+
+    # No supported elevation mechanism. Return a normal failed result shape.
+    class _FailedResult:
+        returncode = 1
+        stdout = ''
+        stderr = 'No supported administrator elevation tool (sudo/pkexec) was found.'
+    return _FailedResult()
+
+
+def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool = True, local: bool = False, require_admin: bool = False, admin_approved: bool = False) -> bool:
+    """Try pip install; optionally require explicit administrator approval.
+
+    ``require_admin=True`` is used by the Download Center dependency repair path.
+    PythonOS first asks the user for permission and then elevates only the pip
+    command. The rest of PythonOS stays at the user's normal privilege level.
 
     If ``local`` is True the package will be installed into the
-    ``pythonOS_data/python_packages`` directory using ``pip --target`` and
-    the folder is automatically added to ``sys.path`` so imported packages
-    are available to the script without needing a global install.
+    ``pythonOS_data/python_packages`` directory using ``pip --target``.
     """
-    print(f"📥 Installing package: {package} (local={local})")
+    print(f"📥 Installing package: {package} (local={local}, admin_required={require_admin})")
+
+    # Explicit approval occurs before any elevated command.
+    if require_admin and not admin_approved and not _is_admin_privileged():
+        if not _ask_install_admin_permission([package]):
+            return False
+
     if local:
-        # install into local package directory
-        pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', '--target', LOCAL_PYTHON_PACKAGES, package]
-        # ensure target dir is on path
+        pip_args = ['--target', LOCAL_PYTHON_PACKAGES]
         if LOCAL_PYTHON_PACKAGES not in sys.path:
             sys.path.insert(0, LOCAL_PYTHON_PACKAGES)
     else:
-        pip_cmd = [sys.executable, '-m', 'pip', 'install', '--upgrade', package]
-    res = _run_cmd_capture(pip_cmd)
+        pip_args = []
+
+    if require_admin:
+        res = _run_elevated_pip_install(package, pip_args)
+    else:
+        res = _run_cmd_capture([sys.executable, '-m', 'pip', 'install', '--upgrade'] + pip_args + [package])
+
     if res.returncode == 0:
         return True
 
-    output = (res.stderr or '') + '\n' + (res.stdout or '')
+    output = (getattr(res, 'stderr', '') or '') + '\n' + (getattr(res, 'stdout', '') or '')
     if 'externally-managed-environment' in output.lower():
         print("⚠️ Detected externally-managed environment (PEP 668). Trying safe fallbacks...")
-        # 1) Try OS package manager mapping
-        if _attempt_system_pkg_install(package):
-            print(f"✅ Installed '{package}' via OS package manager.")
-            return True
+        # OS-native installers may also require elevation. Ask only once when
+        # the caller has not already explicitly approved administrator access.
+        if not require_admin and not _is_admin_privileged():
+            if _ask_install_admin_permission([package]):
+                require_admin = True
+        if require_admin:
+            if _attempt_system_pkg_install(package):
+                print(f"✅ Installed '{package}' via OS package manager.")
+                return True
+        else:
+            if _attempt_system_pkg_install(package):
+                print(f"✅ Installed '{package}' via OS package manager.")
+                return True
 
-        # 2) Offer / create a virtual environment and install there
+        # Offer / create a virtual environment as the non-system fallback.
         if auto_venv:
             if prompt_user:
                 ans = input(f"Create a virtual environment and install '{package}' there? [Y/n]: ").strip().lower()
@@ -23583,12 +23704,10 @@ def safe_install_package(package: str, auto_venv: bool = True, prompt_user: bool
                 return True
             print("❌ Virtualenv install failed.")
 
-        # 3) Show --break-system-packages as last-resort (do not run automatically)
-        print("If you truly need a system install, you can re-run pip with '--break-system-packages' (risky).")
+        print("System package installation was not completed.")
         return False
 
-    # fallback: other pip error
-    print((res.stderr or res.stdout or 'pip install failed').strip().splitlines()[-1])
+    print((getattr(res, 'stderr', '') or getattr(res, 'stdout', '') or 'pip install failed').strip().splitlines()[-1])
     return False
 
 
@@ -24227,7 +24346,7 @@ def _download_center_catalog():
                 ]
             },
             "links": [
-                "https://equalizerapo.com/",
+                "https://sourceforge.net/projects/equalizerapo/",
                 "https://soundbyte.io/",
                 "https://www.asus.com/support/",
                 "https://sourceforge.net/projects/peace-equalizer-apo-extension/",
@@ -24718,7 +24837,7 @@ def _download_center_catalog():
                 "https://github.com/Gpredict/gpredict",
                 "https://stellarium.org/",
                 "http://www.gnuplot.info/",
-                "https://www.celestrak.org/",
+                "https://celestrak.org/",
                 "https://rhodesmill.org/pyephem/"
             ]
         },
@@ -24888,7 +25007,7 @@ def _download_center_catalog():
                 "https://python-visualization.github.io/folium/",
                 "https://geopandas.org/",
                 "https://geopy.readthedocs.io/",
-                "https://www.pyproj.org/",
+                "https://pyproj4.github.io/pyproj/stable/",
                 "https://scitools.org.uk/cartopy/",
                 "https://leafletjs.com/"
             ]
@@ -25270,7 +25389,10 @@ def _download_center_print_commands(os_key, entry):
     return cmd_list
 
 def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=None):
+    """Run catalog commands and return True only when all actionable commands succeed."""
     available_mgrs = _detect_package_managers()
+    overall_ok = True
+    actionable = False
     for cmd in cmd_list:
         if cmd.strip().startswith("#") or not cmd.strip():
             continue
@@ -25294,9 +25416,11 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
             # non-absolute python executables still OK
             if exe.startswith("python") or exe.endswith("python") or exe.endswith("python3"):
                 exe_allowed = True
-        if not exe_allowed and exe not in available_mgrs and exe not in ("bash", "sh", "curl", "git", "echo"):  # allow common tools
-            print(f"{COLORS['1'][0]}⚠️  Skipping '{cmd}' – '{exe}' not found on this system{RESET}")
+        if not exe_allowed and exe not in available_mgrs and exe not in ("bash", "sh", "curl", "git", "echo"):
+            print(f"{COLORS['1'][0]}⚠️  Cannot run '{cmd}' – '{exe}' is not available on this system{RESET}")
+            overall_ok = False
             continue
+        actionable = True
         # if this command invokes pip, use our safe installer which handles
         # externally-managed environments by falling back to system packages
         # or creating a virtualenv.
@@ -25307,6 +25431,7 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
                 for pkg in pkgs:
                     if not safe_install_package(pkg, local=local_flag):
                         print(f"{COLORS['1'][0]}⚠️  Failed to install package {pkg}{RESET}")
+                        overall_ok = False
                         break
                 continue
             # if we couldn't parse packages, just run normally
@@ -25316,15 +25441,20 @@ def _download_center_run_commands(cmd_list, app_key=None, entry=None, os_key=Non
                     cmd = cmd + f" --target {LOCAL_PYTHON_PACKAGES}"
             r = _run_cmd_capture(cmd, shell=True)
             if r.returncode != 0:
+                overall_ok = False
                 print(f"{COLORS['1'][0]}Command failed: {cmd}{RESET}")
             continue
         # non-pip commands executed directly
-        os.system(cmd)
+        rc = os.system(cmd)
+        if rc != 0:
+            overall_ok = False
+            print(f"{COLORS['1'][0]}Command failed (exit {rc}): {cmd}{RESET}")
     if app_key and isinstance(entry, dict) and os_key:
         try:
             _register_dynamic_app(app_key, entry, os_key)
         except Exception:
             pass
+    return overall_ok if actionable else False
 
 def feature_tui_tools():
     """TUI Tools Manager: AI-powered universal install with full OS compatibility."""
@@ -25879,6 +26009,280 @@ def feature_tui_tools():
 
 
 
+# ---------------------------------------------------------------------------
+# DOWNLOAD CENTER: LINK + PYTHON DEPENDENCY REPAIR HELPERS
+# ---------------------------------------------------------------------------
+
+def _normalize_download_link(link: str) -> str:
+    """Normalize catalog URLs before displaying/opening them."""
+    if not isinstance(link, str):
+        return ""
+    link = link.strip()
+    # A few embedded shell snippets historically leaked closing punctuation
+    # into the catalog.  Remove only characters that cannot be part of a URL.
+    while link.endswith((")", "]", "}", "'", '"', "\\")):
+        link = link[:-1].rstrip()
+    return link
+
+
+def _open_download_link(link: str) -> bool:
+    """Open a catalog URL in the user's default browser."""
+    import webbrowser
+    from urllib.parse import urlparse
+
+    url = _normalize_download_link(link)
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        print(f"{COLORS['1'][0]}✗ Invalid download link: {link}{RESET}")
+        return False
+
+    try:
+        opened = webbrowser.open(url, new=2)
+        if opened:
+            print(f"{COLORS['2'][0]}✓ Opened: {url}{RESET}")
+        else:
+            print(f"{COLORS['4'][0]}⚠ Browser did not report success. URL:{RESET} {url}")
+        return bool(opened)
+    except Exception as exc:
+        print(f"{COLORS['1'][0]}✗ Could not open link: {exc}{RESET}")
+        print(f"  URL: {url}")
+        return False
+
+
+def _pythonos_dependency_map() -> dict:
+    """Map Python import names to PyPI distribution names.
+
+    The scanner deliberately uses ``find_spec`` rather than importing optional
+    modules, because PythonOS has fallback modules that can hide real missing
+    dependencies.
+    """
+    return {
+        "PIL": "Pillow",
+        "cv2": "opencv-python",
+        "bs4": "beautifulsoup4",
+        "yaml": "PyYAML",
+        "sklearn": "scikit-learn",
+        "dateutil": "python-dateutil",
+        "jwt": "PyJWT",
+        "google.generativeai": "google-generativeai",
+        "google.genai": "google-genai",
+        "psycopg2": "psycopg2-binary",
+        "websocket": "websocket-client",
+        "serial": "pyserial",
+        "fitz": "PyMuPDF",
+        "docx": "python-docx",
+        "openpyxl": "openpyxl",
+        "xlrd": "xlrd",
+        "ebooklib": "EbookLib",
+        "Crypto": "pycryptodome",
+        "OpenSSL": "pyOpenSSL",
+        "cv": "opencv-python",
+        "skimage": "scikit-image",
+        "lxml": "lxml",
+        "magic": "python-magic",
+        "usb": "pyusb",
+        "qrcode": "qrcode",
+        "nacl": "PyNaCl",
+        "paramiko": "paramiko",
+        "scapy": "scapy",
+        "selenium": "selenium",
+        "rich": "rich",
+        "textual": "textual",
+        "fastapi": "fastapi",
+        "flask": "flask",
+        "requests": "requests",
+        "aiohttp": "aiohttp",
+        "numpy": "numpy",
+        "pandas": "pandas",
+        "matplotlib": "matplotlib",
+        "scipy": "scipy",
+        "sympy": "sympy",
+        "networkx": "networkx",
+        "psutil": "psutil",
+        "pydantic": "pydantic",
+        "sqlalchemy": "sqlalchemy",
+        "redis": "redis",
+        "boto3": "boto3",
+        "geopy": "geopy",
+        "geopandas": "geopandas",
+        "folium": "folium",
+        "plotly": "plotly",
+        "tqdm": "tqdm",
+        "hypothesis": "hypothesis",
+        "bandit": "bandit",
+        "safety": "safety",
+        "trufflehog": "trufflehog",
+        "pwntools": "pwntools",
+        "ropgadget": "ropgadget",
+        "dronekit": "dronekit",
+    }
+
+
+def _pythonos_collect_imports(source_text: str) -> set:
+    """Return top-level import names from Python source without executing it."""
+    import ast
+
+    found = set()
+    try:
+        tree = ast.parse(source_text)
+    except SyntaxError:
+        return found
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                found.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.level == 0:
+                found.add(node.module.split(".")[0])
+    return found
+
+
+def _pythonos_scan_python_dependencies(include_embedded: bool = True) -> dict:
+    """Scan the main script and embedded Python modules for missing packages."""
+    import importlib.util
+    import sys as _sys
+
+    sources = {}
+    try:
+        with open(__file__, "r", encoding="utf-8", errors="replace") as fh:
+            sources[os.path.basename(__file__)] = fh.read()
+    except Exception as exc:
+        return {"missing": [], "present": [], "errors": [str(exc)]}
+
+    if include_embedded:
+        for name, value in globals().items():
+            if name.startswith("EMBEDDED_") and isinstance(value, str):
+                # Only scan strings that actually look like Python source.
+                if "import " in value or "from " in value:
+                    sources[name] = value
+
+    imports = set()
+    for source_name, source_body in sources.items():
+        imports.update(_pythonos_collect_imports(source_body))
+
+    stdlib = set(getattr(_sys, "stdlib_module_names", set()))
+    # Modules supplied by the running interpreter/platform but not in the
+    # stdlib list on older Python versions.
+    stdlib.update({
+        "__future__", "builtins", "typing_extensions", "importlib_metadata"
+    })
+
+    mapping = _pythonos_dependency_map()
+    missing = []
+    present = []
+    unknown = []
+
+    for mod in sorted(imports):
+        if not mod or mod in stdlib or mod.startswith("_"):
+            continue
+        try:
+            spec = importlib.util.find_spec(mod)
+            available = spec is not None
+        except (ImportError, ModuleNotFoundError, ValueError, AttributeError):
+            available = False
+
+        if available:
+            present.append((mod, mapping.get(mod, mod)))
+        elif mod in mapping:
+            missing.append((mod, mapping[mod]))
+        else:
+            unknown.append(mod)
+
+    return {
+        "missing": missing,
+        "present": present,
+        "unknown": unknown,
+        "scanned_sources": list(sources.keys()),
+    }
+
+
+def _repair_pythonos_dependencies(interactive: bool = True) -> dict:
+    """Repair missing Python dependencies using PythonOS's existing safe installer."""
+    print_header("🧩 PythonOS Dependency Scan & Repair")
+
+    # First repair the built-in modules.  This is important: the Download
+    # Center must use the embedded subsystem instead of trying to fetch
+    # PythonOS's own .py files from the Internet.
+    try:
+        extract_embedded_files()
+    except Exception as exc:
+        print(f"{COLORS['4'][0]}⚠ Embedded-module repair warning: {exc}{RESET}")
+
+    report = _pythonos_scan_python_dependencies(include_embedded=True)
+    missing = report.get("missing", [])
+
+    print(f"\n{BOLD}Embedded/Python source files scanned:{RESET} "
+          f"{len(report.get('scanned_sources', []))}")
+    print(f"{BOLD}Missing third-party Python packages:{RESET} {len(missing)}")
+
+    if missing:
+        for mod, pkg in missing:
+            print(f"  {COLORS['1'][0]}✗{RESET} {mod:24} → {pkg}")
+    else:
+        print(f"  {COLORS['2'][0]}✓ No mapped Python dependencies are missing.{RESET}")
+
+    unknown = report.get("unknown", [])
+    if unknown:
+        print(f"\n{COLORS['4'][0]}Unmapped imports (not auto-installed):{RESET}")
+        print("  " + ", ".join(unknown[:40]))
+        if len(unknown) > 40:
+            print(f"  ... and {len(unknown) - 40} more")
+
+    if not missing:
+        input("\n[ Press Enter to return... ]")
+        return report
+
+    # One explicit approval for the complete repair operation. No package
+    # installation is attempted before the user grants administrator access.
+    if interactive:
+        approved = _ask_install_admin_permission([pkg for _, pkg in missing])
+        if not approved:
+            print("Installation cancelled; no packages were changed.")
+            input("\n[ Press Enter to return... ]")
+            return report
+
+    installed = []
+    failed = []
+    for mod, pkg in missing:
+        print(f"\n📦 Repairing {mod} with distribution {pkg}...")
+        try:
+            # Use PythonOS's existing safe installer, but now perform the
+            # approved repair as an administrator/system installation.
+            ok = safe_install_package(
+                pkg,
+                auto_venv=True,
+                prompt_user=False,
+                local=False,
+                require_admin=True,
+                admin_approved=True
+            )
+        except Exception as exc:
+            ok = False
+            print(f"{COLORS['1'][0]}✗ Installer error: {exc}{RESET}")
+
+        if ok:
+            installed.append((mod, pkg))
+            print(f"{COLORS['2'][0]}✓ Repaired: {mod} ← {pkg}{RESET}")
+        else:
+            failed.append((mod, pkg))
+            print(f"{COLORS['1'][0]}✗ Failed: {mod} ← {pkg}{RESET}")
+
+    # Refresh import visibility after local installs.
+    if LOCAL_PYTHON_PACKAGES not in sys.path:
+        sys.path.insert(0, LOCAL_PYTHON_PACKAGES)
+    importlib.invalidate_caches()
+
+    print(f"\n{BOLD}Repair summary:{RESET}")
+    print(f"  Installed: {len(installed)}")
+    print(f"  Failed:   {len(failed)}")
+
+    report["installed"] = installed
+    report["failed"] = failed
+    input("\n[ Press Enter to return... ]")
+    return report
+
+
 def feature_download_center():
     """📦 Enhanced Download Center: 27-Feature OS-Aware Package Management System."""
     os_key = _detect_os_key()
@@ -25932,9 +26336,11 @@ def feature_download_center():
             success = False
             for attempt in range(1, 4):
                 try:
-                    _download_center_run_commands(commands, app_key=pkg_key, entry=entry, os_key=os_key)
-                    success = True
-                    break
+                    success = bool(_download_center_run_commands(
+                        commands, app_key=pkg_key, entry=entry, os_key=os_key
+                    ))
+                    if success:
+                        break
                 except Exception as e:
                     log_warning(f"Attempt {attempt} failed for {pkg_key}: {e}", component="DownloadAll")
                     time.sleep(1)
@@ -26040,14 +26446,23 @@ def feature_download_center():
             print(f"  {COLORS['2'][0]}✓ generic (fallback){RESET}")
 
         print(f"\n{BOLD}Download Links:{RESET}")
-        links = entry.get("links", [])
+        links = [_normalize_download_link(link) for link in entry.get("links", [])]
+        links = [link for link in links if link]
         if links:
             for i, link in enumerate(links, 1):
                 print(f"  [{i}] {link}")
+            print("  [O] Open a link in your default browser")
+            link_choice = input("\nLink selection (Enter to return): ").strip().upper()
+            if link_choice == "O":
+                idx = input("Link number: ").strip()
+                if idx.isdigit() and 1 <= int(idx) <= len(links):
+                    _open_download_link(links[int(idx) - 1])
+                else:
+                    print(f"{COLORS['1'][0]}Invalid link number.{RESET}")
+                input("\n[ Press Enter to return... ]")
         else:
-            print("  No direct links available")
-
-        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+            print("  No valid download links available")
+            input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
 
     def show_architecture_guide():
         """Show architecture compatibility guide."""
@@ -26120,7 +26535,12 @@ def feature_download_center():
             else:
                 print(f"  {COLORS['1'][0]}✗{RESET} {dep_name:25} Not found")
 
-        input(f"\n{BOLD}[ Press Enter to return... ]{RESET}")
+        print(f"\n{BOLD}[R] Scan and repair missing PythonOS modules/packages{RESET}")
+        dep_action = input("Enter R to repair, or press Enter to return: ").strip().upper()
+        if dep_action == "R":
+            _repair_pythonos_dependencies(interactive=True)
+        else:
+            return
 
     def manage_credentials():
         """Interactive credential manager for all downloads."""
@@ -26342,6 +26762,7 @@ def feature_download_center():
         print(" [D] 🖥️  System Detection & Compatibility")
         print(" [A] 🏗️  Architecture & Distro Guide")
         print(" [C] 🔍 Dependency Checker")
+        print(" [R] 🛠️  Scan & Repair Missing Python Modules")
         print(" [I] ℹ️  Package Information Viewer")
         print(" [P] 🧩  Package Manager Helper")
         print(" [S] 📍 Select OS Target")
@@ -26360,6 +26781,9 @@ def feature_download_center():
             continue
         if choice == 'C':
             show_dependency_checker()
+            continue
+        if choice == 'R':
+            _repair_pythonos_dependencies(interactive=True)
             continue
         if choice == 'I':
             os.system('cls' if os.name == 'nt' else 'clear')
@@ -48285,6 +48709,96 @@ def feature_quick_audio_playback():
         print(f"{COLORS['1'][0]}❌ Playback failed: {exc}{RESET}")
         time.sleep(1)
 
+# --- TACTICAL / DRONE INTEGRATION CENTER ---
+def feature_tactical_center():
+    """Unified Tactical Center for the Classic Command Center.
+
+    Loads the embedded tactical and drone/radio-control modules and exposes
+    their existing interfaces. No flight/RF action is automatically issued.
+    """
+    swap_dir = os.path.join(SCRIPT_DIR, "pythonOS_data", "swap")
+    tactical_path = os.path.join(swap_dir, "tactical.py")
+    radio_path = os.path.join(swap_dir, "radio_control_two_way.py")
+    os.makedirs(swap_dir, exist_ok=True)
+
+    modules = [
+        ("tactical.py", EMBEDDED_TACTICAL, tactical_path),
+        ("radio_control_two_way.py", EMBEDDED_RADIO_CONTROL, radio_path),
+    ]
+    for filename, content, path in modules:
+        try:
+            if not os.path.exists(path):
+                with open(path, "w", encoding="utf-8") as fh:
+                    fh.write(content)
+        except Exception as exc:
+            print(f"{COLORS['1'][0]}❌ Could not activate {filename}: {exc}{RESET}")
+
+    while True:
+        os.system('cls' if os.name == 'nt' else 'clear')
+        print_header("🎯 TACTICAL CENTER")
+        print("\n" + BOLD + "Embedded subsystem status:" + RESET)
+        print(f"  Tactical script:    {'✅ READY' if os.path.isfile(tactical_path) else '❌ MISSING'}")
+        print(f"  Drone/Radio script: {'✅ READY' if os.path.isfile(radio_path) else '❌ MISSING'}")
+        print(f"  Integration layer:  {'✅ READY' if os.path.isfile(os.path.join(swap_dir, 'integration_layer.py')) else '⚠️ MISSING'}")
+
+        print("\n" + BOLD + "OPTIONS:" + RESET)
+        print(" [1] 📡 Tactical Module Status / Monitor")
+        print(" [2] 🚁 Drone / Radio Control Module")
+        print(" [3] 🤖 AI-Tactical Control Panel")
+        print(" [4] 🔄 Refresh Embedded Tactical Modules")
+        print(" [0] ↩️ Return to Classic Menu")
+
+        choice = input(f"\n{BOLD}🎯 Select option: {RESET}").strip()
+
+        if choice == '0':
+            return
+        elif choice == '1':
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print_header("📡 TACTICAL MODULE STATUS")
+            try:
+                spec = importlib.util.spec_from_file_location("pythonos_tactical_center", tactical_path)
+                mod = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(mod)
+                plugin_cls = getattr(mod, "TacticalNexusPlugin", None)
+                print(f"\n{BOLD}Module:{RESET} tactical.py")
+                print(f"{BOLD}Status:{RESET} ✅ Loaded")
+                if plugin_cls:
+                    plugin = plugin_cls()
+                    manifest = plugin.manifest() if hasattr(plugin, "manifest") else {}
+                    print(json.dumps(manifest, indent=2, default=str))
+                else:
+                    print("TacticalNexusPlugin is not exposed by this module version.")
+            except Exception as exc:
+                print(f"\n{COLORS['1'][0]}❌ Tactical module load failed: {exc}{RESET}")
+            input("\nPress Enter to return...")
+        elif choice == '2':
+            print_header("🚁 DRONE / RADIO CONTROL")
+            print("\nLaunching the existing Radio Control module.")
+            print("Its existing confirmations remain in place for live vehicle actions.")
+            print("Use SITL/simulation for testing before connecting to a real vehicle.\n")
+            success = link_external_tool(
+                "RadioControlTwoWay", radio_path, function_name="run",
+                context={"source": "Classic Tactical Center"}
+            )
+            if not success:
+                print(f"{COLORS['1'][0]}❌ Could not launch radio control module.{RESET}")
+            input("\nPress Enter to return...")
+        elif choice == '3':
+            safe_run("ai", "AI_Tactical_Control", feature_ai_tactical_control_panel)
+        elif choice == '4':
+            try:
+                for filename, content, path in modules:
+                    with open(path, "w", encoding="utf-8") as fh:
+                        fh.write(content)
+                print(f"{COLORS['2'][0]}✅ Tactical and Drone/Radio modules refreshed.{RESET}")
+            except Exception as exc:
+                print(f"{COLORS['1'][0]}❌ Refresh failed: {exc}{RESET}")
+            input("\nPress Enter to return...")
+        else:
+            print(f"{COLORS['1'][0]}❌ Invalid option{RESET}")
+            time.sleep(0.8)
+
+
 # Canonical catalog of classic Command Center apps so PyTextOS mirrors every module.
 CLASSIC_APP_ACTIONS = [
     ("browser", {"title": "Web Browser", "summary": "Launch the web browser center.", "category": "general", "operation": "Web_Browser", "func": feature_web_browser_center}),
@@ -48322,6 +48836,7 @@ CLASSIC_APP_ACTIONS = [
     ("ram_drive", {"title": "Ram Drive", "summary": "Branch pythonOS_data into RAM for faster IO.", "category": "system", "operation": "Ram_Drive", "func": feature_ram_drive}),
     ("dynamic_folder", {"title": "Dynamic Folder", "summary": "Auto-linked install folder for apps.", "category": "system", "operation": "Dynamic_Folder", "func": feature_dynamic_folder_center}),
     ("server_client", {"title": "Server/Client Switch", "summary": "Encrypted messaging between pythonOS instances.", "category": "network", "operation": "Server_Client_Switch", "func": feature_server_client_switch}),
+    ("tactical", {"title": "Tactical", "summary": "Tactical + Drone/Radio subsystem center.", "category": "tactical", "operation": "Tactical_Center", "func": feature_tactical_center}),
 ]
 
 # ================================================================================
@@ -48429,7 +48944,7 @@ def run_unified_dashboard(return_to_classic=True):
 [B] Environment      [J] WiFi         [L] Bluetooth [0] Net Tools
 [C] Hardware Serial  [*] Sec Audit    [V] Exit
 [D] AI Probe
-[12] Penetration     [13] Defence
+[12] Penetration     [13] Defence     [16] Tactical
 
 [bold green]🎨 MEDIA & DISPLAY[/bold green]       [bold green]🚀 ADVANCED & MONITORING[/bold green]
 [bold cyan]───────────────────────────  ─────────────────────────────[/bold cyan]
@@ -48502,6 +49017,7 @@ Process Count: {len(psutil.pids())}
         "12": ("Pen_Test_Toolkit", feature_pentest_toolkit),
         "13": ("Defence_Center", feature_defence_center),
         "14": ("Server_Client_Switch", feature_server_client_switch),
+        "16": ("Tactical_Center", feature_tactical_center),
         "a": ("Security_Audit", feature_security_audit),
         "b": ("Environment_Probe", feature_environment_probe),
         "c": ("Hardware_Serials", feature_hardware_serials),
@@ -49385,7 +49901,7 @@ def _build_classic_app_menu_options():
         'media': 'I', 'pybeacon': 'W', 'wifi': 'J', 'ai_center': 'K',
         'bluetooth': 'L', 'traffic': 'M', 'logs': 'N', 'download': 'O',
         'pwn': 'P', 'python_power': 'Q', 'satellite': 'R', 'calculator': 'S',
-        'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z', 'server_client': '14'
+        'docs': 'T', 'ram_drive': 'Y', 'dynamic_folder': 'Z', 'server_client': '14', 'tactical': '16'
     }
 
     for key, meta in CLASSIC_APP_ACTIONS:
@@ -49426,8 +49942,8 @@ def _format_classic_menu_display():
 
     # Row 2: Core Tools (0, 10-14)
     lines.append(f" {BOLD}[0]{RESET} 🌐 Net Tools  {BOLD}[10]{RESET} 🔌 Plugin  {BOLD}[11]{RESET} 📊 Dashboard  {BOLD}[12]{RESET} 🔓 PenTest  {BOLD}[13]{RESET} 🛡️ Defence  {BOLD}[14]{RESET} 🔗 Server/Client")
-    # Extra slot for newly-added option 15
-    lines.append(f" {BOLD}[15]{RESET} 🔗 TerminalTrove")
+    # Extra slots for numeric tools
+    lines.append(f" {BOLD}[15]{RESET} 🔗 TerminalTrove  {BOLD}[16]{RESET} 🎯 Tactical")
 
     # Row 3: Security & System (A-E)
     lines.append(f" {BOLD}[A]{RESET} 🔐 Audit  {BOLD}[B]{RESET} 🔍 Env Probe  {BOLD}[C]{RESET} 📋 Serial  {BOLD}[D]{RESET} 🤖 AI Probe  {BOLD}[E]{RESET} 📅 Calendar")
@@ -53313,7 +53829,7 @@ def run_classic_command_center():
         print(menu_display)
         print(f"{BOLD}{c}{BOX_CHARS['BL']}{BOX_CHARS['H']*64}{BOX_CHARS['BR']}{RESET}")
 
-        choice = input(f"{BOLD}🎯 Select an option (0-Z, 15): {RESET}").strip().upper()
+        choice = input(f"{BOLD}🎯 Select an option (0-Z, 16): {RESET}").strip().upper()
         _update_user_config(last_choice=choice)
 
         # Record command to history (skip settings/navigation commands)
@@ -53381,6 +53897,7 @@ def run_classic_command_center():
         elif choice == '12': safe_run("pentest", "Pen_Test_Toolkit", feature_pentest_toolkit)
         elif choice == '13': safe_run("defense", "Defence_Center", feature_defence_center)
         elif choice == '15': safe_run("network", "TerminalTrove", feature_terminal_trove)
+        elif choice == '16': safe_run("tactical", "Tactical_Center", feature_tactical_center)
         elif choice == '0': safe_run("network", "Network_Toolkit", feature_network_toolkit)
         elif choice == 'A': safe_run("security", "Security_Audit", feature_security_audit)
         elif choice == 'B': safe_run("system", "Environment_Probe", feature_environment_probe)
